@@ -3,6 +3,7 @@ import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
 import Sidebar from '@/components/Sidebar';
+import AppLayout from '@/components/AppLayout';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import '../globals.css';
 
@@ -36,11 +37,10 @@ export default async function LocaleLayout({
           disableTransitionOnChange
         >
           <NextIntlClientProvider locale={locale} messages={messages}>
-            <div className="layout-container" style={{ flexDirection: 'row', width: '100%', height: '100vh', overflow: 'hidden' }}>
-              <Sidebar locale={locale} />
-              <main className="page-container" style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+            <div style={{ height: '100vh' }}>
+              <AppLayout locale={locale}>
                 {children}
-              </main>
+              </AppLayout>
             </div>
           </NextIntlClientProvider>
         </ThemeProvider>

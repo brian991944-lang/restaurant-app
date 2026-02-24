@@ -139,3 +139,21 @@ button {
   padding: 2rem;
   width: 100%;
 }
+
+@media (max-width: 768px) {
+  .page-container {
+    padding: 1rem;
+  }
+}
+
+.responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 600px) {
+  .glass-panel {
+    padding: 1.5rem;
+  }
+}
