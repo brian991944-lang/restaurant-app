@@ -1,0 +1,242 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String?  @unique
+  passwordHash String?
+  role         String   @default("KITCHEN") // KITCHEN, SALON, ADMIN
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  prepAssignments PrepAssignment[]
+}
+
+model Provider {
+  id          String       @id @default(cuid())
+  name        String
+  ingredients Ingredient[]
+}
+
+model Category {
+  id            String       @id @default(cuid())
+  name          String
+  nameEs        String?
+  autoTranslate Boolean      @default(true)
+  department    String // FOOD, DRINKS, CLEANING
+  ingredients   Ingredient[]
+}
+
+model Ingredient {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  nameEs         String?
+  autoTranslate  Boolean   @default(true)
+  type           String // RAW, PROCESSED
+  categoryId     String
+  category       Category  @relation(fields: [categoryId], references: [id])
+  providerId     String?
+  provider       Provider? @relation(fields: [providerId], references: [id])
+  portionWeightG Float     @default(1000.0)
+  metric         String    @default("units")
+  currentPrice   Float     @default(0.0)
+  yieldPercent   Float     @default(100.0)
+  aliases        String? // JSON string
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  parentId  String?
+  parent    Ingredient?  @relation("IngredientToPrep", fields: [parentId], references: [id])
+  prepItems Ingredient[] @relation("IngredientToPrep")
+
+  inventory         Inventory?
+  transactions      InventoryTransaction[]
+  recipeIngredients RecipeIngredient[]
+  prepAssignments   PrepAssignment[]
+  recurringRules    RecurringPrepRule[]
+  vendorMarketItems VendorMarketItem[]
+
+  composedOf  PrepRecipeIngredient[] @relation("RecipeComposedOf")
+  usedInPreps PrepRecipeIngredient[] @relation("UsedInPreps")
+
+  activeMarketItemId String?
+  activeMarketItem   VendorMarketItem?    @relation("ActiveMarketItem", fields: [activeMarketItemId], references: [id])
+  cloverId           String?
+  mappingMultiplier  Float                @default(1.0)
+  ModifierIngredient ModifierIngredient[]
+}
+
+model ProcessedCloverLineItem {
+  id               String   @id @default(cuid())
+  cloverLineItemId String   @unique
+  orderId          String
+  processedAt      DateTime @default(now())
+
+  itemName     String?
+  categoryName String?
+  createdTime  DateTime @default(now())
+  qty          Int      @default(1)
+
+  modifiers ProcessedCloverModifier[]
+}
+
+model ProcessedCloverModifier {
+  id               String                  @id @default(cuid())
+  cloverModifierId String                  @unique
+  lineItemId       String
+  lineItem         ProcessedCloverLineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  modifierName     String?
+  qty              Int                     @default(1)
+}
+
+model VendorMarketItem {
+  id                 String     @id @default(cuid())
+  ingredientId       String
+  ingredient         Ingredient @relation(fields: [ingredientId], references: [id])
+  vendorName         String?
+  invoiceDescription String
+  packSize           Float
+  packUnit           String
+  currentPackPrice   Float
+  lastPurchasedDate  DateTime?
+  culinaryNotes      String?
+  isPreferredVendor  Boolean    @default(false)
+
+  // Reverse relation for activeMarketItem
+  activeForIngredients Ingredient[] @relation("ActiveMarketItem")
+}
+
+model MenuItem {
+  id                    String  @id @default(cuid())
+  name                  String  @unique
+  category              String? // Ceviches, Appetizers, Entrees, Sauces
+  salePrice             Float   @default(0.0)
+  targetFoodCostPct     Float   @default(25.0)
+  cloverId              String?
+  hasInventoryModifiers Boolean @default(false)
+
+  recipeIngredients RecipeIngredient[]
+  modifiers         MenuItemModifier[]
+}
+
+model MenuItemModifier {
+  id               String @id @default(cuid())
+  menuItemId       String
+  name             String
+  cloverModifierId String
+
+  menuItem    MenuItem             @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  ingredients ModifierIngredient[]
+}
+
+model ModifierIngredient {
+  id           String  @id @default(cuid())
+  modifierId   String
+  ingredientId String
+  quantity     Float
+  unit         String?
+
+  modifier   MenuItemModifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  ingredient Ingredient       @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+}
+
+model RecipeIngredient {
+  id           String  @id @default(cuid())
+  menuItemId   String
+  ingredientId String
+  quantity     Float
+  unit         String?
+
+  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+}
+
+model PrepRecipeIngredient {
+  id           String  @id @default(cuid())
+  prepRecipeId String
+  ingredientId String
+  quantity     Float
+  unit         String?
+
+  prepRecipe Ingredient @relation("RecipeComposedOf", fields: [prepRecipeId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation("UsedInPreps", fields: [ingredientId], references: [id], onDelete: Restrict)
+}
+
+model Inventory {
+  id           String     @id @default(cuid())
+  ingredientId String     @unique
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  frozenQty    Float      @default(0.0)
+  thawingQty   Float      @default(0.0)
+}
+
+model InventoryTransaction {
+  id           String     @id @default(cuid())
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+  type         String // DEDUCT_FROZEN, ADD_THAWING, SALES_DEDUCT, PULL_PREP
+  qty          Float
+  note         String?
+  createdAt    DateTime   @default(now())
+}
+
+model DailySales {
+  id           String   @id @default(cuid())
+  date         DateTime
+  itemName     String
+  modification String?
+  qtySOLD      Float
+  price        Float
+  processedAt  DateTime @default(now())
+}
+
+model Schedule {
+  id         String   @id @default(cuid())
+  date       DateTime
+  createdBy  String
+  assignedTo String
+  notes      String?
+
+  prepAssignments PrepAssignment[]
+}
+
+model PrepAssignment {
+  id               String    @id @default(cuid())
+  scheduleId       String
+  userId           String
+  ingredientId     String
+  portionsAssigned Float
+  portionsActual   Float?
+  completed        Boolean   @default(false)
+  completedAt      DateTime?
+
+  schedule   Schedule   @relation(fields: [scheduleId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+}
+
+model DropdownOption {
+  id           String   @id @default(cuid())
+  group        String // Category, Type, Metric
+  name         String
+  nameEs       String?
+  isTranslated Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model RecurringPrepRule {
+  id           String @id @default(cuid())
+  ingredientId String
+  dayOfWeek    Int // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  amount       Float
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+}
