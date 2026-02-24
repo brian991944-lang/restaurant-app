@@ -37,7 +37,6 @@ export default function Sidebar({ locale, isOpen = true, onClose }: SidebarProps
         { name: t('menu'), href: `/${locale}/menu`, icon: ChefHat },
         { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar },
         { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp },
-        { name: t('integrations'), href: `/${locale}/integrations`, icon: Network },
         { name: t('raw_data'), href: `/${locale}/data`, icon: Database },
     ];
 
