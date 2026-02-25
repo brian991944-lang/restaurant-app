@@ -2,15 +2,13 @@
 
 import { MoonStar, Calendar, User, Clock, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { getAssignmentsForDate } from '@/app/actions/nightShift';
+import { getTomorrowAssignments } from '@/app/actions/nightShift';
 
 export default function NightShiftPage() {
     const [assignments, setAssignments] = useState<any[]>([]);
 
     useEffect(() => {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        getAssignmentsForDate(tomorrow).then(setAssignments);
+        getTomorrowAssignments().then(setAssignments);
     }, []);
 
     const tomorrow = new Date();

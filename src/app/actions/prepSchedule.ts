@@ -6,7 +6,6 @@ import { calculateIngredientForecast } from './forecasting';
 export interface PrepTask {
     ingredientId: string;
     ingredientName: string;
-    parentName: string | null;
     metric: string;
     category: string;
     assignedAmount: number; // Put by night shift
@@ -18,7 +17,6 @@ export interface PrepTask {
     hasNightShift: boolean;
     hasRecurring: boolean;
     hasForecast: boolean;
-    isUrgent: boolean;
 }
 
 /**
@@ -70,10 +68,10 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
             recurringMap.set(rule.ingredientId, rule.amount);
         }
 
-        // 3. Fetch all ingredients for forecasting
+        // 3. Fetch all raw ingredients for forecasting
         const rawIngredients = await prisma.ingredient.findMany({
-            where: { type: { in: ['RAW', 'PREP', 'PROCESSED'] } },
-            include: { category: true, parent: true }
+            where: { type: 'RAW' },
+            include: { category: true }
         });
 
         const mergedTasks: PrepTask[] = [];
@@ -92,16 +90,13 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
             const hasRecurring = recurringAmount > 0;
             const hasForecast = forecast > 0;
 
-            const isUrgent = assignment ? assignment.isUrgent : false;
-
             // If no data points to prepping this ingredient today, skip
-            if (!hasNightShift && !hasRecurring) continue;
+            if (!hasNightShift && !hasRecurring && !hasForecast) continue;
 
             mergedTasks.push({
                 ingredientId: ingredient.id,
                 ingredientName: ingredient.name,
-                parentName: ingredient.parent?.name || null,
-                metric: ingredient.metric || 'units',
+                metric: 'kg', // Currently hardcoded to kg for raw ingredients
                 category: ingredient.category.name,
                 assignedAmount: assignment ? assignment.portionsAssigned : 0,
                 forecastAmount: forecast,
@@ -111,8 +106,7 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 assignmentId: assignment?.id,
                 hasNightShift,
                 hasRecurring,
-                hasForecast,
-                isUrgent
+                hasForecast
             });
         }
 
@@ -130,57 +124,21 @@ export async function completePrepTask(
     ingredientId: string,
     actualAmount: number,
     userId: string,
-    assignmentId?: string,
-    note?: string
+    assignmentId?: string
 ) {
     try {
         const today = new Date();
 
         // 1. Update or create the PrepAssignment if one existed
-        let finalAssignmentId = assignmentId;
         if (assignmentId) {
             await prisma.prepAssignment.update({
                 where: { id: assignmentId },
                 data: {
                     portionsActual: actualAmount,
                     completed: true,
-                    completedAt: today,
-                    userId
-                }
-            });
-        } else {
-            // Find or create schedule for today
-            const startOfDay = new Date(today);
-            startOfDay.setHours(0, 0, 0, 0);
-
-            let schedule = await prisma.schedule.findFirst({
-                where: {
-                    date: { gte: startOfDay, lte: new Date(new Date(today).setHours(23, 59, 59, 999)) }
-                }
-            });
-
-            if (!schedule) {
-                schedule = await prisma.schedule.create({
-                    data: {
-                        date: today,
-                        createdBy: 'System (Auto-Complete)',
-                        assignedTo: 'MorningCrew'
-                    }
-                });
-            }
-
-            const newAssignment = await prisma.prepAssignment.create({
-                data: {
-                    scheduleId: schedule.id,
-                    userId,
-                    ingredientId,
-                    portionsAssigned: 0,
-                    portionsActual: actualAmount,
-                    completed: true,
                     completedAt: today
                 }
             });
-            finalAssignmentId = newAssignment.id;
         }
 
         // 2. We need to create an Inventory transaction.
@@ -217,7 +175,7 @@ export async function completePrepTask(
                 ingredientId,
                 type: 'PULL_PREP',
                 qty: actualAmount,
-                note: note || `Morning Prep task completed by cook ${userId}`
+                note: `Morning Prep task completed by cook ${userId}`
             }
         });
 
@@ -270,56 +228,11 @@ export async function undoPrepTask(
                 note: 'Morning Prep task undone via UI'
             }
         });
+
         return { success: true };
     } catch (error) {
         console.error('Failed to undo prep task:', error);
-        return { success: false, error: 'Failed to undo prep task' };
-    }
-}
-
-/**
- * Creates a manual prep task for a specific date (usually today).
- */
-export async function createManualPrepAssignment(
-    ingredientId: string,
-    targetDate: Date,
-    isUrgent: boolean,
-    amount: number
-) {
-    try {
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-
-        let schedule = await prisma.schedule.findFirst({
-            where: {
-                date: { gte: startOfDay, lte: new Date(new Date(targetDate).setHours(23, 59, 59, 999)) }
-            }
-        });
-
-        if (!schedule) {
-            schedule = await prisma.schedule.create({
-                data: {
-                    date: targetDate,
-                    createdBy: 'System (Manual Add)',
-                    assignedTo: 'MorningCrew'
-                }
-            });
-        }
-
-        await prisma.prepAssignment.create({
-            data: {
-                scheduleId: schedule.id,
-                userId: '', // Will be updated when completed
-                ingredientId,
-                portionsAssigned: amount,
-                isUrgent
-            }
-        });
-
-        return { success: true };
-    } catch (error) {
-        console.error('Failed to create manual prep task:', error);
-        return { success: false };
+        return { success: false, error: 'Database error' };
     }
 }
 

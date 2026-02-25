@@ -1,7 +1,10 @@
 import { useTranslations } from 'next-intl';
 
+<<<<<<< HEAD
 export const dynamic = 'force-dynamic';
 
+=======
+>>>>>>> 0e274c7 (Update prep schedule to include urgent tasks and new UI features)
 export default function DashboardPage() {
     const t = useTranslations('Index');
     const td = useTranslations('Dashboard');

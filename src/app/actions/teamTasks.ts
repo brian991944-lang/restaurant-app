@@ -9,13 +9,6 @@ export async function getTeamMembers() {
     });
 }
 
-export async function getBaseIngredients() {
-    return prisma.ingredient.findMany({
-        where: { type: { in: ['RAW', 'PROCESSED'] } },
-        orderBy: { name: 'asc' }
-    });
-}
-
 export async function addTeamMember(name: string) {
     try {
         const email = `${name.toLowerCase().replace(/[^a-z0-9]/g, '.')}@fusionista.demo`;
@@ -46,30 +39,19 @@ export async function removeTeamMember(id: string) {
 export async function getPrepTaskItems() {
     return prisma.ingredient.findMany({
         where: { type: 'PREP' },
-        include: { category: true, parent: true, _count: { select: { usedInPreps: true } } },
-        orderBy: [
-            { category: { name: 'asc' } },
-            { parent: { name: 'asc' } },
-            { name: 'asc' }
-        ]
+        include: { category: true, _count: { select: { usedInPreps: true } } }
     });
 }
 
-export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string) {
+export async function addPrepTaskItem(name: string, categoryId: string, metric: string) {
     try {
-        let actualMetric = metric;
-        if (parentId) {
-            const parent = await prisma.ingredient.findUnique({ where: { id: parentId } });
-            if (parent) actualMetric = parent.metric;
-        }
-
+        // Find 'Prep' in Types. If not exist, fallback.
         const item = await prisma.ingredient.create({
             data: {
                 name,
                 categoryId,
                 type: 'PREP',
-                metric: actualMetric,
-                parentId: parentId || null,
+                metric,
                 currentPrice: 0,
                 yieldPercent: 100
             }
