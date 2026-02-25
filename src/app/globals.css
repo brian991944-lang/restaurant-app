@@ -149,7 +149,17 @@ button {
 .responsive-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  gap: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .mobile-header {
+    display: none !important;
+  }
+
+  .layout-flex-row {
+    flex-direction: row !important;
+  }
 }
 
 @media (max-width: 600px) {

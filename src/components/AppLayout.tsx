@@ -16,7 +16,7 @@ export default function AppLayout({
   return (
     <div className="layout-container" style={{ flexDirection: 'column', width: '100%', height: '100vh', overflow: 'hidden' }}>
       {/* Mobile Top Header */}
-      <div 
+      <div
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -48,22 +48,13 @@ export default function AppLayout({
         </h2>
       </div>
 
-      <style jsx global>{`
-        @media (min-width: 1024px) {
-          .mobile-header {
-            display: none !important;
-          }
-          .layout-flex-row {
-            flex-direction: row !important;
-          }
-        }
-      `}</style>
+
 
       <div className="layout-flex-row" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar 
-          locale={locale} 
-          isOpen={isSidebarOpen} 
-          onClose={() => setIsSidebarOpen(false)} 
+        <Sidebar
+          locale={locale}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
         />
         <main className="page-container" style={{ flex: 1, overflowY: 'auto' }}>
           {children}
