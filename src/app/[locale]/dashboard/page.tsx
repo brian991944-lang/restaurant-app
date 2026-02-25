@@ -1,5 +1,7 @@
 import { useTranslations } from 'next-intl';
 
+export const dynamic = 'force-dynamic';
+
 export default function DashboardPage() {
     const t = useTranslations('Index');
     const td = useTranslations('Dashboard');
