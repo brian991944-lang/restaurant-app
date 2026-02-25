@@ -1,6 +1,6 @@
-import { redirect as nativeRedirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
-export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function Index({ params }: { params: { locale: string } }) {
   const { locale } = await params;
-  nativeRedirect(`/${locale}/dashboard`);
+  redirect(`/${locale}/dashboard`);
 }

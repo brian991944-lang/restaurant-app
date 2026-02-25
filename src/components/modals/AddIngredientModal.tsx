@@ -221,13 +221,14 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
         <div style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
+            padding: '1rem'
         }}>
-            <div className="glass-panel" style={{ width: '95%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)', margin: 'auto' }}>
+            <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)', maxHeight: '90vh', overflowY: 'auto' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
                     <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? 'Edit Ingredient' : t('modal_add_title')}</h2>
-                    <button onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
+                    <button type="button" onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -276,7 +277,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         />
                     </div>
 
-                    <div className="responsive-grid">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Product Hierarchy Level</label>
                             <select
@@ -313,7 +314,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                     </div>
 
-                    <div className="responsive-grid">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('category')}</label>
                             <SearchableSelect
@@ -337,7 +338,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         </div>
                     </div>
 
-                    <div className="responsive-grid">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('type')}</label>
                             <select name="type" className="input-field" value={currentType} onChange={(e) => setCurrentType(e.target.value)} required>
@@ -362,7 +363,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                     </div>
 
-                    <div className="responsive-grid">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('metric')}</label>
                             <SearchableSelect
@@ -381,7 +382,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                     </div>
 
-                    <div className="responsive-grid">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma %' : 'Waste %'}</label>
                             <input
@@ -453,7 +454,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('modal_min_alert_helper')}</span>
                     </div>
 
-                    <div className="responsive-grid" style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Clover Item ID (Optional)</label>
                             <input value={cloverId} onChange={e => setCloverId(e.target.value)} type="text" className="input-field" placeholder="e.g. WVH7N66BZZ5WT" />

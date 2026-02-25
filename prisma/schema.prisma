@@ -217,6 +217,7 @@ model PrepAssignment {
   portionsActual   Float?
   completed        Boolean   @default(false)
   completedAt      DateTime?
+  isUrgent         Boolean   @default(false)
 
   schedule   Schedule   @relation(fields: [scheduleId], references: [id])
   user       User       @relation(fields: [userId], references: [id])
