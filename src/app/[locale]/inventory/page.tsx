@@ -343,11 +343,11 @@ export default function InventoryPage() {
                     {item.type === 'RAW' && (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <button onClick={() => handleAdjustChange(item, -1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+                                <button onClick={() => handleAdjustChange(item, -1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'var(--accent-primary)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'opacity 0.2s', opacity: 0.85 }} onMouseOver={(e) => e.currentTarget.style.opacity = '1'} onMouseOut={(e) => e.currentTarget.style.opacity = '0.85'}>
                                     <Minus size={16} />
                                 </button>
                                 <div style={{ width: '40px', textAlign: 'center', fontWeight: 'bold' }}>{adj > 0 ? `+${adj}` : adj}</div>
-                                <button onClick={() => handleAdjustChange(item, 1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+                                <button onClick={() => handleAdjustChange(item, 1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'var(--accent-primary)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'opacity 0.2s', opacity: 0.85 }} onMouseOver={(e) => e.currentTarget.style.opacity = '1'} onMouseOut={(e) => e.currentTarget.style.opacity = '0.85'}>
                                     <Plus size={16} />
                                 </button>
                             </div>
