@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 interface Option {
     value: string;
     label: string;
+    category?: string;
 }
 
 interface SearchableSelectProps {
@@ -21,12 +22,16 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
     const [searchTerm, setSearchTerm] = useState('');
     const wrapperRef = useRef<HTMLDivElement>(null);
 
-    // Keep A-Z sorted options, but keep clear/all options at the top
     const sortedOptions = [...options].sort((a, b) => {
         const aIsClear = a.value === '' || a.value === 'ALL';
         const bIsClear = b.value === '' || b.value === 'ALL';
         if (aIsClear && !bIsClear) return -1;
         if (!aIsClear && bIsClear) return 1;
+
+        const catA = a.category || '';
+        const catB = b.category || '';
+        if (catA !== catB) return catA.localeCompare(catB);
+
         return a.label.localeCompare(b.label);
     });
 
@@ -64,10 +69,11 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                     justifyContent: 'space-between',
                     minHeight: '40px',
                     opacity: disabled ? 0.6 : 1,
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    backgroundColor: 'var(--bg-secondary)',
                     padding: '0.6rem 1rem',
                     borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(150, 150, 150, 0.3)',
+                    color: 'var(--text-primary)',
                 }}
                 onClick={toggleOpen}
             >
@@ -100,25 +106,37 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                     boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
                     marginTop: '2px'
                 }}>
-                    {filteredOptions.length > 0 ? filteredOptions.map(opt => (
-                        <div
-                            key={opt.value}
-                            style={{
-                                padding: '0.6rem 1rem',
-                                cursor: 'pointer',
-                                background: opt.value === value ? 'rgba(255,255,255,0.1)' : 'transparent',
-                                fontSize: '0.9rem'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = opt.value === value ? 'rgba(255,255,255,0.1)' : 'transparent'}
-                            onClick={() => {
-                                onChange(opt.value);
-                                setIsOpen(false);
-                            }}
-                        >
-                            {opt.label}
-                        </div>
-                    )) : (
+                    {filteredOptions.length > 0 ? filteredOptions.map((opt, index) => {
+                        const prevOpt = index > 0 ? filteredOptions[index - 1] : null;
+                        const showCategory = opt.category && (!prevOpt || prevOpt.category !== opt.category) && opt.value !== '' && opt.value !== 'ALL';
+
+                        return (
+                            <React.Fragment key={opt.value}>
+                                {showCategory && (
+                                    <div style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-primary)', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: index === 0 ? 0 : '0.5rem' }}>
+                                        {opt.category}
+                                    </div>
+                                )}
+                                <div
+                                    style={{
+                                        padding: '0.6rem 1rem',
+                                        paddingLeft: opt.category ? '1.5rem' : '1rem',
+                                        cursor: 'pointer',
+                                        background: opt.value === value ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                        fontSize: '0.9rem'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = opt.value === value ? 'rgba(255,255,255,0.1)' : 'transparent'}
+                                    onClick={() => {
+                                        onChange(opt.value);
+                                        setIsOpen(false);
+                                    }}
+                                >
+                                    {opt.label}
+                                </div>
+                            </React.Fragment>
+                        );
+                    }) : (
                         <div style={{ padding: '0.6rem 1rem', opacity: 0.5, fontSize: '0.9rem' }}>No results</div>
                     )}
                 </div>

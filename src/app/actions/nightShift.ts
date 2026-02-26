@@ -64,24 +64,26 @@ export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: 
         let defaultUser = await prisma.user.findFirst({ where: { role: 'KITCHEN' } });
         if (!defaultUser) defaultUser = await prisma.user.findFirst();
 
+        if (!defaultUser) {
+            throw new Error("No users found to assign night shift tasks.");
+        }
+
         for (const t of tasks) {
             // Delete existing assignment for this ingredient if any
             await prisma.prepAssignment.deleteMany({
                 where: { scheduleId: schedule.id, ingredientId: t.ingredientId }
             });
 
-            if (t.qty > 0) {
-                await prisma.prepAssignment.create({
-                    data: {
-                        scheduleId: schedule.id,
-                        userId: t.userId || defaultUser!.id,
-                        ingredientId: t.ingredientId,
-                        portionsAssigned: t.qty,
-                        completed: false,
-                        isUrgent: t.urgent || false
-                    }
-                });
-            }
+            await prisma.prepAssignment.create({
+                data: {
+                    scheduleId: schedule.id,
+                    userId: t.userId || defaultUser.id,
+                    ingredientId: t.ingredientId,
+                    portionsAssigned: t.qty || 0,
+                    completed: false,
+                    isUrgent: t.urgent || false
+                }
+            });
         }
 
         return { success: true };

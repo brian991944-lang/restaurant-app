@@ -53,7 +53,7 @@ export default function NightShiftPage() {
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '12px' }}>
                         <MoonStar size={40} style={{ opacity: 0.5, margin: '0 auto 1rem auto' }} />
                         <p>No manual targets set for tomorrow.</p>
-                        <p style={{ fontSize: '0.9rem' }}>Morning prep will rely purely on the AI Sales Forecasts and Recurring Weekly Rules.</p>
+                        <p style={{ fontSize: '0.9rem' }}>Morning prep will rely purely on the Recurring Weekly Rules.</p>
                     </div>
                 ) : (
                     assignments.map((assignment: any) => (

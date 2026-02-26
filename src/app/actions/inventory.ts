@@ -524,3 +524,28 @@ export async function logWaste(ingredientId: string, qty: number, note?: string)
         return { success: false, error: "Database error logging waste" };
     }
 }
+
+export async function logInventoryAdjustment(ingredientId: string, qtyChange: number, userId: string) {
+    try {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const userName = user?.name || 'Unknown User';
+
+        await prisma.inventory.update({
+            where: { ingredientId },
+            data: { frozenQty: { increment: qtyChange } }
+        });
+
+        await prisma.inventoryTransaction.create({
+            data: {
+                ingredientId,
+                type: qtyChange > 0 ? 'MANUAL_ADD' : 'MANUAL_DEDUCT',
+                qty: Math.abs(qtyChange),
+                note: `Manual adjustment by ${userName}`
+            }
+        });
+        return { success: true };
+    } catch (e) {
+        console.error("Failed to log inventory adjustment:", e);
+        return { success: false, error: "Database error logging adjustment" };
+    }
+}

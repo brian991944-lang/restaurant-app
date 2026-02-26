@@ -295,7 +295,13 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 <SearchableSelect
                                     name="parentId"
                                     value={selectedParentId}
-                                    onChange={setSelectedParentId}
+                                    onChange={(newParentId) => {
+                                        setSelectedParentId(newParentId);
+                                        const parentIng = ingredients.find(i => i.id === newParentId);
+                                        if (parentIng && parentIng.category?.name) {
+                                            setSelectedCategory(parentIng.category.name);
+                                        }
+                                    }}
                                     options={[...ingredients].filter(i => i.type === 'RAW').map(ing => ({ value: ing.id, label: ing.name }))}
                                     placeholder="Select Parent Ingredient..."
                                     required

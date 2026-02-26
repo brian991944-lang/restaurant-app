@@ -122,6 +122,21 @@
     "completed_by": "Completed By",
     "select_user": "Select Cook...",
     "complete_btn": "Complete",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "select_eligible_tasks": "List of Tasks for Tomorrow:",
+    "save_and_assign": "Save & Assign",
+    "th_category": "Category",
+    "th_ingredient": "Ingredient",
+    "th_task": "Task",
+    "th_quantity": "Quantity",
+    "th_preparer": "Preparer (Optional)",
+    "th_urgent": "Urgent",
+    "any_cook": "Any Cook",
+    "no_tasks_today": "No tasks scheduled for Today (Today's Assigned Tasks).",
+    "no_tasks_tomorrow": "No tasks scheduled for Tomorrow - ",
+    "add_manual_today": "-- Add Task for Today --",
+    "qty": "Qty",
+    "urgent_q": "Urgent?",
+    "add_btn": "+ Add"
   }
 }

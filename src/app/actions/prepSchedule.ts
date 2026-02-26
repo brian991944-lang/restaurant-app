@@ -1,7 +1,6 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { calculateIngredientForecast } from './forecasting';
 
 export interface PrepTask {
     ingredientId: string;
@@ -10,20 +9,18 @@ export interface PrepTask {
     metric: string;
     category: string;
     assignedAmount: number; // Put by night shift
-    forecastAmount: number; // AI recommendation
     recurringAmount: number; // Fixed day of week rule
     actualAmount: number | null;
     completed: boolean;
     assignmentId?: string; // If it was explicitly assigned
     hasNightShift: boolean;
     hasRecurring: boolean;
-    hasForecast: boolean;
     isUrgent: boolean;
 }
 
 /**
  * Gets the prep tasks for a specific date, merging explicit assignments 
- * with the algorithm's forecasted recommendations.
+ * with the recurring rules.
  */
 export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
     try {
@@ -70,7 +67,7 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
             recurringMap.set(rule.ingredientId, rule.amount);
         }
 
-        // 3. Fetch all ingredients for forecasting
+        // 3. Fetch all ingredients
         const rawIngredients = await prisma.ingredient.findMany({
             where: { type: { in: ['RAW', 'PREP', 'PROCESSED'] } },
             include: { category: true, parent: true }
@@ -78,19 +75,12 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 
         const mergedTasks: PrepTask[] = [];
 
-        // 4. For every raw ingredient, fetch the forecast and build the task line (in parallel)
-        const forecastPromises = rawIngredients.map(ing => calculateIngredientForecast(ing.id, 7));
-        const forecasts = await Promise.all(forecastPromises);
-
         for (let i = 0; i < rawIngredients.length; i++) {
             const ingredient = rawIngredients[i];
             const assignment = assignedTasksMap.get(ingredient.id);
             const recurringAmount = recurringMap.get(ingredient.id) || 0;
-            const forecast = forecasts[i];
-
             const hasNightShift = !!assignment;
             const hasRecurring = recurringAmount > 0;
-            const hasForecast = forecast > 0;
 
             const isUrgent = assignment ? assignment.isUrgent : false;
 
@@ -104,14 +94,12 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 metric: ingredient.metric || 'units',
                 category: ingredient.category.name,
                 assignedAmount: assignment ? assignment.portionsAssigned : 0,
-                forecastAmount: forecast,
                 recurringAmount: recurringAmount,
                 actualAmount: assignment ? assignment.portionsActual : null,
                 completed: assignment ? assignment.completed : false,
                 assignmentId: assignment?.id,
                 hasNightShift,
                 hasRecurring,
-                hasForecast,
                 isUrgent
             });
         }
@@ -306,12 +294,19 @@ export async function createManualPrepAssignment(
             });
         }
 
+        let defaultUser = await prisma.user.findFirst({ where: { role: 'KITCHEN' } });
+        if (!defaultUser) defaultUser = await prisma.user.findFirst();
+
+        if (!defaultUser) {
+            throw new Error("No users exist in the database to assign manual tasks");
+        }
+
         await prisma.prepAssignment.create({
             data: {
                 scheduleId: schedule.id,
-                userId: '', // Will be updated when completed
+                userId: defaultUser.id, // Fixed invalid foreign key reference
                 ingredientId,
-                portionsAssigned: amount,
+                portionsAssigned: amount || 0,
                 isUrgent
             }
         });
@@ -357,5 +352,17 @@ export async function getCompletedPrepLogs() {
     } catch (error) {
         console.error('Failed to fetch prep logs:', error);
         return [];
+    }
+}
+
+export async function deletePrepAssignment(assignmentId: string) {
+    try {
+        await prisma.prepAssignment.delete({
+            where: { id: assignmentId }
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to delete prep assignment:', error);
+        return { success: false, error: 'Database error' };
     }
 }

@@ -122,6 +122,21 @@
         "completed_by": "Completado Por",
         "select_user": "Seleccionar Cocinero...",
         "complete_btn": "Completar",
-        "saving": "Guardando..."
+        "saving": "Guardando...",
+        "select_eligible_tasks": "Lista de Tareas para Mañana",
+        "save_and_assign": "Guardar y Asignar",
+        "th_category": "Categoría",
+        "th_ingredient": "Ingrediente",
+        "th_task": "Tarea",
+        "th_quantity": "Cantidad",
+        "th_preparer": "Preparador (Opcional)",
+        "th_urgent": "Urgente",
+        "any_cook": "Cualquier Cocinero",
+        "no_tasks_today": "No hay tareas programadas para Hoy (Tareas asignadas de hoy).",
+        "no_tasks_tomorrow": "No hay tareas programadas para Mañana - ",
+        "add_manual_today": "-- Agregar Tarea para Hoy --",
+        "qty": "Cant.",
+        "urgent_q": "¿Urgente?",
+        "add_btn": "+ Agregar"
     }
 }

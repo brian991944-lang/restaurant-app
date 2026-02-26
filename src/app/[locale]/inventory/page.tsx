@@ -1,13 +1,14 @@
 'use client';
 
-import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload } from 'lucide-react';
+import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import RecipeBuilderModal from '@/components/modals/RecipeBuilderModal';
-import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste } from '@/app/actions/inventory';
+import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment } from '@/app/actions/inventory';
+import { getPrepUsers } from '@/app/actions/users';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -49,17 +50,15 @@ const MOCK_INVENTORY: Ingredient[] = [
 interface ProductionSchedule {
     id: string;
     name: string;
-    forecastAmount: number;
-    manualAmount: number | null;
+    targetAmount: number;
     metric: string;
     nextProductionDate: string;
-    useForecast: boolean;
 }
 
 const MOCK_PRODUCTION: ProductionSchedule[] = [
-    { id: '1', name: 'Chicha Base', forecastAmount: 20, manualAmount: null, metric: 'L', nextProductionDate: '2026-02-21', useForecast: true },
-    { id: '2', name: 'Ceviche Marinade', forecastAmount: 5, manualAmount: 8, metric: 'L', nextProductionDate: '2026-02-20', useForecast: false },
-    { id: '3', name: 'Octopus (Pulpo) Thawing', forecastAmount: 3, manualAmount: null, metric: 'kg', nextProductionDate: '2026-02-20', useForecast: true },
+    { id: '1', name: 'Chicha Base', targetAmount: 20, metric: 'L', nextProductionDate: '2026-02-21' },
+    { id: '2', name: 'Ceviche Marinade', targetAmount: 8, metric: 'L', nextProductionDate: '2026-02-20' },
+    { id: '3', name: 'Octopus (Pulpo) Thawing', targetAmount: 3, metric: 'kg', nextProductionDate: '2026-02-20' },
 ];
 
 export default function InventoryPage() {
@@ -91,15 +90,22 @@ export default function InventoryPage() {
     const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
     const [wastes, setWastes] = useState<Record<string, string>>({});
 
+    // Inventory adjustments state
+    const [prepUsers, setPrepUsers] = useState<any[]>([]);
+    const [adjustments, setAdjustments] = useState<Record<string, number>>({});
+    const [confirmingAdjust, setConfirmingAdjust] = useState<string | null>(null);
+    const [adjustCook, setAdjustCook] = useState<string>('');
+
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
-        const [invRes, catRes, syncRes] = await Promise.all([getInventory(), getCategories(), getLastSyncTime()]);
+        const [invRes, catRes, syncRes, usersRes] = await Promise.all([getInventory(), getCategories(), getLastSyncTime(), getPrepUsers()]);
         setDbIngredients(invRes);
         setDbCategories(catRes);
         setLastSyncTime(syncRes);
+        setPrepUsers(usersRes);
     };
 
     const handleSyncClover = async () => {
@@ -124,6 +130,35 @@ export default function InventoryPage() {
             loadData();
         } else {
             alert('Failed to log waste');
+        }
+    };
+
+    const handleAdjustChange = (item: Ingredient, delta: number) => {
+        setAdjustments(prev => {
+            const current = prev[item.id] || 0;
+            return { ...prev, [item.id]: current + delta };
+        });
+    };
+
+    const handleConfirmAdjustSubmit = async (item: Ingredient) => {
+        if (!adjustCook) {
+            alert('Please select a cook before submitting.');
+            return;
+        }
+        const delta = adjustments[item.id] || 0;
+        if (delta === 0) {
+            setConfirmingAdjust(null);
+            return;
+        }
+
+        const res = await logInventoryAdjustment(item.id, delta, adjustCook);
+        if (res.success) {
+            setAdjustments(prev => ({ ...prev, [item.id]: 0 }));
+            setConfirmingAdjust(null);
+            setAdjustCook('');
+            loadData();
+        } else {
+            alert(res.error || 'Failed to adjust inventory');
         }
     };
 
@@ -285,28 +320,68 @@ export default function InventoryPage() {
         } catch { return name; }
     };
 
-    const renderIngredientBox = (item: Ingredient) => (
-        <div key={item.id} className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{item.name}</h3>
-                {item.type === 'PROCESSED' && item.parent && (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        ↳ Formed from: <strong>{item.parent.name}</strong>
-                    </span>
-                )}
-                {(item as any).provider?.name && (
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{(item as any).provider.name}</span>
-                )}
-            </div>
+    const renderIngredientBox = (item: Ingredient) => {
+        const adj = adjustments[item.id] || 0;
+        const totalWithAdj = item.total + adj;
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-                    <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1 }}>{item.total}</div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>{getOptName(item.metric)}</div>
+        return (
+            <div key={item.id} className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{item.name}</h3>
+                    {item.type === 'PROCESSED' && item.parent && (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            ↳ Formed from: <strong>{item.parent.name}</strong>
+                        </span>
+                    )}
+                    {(item as any).provider?.name && (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>{(item as any).provider.name}</span>
+                    )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                    {/* Add Adjustment UI for RAW ingredients */}
+                    {item.type === 'RAW' && (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <button onClick={() => handleAdjustChange(item, -1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+                                    <Minus size={16} />
+                                </button>
+                                <div style={{ width: '40px', textAlign: 'center', fontWeight: 'bold' }}>{adj > 0 ? `+${adj}` : adj}</div>
+                                <button onClick={() => handleAdjustChange(item, 1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'background 0.2s' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}>
+                                    <Plus size={16} />
+                                </button>
+                            </div>
+
+                            {adj !== 0 && confirmingAdjust !== item.id && (
+                                <button onClick={() => setConfirmingAdjust(item.id)} className="btn-primary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', borderRadius: '6px' }}>
+                                    Confirm
+                                </button>
+                            )}
+
+                            {confirmingAdjust === item.id && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '8px', zIndex: 10 }}>
+                                    <select value={adjustCook} onChange={(e) => setAdjustCook(e.target.value)} style={{ padding: '0.3rem', borderRadius: '4px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)', fontSize: '0.85rem' }}>
+                                        <option value="">Select Cook...</option>
+                                        {prepUsers.map(user => (
+                                            <option key={user.id} value={user.id}>{user.name}</option>
+                                        ))}
+                                    </select>
+                                    <button onClick={() => handleConfirmAdjustSubmit(item)} className="btn-primary" style={{ padding: '0.3rem', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Submit Adjustment">
+                                        <Check size={16} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
+                        <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>{adj !== 0 ? totalWithAdj : item.total}</div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>{getOptName(item.metric)}</div>
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     const renderSection = (type: 'RAW' | 'PROCESSED', catFilter: string, ingFilter: string) => {
         let items = filteredInventory.filter(i => i.type === type);
@@ -335,14 +410,6 @@ export default function InventoryPage() {
                 ))}
             </div>
         );
-    };
-
-    const handleToggleForecast = (id: string) => {
-        setSchedules(prev => prev.map(s => s.id === id ? { ...s, useForecast: !s.useForecast } : s));
-    };
-
-    const handleManualChange = (id: string, value: string) => {
-        setSchedules(prev => prev.map(s => s.id === id ? { ...s, manualAmount: parseFloat(value) || 0 } : s));
     };
 
     return (
@@ -554,7 +621,7 @@ export default function InventoryPage() {
                                             fontWeight: 700,
                                             border: `1px solid color-mix(in srgb, var(--accent-primary) 30%, transparent)`
                                         }}>
-                                            {item.useForecast ? item.forecastAmount : (item.manualAmount || item.forecastAmount)} {item.metric}
+                                            {item.targetAmount} {item.metric}
                                         </div>
                                     </td>
                                 </tr>
