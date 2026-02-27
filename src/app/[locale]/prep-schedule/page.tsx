@@ -254,14 +254,11 @@ export default function PrepSchedulePage() {
             </div>
         );
 
-        // Group by Category -> Parent Ingredient
-        const grouped: Record<string, Record<string, PrepTask[]>> = {};
-        tasksObj.forEach(item => {
-            const cat = item.category || 'Uncategorized';
-            const parent = item.parentName || 'Base Tasks';
-            if (!grouped[cat]) grouped[cat] = {};
-            if (!grouped[cat][parent]) grouped[cat][parent] = [];
-            grouped[cat][parent].push(item);
+        const sortedTasks = [...tasksObj].sort((a, b) => {
+            if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
+            if (a.isUrgent && !b.isUrgent) return -1;
+            if (!a.isUrgent && b.isUrgent) return 1;
+            return a.ingredientName.localeCompare(b.ingredientName);
         });
 
         return (
@@ -283,103 +280,95 @@ export default function PrepSchedulePage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(catName => {
-                                const parents = grouped[catName];
+                            {sortedTasks.map(task => {
+                                const catName = task.category || 'Uncategorized';
+                                const parentName = task.parentName || 'Base Tasks';
 
-                                return Object.keys(parents).sort().map(parentName => {
-                                    const tasks = parents[parentName].sort((a, b) => {
-                                        if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
-                                        return a.ingredientName.localeCompare(b.ingredientName);
-                                    });
-                                    return tasks.map(task => {
+                                const isDone = task.completed;
+                                const isProcessing = completing === task.ingredientId;
 
-                                        const isDone = task.completed;
-                                        const isProcessing = completing === task.ingredientId;
+                                let recommendedTarget = 0;
+                                if (task.hasRecurring) recommendedTarget = task.recurringAmount;
+                                if (task.hasNightShift) recommendedTarget = task.assignedAmount;
+                                if (!task.hasRecurring && !task.hasNightShift) recommendedTarget = task.assignedAmount || 0; // Manual tasks
 
-                                        let recommendedTarget = 0;
-                                        if (task.hasRecurring) recommendedTarget = task.recurringAmount;
-                                        if (task.hasNightShift) recommendedTarget = task.assignedAmount;
-                                        if (!task.hasRecurring && !task.hasNightShift) recommendedTarget = task.assignedAmount || 0; // Manual tasks
+                                return (
+                                    <tr key={task.ingredientId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isDone ? 'rgba(0,0,0,0.2)' : 'transparent', opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
+                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                            {task.hasNightShift ? (
+                                                <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                    <MoonStar size={18} color="var(--warning)" />
+                                                </div>
+                                            ) : task.hasRecurring ? (
+                                                <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                    <Calendar size={18} color="#a855f7" />
+                                                </div>
+                                            ) : null}
+                                        </td>
+                                        <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>
+                                        <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
+                                        <td style={{ padding: '0.8rem 1rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none' }}>{task.ingredientName}</span>
+                                                {task.isUrgent && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                            <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{recommendedTarget}</span>
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                            {isDone ? (
+                                                <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
+                                            ) : (
+                                                <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                            {(() => {
+                                                const itemData = prepItems.find(p => p.id === task.ingredientId);
+                                                const isEditable = itemData && (!itemData.parent && itemData.type === 'PREP'); // Not associated with a child ingredient logically
 
-                                        return (
-                                            <tr key={task.ingredientId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isDone ? 'rgba(0,0,0,0.2)' : 'transparent', opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
-                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                    {task.hasNightShift ? (
-                                                        <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <MoonStar size={18} color="var(--warning)" />
-                                                        </div>
-                                                    ) : task.hasRecurring ? (
-                                                        <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <Calendar size={18} color="#a855f7" />
-                                                        </div>
-                                                    ) : null}
-                                                </td>
-                                                <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>
-                                                <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
-                                                <td style={{ padding: '0.8rem 1rem' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                        <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none' }}>{task.ingredientName}</span>
-                                                        {task.isUrgent && <span style={{ background: 'var(--danger)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>URGENT</span>}
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{recommendedTarget}</span>
-                                                </td>
-                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                    {isDone ? (
-                                                        <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
-                                                    ) : (
-                                                        <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
-                                                    )}
-                                                </td>
-                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                                    {(() => {
-                                                        const itemData = prepItems.find(p => p.id === task.ingredientId);
-                                                        const isEditable = itemData && (!itemData.parent && itemData.type === 'PREP'); // Not associated with a child ingredient logically
-
-                                                        if (!isDone && isEditable && !task.parentName) {
-                                                            return (
-                                                                <select
-                                                                    disabled // Locked to target metric by default
-                                                                    value={task.metric}
-                                                                    style={{ padding: '0.3rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'inherit', borderRadius: '4px' }}
-                                                                >
-                                                                    <option value={task.metric}>{task.metric}</option>
-                                                                </select>
-                                                            );
-                                                        }
-                                                        return task.metric;
-                                                    })()}
-                                                </td>
-                                                <td style={{ padding: '0.8rem 1rem' }}>
-                                                    {!isDone && (
-                                                        <select value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)' }}>
-                                                            <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
-                                                            {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                if (!isDone && isEditable && !task.parentName) {
+                                                    return (
+                                                        <select
+                                                            disabled // Locked to target metric by default
+                                                            value={task.metric}
+                                                            style={{ padding: '0.3rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'inherit', borderRadius: '4px' }}
+                                                        >
+                                                            <option value={task.metric}>{task.metric}</option>
                                                         </select>
-                                                    )}
-                                                </td>
-                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                    {isProcessing ? (
-                                                        <div className="spinner" style={{ width: '20px', height: '20px', margin: '0 auto', borderTopColor: 'var(--accent-primary)' }} />
-                                                    ) : isDone ? (
-                                                        <button onClick={() => handleUndoTask(task)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.85rem' }}>Undo</button>
-                                                    ) : (
-                                                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                                            <button onClick={() => handleCompleteTask(task)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Complete</button>
-                                                            <button onClick={() => {
-                                                                setIsTodayTasks(isTodayList);
-                                                                setDeleteTaskCandidate(task);
-                                                            }} className="btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', color: 'white', background: 'var(--danger)', border: 'none' }}>
-                                                                {t('Nav.sales') === 'Ventas' ? 'Borrar' : 'Delete'}
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    });
-                                });
+                                                    );
+                                                }
+                                                return task.metric;
+                                            })()}
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem' }}>
+                                            {!isDone && (
+                                                <select value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                                                    <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
+                                                    {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                </select>
+                                            )}
+                                        </td>
+                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                            {isProcessing ? (
+                                                <div className="spinner" style={{ width: '20px', height: '20px', margin: '0 auto', borderTopColor: 'var(--accent-primary)' }} />
+                                            ) : isDone ? (
+                                                <button onClick={() => handleUndoTask(task)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.85rem' }}>Undo</button>
+                                            ) : (
+                                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                    <button onClick={() => handleCompleteTask(task)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Complete</button>
+                                                    <button onClick={() => {
+                                                        setIsTodayTasks(isTodayList);
+                                                        setDeleteTaskCandidate(task);
+                                                    }} className="btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', color: 'white', background: 'var(--danger)', border: 'none' }}>
+                                                        {t('Nav.sales') === 'Ventas' ? 'Borrar' : 'Delete'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
                             })}
                         </tbody>
                     </table>
