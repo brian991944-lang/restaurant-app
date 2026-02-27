@@ -399,13 +399,13 @@ export default function InventoryPage() {
         if (items.length === 0) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No items found.</div>;
 
         return (
-            <div className="flex flex-col gap-6 md:gap-8">
+            <div className="flex flex-col gap-8 md:gap-12 mt-6 md:mt-10 pt-4 relative z-0">
                 {sortedCategories.map(cat => (
-                    <div key={cat} className="flex flex-col gap-4">
+                    <div key={cat} className="flex flex-col gap-6">
                         <h3 className="text-lg md:text-xl font-semibold opacity-80 border-b border-white/10 pb-2 m-0" style={{ color: 'var(--text-secondary)' }}>
                             {getOptName(cat)}
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                        <div className="flex flex-wrap gap-4 md:gap-6">
                             {grouped[cat].sort((a, b) => a.name.localeCompare(b.name)).map(item => renderIngredientBox(item))}
                         </div>
                     </div>
@@ -499,8 +499,8 @@ export default function InventoryPage() {
 
                     <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
                         {['ALL', 'RAW'].includes(overviewTab) && (
-                            <div className="flex-1 w-full lg:min-w-[350px] flex flex-col gap-6">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex-1 w-full lg:min-w-[350px] flex flex-col gap-6 mb-8 lg:mb-0">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('raw_ingredients')}</h2>
                                     <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
                                         <SearchableSelect
@@ -527,8 +527,8 @@ export default function InventoryPage() {
                         )}
 
                         {['ALL', 'PROCESSED'].includes(overviewTab) && (
-                            <div className="flex-1 w-full lg:min-w-[350px] flex flex-col gap-6 mt-8 lg:mt-0">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div className="flex-1 w-full lg:min-w-[350px] flex flex-col gap-6 mt-8 lg:mt-0 mb-8 lg:mb-0">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[40]">
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('processed_food')}</h2>
                                     <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
                                         <SearchableSelect
