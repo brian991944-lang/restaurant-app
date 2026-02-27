@@ -716,15 +716,23 @@ export default function InventoryPage() {
                                 .filter(i => !allIngredientsNameFilter || i.name === allIngredientsNameFilter)
                                 .filter(i => allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent))
                                 .sort((a, b) => {
-                                    const parentNameA = a.parent ? a.parent.name : a.name;
-                                    const parentNameB = b.parent ? b.parent.name : b.name;
+                                    // 1. Get the parent ID to group by family
+                                    const familyA = a.parent ? a.parent.id : a.id;
+                                    const familyB = b.parent ? b.parent.id : b.id;
 
-                                    if (parentNameA === parentNameB) {
-                                        if (!a.parent && b.parent) return -1;
-                                        if (a.parent && !b.parent) return 1;
-                                        return a.name.localeCompare(b.name);
+                                    if (familyA !== familyB) {
+                                        // Different families: Sort by the name of the root/parent item
+                                        const rootNameA = a.parent ? a.parent.name : a.name;
+                                        const rootNameB = b.parent ? b.parent.name : b.name;
+                                        return rootNameA.localeCompare(rootNameB);
                                     }
-                                    return parentNameA.localeCompare(parentNameB);
+
+                                    // 2. Same family: Parent always comes first
+                                    if (!a.parent && b.parent) return -1;
+                                    if (a.parent && !b.parent) return 1;
+
+                                    // 3. Both are children of the same parent: Sort children alphabetically
+                                    return a.name.localeCompare(b.name);
                                 });
 
                             if (filteredItems.length === 0) return null;
