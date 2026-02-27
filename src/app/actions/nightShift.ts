@@ -3,11 +3,9 @@
 import prisma from '@/lib/prisma';
 
 export async function getAssignmentsForDate(targetDate: Date) {
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const estFormatted = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+    const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
+    const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
 
     const schedules = await prisma.schedule.findMany({
         where: {
@@ -36,15 +34,17 @@ export async function getAssignmentsForDate(targetDate: Date) {
 
 export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: number, userId?: string, urgent?: boolean }[], targetDate?: Date) {
     try {
-        const assignFor = targetDate || new Date(new Date().setDate(new Date().getDate() + 1));
-        assignFor.setHours(12, 0, 0, 0);
+        const assignFor = targetDate || new Date();
+        const estFormatted = assignFor.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
+        const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
 
         // Find or create schedule for the date
         let schedule = await prisma.schedule.findFirst({
             where: {
                 date: {
-                    gte: new Date(new Date(assignFor).setHours(0, 0, 0, 0)),
-                    lte: new Date(new Date(assignFor).setHours(23, 59, 59, 999))
+                    gte: startOfDay,
+                    lte: endOfDay
                 }
             }
         });
@@ -52,20 +52,17 @@ export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: 
         if (!schedule) {
             schedule = await prisma.schedule.create({
                 data: {
-                    date: assignFor,
+                    date: new Date(`${estFormatted}T12:00:00-05:00`),
                     createdBy: 'NightShift',
                     assignedTo: 'MorningCrew'
                 }
             });
         }
 
-        // We could default to the first kitchen user if none provided, or just let them be dummy attached for now.
-        // Actually the schema requires userId on PrepAssignment. Let's find a default user.
-        let defaultUser = await prisma.user.findFirst({ where: { role: 'KITCHEN' } });
-        if (!defaultUser) defaultUser = await prisma.user.findFirst();
-
-        if (!defaultUser) {
-            throw new Error("No users found to assign night shift tasks.");
+        // Get dummy user 'Any Cook'
+        let anyCook = await prisma.user.findFirst({ where: { email: 'anycook@system.local' } });
+        if (!anyCook) {
+            anyCook = await prisma.user.create({ data: { name: 'Any Cook', email: 'anycook@system.local', role: 'KITCHEN' } });
         }
 
         for (const t of tasks) {
@@ -77,7 +74,7 @@ export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: 
             await prisma.prepAssignment.create({
                 data: {
                     scheduleId: schedule.id,
-                    userId: t.userId || defaultUser.id,
+                    userId: (t.userId && t.userId !== 'ANY') ? t.userId : anyCook.id,
                     ingredientId: t.ingredientId,
                     portionsAssigned: t.qty || 0,
                     completed: false,

@@ -24,13 +24,9 @@ export interface PrepTask {
  */
 export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
     try {
-        // 1. Get explicit assignments (e.g. from the night shift schedule) for this day
-        // Strip time to just get the date start/end
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const endOfDay = new Date(targetDate);
-        endOfDay.setHours(23, 59, 59, 999);
+        const estFormatted = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
+        const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
 
         // Fetch Schedule + prepAssignments
         const schedules = await prisma.schedule.findMany({
@@ -57,7 +53,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         }
 
         // 2. Fetch recurring rules for TODAY'S day of week (0=Sun, 1=Mon, etc)
-        const dayOfWeek = targetDate.getDay();
+        const targetEstDate = new Date(`${estFormatted}T12:00:00-05:00`);
+        const dayOfWeek = targetEstDate.getDay();
         const recurringRules = await prisma.recurringPrepRule.findMany({
             where: { dayOfWeek }
         });
@@ -124,6 +121,8 @@ export async function completePrepTask(
     try {
         const today = new Date();
 
+        const estFormatted = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
         // 1. Update or create the PrepAssignment if one existed
         let finalAssignmentId = assignmentId;
         if (assignmentId) {
@@ -138,19 +137,19 @@ export async function completePrepTask(
             });
         } else {
             // Find or create schedule for today
-            const startOfDay = new Date(today);
-            startOfDay.setHours(0, 0, 0, 0);
+            const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
+            const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
 
             let schedule = await prisma.schedule.findFirst({
                 where: {
-                    date: { gte: startOfDay, lte: new Date(new Date(today).setHours(23, 59, 59, 999)) }
+                    date: { gte: startOfDay, lte: endOfDay }
                 }
             });
 
             if (!schedule) {
                 schedule = await prisma.schedule.create({
                     data: {
-                        date: today,
+                        date: new Date(`${estFormatted}T12:00:00-05:00`),
                         createdBy: 'System (Auto-Complete)',
                         assignedTo: 'MorningCrew'
                     }
@@ -275,19 +274,20 @@ export async function createManualPrepAssignment(
     amount: number
 ) {
     try {
-        const startOfDay = new Date(targetDate);
-        startOfDay.setHours(0, 0, 0, 0);
+        const estFormatted = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
+        const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
 
         let schedule = await prisma.schedule.findFirst({
             where: {
-                date: { gte: startOfDay, lte: new Date(new Date(targetDate).setHours(23, 59, 59, 999)) }
+                date: { gte: startOfDay, lte: endOfDay }
             }
         });
 
         if (!schedule) {
             schedule = await prisma.schedule.create({
                 data: {
-                    date: targetDate,
+                    date: new Date(`${estFormatted}T12:00:00-05:00`),
                     createdBy: 'System (Manual Add)',
                     assignedTo: 'MorningCrew'
                 }

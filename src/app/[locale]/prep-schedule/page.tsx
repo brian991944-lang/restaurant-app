@@ -138,9 +138,7 @@ export default function PrepSchedulePage() {
             setTomorrowTasks(tomorrowData);
             setPrepItems(items);
         } else if (tab === 'night') {
-            const dateObj = new Date(targetAssignDate);
-            // Adjust for timezone offset to ensure it lands on the local date intended
-            const tzDate = new Date(dateObj.getTime() + dateObj.getTimezoneOffset() * 60000);
+            const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
             const [assignments, members, tasks] = await Promise.all([getAssignmentsForDate(tzDate), getTeamMembers(), getPrepTaskItems()]);
             setNightAssignments(assignments);
             setTeamMembers(members);
@@ -259,7 +257,7 @@ export default function PrepSchedulePage() {
         // Group by Category -> Parent Ingredient
         const grouped: Record<string, Record<string, PrepTask[]>> = {};
         tasksObj.forEach(item => {
-            const cat = item.isUrgent ? '🚨 URGENT' : (item.category || 'Uncategorized');
+            const cat = item.category || 'Uncategorized';
             const parent = item.parentName || 'Base Tasks';
             if (!grouped[cat]) grouped[cat] = {};
             if (!grouped[cat][parent]) grouped[cat][parent] = [];
@@ -285,24 +283,15 @@ export default function PrepSchedulePage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {Object.keys(grouped).sort((a, b) => a === '🚨 URGENT' ? -1 : (b === '🚨 URGENT' ? 1 : a.localeCompare(b))).map(catName => {
+                            {Object.keys(grouped).sort((a, b) => a.localeCompare(b)).map(catName => {
                                 const parents = grouped[catName];
-                                const catRows = Object.keys(parents).reduce((sum, p) => sum + parents[p].length, 0);
-                                let isFirstCatRow = true;
 
                                 return Object.keys(parents).sort().map(parentName => {
                                     const tasks = parents[parentName].sort((a, b) => {
                                         if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
                                         return a.ingredientName.localeCompare(b.ingredientName);
                                     });
-                                    const parRows = tasks.length;
-                                    let isFirstParRow = true;
-
                                     return tasks.map(task => {
-                                        const renderCat = isFirstCatRow;
-                                        const renderPar = isFirstParRow;
-                                        isFirstCatRow = false;
-                                        isFirstParRow = false;
 
                                         const isDone = task.completed;
                                         const isProcessing = completing === task.ingredientId;
@@ -315,11 +304,7 @@ export default function PrepSchedulePage() {
                                         return (
                                             <tr key={task.ingredientId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isDone ? 'rgba(0,0,0,0.2)' : 'transparent', opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
                                                 <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                    {task.isUrgent ? (
-                                                        <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <AlertCircle size={18} color="var(--danger)" />
-                                                        </div>
-                                                    ) : task.hasNightShift ? (
+                                                    {task.hasNightShift ? (
                                                         <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
                                                             <MoonStar size={18} color="var(--warning)" />
                                                         </div>
@@ -329,10 +314,13 @@ export default function PrepSchedulePage() {
                                                         </div>
                                                     ) : null}
                                                 </td>
-                                                {renderCat && <td rowSpan={catRows} style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>}
-                                                {renderPar && <td rowSpan={parRows} style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>}
+                                                <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>
+                                                <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
                                                 <td style={{ padding: '0.8rem 1rem' }}>
-                                                    <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none' }}>{task.ingredientName}</span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none' }}>{task.ingredientName}</span>
+                                                        {task.isUrgent && <span style={{ background: 'var(--danger)', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>URGENT</span>}
+                                                    </div>
                                                 </td>
                                                 <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                                     <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{recommendedTarget}</span>
@@ -493,8 +481,7 @@ export default function PrepSchedulePage() {
                 urgent: nightDrafts[id].urgent
             }));
 
-        const dateObj = new Date(targetAssignDate);
-        const tzDate = new Date(dateObj.getTime() + dateObj.getTimezoneOffset() * 60000);
+        const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
 
         const res = await assignNightShiftTasks(tasksPayload, tzDate);
         if (res.success) {
@@ -529,7 +516,18 @@ export default function PrepSchedulePage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <p style={{ color: 'var(--text-primary)', margin: 0 }}>{t('PrepSchedule.select_eligible_tasks')}</p>
+                        <p style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 'bold' }}>
+                            {(() => {
+                                const isEs = t('Nav.sales') === 'Ventas';
+                                const d = new Date(`${targetAssignDate}T12:00:00-05:00`);
+                                const estNowStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                                const todayDate = new Date(`${estNowStr}T12:00:00-05:00`);
+                                const diffDays = Math.round((d.getTime() - todayDate.getTime()) / (1000 * 3600 * 24));
+                                if (diffDays === 0) return isEs ? 'Hoy' : 'Today';
+                                if (diffDays === 1) return isEs ? 'Mañana' : 'Tomorrow';
+                                return d.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                            })()}
+                        </p>
                         <input type="date" value={targetAssignDate} onChange={(e) => setTargetAssignDate(e.target.value)} style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150, 150, 150, 0.3)' }} />
                     </div>
                     <button onClick={handleSaveNightShift} className="btn-primary" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
@@ -560,20 +558,13 @@ export default function PrepSchedulePage() {
                                     return Object.keys(parents).sort().map(parentName => {
                                         const tasks = parents[parentName];
                                         const parRows = tasks.length;
-                                        let isFirstParRow = true;
-
                                         return tasks.map(task => {
-                                            const renderCat = isFirstCatRow;
-                                            const renderPar = isFirstParRow;
-                                            isFirstCatRow = false;
-                                            isFirstParRow = false;
-
                                             const draft = nightDrafts[task.id] || { selected: false, qty: '', userId: '' };
 
                                             return (
                                                 <tr key={task.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: draft.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent', transition: 'background 0.2s' }}>
-                                                    {renderCat && <td rowSpan={catRows} style={{ padding: '1rem', verticalAlign: 'top', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>}
-                                                    {renderPar && <td rowSpan={parRows} style={{ padding: '1rem', verticalAlign: 'top', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>}
+                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>
+                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
                                                     <td style={{ padding: '0.5rem 1rem' }}>
                                                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', margin: 0, padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}>
                                                             <input type="checkbox" checked={draft.selected} onChange={(e) => handleNightDraftToggle(task.id, e.target.checked)} style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }} />
@@ -587,7 +578,7 @@ export default function PrepSchedulePage() {
                                                         </div>
                                                     </td>
                                                     <td style={{ padding: '0.5rem 1rem' }}>
-                                                        <select value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                                                        <select value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
                                                             <option value="">{t('PrepSchedule.any_cook')}</option>
                                                             {teamMembers.map(m => (
                                                                 <option key={m.id} value={m.id}>{m.name}</option>
