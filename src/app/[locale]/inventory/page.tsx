@@ -712,28 +712,32 @@ export default function InventoryPage() {
                         .filter(([category]) => !allIngredientsCategoryFilter || category === allIngredientsCategoryFilter)
                         .sort(([catA], [catB]) => catA.localeCompare(catB))
                         .map(([category, items]) => {
-                            const filteredItems = items
+                            let filteredItems = items
                                 .filter(i => !allIngredientsNameFilter || i.name === allIngredientsNameFilter)
-                                .filter(i => allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent))
-                                .sort((a, b) => {
-                                    // 1. Get the parent ID to group by family
-                                    const familyA = a.parent ? a.parent.id : a.id;
-                                    const familyB = b.parent ? b.parent.id : b.id;
+                                .filter(i => allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent));
 
-                                    if (familyA !== familyB) {
-                                        // Different families: Sort by the name of the root/parent item
-                                        const rootNameA = a.parent ? a.parent.name : a.name;
-                                        const rootNameB = b.parent ? b.parent.name : b.name;
-                                        return rootNameA.localeCompare(rootNameB);
-                                    }
+                            // 1. Separate all items into parents and children.
+                            const rootItems = filteredItems.filter(i => !i.parent);
+                            const childItems = filteredItems.filter(i => i.parent);
 
-                                    // 2. Same family: Parent always comes first
-                                    if (!a.parent && b.parent) return -1;
-                                    if (a.parent && !b.parent) return 1;
+                            // 2. Sort the parent items (and children) alphabetically based on their localized names.
+                            rootItems.sort((a, b) => a.name.localeCompare(b.name));
+                            childItems.sort((a, b) => a.name.localeCompare(b.name));
 
-                                    // 3. Both are children of the same parent: Sort children alphabetically
-                                    return a.name.localeCompare(b.name);
-                                });
+                            // 3. Iterate through sorted parents and insert their specific child items immediately after them.
+                            const finalSortedItems = [] as typeof items;
+                            rootItems.forEach(parent => {
+                                finalSortedItems.push(parent);
+                                const childrenOfParent = childItems.filter(c => c.parent.id === parent.id);
+                                finalSortedItems.push(...childrenOfParent);
+                            });
+
+                            // Ensure any orphan children (e.g., if parent was filtered out by a search text) are still rendered
+                            const handledIds = new Set(finalSortedItems.map(i => i.id));
+                            const orphanChildren = childItems.filter(c => !handledIds.has(c.id));
+                            finalSortedItems.push(...orphanChildren);
+
+                            filteredItems = finalSortedItems;
 
                             if (filteredItems.length === 0) return null;
 
