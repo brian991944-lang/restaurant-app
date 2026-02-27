@@ -497,10 +497,10 @@ export default function InventoryPage() {
                         <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
 
-                    <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                    <div className={`w-full gap-8 lg:gap-12 mt-8 md:mt-10 ${overviewTab === 'ALL' ? 'grid grid-cols-1 md:grid-cols-2' : 'flex flex-col'}`}>
                         {['ALL', 'RAW'].includes(overviewTab) && (
-                            <div className="flex-1 w-full lg:min-w-[350px] flex flex-col gap-6 mb-8 lg:mb-0">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[50]">
+                            <div className="flex-1 w-full flex flex-col gap-6 mb-8 lg:mb-0">
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-[50]">
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('raw_ingredients')}</h2>
                                     <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
                                         <SearchableSelect
@@ -527,8 +527,8 @@ export default function InventoryPage() {
                         )}
 
                         {['ALL', 'PROCESSED'].includes(overviewTab) && (
-                            <div className="flex-1 w-full lg:min-w-[350px] flex flex-col gap-6 mt-8 lg:mt-0 mb-8 lg:mb-0">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-[40]">
+                            <div className="flex-1 w-full flex flex-col gap-6 mt-8 md:mt-0 mb-8 lg:mb-0">
+                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-[40]">
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('processed_food')}</h2>
                                     <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
                                         <SearchableSelect
