@@ -17,6 +17,11 @@ async function translateToSpanish(text: string): Promise<string> {
 
 export async function getInventory() {
     return prisma.ingredient.findMany({
+        where: {
+            type: {
+                in: ['RAW', 'PROCESSED', 'PREP_RECIPE']
+            }
+        },
         include: {
             category: true,
             provider: true,
