@@ -325,7 +325,7 @@ export default function InventoryPage() {
         const totalWithAdj = item.total + adj;
 
         return (
-            <div key={item.id} className="glass-panel flex-1 min-w-[280px] md:min-w-[320px]" style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div key={item.id} className="glass-panel" style={{ flex: '1 1 300px', minWidth: '280px', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{item.name}</h3>
                     {item.type === 'PROCESSED' && item.parent && (
@@ -399,13 +399,13 @@ export default function InventoryPage() {
         if (items.length === 0) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No items found.</div>;
 
         return (
-            <div className="flex flex-col mt-8 md:mt-10 relative z-0">
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: '2.5rem', position: 'relative', zIndex: 0 }}>
                 {sortedCategories.map(cat => (
-                    <div key={cat} className="flex flex-col mb-8">
-                        <h3 className="text-lg md:text-xl font-semibold opacity-80 border-b border-white/10 pb-2 mb-6 m-0" style={{ color: 'var(--text-secondary)' }}>
+                    <div key={cat} style={{ display: 'flex', flexDirection: 'column', marginBottom: '2rem' }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.8, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', marginTop: 0 }}>
                             {getOptName(cat)}
                         </h3>
-                        <div className="flex flex-wrap gap-4 md:gap-6">
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
                             {grouped[cat].sort((a, b) => a.name.localeCompare(b.name)).map(item => renderIngredientBox(item))}
                         </div>
                     </div>
@@ -481,7 +481,7 @@ export default function InventoryPage() {
 
             {/* Main View */}
             {activeTab === 'ALL' && (
-                <div className="mt-8 md:mt-12 flex flex-col gap-6 md:gap-8">
+                <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                     {lastSyncTime && (
                         <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px' }}>
@@ -490,19 +490,19 @@ export default function InventoryPage() {
                         </div>
                     )}
 
-                    <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:gap-6 lg:gap-8 border-b border-white/10 pb-4 mb-4">
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                         <button onClick={() => setOverviewTab('ALL')} className={overviewTab === 'ALL' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'ALL' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'ALL' ? 'white' : 'var(--text-secondary)' }}>All Items</button>
                         <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
                         <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
                         <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
 
-                    <div className={overviewTab === 'ALL' ? "grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 w-full items-start" : "flex flex-col gap-8 mt-8 w-full"}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', marginTop: '2rem', width: '100%', alignItems: 'flex-start' }}>
                         {['ALL', 'RAW'].includes(overviewTab) && (
-                            <div className="w-full flex flex-col">
-                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-[50]">
+                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', position: 'relative', zIndex: 50 }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('raw_ingredients')}</h2>
-                                    <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', flex: 1, minWidth: '300px', justifyContent: 'flex-end' }}>
                                         <SearchableSelect
                                             value={rawCategoryFilter}
                                             onChange={(val) => {
@@ -527,10 +527,10 @@ export default function InventoryPage() {
                         )}
 
                         {['ALL', 'PROCESSED'].includes(overviewTab) && (
-                            <div className="w-full flex flex-col">
-                                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-[40]">
+                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', position: 'relative', zIndex: 40 }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('processed_food')}</h2>
-                                    <div className="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', flex: 1, minWidth: '300px', justifyContent: 'flex-end' }}>
                                         <SearchableSelect
                                             value={processedCategoryFilter}
                                             onChange={(val) => {
@@ -554,8 +554,8 @@ export default function InventoryPage() {
                             </div>
                         )}
                         {overviewTab === 'RELATIONSHIPS' && (
-                            <div className="w-full flex flex-col">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Ingredient Relationships</h2>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -674,7 +674,7 @@ export default function InventoryPage() {
             )}
 
             {activeTab === 'ALL_INGREDIENTS' && (
-                <div className="mt-8 md:mt-12 flex flex-col gap-6 md:gap-8">
+                <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                     {/* Filters for ALL_INGREDIENTS */}
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
