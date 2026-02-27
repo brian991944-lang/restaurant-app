@@ -402,7 +402,7 @@ export default function InventoryPage() {
             <div className="flex flex-col mt-8 md:mt-10 relative z-0">
                 {sortedCategories.map(cat => (
                     <div key={cat} className="flex flex-col mb-8">
-                        <h3 className="text-lg md:text-xl font-semibold opacity-80 border-b border-white/10 pb-2 mb-4 m-0" style={{ color: 'var(--text-secondary)' }}>
+                        <h3 className="text-lg md:text-xl font-semibold opacity-80 border-b border-white/10 pb-2 mb-6 m-0" style={{ color: 'var(--text-secondary)' }}>
                             {getOptName(cat)}
                         </h3>
                         <div className="flex flex-wrap gap-4 md:gap-6">
@@ -497,7 +497,7 @@ export default function InventoryPage() {
                         <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
 
-                    <div className={overviewTab === 'ALL' ? "grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 mt-8 md:mt-10 w-full items-start" : "flex flex-col gap-8 lg:gap-12 mt-8 md:mt-10 w-full"}>
+                    <div className={overviewTab === 'ALL' ? "grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 w-full items-start" : "flex flex-col gap-8 mt-8 w-full"}>
                         {['ALL', 'RAW'].includes(overviewTab) && (
                             <div className="w-full flex flex-col">
                                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-[50]">
