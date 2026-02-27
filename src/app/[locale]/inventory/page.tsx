@@ -500,9 +500,9 @@ export default function InventoryPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', marginTop: '2rem', width: '100%', alignItems: 'flex-start' }}>
                         {['ALL', 'RAW'].includes(overviewTab) && (
                             <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', position: 'relative', zIndex: 50 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 50, marginBottom: '1.5rem' }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('raw_ingredients')}</h2>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', flex: 1, minWidth: '300px', justifyContent: 'flex-end' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', width: '100%' }}>
                                         <SearchableSelect
                                             value={rawCategoryFilter}
                                             onChange={(val) => {
@@ -528,9 +528,9 @@ export default function InventoryPage() {
 
                         {['ALL', 'PROCESSED'].includes(overviewTab) && (
                             <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', position: 'relative', zIndex: 40 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 40, marginBottom: '1.5rem' }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('processed_food')}</h2>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', flex: 1, minWidth: '300px', justifyContent: 'flex-end' }}>
+                                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', width: '100%' }}>
                                         <SearchableSelect
                                             value={processedCategoryFilter}
                                             onChange={(val) => {
