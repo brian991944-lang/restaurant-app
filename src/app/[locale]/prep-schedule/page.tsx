@@ -1,7 +1,7 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil } from 'lucide-react';
+import { useTranslations, useLocale } from 'next-intl';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
@@ -14,6 +14,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 export default function PrepSchedulePage() {
     const t = useTranslations();
+    const locale = useLocale();
 
     // Tab State
     const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'completed' | 'team'>('morning');
@@ -631,7 +632,7 @@ export default function PrepSchedulePage() {
                             </select>
                         </div>
                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Day of Week</label>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Día de la Semana' : 'Day of Week'}</label>
                             <select value={newRecurringDay} onChange={(e) => setNewRecurringDay(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }}>
                                 <option value="0">Sunday</option>
                                 <option value="1">Monday</option>
@@ -643,11 +644,11 @@ export default function PrepSchedulePage() {
                             </select>
                         </div>
                         <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Amount</label>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Cantidad' : 'Amount'}</label>
                             <input type="number" step="0.01" min="0" value={newRecurringAmount} onChange={(e) => setNewRecurringAmount(e.target.value)} placeholder="0.0" style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }} />
                         </div>
                         <button className="btn-primary" onClick={handleCreateRecurringRule} style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', height: 'fit-content', background: 'linear-gradient(135deg, #a855f7, #6b21a8)' }}>
-                            Save Rule
+                            {locale === 'es' ? 'Guardar Regla' : 'Save Rule'}
                         </button>
                     </div>
                 )}
@@ -830,8 +831,10 @@ export default function PrepSchedulePage() {
 
                 <div className="glass-panel" style={{ flex: 2, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
-                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Layers size={20} color="#a855f7" /> Eligible Prep Tasks</h3>
-                        <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: 'linear-gradient(135deg, #a855f7, #6b21a8)' }}>+ Add New Task</button>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Layers size={20} color="#a855f7" /> {locale === 'es' ? 'Tareas de Prep Elegibles' : 'Eligible Prep Tasks'}</h3>
+                        <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
+                            <Plus size={16} /> Add Task
+                        </button>
                     </div>
 
                     <div className="glass-panel" style={{ overflowX: 'auto', padding: 0, marginTop: '1rem' }}>
@@ -1012,7 +1015,7 @@ export default function PrepSchedulePage() {
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Task Name</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Nombre de la Tarea' : 'Task Name'}</label>
                                 <input type="text" placeholder="e.g. Cortar Cebolla" value={newTaskName} onChange={e => setNewTaskName(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                             </div>
 
@@ -1025,7 +1028,7 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Base Ingredient Link (Optional)</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Enlace a Ingrediente Base (Opcional)' : 'Base Ingredient Link (Optional)'}</label>
                                 <select value={newTaskParentId} onChange={e => setNewTaskParentId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="">-- None --</option>
                                     {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -1033,7 +1036,7 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Unit / Metric</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
                                 <select value={newTaskMetric} onChange={e => setNewTaskMetric(e.target.value)} disabled={!!newTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: newTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: newTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="units">units</option>
                                     <option value="Lbs">Lbs</option>
@@ -1048,7 +1051,7 @@ export default function PrepSchedulePage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                            <button onClick={() => setShowAddTaskModal(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={() => setShowAddTaskModal(false)} className="btn-secondary">{locale === 'es' ? 'Cancelar' : 'Cancel'}</button>
                             <button onClick={handleAddPrepTask} className="btn-primary">Save Task</button>
                         </div>
                     </div>
@@ -1059,11 +1062,11 @@ export default function PrepSchedulePage() {
             {showEditTaskModal && editingTask && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                     <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)' }}>
-                        <h3 style={{ margin: '0 0 1.5rem 0' }}>Edit Task</h3>
+                        <h3 style={{ margin: '0 0 1.5rem 0' }}>{locale === 'es' ? 'Editar Tarea' : 'Edit Task'}</h3>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Task Name</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Nombre de la Tarea' : 'Task Name'}</label>
                                 <input type="text" value={editTaskName} onChange={e => setEditTaskName(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                             </div>
 
@@ -1075,7 +1078,7 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Base Ingredient Link (Optional)</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Enlace a Ingrediente Base (Opcional)' : 'Base Ingredient Link (Optional)'}</label>
                                 <select value={editTaskParentId} onChange={e => setEditTaskParentId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="">-- None --</option>
                                     {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -1083,7 +1086,7 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Unit / Metric</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
                                 <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="units">units</option>
                                     <option value="Lbs">Lbs</option>
@@ -1098,8 +1101,8 @@ export default function PrepSchedulePage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                            <button onClick={() => { setShowEditTaskModal(false); setEditingTask(null); }} className="btn-secondary">Cancel</button>
-                            <button onClick={handleSaveEditTask} className="btn-primary">Save Changes</button>
+                            <button onClick={() => { setShowEditTaskModal(false); setEditingTask(null); }} className="btn-secondary">{locale === 'es' ? 'Cancelar' : 'Cancel'}</button>
+                            <button onClick={handleSaveEditTask} className="btn-primary">{locale === 'es' ? 'Guardar Cambios' : 'Save Changes'}</button>
                         </div>
                     </div>
                 </div>

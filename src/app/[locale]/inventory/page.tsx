@@ -521,11 +521,11 @@ export default function InventoryPage() {
                                     <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '800px' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
-                                                <th style={{ padding: '1rem', fontWeight: 500 }}>Name</th>
-                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>Total Stock</th>
-                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: '#60a5fa' }}>Frozen ❄️</th>
-                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: 'var(--warning)' }}>Unfrozen (Fridge) 🌡️</th>
-                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>Quick Thaw</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500 }}>{locale === 'es' ? 'Nombre' : 'Name'}</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>{locale === 'es' ? 'Stock Total' : 'Total Stock'}</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: '#60a5fa' }}>{locale === 'es' ? 'Congelado ❄️' : 'Frozen ❄️'}</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: 'var(--warning)' }}>{locale === 'es' ? 'Descongelado (Refri) 🌡️' : 'Unfrozen (Fridge) 🌡️'}</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>{locale === 'es' ? 'Descongelado Rápido' : 'Quick Thaw'}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -817,8 +817,8 @@ export default function InventoryPage() {
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('type')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('metric')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('yield_percent') || 'Yield %'}</th>
-                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>To Unfreeze</th>
-                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Waste/Corr</th>
+                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'A Descongelar' : 'To Unfreeze'}</th>
+                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma/Ajuste' : 'Waste/Corr'}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>{t('actions')}</th>
                                             </tr>
                                         </thead>
