@@ -115,6 +115,7 @@ export async function addIngredient(data: any) {
                 providerId: providerId,
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : 1000,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
+                trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : false,
                 currentPrice: data.currentPrice || 0,
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
@@ -188,6 +189,7 @@ export async function editIngredient(id: string, data: any) {
                 providerId: providerId !== undefined ? providerId : undefined,
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : undefined,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
+                trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : undefined,
                 currentPrice: data.currentPrice !== undefined ? data.currentPrice : undefined,
                 parentId: data.parentId !== undefined ? data.parentId : undefined,
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
@@ -199,7 +201,7 @@ export async function editIngredient(id: string, data: any) {
         if (data.unfrozenQuantity !== undefined) {
             await prisma.inventory.upsert({
                 where: { ingredientId: id },
-                create: { thawingQty: parseFloat(data.unfrozenQuantity), frozenQty: 0 },
+                create: { ingredientId: id, thawingQty: parseFloat(data.unfrozenQuantity), frozenQty: 0 },
                 update: { thawingQty: parseFloat(data.unfrozenQuantity) }
             });
         }

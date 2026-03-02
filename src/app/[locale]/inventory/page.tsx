@@ -38,6 +38,7 @@ interface Ingredient {
     cloverId?: string | null;
     cloverSoldToday?: number;
     unfrozenQuantity?: number;
+    trackFreezerStatus?: boolean;
 }
 
 const MOCK_INVENTORY: Ingredient[] = [
@@ -305,6 +306,7 @@ export default function InventoryPage() {
         cloverId: item.cloverId,
         cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
         unfrozenQuantity: item.inventory?.thawingQty || 0,
+        trackFreezerStatus: item.trackFreezerStatus || false,
         calculatedCost: resolveCost(item)
     }));
 
@@ -527,7 +529,7 @@ export default function InventoryPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredInventory.filter(i => i.type === 'PROCESSED' || i.type === 'PREP_RECIPE').sort((a, b) => a.name.localeCompare(b.name)).map(item => {
+                                            {filteredInventory.filter(i => (i.type === 'PROCESSED' || i.type === 'PREP_RECIPE') && i.trackFreezerStatus).sort((a, b) => a.name.localeCompare(b.name)).map(item => {
                                                 const unfrozenAmt = item.unfrozenQuantity || 0;
                                                 const totalStock = item.total || 0;
                                                 const frozenAmt = Math.max(0, totalStock - unfrozenAmt);

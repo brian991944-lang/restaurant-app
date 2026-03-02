@@ -58,6 +58,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [nameInput, setNameInput] = useState('');
     const [nameEsInput, setNameEsInput] = useState('');
     const [translatedNamePreview, setTranslatedNamePreview] = useState('');
+    const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
     const [portionSize, setPortionSize] = useState<number>(1);
@@ -77,6 +78,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setWastePercent(0);
             setCloverId('');
             setMappingMultiplier(1);
+            setTrackFreezerStatus(false);
         }
     }, [isOpen]);
 
@@ -158,6 +160,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setPortionSize(initialData?.portionWeightG || 1);
             setCloverId(initialData?.cloverId || '');
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
+            setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
         }
     }, [isOpen, initialData]);
 
@@ -213,6 +216,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             cloverId: cloverId || null,
             mappingMultiplier: mappingMultiplier,
             unfrozenQuantity: currentType === 'PROCESSED' ? (parseFloat(formData.get('unfrozenQuantity') as string) || 0) : 0,
+            trackFreezerStatus: trackFreezerStatus,
         });
     };
 
@@ -389,6 +393,20 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             </div>
                         )}
                     </div>
+
+                    {currentType === 'PROCESSED' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                            <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={trackFreezerStatus}
+                                    onChange={e => setTrackFreezerStatus(e.target.checked)}
+                                    style={{ accentColor: '#60a5fa', width: '16px', height: '16px' }}
+                                />
+                                <span style={{ fontWeight: 600 }}>Rastrear en Control de Congelados (Track in Freezer/Fridge)</span>
+                            </label>
+                        </div>
+                    )}
 
                     {currentType === 'PROCESSED' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
