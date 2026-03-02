@@ -119,6 +119,7 @@ export async function addIngredient(data: any) {
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
                 mappingMultiplier: data.mappingMultiplier !== undefined ? parseFloat(data.mappingMultiplier) : 1.0,
+                unfrozenQuantity: data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : 0,
                 inventory: {
                     create: {
                         frozenQty: data.initialQty || 0,
@@ -192,6 +193,7 @@ export async function editIngredient(id: string, data: any) {
                 parentId: data.parentId !== undefined ? data.parentId : undefined,
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
                 mappingMultiplier: data.mappingMultiplier !== undefined ? parseFloat(data.mappingMultiplier) : undefined,
+                unfrozenQuantity: data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : undefined,
                 activeMarketItemId: data.activeMarketItemId !== undefined ? (data.activeMarketItemId || null) : undefined,
             }
         });
@@ -332,6 +334,7 @@ export async function bulkAddIngredients(ingredients: any[]) {
                         providerId: providerId,
                         portionWeightG: 1000,
                         yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
+                        unfrozenQuantity: 0,
                         inventory: {
                             create: {
                                 frozenQty: data.initialQty || 0,
@@ -551,6 +554,30 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
         return { success: true };
     } catch (e) {
         console.error("Failed to log inventory adjustment:", e);
-        return { success: false, error: "Database error logging adjustment" };
+        return { success: false, error: 'Database error logging adjustment' };
+    }
+}
+
+export async function adjustUnfrozenQuantity(id: string, delta: number) {
+    try {
+        const ingredient = await prisma.ingredient.findUnique({
+            where: { id }
+        });
+
+        if (!ingredient) {
+            return { success: false, error: 'Ingredient not found' };
+        }
+
+        const newUnfrozen = Math.max(0, ingredient.unfrozenQuantity + delta);
+
+        await prisma.ingredient.update({
+            where: { id },
+            data: { unfrozenQuantity: newUnfrozen }
+        });
+
+        return { success: true, updatedValue: newUnfrozen };
+    } catch (e) {
+        console.error('Failed to adjust unfrozen quantity:', e);
+        return { success: false, error: 'Failed to adjust unfrozen quantity' };
     }
 }

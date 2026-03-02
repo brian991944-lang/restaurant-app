@@ -5,6 +5,29 @@ import prisma from '@/lib/prisma';
 const CLOVER_MERCHANT_ID = '5EFY7JF0XERB1';
 const CLOVER_TOKEN = '80bb90a1-8598-71bb-606d-2d8eac4fe14e';
 
+async function depleteInventory(ingredientId: string, quantity: number, note: string) {
+    // 1. Deduct from total stock
+    await prisma.inventory.update({
+        where: { ingredientId: ingredientId },
+        data: { frozenQty: { decrement: quantity } }
+    }).catch(() => null);
+
+    // 2. Also check unfrozenQuantity
+    const ing = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
+    if (ing && ing.unfrozenQuantity > 0) {
+        // Floor at 0 if we deplete more than what's unfrozen
+        await prisma.ingredient.update({
+            where: { id: ingredientId },
+            data: { unfrozenQuantity: Math.max(0, ing.unfrozenQuantity - quantity) }
+        }).catch(() => null);
+    }
+
+    // 3. Log transaction
+    await prisma.inventoryTransaction.create({
+        data: { ingredientId: ingredientId, type: 'SALES_DEDUCT_CLOVER', qty: quantity, note }
+    }).catch(() => null);
+}
+
 export async function fetchCloverMenuItems() {
     try {
         const url = `https://api.clover.com/v3/merchants/${CLOVER_MERCHANT_ID}/items?limit=1000`;
@@ -148,13 +171,7 @@ export async function syncCloverSales() {
                     if (mappedMenu) {
                         // Deplete base ingredients
                         for (const reqIng of mappedMenu.recipeIngredients) {
-                            await prisma.inventory.update({
-                                where: { ingredientId: reqIng.ingredientId },
-                                data: { frozenQty: { decrement: reqIng.quantity } }
-                            }).catch(() => null);
-                            await prisma.inventoryTransaction.create({
-                                data: { ingredientId: reqIng.ingredientId, type: 'SALES_DEDUCT_CLOVER', qty: reqIng.quantity, note: `Menu Sale: ${itemName}` }
-                            });
+                            await depleteInventory(reqIng.ingredientId, reqIng.quantity, `Menu Sale: ${itemName}`);
                         }
 
                         // Process Modifiers Inventory Deletions
@@ -166,13 +183,7 @@ export async function syncCloverSales() {
                                 const dbModifier = mappedMenu.modifiers.find((m: any) => m.cloverModifierId === mod.modifier.id);
                                 if (dbModifier) {
                                     for (const modIng of dbModifier.ingredients) {
-                                        await prisma.inventory.update({
-                                            where: { ingredientId: modIng.ingredientId },
-                                            data: { frozenQty: { decrement: modIng.quantity } }
-                                        }).catch(() => null);
-                                        await prisma.inventoryTransaction.create({
-                                            data: { ingredientId: modIng.ingredientId, type: 'SALES_DEDUCT_CLOVER', qty: modIng.quantity, note: `Modifier: ${mod.name}` }
-                                        });
+                                        await depleteInventory(modIng.ingredientId, modIng.quantity, `Modifier: ${mod.name}`);
                                     }
                                 }
                             }
@@ -182,13 +193,7 @@ export async function syncCloverSales() {
                         const mappedIng = ingredientsByCloverId.get(cloverItemId);
                         if (mappedIng) {
                             const qtyToDeduct = mappedIng.mappingMultiplier || 1;
-                            await prisma.inventory.update({
-                                where: { ingredientId: mappedIng.id },
-                                data: { frozenQty: { decrement: qtyToDeduct } }
-                            }).catch(() => null);
-                            await prisma.inventoryTransaction.create({
-                                data: { ingredientId: mappedIng.id, type: 'SALES_DEDUCT_CLOVER', qty: qtyToDeduct, note: `Legacy Sale: ${itemName}` }
-                            });
+                            await depleteInventory(mappedIng.id, qtyToDeduct, `Legacy Sale: ${itemName}`);
                         }
                     }
 

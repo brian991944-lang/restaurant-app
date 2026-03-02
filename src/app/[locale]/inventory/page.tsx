@@ -7,7 +7,7 @@ import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import RecipeBuilderModal from '@/components/modals/RecipeBuilderModal';
-import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment } from '@/app/actions/inventory';
+import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment, adjustUnfrozenQuantity } from '@/app/actions/inventory';
 import { getPrepUsers } from '@/app/actions/users';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
@@ -37,6 +37,7 @@ interface Ingredient {
     calculatedCost?: number;
     cloverId?: string | null;
     cloverSoldToday?: number;
+    unfrozenQuantity?: number;
 }
 
 const MOCK_INVENTORY: Ingredient[] = [
@@ -63,7 +64,7 @@ const MOCK_PRODUCTION: ProductionSchedule[] = [
 
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('ALL');
-    const [overviewTab, setOverviewTab] = useState<'ALL' | 'RAW' | 'PROCESSED' | 'RELATIONSHIPS'>('ALL');
+    const [overviewTab, setOverviewTab] = useState<'RAW' | 'FREEZER' | 'PROCESSED' | 'RELATIONSHIPS'>('FREEZER');
     const [rawCategoryFilter, setRawCategoryFilter] = useState('');
     const [rawIngredientFilter, setRawIngredientFilter] = useState('');
     const [processedCategoryFilter, setProcessedCategoryFilter] = useState('');
@@ -159,6 +160,15 @@ export default function InventoryPage() {
             loadData();
         } else {
             alert(res.error || 'Failed to adjust inventory');
+        }
+    };
+
+    const handleQuickThaw = async (item: Ingredient, delta: number) => {
+        const res = await adjustUnfrozenQuantity(item.id, delta);
+        if (res.success) {
+            loadData();
+        } else {
+            alert(res.error || 'Failed to update Unfrozen stat.');
         }
     };
 
@@ -294,6 +304,7 @@ export default function InventoryPage() {
         portionWeightG: item.portionWeightG,
         cloverId: item.cloverId,
         cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
+        unfrozenQuantity: item.unfrozenQuantity || 0,
         calculatedCost: resolveCost(item)
     }));
 
@@ -491,14 +502,64 @@ export default function InventoryPage() {
                     )}
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-                        <button onClick={() => setOverviewTab('ALL')} className={overviewTab === 'ALL' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'ALL' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'ALL' ? 'white' : 'var(--text-secondary)' }}>All Items</button>
+                        <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
                         <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
                         <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
                         <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', marginTop: '2rem', width: '100%', alignItems: 'flex-start' }}>
-                        {['ALL', 'RAW'].includes(overviewTab) && (
+                        {overviewTab === 'FREEZER' && (
+                            <div style={{ flex: 1, minWidth: '100%', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 60, marginBottom: '1.5rem' }}>
+                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Control de Congelados</h2>
+                                    <p style={{ color: 'var(--text-secondary)', margin: '-0.5rem 0 0.5rem 0', fontSize: '0.9rem' }}>Tracker mainly for stored prep and Processed Foods evaluating freezer vs fridge.</p>
+                                </div>
+                                <div className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '800px' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                                                <th style={{ padding: '1rem', fontWeight: 500 }}>Name</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>Total Stock</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: '#60a5fa' }}>Frozen ❄️</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: 'var(--warning)' }}>Unfrozen (Fridge) 🌡️</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>Quick Thaw</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredInventory.filter(i => i.type === 'PROCESSED' || i.type === 'PREP_RECIPE').sort((a, b) => a.name.localeCompare(b.name)).map(item => {
+                                                const unfrozenAmt = item.unfrozenQuantity || 0;
+                                                const totalStock = item.total || 0;
+                                                const frozenAmt = Math.max(0, totalStock - unfrozenAmt);
+                                                return (
+                                                    <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        <td style={{ padding: '1rem', fontWeight: 'bold' }}>
+                                                            {item.name}
+                                                            {item.providerName && <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.providerName}</span>}
+                                                        </td>
+                                                        <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}>{totalStock} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.metric}</span></td>
+                                                        <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: '#60a5fa', fontWeight: 600 }}>{frozenAmt}</td>
+                                                        <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: 'var(--warning)', fontWeight: 600, background: 'rgba(245,158,11,0.05)' }}>{unfrozenAmt}</td>
+                                                        <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                            <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.3rem', borderRadius: '8px' }}>
+                                                                <button onClick={() => handleQuickThaw(item, -1)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', width: '32px', height: '32px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', opacity: unfrozenAmt <= 0 ? 0.3 : 1 }} disabled={unfrozenAmt <= 0}>
+                                                                    <Minus size={16} />
+                                                                </button>
+                                                                <button onClick={() => handleQuickThaw(item, 1)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', width: '32px', height: '32px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', opacity: frozenAmt <= 0 ? 0.3 : 1 }} disabled={frozenAmt <= 0}>
+                                                                    <Plus size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {overviewTab === 'RAW' && (
                             <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 50, marginBottom: '1.5rem' }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('raw_ingredients')}</h2>
@@ -526,7 +587,7 @@ export default function InventoryPage() {
                             </div>
                         )}
 
-                        {['ALL', 'PROCESSED'].includes(overviewTab) && (
+                        {overviewTab === 'PROCESSED' && (
                             <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 40, marginBottom: '1.5rem' }}>
                                     <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('processed_food')}</h2>

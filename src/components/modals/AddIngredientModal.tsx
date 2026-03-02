@@ -212,6 +212,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             portionUnit: currentType === 'PROCESSED' && isPortioned ? portionUnit : null,
             cloverId: cloverId || null,
             mappingMultiplier: mappingMultiplier,
+            unfrozenQuantity: currentType === 'PROCESSED' ? (parseFloat(formData.get('unfrozenQuantity') as string) || 0) : 0,
         });
     };
 
@@ -374,9 +375,17 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             />
                         </div>
                         {!initialData && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_initial_qty')}</label>
-                                <input name="initialQty" type="number" step="0.01" className="input-field" placeholder="0.00" required />
+                            <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1, gridColumn: currentType !== 'RAW' ? 'span 2' : 'span 1' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_initial_qty')} (Total Stock)</label>
+                                    <input name="initialQty" type="number" step="0.01" className="input-field" placeholder="0.00" required />
+                                </div>
+                                {currentType === 'PROCESSED' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
+                                        <input name="unfrozenQuantity" type="number" step="0.01" className="input-field" defaultValue="0" />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
