@@ -1013,7 +1013,16 @@ export default function PrepSchedulePage() {
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Unit / Metric</label>
-                                <input type="text" placeholder="e.g. units, kg, L" value={newTaskMetric} onChange={e => setNewTaskMetric(e.target.value)} disabled={!!newTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: newTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: newTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                                <select value={newTaskMetric} onChange={e => setNewTaskMetric(e.target.value)} disabled={!!newTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: newTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: newTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    <option value="units">units</option>
+                                    <option value="Lbs">Lbs</option>
+                                    <option value="oz">oz</option>
+                                    <option value="kilogramos (kg)">kilogramos (kg)</option>
+                                    <option value="Grams">Grams</option>
+                                    <option value="Pound">Pound</option>
+                                    <option value="liters">liters</option>
+                                    <option value="gallons">gallons</option>
+                                </select>
                             </div>
                         </div>
 
@@ -1054,7 +1063,16 @@ export default function PrepSchedulePage() {
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Unit / Metric</label>
-                                <input type="text" value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                                <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    <option value="units">units</option>
+                                    <option value="Lbs">Lbs</option>
+                                    <option value="oz">oz</option>
+                                    <option value="kilogramos (kg)">kilogramos (kg)</option>
+                                    <option value="Grams">Grams</option>
+                                    <option value="Pound">Pound</option>
+                                    <option value="liters">liters</option>
+                                    <option value="gallons">gallons</option>
+                                </select>
                             </div>
                         </div>
 
