@@ -699,13 +699,18 @@ export default function PrepSchedulePage() {
 
         const groupedLogs = sortedLogs.reduce((acc, log: any) => {
             const dateObj = new Date(log.completedAt);
-            const rawStr = dateObj.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US', { month: 'long', year: 'numeric' });
-            // Capitalize first letter properly
-            const monthYear = rawStr.charAt(0).toUpperCase() + rawStr.slice(1);
-            if (!acc[monthYear]) acc[monthYear] = [];
-            acc[monthYear].push(log);
+            const rawMonthStr = dateObj.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US', { month: 'long', year: 'numeric' });
+            const monthYear = rawMonthStr.charAt(0).toUpperCase() + rawMonthStr.slice(1);
+
+            const rawDayStr = dateObj.toLocaleDateString(locale === 'es' ? 'es-ES' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+            const dayStr = rawDayStr.charAt(0).toUpperCase() + rawDayStr.slice(1);
+
+            if (!acc[monthYear]) acc[monthYear] = {};
+            if (!acc[monthYear][dayStr]) acc[monthYear][dayStr] = [];
+
+            acc[monthYear][dayStr].push(log);
             return acc;
-        }, {} as Record<string, typeof completedLogs>);
+        }, {} as Record<string, Record<string, typeof completedLogs>>);
 
         const monthKeys = Object.keys(groupedLogs);
 
@@ -722,38 +727,56 @@ export default function PrepSchedulePage() {
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {monthKeys.map((monthYear, idx) => (
-                            <details key={monthYear} open={idx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
-                                <summary style={{ padding: '1rem 1.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                                        <Calendar size={18} color="var(--accent-primary)" />
-                                        <span>{monthYear}</span>
-                                    </div>
-                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 'normal', background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.6rem', borderRadius: '12px' }}>{groupedLogs[monthYear].length} {locale === 'es' ? 'tareas' : 'tasks'}</span>
-                                </summary>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
-                                    {groupedLogs[monthYear].map((log: any) => (
-                                        <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', marginLeft: '0.5rem', marginRight: '0.5rem' }}>
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <strong style={{ fontSize: '1.1rem' }}>{log.ingredientName}</strong>
-                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.category} • Prepped by {log.completedBy}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Amount</span>
-                                                    <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
-                                                        {log.actualAmount} kg
-                                                    </div>
-                                                </div>
-                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                                    {new Date(log.completedAt).toLocaleString()}
-                                                </div>
-                                            </div>
+                        {monthKeys.map((monthYear, mIdx) => {
+                            const days = groupedLogs[monthYear];
+                            const dayKeys = Object.keys(days);
+                            const totalLogsInMonth = dayKeys.reduce((sum, day) => sum + days[day].length, 0);
+
+                            return (
+                                <details key={monthYear} open={mIdx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                                    <summary style={{ padding: '1rem 1.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.2rem', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                            <Calendar size={18} color="var(--accent-primary)" />
+                                            <span>{monthYear}</span>
                                         </div>
-                                    ))}
-                                </div>
-                            </details>
-                        ))}
+                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 'normal', background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.6rem', borderRadius: '12px' }}>{totalLogsInMonth} {locale === 'es' ? 'tareas' : 'tasks'}</span>
+                                    </summary>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
+                                        {dayKeys.map((dayStr, dIdx) => (
+                                            <details key={dayStr} open={mIdx === 0 && dIdx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', marginLeft: '1rem', overflow: 'hidden' }}>
+                                                <summary style={{ padding: '0.8rem 1.2rem', cursor: 'pointer', fontWeight: 500, fontSize: '1rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.02)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <span style={{ color: 'var(--text-primary)' }}>{dayStr}</span>
+                                                    </div>
+                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{days[dayStr].length} {locale === 'es' ? 'tareas' : 'tasks'}</span>
+                                                </summary>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
+                                                    {days[dayStr].map((log: any) => (
+                                                        <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                <strong style={{ fontSize: '1.1rem' }}>{log.ingredientName}</strong>
+                                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.category} • Prepped by {log.completedBy}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Amount</span>
+                                                                    <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
+                                                                        {log.actualAmount} kg
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                                    {new Date(log.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </details>
+                                        ))}
+                                    </div>
+                                </details>
+                            );
+                        })}
                     </div>
                 )}
             </div>
