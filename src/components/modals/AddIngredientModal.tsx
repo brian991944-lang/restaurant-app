@@ -235,7 +235,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Ingredient Name (English)</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nombre en Inglés' : 'English Name'}</label>
                             <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', color: 'var(--accent-primary)' }}>
                                 <input
                                     type="checkbox"
@@ -254,14 +254,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             value={nameInput}
                             onChange={(e) => setNameInput(toTitleCase(e.target.value))}
                             required
-                            autoFocus={locale !== 'es'}
-                            disabled={locale === 'es'}
-                            style={{
-                                background: locale === 'es' ? 'rgba(255,255,255,0.05)' : undefined,
-                                color: locale === 'es' ? 'var(--text-secondary)' : undefined,
-                                opacity: locale === 'es' ? 0.8 : undefined,
-                                cursor: locale === 'es' ? 'not-allowed' : undefined
-                            }}
+                            autoFocus
                         />
 
                         <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Spanish Name</label>
