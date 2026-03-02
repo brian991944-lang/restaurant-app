@@ -304,7 +304,7 @@ export default function InventoryPage() {
         portionWeightG: item.portionWeightG,
         cloverId: item.cloverId,
         cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
-        unfrozenQuantity: item.unfrozenQuantity || 0,
+        unfrozenQuantity: item.inventory?.thawingQty || 0,
         calculatedCost: resolveCost(item)
     }));
 

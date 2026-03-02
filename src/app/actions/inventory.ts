@@ -119,11 +119,10 @@ export async function addIngredient(data: any) {
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
                 mappingMultiplier: data.mappingMultiplier !== undefined ? parseFloat(data.mappingMultiplier) : 1.0,
-                unfrozenQuantity: data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : 0,
                 inventory: {
                     create: {
                         frozenQty: data.initialQty || 0,
-                        thawingQty: 0
+                        thawingQty: data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : 0
                     }
                 }
             }
@@ -193,10 +192,17 @@ export async function editIngredient(id: string, data: any) {
                 parentId: data.parentId !== undefined ? data.parentId : undefined,
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
                 mappingMultiplier: data.mappingMultiplier !== undefined ? parseFloat(data.mappingMultiplier) : undefined,
-                unfrozenQuantity: data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : undefined,
                 activeMarketItemId: data.activeMarketItemId !== undefined ? (data.activeMarketItemId || null) : undefined,
             }
         });
+
+        if (data.unfrozenQuantity !== undefined) {
+            await prisma.inventory.upsert({
+                where: { ingredientId: id },
+                create: { thawingQty: parseFloat(data.unfrozenQuantity), frozenQty: 0 },
+                update: { thawingQty: parseFloat(data.unfrozenQuantity) }
+            });
+        }
 
         // Set the active market item price directly onto current price
         if (data.activeMarketItemId) {
@@ -334,7 +340,6 @@ export async function bulkAddIngredients(ingredients: any[]) {
                         providerId: providerId,
                         portionWeightG: 1000,
                         yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
-                        unfrozenQuantity: 0,
                         inventory: {
                             create: {
                                 frozenQty: data.initialQty || 0,
@@ -560,19 +565,19 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
 
 export async function adjustUnfrozenQuantity(id: string, delta: number) {
     try {
-        const ingredient = await prisma.ingredient.findUnique({
-            where: { id }
+        const inventory = await prisma.inventory.findUnique({
+            where: { ingredientId: id }
         });
 
-        if (!ingredient) {
-            return { success: false, error: 'Ingredient not found' };
+        if (!inventory) {
+            return { success: false, error: 'Inventory not found' };
         }
 
-        const newUnfrozen = Math.max(0, ingredient.unfrozenQuantity + delta);
+        const newUnfrozen = Math.max(0, inventory.thawingQty + delta);
 
-        await prisma.ingredient.update({
-            where: { id },
-            data: { unfrozenQuantity: newUnfrozen }
+        await prisma.inventory.update({
+            where: { ingredientId: id },
+            data: { thawingQty: newUnfrozen }
         });
 
         return { success: true, updatedValue: newUnfrozen };

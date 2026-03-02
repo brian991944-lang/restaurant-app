@@ -51,7 +51,6 @@ model Ingredient {
   currentPrice   Float     @default(0.0)
   yieldPercent   Float     @default(100.0)
   aliases        String? // JSON string
-  unfrozenQuantity Float   @default(0.0)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?
