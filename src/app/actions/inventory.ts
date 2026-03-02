@@ -567,19 +567,19 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
 
 export async function adjustUnfrozenQuantity(id: string, delta: number) {
     try {
-        const inventory = await prisma.inventory.findUnique({
-            where: { ingredientId: id }
+        const ingredient = await prisma.ingredient.findUnique({
+            where: { id }
         });
 
-        if (!inventory) {
-            return { success: false, error: 'Inventory not found' };
+        if (!ingredient) {
+            return { success: false, error: 'Ingredient not found' };
         }
 
-        const newUnfrozen = Math.max(0, inventory.thawingQty + delta);
+        const newUnfrozen = Math.max(0, (ingredient.unfrozenQuantity || 0) + delta);
 
-        await prisma.inventory.update({
-            where: { ingredientId: id },
-            data: { thawingQty: newUnfrozen }
+        await prisma.ingredient.update({
+            where: { id },
+            data: { unfrozenQuantity: newUnfrozen }
         });
 
         return { success: true, updatedValue: newUnfrozen };

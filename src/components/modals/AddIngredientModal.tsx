@@ -61,6 +61,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
+    const [unfrozenQuantity, setUnfrozenQuantity] = useState<number>(0);
     const [portionSize, setPortionSize] = useState<number>(1);
     const [portionUnit, setPortionUnit] = useState<string>('g');
     const [selectedMetric, setSelectedMetric] = useState<string>('Units');
@@ -79,6 +80,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCloverId('');
             setMappingMultiplier(1);
             setTrackFreezerStatus(false);
+            setUnfrozenQuantity(0);
         }
     }, [isOpen]);
 
@@ -145,6 +147,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setSelectedParentId(initialData?.parentId || '');
             setSelectedCategory(initialData?.rawCategory || initialData?.category || '');
             setSelectedProvider(initialData?.provider?.name || initialData?.providerName || '');
+            setUnfrozenQuantity(initialData?.unfrozenQuantity || 0);
 
             if (initialData?.metric) {
                 const match = ALLOWED_METRICS.find(m => m.toLowerCase() === initialData.metric.toLowerCase());
@@ -215,7 +218,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             portionUnit: currentType === 'PROCESSED' && isPortioned ? portionUnit : null,
             cloverId: cloverId || null,
             mappingMultiplier: mappingMultiplier,
-            unfrozenQuantity: currentType === 'PROCESSED' ? (parseFloat(formData.get('unfrozenQuantity') as string) || 0) : 0,
+            unfrozenQuantity: currentType === 'PROCESSED' ? unfrozenQuantity : 0,
             trackFreezerStatus: trackFreezerStatus,
         });
     };
@@ -387,7 +390,14 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 {currentType === 'PROCESSED' && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                         <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
-                                        <input name="unfrozenQuantity" type="number" step="0.01" className="input-field" defaultValue="0" />
+                                        <input
+                                            name="unfrozenQuantity"
+                                            type="number"
+                                            step="0.01"
+                                            className="input-field"
+                                            value={unfrozenQuantity}
+                                            onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
+                                        />
                                     </div>
                                 )}
                             </div>
@@ -405,6 +415,20 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 />
                                 <span style={{ fontWeight: 600 }}>Rastrear en Control de Congelados (Track in Freezer/Fridge)</span>
                             </label>
+
+                            {trackFreezerStatus && initialData && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>Cantidad Descongelada / Unfrozen in Fridge</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="input-field"
+                                        value={unfrozenQuantity}
+                                        onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
+                                        style={{ width: '150px' }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     )}
 

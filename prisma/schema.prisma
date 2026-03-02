@@ -52,6 +52,7 @@ model Ingredient {
   yieldPercent   Float     @default(100.0)
   aliases        String? // JSON string
   trackFreezerStatus Boolean @default(false)
+  unfrozenQuantity Float @default(0)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?
