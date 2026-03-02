@@ -1,14 +1,14 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2 } from 'lucide-react';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
 import { getRecurringRules, createRecurringRule, deleteRecurringRule } from '@/app/actions/recurringPrep';
 import { getPrepUsers } from '@/app/actions/users';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
-import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addPrepTaskItem, removePrepTaskItem, getBaseIngredients } from '@/app/actions/teamTasks';
+import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addPrepTaskItem, removePrepTaskItem, getBaseIngredients, editPrepTaskItem } from '@/app/actions/teamTasks';
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
@@ -729,16 +729,47 @@ export default function PrepSchedulePage() {
     const [newTaskName, setNewTaskName] = useState('');
     const [newTaskCatId, setNewTaskCatId] = useState('');
     const [newTaskParentId, setNewTaskParentId] = useState('');
+    const [newTaskMetric, setNewTaskMetric] = useState('units');
+    const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+
+    const [showEditTaskModal, setShowEditTaskModal] = useState(false);
+    const [editingTask, setEditingTask] = useState<any>(null);
+    const [editTaskName, setEditTaskName] = useState('');
+    const [editTaskCatId, setEditTaskCatId] = useState('');
+    const [editTaskParentId, setEditTaskParentId] = useState('');
+    const [editTaskMetric, setEditTaskMetric] = useState('units');
 
     const handleAddPrepTask = async () => {
         if (!newTaskName) return alert("Enter task name");
         if (!newTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await addPrepTaskItem(newTaskName, newTaskCatId, 'units', newTaskParentId || undefined);
+        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined);
         setPrepItems(await getPrepTaskItems());
         setNewTaskName('');
         setNewTaskCatId('');
         setNewTaskParentId('');
+        setNewTaskMetric('units');
+        setShowAddTaskModal(false);
+        setIsLoading(false);
+    };
+
+    const handleOpenEditTask = (task: any) => {
+        setEditingTask(task);
+        setEditTaskName(task.name);
+        setEditTaskCatId(task.categoryId);
+        setEditTaskParentId(task.parentId || '');
+        setEditTaskMetric(task.metric || 'units');
+        setShowEditTaskModal(true);
+    };
+
+    const handleSaveEditTask = async () => {
+        if (!editTaskName) return alert("Enter task name");
+        if (!editTaskCatId) return alert("Select a Category");
+        setIsLoading(true);
+        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined);
+        setPrepItems(await getPrepTaskItems());
+        setShowEditTaskModal(false);
+        setEditingTask(null);
         setIsLoading(false);
     };
 
@@ -779,19 +810,7 @@ export default function PrepSchedulePage() {
                 <div className="glass-panel" style={{ flex: 2, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
                         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Layers size={20} color="#a855f7" /> Eligible Prep Tasks</h3>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '12px', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <input type="text" placeholder="Task Name (e.g. Cocinar Camote)" value={newTaskName} onChange={e => setNewTaskName(e.target.value)} style={{ flex: 2, padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }} />
-                        <select value={newTaskCatId} onChange={e => setNewTaskCatId(e.target.value)} style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }}>
-                            <option value="">-- Category --</option>
-                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <select value={newTaskParentId} onChange={e => setNewTaskParentId(e.target.value)} style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }}>
-                            <option value="">-- Link to Base Ingredient --</option>
-                            {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                        </select>
-                        <button onClick={handleAddPrepTask} className="btn-primary" style={{ padding: '0.6rem 1.2rem', background: 'linear-gradient(135deg, #a855f7, #6b21a8)' }}>+ Add</button>
+                        <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: 'linear-gradient(135deg, #a855f7, #6b21a8)' }}>+ Add New Task</button>
                     </div>
 
                     <div className="glass-panel" style={{ overflowX: 'auto', padding: 0, marginTop: '1rem' }}>
@@ -830,7 +849,10 @@ export default function PrepSchedulePage() {
                                                         <span style={{ marginLeft: '0.8rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({t.metric})</span>
                                                     </td>
                                                     <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                        <button onClick={() => handleRemovePrepTask(t.id, t._count.usedInPreps)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t._count.usedInPreps > 0 ? 'var(--text-secondary)' : 'var(--danger)' }} title={t._count.usedInPreps > 0 ? "Cannot delete: currently used." : "Delete task"}><Trash2 size={16} /></button>
+                                                        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.8rem', alignItems: 'center' }}>
+                                                            <button onClick={() => handleOpenEditTask(t)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }} title="Edit Task"><Pencil size={16} /></button>
+                                                            <button onClick={() => handleRemovePrepTask(t.id, t._count.usedInPreps)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t._count.usedInPreps > 0 ? 'var(--text-secondary)' : 'var(--danger)' }} title={t._count.usedInPreps > 0 ? "Cannot delete: currently used." : "Delete task"}><Trash2 size={16} /></button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -957,6 +979,89 @@ export default function PrepSchedulePage() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* ADD TASK MODAL */}
+            {showAddTaskModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h3 style={{ margin: '0 0 1.5rem 0' }}>Add New Task</h3>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Task Name</label>
+                                <input type="text" placeholder="e.g. Cortar Cebolla" value={newTaskName} onChange={e => setNewTaskName(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Category</label>
+                                <select value={newTaskCatId} onChange={e => setNewTaskCatId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    <option value="">-- Select Category --</option>
+                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Base Ingredient Link (Optional)</label>
+                                <select value={newTaskParentId} onChange={e => setNewTaskParentId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    <option value="">-- None --</option>
+                                    {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Unit / Metric</label>
+                                <input type="text" placeholder="e.g. units, kg, L" value={newTaskMetric} onChange={e => setNewTaskMetric(e.target.value)} disabled={!!newTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: newTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: newTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
+                            <button onClick={() => setShowAddTaskModal(false)} className="btn-secondary">Cancel</button>
+                            <button onClick={handleAddPrepTask} className="btn-primary">Save Task</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* EDIT TASK MODAL */}
+            {showEditTaskModal && editingTask && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <h3 style={{ margin: '0 0 1.5rem 0' }}>Edit Task</h3>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Task Name</label>
+                                <input type="text" value={editTaskName} onChange={e => setEditTaskName(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Category</label>
+                                <select value={editTaskCatId} onChange={e => setEditTaskCatId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Base Ingredient Link (Optional)</label>
+                                <select value={editTaskParentId} onChange={e => setEditTaskParentId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    <option value="">-- None --</option>
+                                    {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Unit / Metric</label>
+                                <input type="text" value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
+                            <button onClick={() => { setShowEditTaskModal(false); setEditingTask(null); }} className="btn-secondary">Cancel</button>
+                            <button onClick={handleSaveEditTask} className="btn-primary">Save Changes</button>
+                        </div>
                     </div>
                 </div>
             )}

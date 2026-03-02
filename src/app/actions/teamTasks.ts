@@ -90,3 +90,27 @@ export async function removePrepTaskItem(id: string) {
         return { success: false, error: e.message };
     }
 }
+
+export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string) {
+    try {
+        let actualMetric = metric;
+        if (parentId) {
+            const parent = await prisma.ingredient.findUnique({ where: { id: parentId } });
+            if (parent) actualMetric = parent.metric;
+        }
+
+        const item = await prisma.ingredient.update({
+            where: { id },
+            data: {
+                name,
+                categoryId,
+                metric: actualMetric,
+                parentId: parentId || null,
+            }
+        });
+        return { success: true, item };
+    } catch (e: any) {
+        console.error(e);
+        return { success: false, error: e.message };
+    }
+}
