@@ -388,34 +388,36 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma %' : 'Waste %'}</label>
-                            <input
-                                name="wastePercent"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max="100"
-                                className="input-field"
-                                placeholder="0"
-                                value={wastePercent}
-                                onChange={(e) => setWastePercent(parseFloat(e.target.value) || 0)}
-                                required
-                            />
+                    {currentType === 'PROCESSED' && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma %' : 'Waste %'}</label>
+                                <input
+                                    name="wastePercent"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    max="100"
+                                    className="input-field"
+                                    placeholder="0"
+                                    value={wastePercent}
+                                    onChange={(e) => setWastePercent(parseFloat(e.target.value) || 0)}
+                                    required
+                                />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_yield')}</label>
+                                <input
+                                    name="yieldPercent"
+                                    type="number"
+                                    className="input-field"
+                                    value={(100 - wastePercent).toFixed(2)}
+                                    disabled
+                                    style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', opacity: 0.8 }}
+                                />
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_yield')}</label>
-                            <input
-                                name="yieldPercent"
-                                type="number"
-                                className="input-field"
-                                value={(100 - wastePercent).toFixed(2)}
-                                disabled
-                                style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', opacity: 0.8 }}
-                            />
-                        </div>
-                    </div>
+                    )}
 
                     {currentType === 'PROCESSED' && (
                         <div style={{ display: 'grid', gridTemplateColumns: isPortioned ? '1fr 1fr 1fr' : '1fr', gap: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
