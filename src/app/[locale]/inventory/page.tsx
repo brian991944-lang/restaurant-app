@@ -904,7 +904,7 @@ export default function InventoryPage() {
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>
-                                                        {item.yieldPercent ? `${item.yieldPercent}%` : '100%'}
+                                                        {item.type === 'PREP_RECIPE' ? '100%' : (item.yieldPercent ? `${item.yieldPercent}%` : '100%')}
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', color: 'var(--warning)', fontWeight: 600 }}>
                                                         {item.cloverSoldToday && item.cloverSoldToday > 0 ? `${item.cloverSoldToday} ${item.metric}` : '-'}
