@@ -144,11 +144,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                 setNameEsInput(initialData?.nameEs || '');
             }
             if (initialData?.yieldPercent !== undefined) {
-                if (initialData?.type === 'PREP_RECIPE') {
-                    setWastePercent(0); // For recipes, yieldPercent is batch size, not usage %.
-                } else {
-                    setWastePercent(parseFloat((100 - initialData.yieldPercent).toFixed(2)));
-                }
+                setWastePercent(parseFloat((100 - initialData.yieldPercent).toFixed(2)));
             } else {
                 setWastePercent(0);
             }
@@ -232,7 +228,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             type: currentType,
             metric: currentType === 'PREP_RECIPE' ? (initialData?.metric || selectedMetric) : (currentType === 'PROCESSED' && isPortioned ? 'Units' : selectedMetric),
             initialQty: parseFloat(formData.get('initialQty') as string) || 0,
-            yieldPercent: currentType === 'PREP_RECIPE' ? (initialData?.yieldPercent || 1) : parseFloat((100 - wastePercent).toFixed(2)),
+            yieldPercent: parseFloat((100 - wastePercent).toFixed(2)),
             currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (currentType === 'PREP_RECIPE' ? (initialData?.currentPrice || currentPriceValue || 0) : (parseFloat(formData.get('currentPrice') as string) || 0)),
             parentId: selectedParentId || null,
             activeMarketItemId: formData.get('activeMarketItemId') as string || null,

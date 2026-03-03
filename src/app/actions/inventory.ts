@@ -278,13 +278,16 @@ export async function savePrepRecipe(id: string | null, data: any) {
             });
         }
 
+        const existing = id ? await prisma.ingredient.findUnique({ where: { id } }) : null;
+
         const ingredientData = {
             name: data.name,
             nameEs: nameEs,
             type: 'PREP_RECIPE',
             categoryId: category.id,
             metric: data.metric || 'L',
-            yieldPercent: data.yieldPercent || 1, // yieldPercent will literally be Batch Size (amount produced)
+            portionWeightG: data.batchSize || 1, // Store batch size in portionWeightG!
+            yieldPercent: existing ? existing.yieldPercent : 100, // Preserve Waste %, defaults to 100% (0% waste)
             currentPrice: data.currentPrice || 0,
         };
 

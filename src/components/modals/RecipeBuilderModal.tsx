@@ -26,7 +26,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
             getDropdownOptions('Metric').then(setMetrics);
 
             if (initialData?.composedOf && initialData.composedOf.length > 0) {
-                setRecipeYield(initialData.yieldPercent || 1);
+                setRecipeYield(initialData.portionWeightG || 1);
                 setComponents(initialData.composedOf.map((c: any) => ({
                     id: Math.random().toString(),
                     ingredientId: c.ingredientId,
@@ -97,7 +97,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
             nameEs: formData.get('name') as string,
             categoryName: 'Prep Items', // Hardcoded fix to bypass database error for category creation!
             metric: formData.get('metric') as string,
-            yieldPercent: parseFloat(formData.get('yieldPercent') as string) || 1,
+            batchSize: parseFloat(formData.get('batchSize') as string) || 1,
             currentPrice: currentPricePreview,
             autoTranslate: false,
             components: components.filter(c => c.ingredientId && parseFloat(c.quantity) > 0)
@@ -150,7 +150,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Yield / Batch Size</label>
-                            <input name="yieldPercent" type="number" step="0.01" min="0" className="input-field" placeholder="1" value={recipeYield} onChange={(e) => setRecipeYield(parseFloat(e.target.value) || 0)} required />
+                            <input name="batchSize" type="number" step="0.01" min="0" className="input-field" placeholder="1" value={recipeYield} onChange={(e) => setRecipeYield(parseFloat(e.target.value) || 0)} required />
                         </div>
                     </div>
 

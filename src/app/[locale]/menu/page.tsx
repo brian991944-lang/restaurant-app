@@ -36,7 +36,9 @@ export default function MenuPage() {
                 const dep = allIngredients.find(dbI => dbI.id === comp.ingredientId) || comp.ingredient;
                 return acc + (resolveCost(dep) * comp.quantity);
             }, 0);
-            return sum / Math.max(0.01, (item.yieldPercent / 100));
+            const batchSize = item.portionWeightG || 1;
+            const costPerUnit = sum / Math.max(0.01, batchSize);
+            return costPerUnit / Math.max(0.01, (item.yieldPercent / 100));
         }
         return item.currentPrice || 0;
     };

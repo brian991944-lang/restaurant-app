@@ -28,7 +28,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
             return parentCost / Math.max(0.01, (item.yieldPercent / 100));
         }
         if (item.type === 'PREP_RECIPE') {
-            return item.currentPrice || 0;
+            return (item.currentPrice || 0) / Math.max(0.01, (item.yieldPercent / 100));
         }
         return item.currentPrice || 0;
     };
