@@ -395,15 +395,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('metric')}</label>
                             {currentType === 'PROCESSED' && ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' ? (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <input
-                                        type="text"
-                                        className="input-field"
-                                        value={selectedMetric}
-                                        style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-secondary)', cursor: 'not-allowed', width: '100px' }}
-                                        readOnly
-                                    />
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#007bff' }}>
-                                        ${(ingredients.find(i => i.id === selectedParentId)?.currentPrice || 0).toFixed(4)} / {selectedMetric}
+                                    <span style={{ fontWeight: 'bold', border: '1px solid #ccc', padding: '8px', borderRadius: '4px', backgroundColor: '#eee', color: '#333', minWidth: '80px', textAlign: 'center' }}>
+                                        {ingredients.find(i => i.id === selectedParentId)?.metric || selectedMetric}
+                                    </span>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                                        ${(ingredients.find(i => i.id === selectedParentId)?.currentPrice || 0).toFixed(4)}
                                     </div>
                                 </div>
                             ) : (
@@ -512,8 +508,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                             {ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' && (
                                 <div style={{ gridColumn: 'span 2', marginTop: '0.5rem' }}>
-                                    <span style={{ fontSize: '1rem', fontWeight: 600, color: '#007bff' }}>
-                                        Precio Ajustado por Merma: ${costPerPortionPreview.toFixed(4)}
+                                    <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#007bff' }}>
+                                        {locale === 'es' ? 'Precio Ajustado por Merma' : 'Adjusted Price'}: ${costPerPortionPreview.toFixed(4)}
                                     </span>
                                 </div>
                             )}
