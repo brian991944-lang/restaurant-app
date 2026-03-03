@@ -67,7 +67,7 @@ export default function MetricPriceSection({
                 )}
             </div>
 
-            {(currentType === 'PROCESSED' || currentType === 'PREP_RECIPE') && (
+            {currentType === 'PROCESSED' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.2rem', marginTop: '0.5rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>

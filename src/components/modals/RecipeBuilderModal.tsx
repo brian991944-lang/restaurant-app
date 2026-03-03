@@ -12,7 +12,6 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSave, dbIngredients }: any) {
     const t = useTranslations('Inventory');
     const [metrics, setMetrics] = useState<any[]>([]);
-    const [autoTranslate, setAutoTranslate] = useState(true);
 
     const [components, setComponents] = useState<any[]>([]);
     const [recipeYield, setRecipeYield] = useState<number>(1);
@@ -95,11 +94,12 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
         const formData = new FormData(e.currentTarget);
         const data = {
             name: formData.get('name') as string,
+            nameEs: formData.get('name') as string,
             categoryName: 'Prep Items', // Hardcoded fix to bypass database error for category creation!
             metric: formData.get('metric') as string,
             yieldPercent: parseFloat(formData.get('yieldPercent') as string) || 1,
             currentPrice: currentPricePreview,
-            autoTranslate,
+            autoTranslate: false,
             components: components.filter(c => c.ingredientId && parseFloat(c.quantity) > 0)
         };
 
@@ -129,16 +129,10 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Recipe Name</label>
                             <input name="name" className="input-field" placeholder="e.g. Salsa Huancaina" defaultValue={initialData?.name} required />
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', justifyContent: 'center', alignItems: 'flex-end', paddingRight: '1rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                <input type="checkbox" checked={autoTranslate} onChange={(e) => setAutoTranslate(e.target.checked)} style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }} />
-                                Auto-Translate to Spanish
-                            </label>
                         </div>
                     </div>
 
