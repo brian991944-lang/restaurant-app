@@ -762,8 +762,8 @@ export default function InventoryPage() {
                                             <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{item.name}</td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{getOptName(item.category)}</td>
                                             <td style={{ padding: '1rem 1.5rem' }}>{item.yieldPercent} {getOptName(item.metric)}</td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${(item.calculatedCost || 0).toFixed(2)}</td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${((item.calculatedCost || 0) / (item.yieldPercent || 1)).toFixed(2)} / {getOptName(item.metric)}</td>
+                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * (item.yieldPercent || 1)).toFixed(2)}</td>
+                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}</td>
                                             <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                                                 <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
                                                 <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>Delete</button>
@@ -904,7 +904,7 @@ export default function InventoryPage() {
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>
-                                                        {item.type === 'PREP_RECIPE' ? `${item.yieldPercent ?? 1} ${getOptName(item.metric)}` : `${item.yieldPercent ?? 100}%`}
+                                                        {item.type === 'RAW' ? `${item.yieldPercent ?? 100}%` : '100%'}
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', color: 'var(--warning)', fontWeight: 600 }}>
                                                         {item.cloverSoldToday && item.cloverSoldToday > 0 ? `${item.cloverSoldToday} ${item.metric}` : '-'}

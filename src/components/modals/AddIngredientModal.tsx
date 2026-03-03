@@ -203,7 +203,10 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
             const cFactor = getConversionFactor(parentMetric, targetUnit);
             if (cFactor !== null) {
-                const yieldDecimal = Math.max(0.01, (100 - wastePercent) / 100);
+                // Lock waste to 0 if inheriting from a PREP_RECIPE (unless it's explicitly broken down further)
+                const isPrepRecipeParent = parentIng.type === 'PREP_RECIPE';
+                const appliedWastePercent = (isPrepRecipeParent && !isPortioned) ? 0 : wastePercent;
+                const yieldDecimal = Math.max(0.01, (100 - appliedWastePercent) / 100);
                 costPerPortionPreview = (parentPrice / cFactor) * size / yieldDecimal;
             } else {
                 conversionError = `Cannot convert ${parentMetric} to ${targetUnit}`;
@@ -478,6 +481,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     placeholder="0"
                                     value={wastePercent}
                                     onChange={(e) => setWastePercent(parseFloat(e.target.value) || 0)}
+                                    disabled={(currentType === 'PROCESSED' && ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' && !isPortioned)}
                                     required
                                 />
                             </div>
@@ -526,7 +530,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 ) : (
                                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
                                         <span style={{ fontSize: '1.4rem', fontWeight: 700, color: conversionError ? 'var(--warning)' : 'var(--text-primary)' }}>
-                                            {conversionError ? conversionError : ((ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE') && !isPortioned) ? `$${(ingredients.find(i => i.id === selectedParentId)?.currentPrice || 0).toFixed(4)}` : `$${costPerPortionPreview.toFixed(4)}`}
+                                            {conversionError ? conversionError : `$${costPerPortionPreview.toFixed(4)}`}
                                         </span>
                                         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>per {isPortioned ? 'portion' : selectedMetric}</span>
                                     </div>
