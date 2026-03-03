@@ -201,11 +201,11 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                         <div style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Costo Total de la Receta (Total Batch Cost)</span>
-                                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white' }}>${totalCalculatedCost.toFixed(2)}</span>
+                                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#007bff' }}>${totalCalculatedCost.toFixed(2)}</span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Costo por {selectedMetric || 'Unit'} (Cost per Yield Unit)</span>
-                                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>${currentPricePreview.toFixed(2)}</span>
+                                <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#007bff' }}>${currentPricePreview.toFixed(2)}</span>
                             </div>
                         </div>
                     </div>

@@ -284,12 +284,23 @@ export default function InventoryPage() {
             return parentCost / Math.max(0.01, (item.yieldPercent / 100));
         }
         if (item.type === 'PREP_RECIPE') {
-            if (!item.composedOf || item.composedOf.length === 0) return item.currentPrice || 0;
+            if (!item.composedOf || item.composedOf.length === 0) return 0;
             const sum = item.composedOf.reduce((acc: number, comp: any) => {
                 const dep = dbIngredients.find(dbI => dbI.id === comp.ingredientId) || comp.ingredient;
-                return acc + (resolveCost(dep) * comp.quantity);
+                if (!dep) return acc;
+                const baseUnit = dep.metric || 'Units';
+                let lineCost = 0;
+                if (baseUnit.toLowerCase() === 'units' || (comp.unit || '').toLowerCase() === 'units') {
+                    lineCost = resolveCost(dep) * (parseFloat(comp.quantity) || 0);
+                } else {
+                    const cFactor = getConversionFactor(baseUnit, comp.unit || 'Units');
+                    if (cFactor) {
+                        lineCost = (resolveCost(dep) / cFactor) * (parseFloat(comp.quantity) || 0);
+                    }
+                }
+                return acc + lineCost;
             }, 0);
-            return sum / Math.max(0.01, (item.yieldPercent / 100));
+            return sum;
         }
         return item.currentPrice || 0;
     };
@@ -319,6 +330,7 @@ export default function InventoryPage() {
         cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
         unfrozenQuantity: item.unfrozenQuantity || 0,
         trackFreezerStatus: item.trackFreezerStatus || false,
+        composedOf: item.composedOf || [],
         calculatedCost: resolveCost(item)
     }));
 
