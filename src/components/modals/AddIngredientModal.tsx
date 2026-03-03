@@ -210,6 +210,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                 conversionError = `Cannot convert ${parentMetric} to ${targetUnit}`;
             }
         }
+    } else if (currentType === 'PREP_RECIPE') {
+        const yieldDecimal = Math.max(0.01, (100 - wastePercent) / 100);
+        costPerPortionPreview = (initialData?.currentPrice || currentPriceValue || 0) / yieldDecimal;
     }
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -226,7 +229,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             metric: currentType === 'PROCESSED' && isPortioned ? 'Units' : selectedMetric,
             initialQty: parseFloat(formData.get('initialQty') as string) || 0,
             yieldPercent: parseFloat((100 - wastePercent).toFixed(2)),
-            currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (parseFloat(formData.get('currentPrice') as string) || 0),
+            currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (currentType === 'PREP_RECIPE' ? (initialData?.currentPrice || currentPriceValue || 0) : (parseFloat(formData.get('currentPrice') as string) || 0)),
             parentId: selectedParentId || null,
             activeMarketItemId: formData.get('activeMarketItemId') as string || null,
             autoTranslate,

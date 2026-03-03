@@ -31,20 +31,21 @@ export default function MetricPriceSection({
     conversionError
 }: MetricPriceSectionProps) {
 
-    const isRecipeChild = currentType === 'PROCESSED' && parentIngredient?.type === 'PREP_RECIPE';
+    const isLinkedToRecipe = currentType === 'PROCESSED' && parentIngredient?.type === 'PREP_RECIPE';
+    const hasRecipeConstraints = isLinkedToRecipe || currentType === 'PREP_RECIPE';
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: 1 }}>
                 <label style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('metric')} / {locale === 'es' ? 'Unidad Base' : 'Base Unit'}</label>
-                {isRecipeChild ? (
+                {hasRecipeConstraints ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', background: '#333', padding: '0.8rem', borderRadius: '8px' }}>
                         <span style={{ fontWeight: 'bold', border: '1px solid #ccc', padding: '8px 16px', borderRadius: '6px', backgroundColor: '#eee', color: '#111', fontSize: '1rem', minWidth: '80px', textAlign: 'center' }}>
-                            {parentIngredient?.metric || selectedMetric}
+                            {isLinkedToRecipe ? (parentIngredient?.metric || selectedMetric) : selectedMetric}
                         </span>
                         <div style={{ fontSize: '1.3rem', fontWeight: 600, color: '#007bff', display: 'flex', flexDirection: 'column' }}>
-                            ${(parentIngredient?.currentPrice || 0).toFixed(4)}
+                            ${(isLinkedToRecipe ? (parentIngredient?.currentPrice || 0) : (costPerPortionPreview * Math.max(0.01, (100 - wastePercent) / 100))).toFixed(4)}
                             <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 400, marginTop: '2px' }}>Base Unit Price from Recipe</span>
                         </div>
                     </div>
@@ -59,7 +60,7 @@ export default function MetricPriceSection({
                 )}
             </div>
 
-            {currentType === 'PROCESSED' && (
+            {(currentType === 'PROCESSED' || currentType === 'PREP_RECIPE') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.2rem', marginTop: '0.5rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
