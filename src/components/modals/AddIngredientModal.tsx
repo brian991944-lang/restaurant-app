@@ -319,8 +319,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                         if (parentIng && parentIng.category?.name) {
                                             setSelectedCategory(parentIng.category.name);
                                         }
+                                        if (parentIng?.type === 'PREP_RECIPE') {
+                                            setSelectedMetric(parentIng.metric || 'Units');
+                                        }
                                     }}
-                                    options={[...ingredients].filter(i => i.type === 'RAW').map(ing => ({ value: ing.id, label: ing.name }))}
+                                    options={[...ingredients].filter(i => i.type === 'RAW' || i.type === 'PREP_RECIPE').map(ing => ({ value: ing.id, label: ing.name }))}
                                     placeholder="Select Parent Ingredient..."
                                     required
                                 />
@@ -395,7 +398,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 value={selectedMetric}
                                 onChange={setSelectedMetric}
                                 options={ALLOWED_METRICS.filter(m => (currentType === 'PROCESSED' && isPortioned) ? m.toLowerCase() === 'units' : m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }))}
-                                disabled={currentType === 'PROCESSED' && isPortioned}
+                                disabled={(currentType === 'PROCESSED' && isPortioned) || (currentType === 'PROCESSED' && ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE')}
                             />
                         </div>
                         {!initialData && (
@@ -521,8 +524,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 {conversionError ? (
                                     <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>{conversionError}</span>
                                 ) : (
-                                    <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--success)' }}>
-                                        ${costPerPortionPreview.toFixed(4)} <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>per {isPortioned ? 'portion' : selectedMetric}</span>
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+                                        <span style={{ fontSize: '1.4rem', fontWeight: 700, color: conversionError ? 'var(--warning)' : 'var(--text-primary)' }}>
+                                            {conversionError ? conversionError : ((ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE') && !isPortioned) ? `$${(ingredients.find(i => i.id === selectedParentId)?.currentPrice || 0).toFixed(4)}` : `$${costPerPortionPreview.toFixed(4)}`}
+                                        </span>
+                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>per {isPortioned ? 'portion' : selectedMetric}</span>
                                     </div>
                                 )}
                             </div>

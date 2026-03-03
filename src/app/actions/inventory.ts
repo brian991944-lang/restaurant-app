@@ -285,7 +285,7 @@ export async function savePrepRecipe(id: string | null, data: any) {
             categoryId: category.id,
             metric: data.metric || 'L',
             yieldPercent: data.yieldPercent || 1, // yieldPercent will literally be Batch Size (amount produced)
-            currentPrice: 0,
+            currentPrice: data.currentPrice || 0,
         };
 
         if (id) {
@@ -305,6 +305,16 @@ export async function savePrepRecipe(id: string | null, data: any) {
                     }))
                 });
             }
+
+            // Sync inherited properties to linked Processed Foods
+            await prisma.ingredient.updateMany({
+                where: { parentId: id, type: 'PROCESSED' },
+                data: {
+                    metric: ingredientData.metric,
+                    currentPrice: ingredientData.currentPrice,
+                }
+            });
+
             return { success: true, ingredient: updated };
         } else {
             const ingredient = await prisma.ingredient.create({
@@ -325,6 +335,16 @@ export async function savePrepRecipe(id: string | null, data: any) {
                     }))
                 });
             }
+
+            // Sync inherited properties to linked Processed Foods
+            await prisma.ingredient.updateMany({
+                where: { parentId: ingredient.id, type: 'PROCESSED' },
+                data: {
+                    metric: ingredientData.metric,
+                    currentPrice: ingredientData.currentPrice,
+                }
+            });
+
             return { success: true, ingredient };
         }
     } catch (e) {

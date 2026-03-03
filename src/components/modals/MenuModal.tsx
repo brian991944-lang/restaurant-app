@@ -28,12 +28,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
             return parentCost / Math.max(0.01, (item.yieldPercent / 100));
         }
         if (item.type === 'PREP_RECIPE') {
-            if (!item.composedOf || item.composedOf.length === 0) return item.currentPrice || 0;
-            const sum = item.composedOf.reduce((acc: number, comp: any) => {
-                const dep = ingredientsList.find((dbI: any) => dbI.id === comp.ingredientId) || comp.ingredient;
-                return acc + (resolveCost(dep) * comp.quantity);
-            }, 0);
-            return sum / Math.max(0.01, (item.yieldPercent / 100));
+            return item.currentPrice || 0;
         }
         return item.currentPrice || 0;
     };
