@@ -262,53 +262,64 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nombre en Inglés' : 'English Name'}</label>
-                            <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', color: 'var(--accent-primary)' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={autoTranslate}
-                                    onChange={e => setAutoTranslate(e.target.checked)}
-                                    style={{ accentColor: 'var(--accent-primary)' }}
-                                />
-                                Auto-Translate Info
-                            </label>
+                    {currentType === 'PREP_RECIPE' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Recipe Name / Nombre de la Receta</label>
+                            <div style={{ fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', fontSize: '1.1rem' }}>
+                                {nameInput}
+                            </div>
                         </div>
-                        <input
-                            name="name"
-                            type="text"
-                            className="input-field"
-                            placeholder={t('modal_name_placeholder')}
-                            value={nameInput}
-                            onChange={(e) => setNameInput(toTitleCase(e.target.value))}
-                            required
-                            autoFocus
-                        />
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nombre en Inglés' : 'English Name'}</label>
+                                <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', color: 'var(--accent-primary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={autoTranslate}
+                                        onChange={e => setAutoTranslate(e.target.checked)}
+                                        style={{ accentColor: 'var(--accent-primary)' }}
+                                    />
+                                    Auto-Translate Info
+                                </label>
+                            </div>
+                            <input
+                                name="name"
+                                type="text"
+                                className="input-field"
+                                placeholder={t('modal_name_placeholder')}
+                                value={nameInput}
+                                onChange={(e) => setNameInput(toTitleCase(e.target.value))}
+                                required
+                                autoFocus
+                            />
 
-                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Spanish Name</label>
-                        <input
-                            name="nameEs"
-                            type="text"
-                            className="input-field"
-                            placeholder={autoTranslate ? "Translating..." : "Nombre en Español"}
-                            value={autoTranslate ? (translatedNamePreview || (nameInput ? "Translating..." : "")) : nameEsInput}
-                            onChange={(e) => setNameEsInput(e.target.value)}
-                            disabled={autoTranslate}
-                            required={!autoTranslate}
-                        />
-                    </div>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Spanish Name</label>
+                            <input
+                                name="nameEs"
+                                type="text"
+                                className="input-field"
+                                placeholder={autoTranslate ? "Translating..." : "Nombre en Español"}
+                                value={autoTranslate ? (translatedNamePreview || (nameInput ? "Translating..." : "")) : nameEsInput}
+                                onChange={(e) => setNameEsInput(e.target.value)}
+                                disabled={autoTranslate}
+                                required={!autoTranslate}
+                            />
+                        </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Product Hierarchy Level</label>
                             <select
                                 className="input-field"
-                                value={currentType === 'PROCESSED' ? 'Child' : 'Parent'}
+                                value={currentType === 'PROCESSED' ? 'Child' : (currentType === 'PREP_RECIPE' ? 'Recipe' : 'Parent')}
                                 onChange={(e) => setCurrentType(e.target.value === 'Child' ? 'PROCESSED' : 'RAW')}
+                                disabled={currentType === 'PREP_RECIPE'}
                             >
                                 <option value="Parent">Parent Product (Standalone)</option>
                                 <option value="Child">Child Product (Prepared from Parent)</option>
+                                {currentType === 'PREP_RECIPE' && <option value="Recipe">Prep Recipe (Locked)</option>}
                             </select>
                         </div>
                         {currentType === 'PROCESSED' && (
@@ -372,7 +383,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('type')}</label>
-                            <select name="type" className="input-field" value={currentType} onChange={(e) => setCurrentType(e.target.value)} required>
+                            <select name="type" className="input-field" value={currentType} onChange={(e) => setCurrentType(e.target.value)} required disabled={currentType === 'PREP_RECIPE'}>
                                 {[...types].sort((a, b) => a.name.localeCompare(b.name)).map(tOption => <option key={tOption.id} value={tOption.name}>{getOptName(tOption.name, tOption.isTranslated, tOption.nameEs)}</option>)}
                             </select>
                         </div>
