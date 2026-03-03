@@ -53,6 +53,7 @@ model Ingredient {
   aliases        String? // JSON string
   trackFreezerStatus Boolean @default(false)
   unfrozenQuantity Float @default(0)
+  allowNegativeStock Boolean @default(true)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?

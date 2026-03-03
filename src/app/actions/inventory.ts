@@ -116,6 +116,7 @@ export async function addIngredient(data: any) {
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : 1000,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : false,
+                allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : true,
                 currentPrice: data.currentPrice || 0,
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
@@ -190,6 +191,7 @@ export async function editIngredient(id: string, data: any) {
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : undefined,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : undefined,
+                allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : undefined,
                 currentPrice: data.currentPrice !== undefined ? data.currentPrice : undefined,
                 parentId: data.parentId !== undefined ? data.parentId : undefined,
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
@@ -572,7 +574,7 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
     }
 }
 
-export async function adjustUnfrozenQuantity(id: string, delta: number) {
+export async function setUnfrozenQuantityAction(id: string, newQty: number) {
     try {
         const ingredient = await prisma.ingredient.findUnique({
             where: { id }
@@ -582,7 +584,7 @@ export async function adjustUnfrozenQuantity(id: string, delta: number) {
             return { success: false, error: 'Ingredient not found' };
         }
 
-        const newUnfrozen = Math.max(0, (ingredient.unfrozenQuantity || 0) + delta);
+        const newUnfrozen = Math.max(0, newQty);
 
         await prisma.ingredient.update({
             where: { id },
@@ -591,7 +593,7 @@ export async function adjustUnfrozenQuantity(id: string, delta: number) {
 
         return { success: true, updatedValue: newUnfrozen };
     } catch (e) {
-        console.error('Failed to adjust unfrozen quantity:', e);
-        return { success: false, error: 'Failed to adjust unfrozen quantity' };
+        console.error('Failed to set unfrozen quantity:', e);
+        return { success: false, error: 'Failed to set unfrozen quantity' };
     }
 }

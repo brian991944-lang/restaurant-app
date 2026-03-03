@@ -59,6 +59,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [nameEsInput, setNameEsInput] = useState('');
     const [translatedNamePreview, setTranslatedNamePreview] = useState('');
     const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
+    const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(true);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
     const [unfrozenQuantity, setUnfrozenQuantity] = useState<number>(0);
@@ -80,6 +81,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCloverId('');
             setMappingMultiplier(1);
             setTrackFreezerStatus(false);
+            setAllowNegativeStock(true);
             setUnfrozenQuantity(0);
         }
     }, [isOpen]);
@@ -164,6 +166,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCloverId(initialData?.cloverId || '');
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
+            setAllowNegativeStock(initialData?.allowNegativeStock ?? true);
         }
     }, [isOpen, initialData]);
 
@@ -220,6 +223,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             mappingMultiplier: mappingMultiplier,
             unfrozenQuantity: currentType === 'PROCESSED' ? unfrozenQuantity : 0,
             trackFreezerStatus: trackFreezerStatus,
+            allowNegativeStock: allowNegativeStock,
         });
     };
 
@@ -406,18 +410,30 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                     {currentType === 'PROCESSED' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                            <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={trackFreezerStatus}
-                                    onChange={e => setTrackFreezerStatus(e.target.checked)}
-                                    style={{ accentColor: '#60a5fa', width: '16px', height: '16px' }}
-                                />
-                                <span style={{ fontWeight: 600 }}>Rastrear en Control de Congelados (Track in Freezer/Fridge)</span>
-                            </label>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={trackFreezerStatus}
+                                        onChange={e => setTrackFreezerStatus(e.target.checked)}
+                                        style={{ accentColor: '#60a5fa', width: '16px', height: '16px' }}
+                                    />
+                                    <span style={{ fontWeight: 600 }}>Rastrear en Control de Congelados (Track in Freezer/Fridge)</span>
+                                </label>
+
+                                <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={allowNegativeStock}
+                                        onChange={e => setAllowNegativeStock(e.target.checked)}
+                                        style={{ accentColor: 'var(--warning)', width: '16px', height: '16px' }}
+                                    />
+                                    <span>{locale === 'es' ? 'Permitir Stock Negativo (Ventas exceden stock)' : 'Allow Negative Stock (Sales exceed recorded stock)'}</span>
+                                </label>
+                            </div>
 
                             {trackFreezerStatus && initialData && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
                                     <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>Cantidad Descongelada / Unfrozen in Fridge</label>
                                     <input
                                         type="number"

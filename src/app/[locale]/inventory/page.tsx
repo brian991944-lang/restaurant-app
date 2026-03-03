@@ -8,7 +8,7 @@ import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import RecipeBuilderModal from '@/components/modals/RecipeBuilderModal';
-import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment, adjustUnfrozenQuantity } from '@/app/actions/inventory';
+import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment, setUnfrozenQuantityAction } from '@/app/actions/inventory';
 import { getPrepUsers } from '@/app/actions/users';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
@@ -171,8 +171,7 @@ export default function InventoryPage() {
         const draftValue = draftUnfrozen[item.id];
         if (draftValue === undefined) return;
 
-        const delta = draftValue - (item.unfrozenQuantity || 0);
-        const res = await adjustUnfrozenQuantity(item.id, delta);
+        const res = await setUnfrozenQuantityAction(item.id, draftValue);
         if (res.success) {
             setDraftUnfrozen(prev => {
                 const next = { ...prev };
