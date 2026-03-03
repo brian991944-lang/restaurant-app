@@ -300,7 +300,8 @@ export async function savePrepRecipe(id: string | null, data: any) {
                     data: data.components.map((c: any) => ({
                         prepRecipeId: id,
                         ingredientId: c.ingredientId,
-                        quantity: parseFloat(c.quantity)
+                        quantity: parseFloat(c.quantity) || 0,
+                        unit: c.unit || null
                     }))
                 });
             }
@@ -319,7 +320,8 @@ export async function savePrepRecipe(id: string | null, data: any) {
                     data: data.components.map((c: any) => ({
                         prepRecipeId: ingredient.id,
                         ingredientId: c.ingredientId,
-                        quantity: parseFloat(c.quantity)
+                        quantity: parseFloat(c.quantity) || 0,
+                        unit: c.unit || null
                     }))
                 });
             }
