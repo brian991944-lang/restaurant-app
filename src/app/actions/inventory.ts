@@ -502,6 +502,13 @@ export async function depleteInventoryForMenuItem(menuItemId: string, qtySold: n
                 }
             });
 
+            if ((dbIng.unfrozenQuantity || 0) > 0) {
+                await prisma.ingredient.update({
+                    where: { id: dbIng.id },
+                    data: { unfrozenQuantity: Math.max(0, (dbIng.unfrozenQuantity || 0) - qtyToDeduct) }
+                });
+            }
+
             await prisma.inventoryTransaction.create({
                 data: {
                     ingredientId: dbIng.id,

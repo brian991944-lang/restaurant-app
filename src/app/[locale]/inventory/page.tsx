@@ -2,6 +2,7 @@
 
 import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
@@ -81,6 +82,7 @@ export default function InventoryPage() {
     const t = useTranslations('Inventory');
     const tOptions = useTranslations('Options');
     const locale = useLocale();
+    const router = useRouter();
     const [schedules, setSchedules] = useState<ProductionSchedule[]>(MOCK_PRODUCTION);
 
     const [dbIngredients, setDbIngredients] = useState<any[]>([]);
@@ -177,7 +179,8 @@ export default function InventoryPage() {
                 delete next[item.id];
                 return next;
             });
-            loadData();
+            await loadData();
+            router.refresh();
         } else {
             alert(res.error || 'Failed to update Unfrozen stat.');
         }
@@ -315,7 +318,7 @@ export default function InventoryPage() {
         portionWeightG: item.portionWeightG,
         cloverId: item.cloverId,
         cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
-        unfrozenQuantity: item.inventory?.thawingQty || 0,
+        unfrozenQuantity: item.unfrozenQuantity || 0,
         trackFreezerStatus: item.trackFreezerStatus || false,
         calculatedCost: resolveCost(item)
     }));

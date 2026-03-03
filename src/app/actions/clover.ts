@@ -12,13 +12,13 @@ async function depleteInventory(ingredientId: string, quantity: number, note: st
         data: { frozenQty: { decrement: quantity } }
     }).catch(() => null);
 
-    // 2. Also check thawingQty (unfrozen concept mapping)
-    const inv = await prisma.inventory.findUnique({ where: { ingredientId: ingredientId } });
-    if (inv && inv.thawingQty > 0) {
+    // 2. Also check unfrozenQuantity on Ingredient
+    const ing = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
+    if (ing && (ing.unfrozenQuantity || 0) > 0) {
         // Floor at 0 if we deplete more than what's unfrozen
-        await prisma.inventory.update({
-            where: { ingredientId: ingredientId },
-            data: { thawingQty: Math.max(0, inv.thawingQty - quantity) }
+        await prisma.ingredient.update({
+            where: { id: ingredientId },
+            data: { unfrozenQuantity: Math.max(0, (ing.unfrozenQuantity || 0) - quantity) }
         }).catch(() => null);
     }
 
