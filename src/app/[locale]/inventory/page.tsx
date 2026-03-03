@@ -306,7 +306,9 @@ export default function InventoryPage() {
                 }
                 return acc + lineCost;
             }, 0);
-            return sum / Math.max(0.01, item.yieldPercent || 1);
+            const batchSize = item.portionWeightG || 1;
+            const costPerUnit = sum / Math.max(0.01, batchSize);
+            return costPerUnit / Math.max(0.01, (item.yieldPercent / 100));
         }
         return item.currentPrice || 0;
     };
@@ -761,8 +763,8 @@ export default function InventoryPage() {
                                         <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                             <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{item.name}</td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{getOptName(item.category)}</td>
-                                            <td style={{ padding: '1rem 1.5rem' }}>{item.yieldPercent} {getOptName(item.metric)}</td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * (item.yieldPercent || 1)).toFixed(2)}</td>
+                                            <td style={{ padding: '1rem 1.5rem' }}>{item.portionWeightG || 1} {getOptName(item.metric)}</td>
+                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * ((item.portionWeightG || 1) * (item.yieldPercent || 100) / 100)).toFixed(2)}</td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}</td>
                                             <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                                                 <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
