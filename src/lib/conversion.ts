@@ -25,5 +25,9 @@ export const getConversionFactor = (parentUnit: string, childUnit: string): numb
     if (MASS[p] && MASS[c]) return MASS[p] / MASS[c];
     if (VOL[p] && VOL[c]) return VOL[p] / VOL[c];
 
+    // Cross-category conversion assuming 1g = 1ml (approx density of water)
+    if (MASS[p] && VOL[c]) return MASS[p] / VOL[c];
+    if (VOL[p] && MASS[c]) return VOL[p] / MASS[c];
+
     return null;
 };

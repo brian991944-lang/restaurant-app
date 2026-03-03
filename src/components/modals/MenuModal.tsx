@@ -6,6 +6,7 @@ import { getInventory } from '@/app/actions/inventory';
 import { fetchCloverMenuItems, fetchCloverModifiers } from '@/app/actions/clover';
 import { ALLOWED_METRICS, getConversionFactor } from '@/lib/conversion';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useLocale } from 'next-intl';
 
 interface MenuModalProps {
     isOpen: boolean;
@@ -15,6 +16,7 @@ interface MenuModalProps {
 }
 
 export default function MenuModal({ isOpen, onClose, onSave, initialData }: MenuModalProps) {
+    const locale = useLocale();
     const [ingredientsList, setIngredientsList] = useState<any[]>([]);
 
     const resolveCost = (item: any): number => {
@@ -230,7 +232,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>Qty (e.g. 0.25)</th>
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Metric</th>
-                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '100px', textAlign: 'right' }}>Cost</th>
+                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '100px', textAlign: 'right' }}>{locale === 'es' ? 'Costo' : 'Cost'}</th>
                                         <th style={{ padding: '0.75rem', width: '60px' }}></th>
                                     </tr>
                                 </thead>
@@ -293,7 +295,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                             const costPerTargetUnit = resolveCost(dbIng) / cFactor;
                                                             lineCost = costPerTargetUnit * (parseFloat(ing.quantity) || 0);
                                                         } else {
-                                                            return <span style={{ color: 'var(--warning)', fontSize: '0.8rem' }}>Invalid Unit</span>;
+                                                            return <span style={{ color: 'var(--warning)', fontSize: '0.8rem' }}>{locale === 'es' ? 'Unidad Inválida' : 'Invalid Unit'}</span>;
                                                         }
                                                     }
 
