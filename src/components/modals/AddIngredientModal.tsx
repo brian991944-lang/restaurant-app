@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { getCategories, getProviders, getInventory } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import MetricPriceSection from './MetricPriceSection';
 
 const ALLOWED_METRICS = ['Kg', 'g', 'Lbs', 'Solid Oz', 'Fl Oz', 'ml', 'L', 'Units'];
 
@@ -390,50 +391,42 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('metric')}</label>
-                            {currentType === 'PROCESSED' && ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <span style={{ fontWeight: 'bold', border: '1px solid #ccc', padding: '8px', borderRadius: '4px', backgroundColor: '#eee', color: '#333', minWidth: '80px', textAlign: 'center' }}>
-                                        {ingredients.find(i => i.id === selectedParentId)?.metric || selectedMetric}
-                                    </span>
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>
-                                        ${(ingredients.find(i => i.id === selectedParentId)?.currentPrice || 0).toFixed(4)}
-                                    </div>
+                    <MetricPriceSection
+                        currentType={currentType}
+                        parentIngredient={ingredients.find(i => i.id === selectedParentId)}
+                        selectedMetric={selectedMetric}
+                        setSelectedMetric={setSelectedMetric}
+                        ALLOWED_METRICS={ALLOWED_METRICS}
+                        isPortioned={isPortioned}
+                        wastePercent={wastePercent}
+                        setWastePercent={setWastePercent}
+                        locale={locale}
+                        t={t}
+                        costPerPortionPreview={costPerPortionPreview}
+                        conversionError={conversionError}
+                    />
+
+                    {!initialData && (
+                        <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_initial_qty')} (Total Stock)</label>
+                                <input name="initialQty" type="number" step="0.01" className="input-field" placeholder="0.00" required />
+                            </div>
+                            {currentType === 'PROCESSED' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
+                                    <input
+                                        name="unfrozenQuantity"
+                                        type="number"
+                                        step="0.01"
+                                        className="input-field"
+                                        value={unfrozenQuantity}
+                                        onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
+                                    />
                                 </div>
-                            ) : (
-                                <SearchableSelect
-                                    name="metric"
-                                    value={selectedMetric}
-                                    onChange={setSelectedMetric}
-                                    options={ALLOWED_METRICS.filter(m => (currentType === 'PROCESSED' && isPortioned) ? m.toLowerCase() === 'units' : m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }))}
-                                    disabled={currentType === 'PROCESSED' && isPortioned}
-                                />
                             )}
                         </div>
-                        {!initialData && (
-                            <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1, gridColumn: currentType !== 'RAW' ? 'span 2' : 'span 1' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_initial_qty')} (Total Stock)</label>
-                                    <input name="initialQty" type="number" step="0.01" className="input-field" placeholder="0.00" required />
-                                </div>
-                                {currentType === 'PROCESSED' && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
-                                        <input
-                                            name="unfrozenQuantity"
-                                            type="number"
-                                            step="0.01"
-                                            className="input-field"
-                                            value={unfrozenQuantity}
-                                            onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    )}
 
                     {currentType === 'PROCESSED' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
@@ -475,46 +468,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         </div>
                     )}
 
-                    {currentType === 'PROCESSED' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma %' : 'Waste %'}</label>
-                                <input
-                                    name="wastePercent"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    max="100"
-                                    className="input-field"
-                                    placeholder="0"
-                                    value={wastePercent}
-                                    onChange={(e) => setWastePercent(parseFloat(e.target.value) || 0)}
-                                    required
-                                />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    {locale === 'es' ? 'Rendimiento %' : 'Usage %'}
-                                </label>
-                                <input
-                                    name="yieldPercent"
-                                    type="number"
-                                    className="input-field"
-                                    value={(100 - wastePercent).toFixed(2)}
-                                    disabled
-                                    style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', opacity: 0.8 }}
-                                />
-                            </div>
-
-                            {ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' && (
-                                <div style={{ gridColumn: 'span 2', marginTop: '0.5rem' }}>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: 700, color: '#007bff' }}>
-                                        {locale === 'es' ? 'Precio Ajustado por Merma' : 'Adjusted Price'}: ${costPerPortionPreview.toFixed(4)}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    {/* MetricPriceSection handles Waste % */}
 
                     {currentType === 'PROCESSED' && (
                         <div style={{ display: 'grid', gridTemplateColumns: isPortioned ? '1fr 1fr 1fr' : '1fr', gap: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -540,23 +494,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     </div>
                                 </>
                             )}
-                            {ingredients.find(i => i.id === selectedParentId)?.type !== 'PREP_RECIPE' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
-                                    <label style={{ fontSize: '0.9rem', color: '#60a5fa', fontWeight: 500 }}>
-                                        {locale === 'es' ? 'Precio Ajustado por Merma' : 'Adjusted Price'}
-                                    </label>
-                                    {conversionError ? (
-                                        <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>{conversionError}</span>
-                                    ) : (
-                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
-                                            <span style={{ fontSize: '1.4rem', fontWeight: 700, color: conversionError ? 'var(--warning)' : '#60a5fa' }}>
-                                                {conversionError ? conversionError : `$${costPerPortionPreview.toFixed(4)}`}
-                                            </span>
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>per {isPortioned ? 'portion' : selectedMetric}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            {/* MetricPriceSection handles internal adjusted price output */}
                         </div>
                     )}
 
