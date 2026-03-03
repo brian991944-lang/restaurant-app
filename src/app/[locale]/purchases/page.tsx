@@ -6,6 +6,7 @@ import { saveVendorItem } from '@/app/actions/purchases';
 import { getInventory, getProviders, getCategories } from '@/app/actions/inventory';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { ALLOWED_METRICS } from '@/lib/conversion';
 import { Trash2 } from 'lucide-react';
 
 export default function PurchasesPage() {
@@ -13,7 +14,6 @@ export default function PurchasesPage() {
     const [vendorItems, setVendorItems] = useState<any[]>([]);
     const [allIngredients, setAllIngredients] = useState<any[]>([]);
     const [providers, setProviders] = useState<any[]>([]);
-    const [metrics, setMetrics] = useState<any[]>([]);
     const [isUploading, setIsUploading] = useState(false);
     const [pendingInbox, setPendingInbox] = useState<any[]>([]);
     const [culinaryFilter, setCulinaryFilter] = useState('');
@@ -26,7 +26,6 @@ export default function PurchasesPage() {
         const inv = await getInventory();
         setAllIngredients(inv.filter(i => i.type === 'RAW'));
         setProviders(await getProviders());
-        setMetrics(await getDropdownOptions('Metric'));
     };
 
     useEffect(() => { loadData(); }, []);
@@ -180,7 +179,7 @@ export default function PurchasesPage() {
                                                     setPendingInbox(newInbox);
                                                 }}
                                                 placeholder="Select Internal Metric..."
-                                                options={metrics.map(m => ({ value: m.name, label: m.name }))}
+                                                options={ALLOWED_METRICS.map(m => ({ value: m, label: m }))}
                                             />
                                         </div>
 

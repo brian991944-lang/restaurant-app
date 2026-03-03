@@ -4,6 +4,7 @@ import { Search, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getMenuItems, deleteMenuItem, addMenuItem, editMenuItem } from '@/app/actions/menu';
 import MenuModal from '@/components/modals/MenuModal';
+import { calculateRecipeCost } from '@/lib/calculations';
 
 export default function MenuPage() {
     const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -21,27 +22,6 @@ export default function MenuPage() {
         loadData();
         import('@/app/actions/inventory').then(m => m.getInventory().then(setAllIngredients));
     }, []);
-
-    const resolveCost = (item: any): number => {
-        if (!item) return 0;
-        if (item.type === 'RAW') return item.currentPrice || 0;
-        if (item.type === 'PROCESSED') {
-            if (item.metric?.toLowerCase() === 'units') return item.currentPrice || 0;
-            const parentCost = item.parent ? resolveCost(allIngredients.find(dbI => dbI.id === item.parent?.id) || item.parent) : (item.currentPrice || 0);
-            return parentCost / Math.max(0.01, (item.yieldPercent / 100));
-        }
-        if (item.type === 'PREP_RECIPE') {
-            if (!item.composedOf || item.composedOf.length === 0) return item.currentPrice || 0;
-            const sum = item.composedOf.reduce((acc: number, comp: any) => {
-                const dep = allIngredients.find(dbI => dbI.id === comp.ingredientId) || comp.ingredient;
-                return acc + (resolveCost(dep) * comp.quantity);
-            }, 0);
-            const batchSize = item.portionWeightG || 1;
-            const costPerUnit = sum / Math.max(0.01, batchSize);
-            return costPerUnit / Math.max(0.01, (item.yieldPercent / 100));
-        }
-        return item.currentPrice || 0;
-    };
 
     const handleSaveMenu = async (data: any) => {
         if (editingItem) {
@@ -104,12 +84,7 @@ export default function MenuPage() {
                         </h2>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
                             {[...items].sort((a: any, b: any) => a.name.localeCompare(b.name)).map((item: any) => {
-                                let totalCost = 0;
-                                item.recipeIngredients?.forEach((req: any) => {
-                                    const ing = req.ingredient;
-                                    let unitCost = resolveCost(ing);
-                                    totalCost += (unitCost * req.quantity);
-                                });
+                                const totalCost = calculateRecipeCost(item.recipeIngredients || [], allIngredients);
 
                                 const currentFoodCostPct = item.salePrice > 0 ? (totalCost / item.salePrice) * 100 : 0;
                                 const isAlert = currentFoodCostPct > item.targetFoodCostPct;

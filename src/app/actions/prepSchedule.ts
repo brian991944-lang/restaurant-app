@@ -123,9 +123,11 @@ export async function completePrepTask(
 
         const estFormatted = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
-        // 1. Update or create the PrepAssignment if one existed
         let finalAssignmentId = assignmentId;
         if (assignmentId) {
+            const assignment = await prisma.prepAssignment.findUnique({ where: { id: assignmentId } });
+            if (assignment?.completed) return { success: true }; // Prevent Duplicate Processing
+
             await prisma.prepAssignment.update({
                 where: { id: assignmentId },
                 data: {
@@ -170,43 +172,51 @@ export async function completePrepTask(
             finalAssignmentId = newAssignment.id;
         }
 
-        // 2. We need to create an Inventory transaction.
-        // Concept: Prepping means deducting from Frozen and adding to Thawing/Ready
-        // The user's specification: "the actual amount is the one that moves the inventory count."
+        // 2. Handle Base Ingredient Linking (Enlace a Ingrediente Base)
+        const taskIngredient = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
 
-        // Ensure inventory record exists
-        let inventory = await prisma.inventory.findUnique({
-            where: { ingredientId }
-        });
+        if (taskIngredient && taskIngredient.parentId) {
+            const taskName = (taskIngredient.name || '').toLowerCase();
+            const baseIngredientId = taskIngredient.parentId;
 
-        if (!inventory) {
-            inventory = await prisma.inventory.create({
+            let inventory = await prisma.inventory.findUnique({
+                where: { ingredientId: baseIngredientId }
+            });
+
+            if (!inventory) {
+                inventory = await prisma.inventory.create({
+                    data: { ingredientId: baseIngredientId, frozenQty: 0, thawingQty: 0 }
+                });
+            }
+
+            let frozenInc = actualAmount;
+            let thawingInc = 0;
+
+            if (taskName.includes('descongelar')) {
+                // "Descongelar" -> increments FrozenQty (Total) AND UnfrozenQty (Thawing)
+                thawingInc = actualAmount;
+            } else if (taskName.includes('congelar')) {
+                // "Congelar" -> only increments FrozenQty (Total)
+                thawingInc = 0;
+            }
+
+            await prisma.inventory.update({
+                where: { id: inventory.id },
                 data: {
-                    ingredientId,
-                    frozenQty: 0,
-                    thawingQty: 0
+                    frozenQty: inventory.frozenQty + frozenInc,
+                    thawingQty: inventory.thawingQty + thawingInc
+                }
+            });
+
+            await prisma.inventoryTransaction.create({
+                data: {
+                    ingredientId: baseIngredientId,
+                    type: 'PREP_COMPLETE',
+                    qty: actualAmount,
+                    note: note || `Prep task completed: ${taskIngredient.name}`
                 }
             });
         }
-
-        // 3. Move the qty from Frozen -> Thawing (or just increment thawing representing it is now prepped)
-        await prisma.inventory.update({
-            where: { id: inventory.id },
-            data: {
-                frozenQty: Math.max(0, inventory.frozenQty - actualAmount),
-                thawingQty: inventory.thawingQty + actualAmount
-            }
-        });
-
-        // 4. Log the transaction historical record
-        await prisma.inventoryTransaction.create({
-            data: {
-                ingredientId,
-                type: 'PULL_PREP',
-                qty: actualAmount,
-                note: note || `Morning Prep task completed by cook ${userId}`
-            }
-        });
 
         return { success: true };
     } catch (error) {
@@ -225,6 +235,9 @@ export async function undoPrepTask(
 ) {
     try {
         if (assignmentId) {
+            const assignment = await prisma.prepAssignment.findUnique({ where: { id: assignmentId } });
+            if (!assignment || !assignment.completed) return { success: true }; // Already undone
+
             await prisma.prepAssignment.update({
                 where: { id: assignmentId },
                 data: {
@@ -235,28 +248,40 @@ export async function undoPrepTask(
             });
         }
 
-        let inventory = await prisma.inventory.findUnique({
-            where: { ingredientId }
-        });
+        const taskIngredient = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
 
-        if (inventory) {
-            await prisma.inventory.update({
-                where: { id: inventory.id },
-                data: {
-                    frozenQty: inventory.frozenQty + actualAmount,
-                    thawingQty: Math.max(0, inventory.thawingQty - actualAmount)
+        if (taskIngredient && taskIngredient.parentId) {
+            const taskName = (taskIngredient.name || '').toLowerCase();
+            const baseIngredientId = taskIngredient.parentId;
+
+            let inventory = await prisma.inventory.findUnique({ where: { ingredientId: baseIngredientId } });
+
+            if (inventory) {
+                let frozenDec = actualAmount;
+                let thawingDec = 0;
+
+                if (taskName.includes('descongelar')) {
+                    thawingDec = actualAmount;
                 }
-            });
-        }
 
-        await prisma.inventoryTransaction.create({
-            data: {
-                ingredientId,
-                type: 'UNDO_PREP',
-                qty: -actualAmount,
-                note: 'Morning Prep task undone via UI'
+                await prisma.inventory.update({
+                    where: { id: inventory.id },
+                    data: {
+                        frozenQty: inventory.frozenQty - frozenDec, // Restored stock decrement logic
+                        thawingQty: Math.max(0, inventory.thawingQty - thawingDec)
+                    }
+                });
+
+                await prisma.inventoryTransaction.create({
+                    data: {
+                        ingredientId: baseIngredientId,
+                        type: 'UNDO_PREP',
+                        qty: -actualAmount,
+                        note: `Prep task undone: ${taskIngredient.name}`
+                    }
+                });
             }
-        });
+        }
         return { success: true };
     } catch (error) {
         console.error('Failed to undo prep task:', error);

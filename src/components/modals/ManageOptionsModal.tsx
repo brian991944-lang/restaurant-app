@@ -14,7 +14,7 @@ interface ManageOptionsModalProps {
 export default function ManageOptionsModal({ isOpen, onClose }: ManageOptionsModalProps) {
     const t = useTranslations('Inventory');
     const locale = useLocale();
-    const [selectedGroup, setSelectedGroup] = useState<'Category' | 'Type' | 'Metric' | 'Provider'>('Category');
+    const [selectedGroup, setSelectedGroup] = useState<'Category' | 'Type' | 'Provider'>('Category');
     const [newOptionName, setNewOptionName] = useState('');
     const [newOptionNameEs, setNewOptionNameEs] = useState('');
     const [autoTranslate, setAutoTranslate] = useState(true);
@@ -125,7 +125,6 @@ export default function ManageOptionsModal({ isOpen, onClose }: ManageOptionsMod
                         style={{ padding: '0.8rem', fontSize: '1rem' }}>
                         <option value="Category">{t('category')}</option>
                         <option value="Provider">Provider</option>
-                        <option value="Metric">{t('metric')}</option>
                     </select>
                 </div>
 

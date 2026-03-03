@@ -51,7 +51,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [categories, setCategories] = useState<any[]>([]);
     const [providers, setProviders] = useState<any[]>([]);
     const [types, setTypes] = useState<any[]>([]);
-    const [metrics, setMetrics] = useState<any[]>([]);
+
     const [ingredients, setIngredients] = useState<any[]>([]);
     const [autoTranslate, setAutoTranslate] = useState(true);
     const [currentType, setCurrentType] = useState('RAW');
@@ -124,13 +124,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                 getCategories(),
                 getProviders(),
                 getDropdownOptions('Type'),
-                getDropdownOptions('Metric'),
                 getInventory()
-            ]).then(([catData, provData, typeData, metricData, invData]) => {
+            ]).then(([catData, provData, typeData, invData]) => {
                 setCategories(catData);
                 setProviders(provData);
                 setTypes(typeData);
-                setMetrics(metricData);
                 setIngredients(invData);
             });
             setCurrentType(initialData?.type || 'RAW');

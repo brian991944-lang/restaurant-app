@@ -4,14 +4,12 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, Plus } from 'lucide-react';
 import { savePrepRecipe } from '@/app/actions/inventory';
-import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { ComponentRow } from './ComponentRow';
-import { getConversionFactor } from '@/lib/conversion';
+import { getConversionFactor, ALLOWED_METRICS } from '@/lib/conversion';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSave, dbIngredients }: any) {
     const t = useTranslations('Inventory');
-    const [metrics, setMetrics] = useState<any[]>([]);
 
     const [components, setComponents] = useState<any[]>([]);
     const [recipeYield, setRecipeYield] = useState<number>(1);
@@ -23,7 +21,6 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
 
     useEffect(() => {
         if (isOpen) {
-            getDropdownOptions('Metric').then(setMetrics);
 
             if (initialData?.composedOf && initialData.composedOf.length > 0) {
                 setRecipeYield(initialData.portionWeightG || 1);
@@ -143,7 +140,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                 name="metric"
                                 value={selectedMetric}
                                 onChange={setSelectedMetric}
-                                options={metrics.map(m => ({ value: m.name, label: m.name }))}
+                                options={ALLOWED_METRICS.map(m => ({ value: m, label: m }))}
                                 placeholder="Select batch unit..."
                                 required
                             />

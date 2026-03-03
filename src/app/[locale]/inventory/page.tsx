@@ -287,28 +287,10 @@ export default function InventoryPage() {
             if (item.metric?.toLowerCase() === 'units') return item.currentPrice || 0;
             const parent = dbIngredients?.find(dbI => dbI?.id === item.parent?.id) || item.parent;
             const parentCost = parent ? resolveCost(parent, newVisited) : (item.currentPrice || 0);
-            return parentCost / Math.max(0.01, (item.yieldPercent / 100));
+            return parentCost / Math.max(0.01, ((item.yieldPercent || 100) / 100));
         }
         if (item.type === 'PREP_RECIPE') {
-            if (!item.composedOf || !Array.isArray(item.composedOf) || item.composedOf.length === 0) return 0;
-            const sum = item.composedOf.reduce((acc: number, comp: any) => {
-                const dep = dbIngredients?.find(dbI => dbI?.id === comp?.ingredientId) || comp?.ingredient;
-                if (!dep) return acc;
-                const baseUnit = dep.metric || 'Units';
-                let lineCost = 0;
-                if (baseUnit.toLowerCase() === 'units' || (comp?.unit || '').toLowerCase() === 'units') {
-                    lineCost = resolveCost(dep, newVisited) * (parseFloat(comp?.quantity) || 0);
-                } else {
-                    const cFactor = getConversionFactor(baseUnit, comp?.unit || 'Units');
-                    if (cFactor) {
-                        lineCost = (resolveCost(dep, newVisited) / cFactor) * (parseFloat(comp?.quantity) || 0);
-                    }
-                }
-                return acc + lineCost;
-            }, 0);
-            const batchSize = item.portionWeightG || 1;
-            const costPerUnit = sum / Math.max(0.01, batchSize);
-            return costPerUnit / Math.max(0.01, (item.yieldPercent / 100));
+            return (item.currentPrice || 0) / Math.max(0.01, ((item.yieldPercent || 100) / 100));
         }
         return item.currentPrice || 0;
     };

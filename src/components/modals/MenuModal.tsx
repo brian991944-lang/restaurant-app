@@ -4,7 +4,8 @@ import { Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getInventory } from '@/app/actions/inventory';
 import { fetchCloverMenuItems, fetchCloverModifiers } from '@/app/actions/clover';
-import { ALLOWED_METRICS, getConversionFactor } from '@/lib/conversion';
+import { getConversionFactor, ALLOWED_METRICS } from '@/lib/conversion';
+import { calculateRecipeCost, resolveIngredientCost } from '@/lib/calculations';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { useLocale } from 'next-intl';
 
@@ -18,20 +19,6 @@ interface MenuModalProps {
 export default function MenuModal({ isOpen, onClose, onSave, initialData }: MenuModalProps) {
     const locale = useLocale();
     const [ingredientsList, setIngredientsList] = useState<any[]>([]);
-
-    const resolveCost = (item: any): number => {
-        if (!item) return 0;
-        if (item.type === 'RAW') return item.currentPrice || 0;
-        if (item.type === 'PROCESSED') {
-            if (item.metric?.toLowerCase() === 'units') return item.currentPrice || 0;
-            const parentCost = item.parent ? resolveCost(ingredientsList.find(dbI => dbI.id === item.parent?.id) || item.parent) : (item.currentPrice || 0);
-            return parentCost / Math.max(0.01, (item.yieldPercent / 100));
-        }
-        if (item.type === 'PREP_RECIPE') {
-            return (item.currentPrice || 0) / Math.max(0.01, (item.yieldPercent / 100));
-        }
-        return item.currentPrice || 0;
-    };
 
     // Form state
     const [name, setName] = useState('');
@@ -137,26 +124,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
     if (!isOpen) return null;
 
     const calculateTotalCost = () => {
-        return ingredients.reduce((acc, ing) => {
-            const dbIng = ingredientsList.find(i => i.id === ing.ingredientId);
-            if (!dbIng) return acc;
-
-            const baseUnit = dbIng.metric || 'Units';
-            let lineCost = 0;
-
-            if (baseUnit.toLowerCase() === 'units' || ing.unit.toLowerCase() === 'units') {
-                lineCost = resolveCost(dbIng) * (parseFloat(ing.quantity) || 0);
-            } else {
-                const cFactor = getConversionFactor(baseUnit, ing.unit);
-                if (cFactor) {
-                    const costPerTargetUnit = resolveCost(dbIng) / cFactor;
-                    lineCost = costPerTargetUnit * (parseFloat(ing.quantity) || 0);
-                } else {
-                    lineCost = 0; // Invalid conversion
-                }
-            }
-            return acc + lineCost;
-        }, 0);
+        return calculateRecipeCost(ingredients, ingredientsList);
     };
 
     const totalCalculatedCost = calculateTotalCost();
@@ -282,12 +250,12 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                     let lineCost = 0;
 
                                                     if (baseUnit.toLowerCase() === 'units' || ing.unit.toLowerCase() === 'units') {
-                                                        const unitCost = resolveCost(dbIng);
+                                                        const unitCost = resolveIngredientCost(dbIng, ingredientsList);
                                                         lineCost = unitCost * (parseFloat(ing.quantity) || 0);
                                                     } else {
                                                         const cFactor = getConversionFactor(baseUnit, ing.unit);
                                                         if (cFactor) {
-                                                            const costPerTargetUnit = resolveCost(dbIng) / cFactor;
+                                                            const costPerTargetUnit = resolveIngredientCost(dbIng, ingredientsList) / cFactor;
                                                             lineCost = costPerTargetUnit * (parseFloat(ing.quantity) || 0);
                                                         } else {
                                                             return <span style={{ color: 'var(--warning)', fontSize: '0.8rem' }}>{locale === 'es' ? 'Unidad Inválida' : 'Invalid Unit'}</span>;
@@ -337,7 +305,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                 {modifiers.map(mod => {
                                     const modCost = mod.ingredients.reduce((acc, ing) => {
                                         const dbIng = ingredientsList.find(i => i.id === ing.ingredientId);
-                                        return acc + (dbIng ? resolveCost(dbIng) * (parseFloat(ing.quantity) || 0) : 0);
+                                        return acc + (dbIng ? resolveIngredientCost(dbIng, ingredientsList) * (parseFloat(ing.quantity) || 0) : 0);
                                     }, 0);
 
                                     return (
