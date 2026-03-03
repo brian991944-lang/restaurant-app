@@ -393,13 +393,28 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('metric')}</label>
-                            <SearchableSelect
-                                name="metric"
-                                value={selectedMetric}
-                                onChange={setSelectedMetric}
-                                options={ALLOWED_METRICS.filter(m => (currentType === 'PROCESSED' && isPortioned) ? m.toLowerCase() === 'units' : m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }))}
-                                disabled={(currentType === 'PROCESSED' && isPortioned) || (currentType === 'PROCESSED' && ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE')}
-                            />
+                            {currentType === 'PROCESSED' && ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                    <input
+                                        type="text"
+                                        className="input-field"
+                                        value={selectedMetric}
+                                        style={{ background: 'rgba(255,255,255,0.02)', color: 'var(--text-secondary)', cursor: 'not-allowed', width: '100px' }}
+                                        readOnly
+                                    />
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#007bff' }}>
+                                        ${(ingredients.find(i => i.id === selectedParentId)?.currentPrice || 0).toFixed(4)} / {selectedMetric}
+                                    </div>
+                                </div>
+                            ) : (
+                                <SearchableSelect
+                                    name="metric"
+                                    value={selectedMetric}
+                                    onChange={setSelectedMetric}
+                                    options={ALLOWED_METRICS.filter(m => (currentType === 'PROCESSED' && isPortioned) ? m.toLowerCase() === 'units' : m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }))}
+                                    disabled={currentType === 'PROCESSED' && isPortioned}
+                                />
+                            )}
                         </div>
                         {!initialData && (
                             <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1, gridColumn: currentType !== 'RAW' ? 'span 2' : 'span 1' }}>
@@ -494,6 +509,14 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-secondary)', opacity: 0.8 }}
                                 />
                             </div>
+
+                            {ingredients.find(i => i.id === selectedParentId)?.type === 'PREP_RECIPE' && (
+                                <div style={{ gridColumn: 'span 2', marginTop: '0.5rem' }}>
+                                    <span style={{ fontSize: '1rem', fontWeight: 600, color: '#007bff' }}>
+                                        Precio Ajustado por Merma: ${costPerPortionPreview.toFixed(4)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -521,21 +544,23 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     </div>
                                 </>
                             )}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
-                                <label style={{ fontSize: '0.9rem', color: '#60a5fa', fontWeight: 500 }}>
-                                    {locale === 'es' ? 'Precio Ajustado por Merma' : 'Adjusted Price'}
-                                </label>
-                                {conversionError ? (
-                                    <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>{conversionError}</span>
-                                ) : (
-                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
-                                        <span style={{ fontSize: '1.4rem', fontWeight: 700, color: conversionError ? 'var(--warning)' : '#60a5fa' }}>
-                                            {conversionError ? conversionError : `$${costPerPortionPreview.toFixed(4)}`}
-                                        </span>
-                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>per {isPortioned ? 'portion' : selectedMetric}</span>
-                                    </div>
-                                )}
-                            </div>
+                            {ingredients.find(i => i.id === selectedParentId)?.type !== 'PREP_RECIPE' && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
+                                    <label style={{ fontSize: '0.9rem', color: '#60a5fa', fontWeight: 500 }}>
+                                        {locale === 'es' ? 'Precio Ajustado por Merma' : 'Adjusted Price'}
+                                    </label>
+                                    {conversionError ? (
+                                        <span style={{ color: 'var(--warning)', fontSize: '0.85rem' }}>{conversionError}</span>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.25rem' }}>
+                                            <span style={{ fontSize: '1.4rem', fontWeight: 700, color: conversionError ? 'var(--warning)' : '#60a5fa' }}>
+                                                {conversionError ? conversionError : `$${costPerPortionPreview.toFixed(4)}`}
+                                            </span>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>per {isPortioned ? 'portion' : selectedMetric}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
