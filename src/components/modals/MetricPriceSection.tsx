@@ -14,6 +14,7 @@ interface MetricPriceSectionProps {
     t: any;
     costPerPortionPreview: number;
     conversionError: string | null;
+    initialData?: any;
 }
 
 export default function MetricPriceSection({
@@ -28,11 +29,17 @@ export default function MetricPriceSection({
     locale,
     t,
     costPerPortionPreview,
-    conversionError
+    conversionError,
+    initialData
 }: MetricPriceSectionProps) {
 
     const isLinkedToRecipe = currentType === 'PROCESSED' && parentIngredient?.type === 'PREP_RECIPE';
     const hasRecipeConstraints = isLinkedToRecipe || currentType === 'PREP_RECIPE';
+
+    // Strictly enforce the metric display string
+    const displayMetric = isLinkedToRecipe
+        ? (parentIngredient?.metric || selectedMetric)
+        : (currentType === 'PREP_RECIPE' ? (initialData?.metric || selectedMetric) : selectedMetric);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
@@ -42,7 +49,7 @@ export default function MetricPriceSection({
                 {hasRecipeConstraints ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', background: '#333', padding: '0.8rem', borderRadius: '8px' }}>
                         <span style={{ fontWeight: 'bold', border: '1px solid #ccc', padding: '8px 16px', borderRadius: '6px', backgroundColor: '#eee', color: '#111', fontSize: '1rem', minWidth: '80px', textAlign: 'center' }}>
-                            {isLinkedToRecipe ? (parentIngredient?.metric || selectedMetric) : selectedMetric}
+                            {displayMetric}
                         </span>
                         <div style={{ fontSize: '1.3rem', fontWeight: 600, color: '#007bff', display: 'flex', flexDirection: 'column' }}>
                             ${(isLinkedToRecipe ? (parentIngredient?.currentPrice || 0) : (costPerPortionPreview * Math.max(0.01, (100 - wastePercent) / 100))).toFixed(4)}

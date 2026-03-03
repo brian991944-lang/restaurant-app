@@ -407,6 +407,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         t={t}
                         costPerPortionPreview={costPerPortionPreview}
                         conversionError={conversionError}
+                        initialData={initialData}
                     />
 
                     {!initialData && (
