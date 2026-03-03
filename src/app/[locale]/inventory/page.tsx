@@ -97,6 +97,7 @@ export default function InventoryPage() {
     const [adjustments, setAdjustments] = useState<Record<string, number>>({});
     const [confirmingAdjust, setConfirmingAdjust] = useState<string | null>(null);
     const [adjustCook, setAdjustCook] = useState<string>('');
+    const [draftUnfrozen, setDraftUnfrozen] = useState<Record<string, number>>({});
 
     useEffect(() => {
         loadData();
@@ -164,9 +165,18 @@ export default function InventoryPage() {
         }
     };
 
-    const handleQuickThaw = async (item: Ingredient, delta: number) => {
+    const handleConfirmUnfrozen = async (item: Ingredient) => {
+        const draftValue = draftUnfrozen[item.id];
+        if (draftValue === undefined) return;
+
+        const delta = draftValue - (item.unfrozenQuantity || 0);
         const res = await adjustUnfrozenQuantity(item.id, delta);
         if (res.success) {
+            setDraftUnfrozen(prev => {
+                const next = { ...prev };
+                delete next[item.id];
+                return next;
+            });
             loadData();
         } else {
             alert(res.error || 'Failed to update Unfrozen stat.');
@@ -524,15 +534,19 @@ export default function InventoryPage() {
                                                 <th style={{ padding: '1rem', fontWeight: 500 }}>{locale === 'es' ? 'Nombre' : 'Name'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>{locale === 'es' ? 'Stock Total' : 'Total Stock'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: '#60a5fa' }}>{locale === 'es' ? 'Congelado ❄️' : 'Frozen ❄️'}</th>
-                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: 'var(--warning)' }}>{locale === 'es' ? 'Descongelado (Refri) 🌡️' : 'Unfrozen (Fridge) 🌡️'}</th>
-                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>{locale === 'es' ? 'Descongelado Rápido' : 'Quick Thaw'}</th>
+                                                <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: 'var(--warning)' }}>{locale === 'es' ? 'Descongelado 🌡️' : 'Unfrozen 🌡️'}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredInventory.filter(i => (i.type === 'PROCESSED' || i.type === 'PREP_RECIPE') && i.trackFreezerStatus).sort((a, b) => a.name.localeCompare(b.name)).map(item => {
-                                                const unfrozenAmt = item.unfrozenQuantity || 0;
+                                                const baseUnfrozen = item.unfrozenQuantity || 0;
+                                                const draftVal = draftUnfrozen[item.id];
+                                                const hasDraft = draftVal !== undefined && draftVal !== baseUnfrozen;
+                                                const displayUnfrozen = draftVal !== undefined ? draftVal : baseUnfrozen;
+
                                                 const totalStock = item.total || 0;
-                                                const frozenAmt = Math.max(0, totalStock - unfrozenAmt);
+                                                const frozenAmt = Math.max(0, totalStock - displayUnfrozen);
+
                                                 return (
                                                     <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                                         <td style={{ padding: '1rem', fontWeight: 'bold' }}>
@@ -541,16 +555,22 @@ export default function InventoryPage() {
                                                         </td>
                                                         <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}>{totalStock} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.metric}</span></td>
                                                         <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: '#60a5fa', fontWeight: 600 }}>{frozenAmt}</td>
-                                                        <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: 'var(--warning)', fontWeight: 600, background: 'rgba(245,158,11,0.05)' }}>{unfrozenAmt}</td>
                                                         <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                            <div style={{ display: 'inline-flex', gap: '0.8rem', alignItems: 'center', background: 'rgba(255,255,255,0.05)', padding: '0.4rem', borderRadius: '12px' }}>
-                                                                <button onClick={() => handleQuickThaw(item, -1)} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--danger)', opacity: unfrozenAmt <= 0 ? 0.3 : 1, cursor: unfrozenAmt <= 0 ? 'not-allowed' : 'pointer' }} disabled={unfrozenAmt <= 0}>
+                                                            <div style={{ display: 'inline-flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: Math.max(0, displayUnfrozen - 1) }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--danger)', opacity: displayUnfrozen <= 0 ? 0.3 : 1, cursor: displayUnfrozen <= 0 ? 'not-allowed' : 'pointer' }} disabled={displayUnfrozen <= 0}>
                                                                     <Minus size={16} />
                                                                 </button>
-                                                                <span style={{ fontWeight: 'bold', fontSize: '1.1rem', minWidth: '20px', textAlign: 'center' }}>{unfrozenAmt}</span>
-                                                                <button onClick={() => handleQuickThaw(item, 1)} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--success)', opacity: frozenAmt <= 0 ? 0.3 : 1, cursor: frozenAmt <= 0 ? 'not-allowed' : 'pointer' }} disabled={frozenAmt <= 0}>
+                                                                <span style={{ fontWeight: 'bold', fontSize: '1.2rem', minWidth: '30px', textAlign: 'center', color: 'var(--warning)' }}>{displayUnfrozen}</span>
+                                                                <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: displayUnfrozen + 1 }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--success)', cursor: 'pointer' }}>
                                                                     <Plus size={16} />
                                                                 </button>
+
+                                                                {hasDraft && (
+                                                                    <button onClick={() => handleConfirmUnfrozen(item)} className="btn-primary" style={{ marginLeft: '1rem', padding: '0.3rem 0.8rem', fontSize: '0.85rem', background: '#3b82f6', border: 'none', borderRadius: '6px', color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                                                                        <Check size={14} />
+                                                                        {locale === 'es' ? 'Confirmar' : 'Confirm'}
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
