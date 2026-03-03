@@ -38,7 +38,7 @@ export default function MetricPriceSection({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', background: 'rgba(0,0,0,0.15)' }}>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', flex: 1 }}>
-                <label style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('metric')} / {locale === 'es' ? 'Unidad Base' : 'Base Unit'}</label>
+                <label style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('metric')} / {locale === 'es' ? 'Unidad Normalizada' : 'Normalized Unit'}</label>
                 {hasRecipeConstraints ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', background: '#333', padding: '0.8rem', borderRadius: '8px' }}>
                         <span style={{ fontWeight: 'bold', border: '1px solid #ccc', padding: '8px 16px', borderRadius: '6px', backgroundColor: '#eee', color: '#111', fontSize: '1rem', minWidth: '80px', textAlign: 'center' }}>
