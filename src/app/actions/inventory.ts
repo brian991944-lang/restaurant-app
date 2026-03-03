@@ -129,6 +129,18 @@ export async function addIngredient(data: any) {
                 }
             }
         });
+
+        if (data.components) {
+            await prisma.prepRecipeIngredient.createMany({
+                data: data.components.map((c: any) => ({
+                    prepRecipeId: ingredient.id,
+                    ingredientId: c.ingredientId,
+                    quantity: parseFloat(c.quantity) || 0,
+                    unit: c.unit || null
+                }))
+            });
+        }
+
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to add ingredient:', e);
@@ -219,6 +231,18 @@ export async function editIngredient(id: string, data: any) {
                     }
                 })
             }
+        }
+
+        if (data.components) {
+            await prisma.prepRecipeIngredient.deleteMany({ where: { prepRecipeId: id } });
+            await prisma.prepRecipeIngredient.createMany({
+                data: data.components.map((c: any) => ({
+                    prepRecipeId: id,
+                    ingredientId: c.ingredientId,
+                    quantity: parseFloat(c.quantity) || 0,
+                    unit: c.unit || null
+                }))
+            });
         }
 
         return { success: true, ingredient };

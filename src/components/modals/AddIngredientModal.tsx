@@ -1,6 +1,6 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useState, useEffect } from 'react';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
@@ -63,6 +63,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
     const [unfrozenQuantity, setUnfrozenQuantity] = useState<number>(0);
+    const [recipeYield, setRecipeYield] = useState<number>(1);
+    const [components, setComponents] = useState<{ id: string, ingredientId: string, quantity: string, unit: string }[]>([]);
     const [portionSize, setPortionSize] = useState<number>(1);
     const [portionUnit, setPortionUnit] = useState<string>('g');
     const [selectedMetric, setSelectedMetric] = useState<string>('Units');
@@ -150,6 +152,17 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setSelectedCategory(initialData?.rawCategory || initialData?.category || '');
             setSelectedProvider(initialData?.provider?.name || initialData?.providerName || '');
             setUnfrozenQuantity(initialData?.unfrozenQuantity || 0);
+            setRecipeYield(initialData?.yieldPercent || 1);
+            if (initialData?.composedOf) {
+                setComponents(initialData.composedOf.map((c: any) => ({
+                    id: Math.random().toString(),
+                    ingredientId: c.ingredientId,
+                    quantity: c.quantity.toString(),
+                    unit: c.unit || 'units'
+                })));
+            } else {
+                setComponents([]);
+            }
 
             if (initialData?.metric) {
                 const match = ALLOWED_METRICS.find(m => m.toLowerCase() === initialData.metric.toLowerCase());
