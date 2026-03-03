@@ -860,8 +860,7 @@ export default function InventoryPage() {
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('type')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('metric')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('yield_percent') || 'Yield %'}</th>
-                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'A Descongelar' : 'To Unfreeze'}</th>
-                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Descontar Stock' : 'Deduct Stock'}</th>
+                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma %' : 'Waste %'}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>{t('actions')}</th>
                                             </tr>
                                         </thead>
@@ -908,24 +907,8 @@ export default function InventoryPage() {
                                                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>
                                                         {item.yieldPercent ? `${item.yieldPercent}%` : '100%'}
                                                     </td>
-                                                    <td style={{ padding: '1rem 1.5rem', color: 'var(--warning)', fontWeight: 600 }}>
-                                                        {item.cloverSoldToday && item.cloverSoldToday > 0 ? `${item.cloverSoldToday} ${item.metric}` : '-'}
-                                                    </td>
-                                                    <td style={{ padding: '1rem 1.5rem' }}>
-                                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                step="0.01"
-                                                                placeholder={locale === 'es' ? 'reducir' : 'deduct'}
-                                                                value={wastes[item.id] !== undefined ? wastes[item.id] : ''}
-                                                                onChange={(e) => setWastes(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                                                style={{ width: '80px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', padding: '0.2rem 0.6rem' }}
-                                                            />
-                                                            {wastes[item.id] && parseFloat(wastes[item.id]) > 0 ? (
-                                                                <button onClick={() => handleWasteSubmit(item.id)} style={{ color: 'var(--accent-primary)', padding: '0.2rem' }}>Save</button>
-                                                            ) : null}
-                                                        </div>
+                                                    <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>
+                                                        {item.yieldPercent ? `${parseFloat((100 - (item.yieldPercent as number)).toFixed(2))}%` : '0%'}
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                                                         {item.type === 'RAW' && !item.parent && (
