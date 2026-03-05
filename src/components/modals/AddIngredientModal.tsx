@@ -60,7 +60,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [nameEsInput, setNameEsInput] = useState('');
     const [translatedNamePreview, setTranslatedNamePreview] = useState('');
     const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
-    const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(true);
+    const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
     const [unfrozenQuantity, setUnfrozenQuantity] = useState<number>(0);
@@ -84,7 +84,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCloverId('');
             setMappingMultiplier(1);
             setTrackFreezerStatus(false);
-            setAllowNegativeStock(true);
+            setAllowNegativeStock(false);
             setUnfrozenQuantity(0);
         }
     }, [isOpen]);
@@ -178,7 +178,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCloverId(initialData?.cloverId || '');
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
-            setAllowNegativeStock(initialData?.allowNegativeStock ?? true);
+            setAllowNegativeStock(initialData?.allowNegativeStock ?? false);
         }
     }, [isOpen, initialData]);
 

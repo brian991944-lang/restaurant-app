@@ -116,7 +116,7 @@ export async function addIngredient(data: any) {
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : 1000,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : false,
-                allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : true,
+                allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
                 currentPrice: data.currentPrice || 0,
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
@@ -393,6 +393,7 @@ export async function bulkAddIngredients(ingredients: any[]) {
                         providerId: providerId,
                         portionWeightG: 1000,
                         yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
+                        allowNegativeStock: false,
                         inventory: {
                             create: {
                                 frozenQty: data.initialQty || 0,
