@@ -28,10 +28,10 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
     const [cloverId, setCloverId] = useState('');
     const [hasInventoryModifiers, setHasInventoryModifiers] = useState(false);
     const [ingredients, setIngredients] = useState<{ id: string, ingredientId: string, quantity: string, unit: string }[]>([]);
-    const [modifiers, setModifiers] = useState<{ id: string, name: string, cloverModifierId: string, ingredients: { id: string, ingredientId: string, quantity: string }[] }[]>([]);
+    const [modifiers, setModifiers] = useState<{ id: string, name: string, cloverModifierId: string, ingredients: { id: string, ingredientId: string, quantity: string, unit: string }[] }[]>([]);
 
     const [cloverItems, setCloverItems] = useState<{ id: string, name: string }[]>([]);
-    const [cloverModifiersOpt, setCloverModifiersOpt] = useState<{ id: string, name: string, group: string }[]>([]);
+    const [cloverModifiersOpt, setCloverModifiersOpt] = useState<{ id: string, name: string, group: string, price: number }[]>([]);
 
     useEffect(() => {
         if (isOpen) {
@@ -59,7 +59,8 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                     ingredients: mod.ingredients?.map((ing: any) => ({
                         id: Math.random().toString(),
                         ingredientId: ing.ingredientId,
-                        quantity: ing.quantity.toString()
+                        quantity: ing.quantity.toString(),
+                        unit: ing.unit || 'units'
                     })) || []
                 })) || []);
             } else {
@@ -115,7 +116,8 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                 cloverModifierId: mod.cloverModifierId,
                 ingredients: mod.ingredients.map(ing => ({
                     ingredientId: ing.ingredientId,
-                    quantity: parseFloat(ing.quantity) || 0
+                    quantity: parseFloat(ing.quantity) || 0,
+                    unit: ing.unit || 'units'
                 })).filter(ing => ing.ingredientId && ing.quantity > 0)
             }))
         });
@@ -336,32 +338,129 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                 <button type="button" onClick={() => setModifiers(modifiers.filter(m => m.id !== mod.id))} style={{ color: 'var(--danger)' }}><Trash2 size={18} /></button>
                                             </div>
                                             <div>
-                                                {mod.ingredients.map(ing => (
-                                                    <div key={ing.id} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                        <div style={{ flex: 2 }}>
-                                                            <SearchableSelect
-                                                                value={ing.ingredientId}
-                                                                onChange={(val) => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.map(i => i.id === ing.id ? { ...i, ingredientId: val } : i) } : m))}
-                                                                options={ingredientsList.map(item => ({ value: item.id, label: item.name }))}
-                                                                placeholder="Ingredient..."
-                                                            />
-                                                        </div>
-                                                        <input
-                                                            type="number"
-                                                            step="0.001"
-                                                            className="input-field"
-                                                            style={{ flex: 1 }}
-                                                            placeholder="Qty"
-                                                            value={ing.quantity}
-                                                            onChange={e => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.map(i => i.id === ing.id ? { ...i, quantity: e.target.value } : i) } : m))}
-                                                        />
-                                                        <button type="button" onClick={() => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.filter(i => i.id !== ing.id) } : m))} style={{ color: 'var(--danger)', padding: '0 0.5rem' }}><X size={16} /></button>
+                                                {mod.ingredients.length === 0 ? (
+                                                    <div style={{ padding: '1rem', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                                                        No ingredients added yet. Build your modifier recipe!
                                                     </div>
-                                                ))}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-                                                    <button type="button" onClick={() => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: [...m.ingredients, { id: Math.random().toString(), ingredientId: '', quantity: '0' }] } : m))} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}><Plus size={14} /> Add Modifier Ingredient</button>
-                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Mod Cost: <strong style={{ color: 'var(--text-primary)' }}>${modCost.toFixed(2)}</strong></span>
+                                                ) : (
+                                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginBottom: '1rem' }}>
+                                                        <thead>
+                                                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Qty</th>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '110px' }}>Metric</th>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '90px', textAlign: 'right' }}>{locale === 'es' ? 'Costo' : 'Cost'}</th>
+                                                                <th style={{ padding: '0.5rem', width: '40px' }}></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {mod.ingredients.map(ing => (
+                                                                <tr key={ing.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                    <td style={{ padding: '0.4rem' }}>
+                                                                        <SearchableSelect
+                                                                            value={ing.ingredientId}
+                                                                            onChange={(val) => {
+                                                                                const selectedItem = ingredientsList.find(i => i.id === val);
+                                                                                setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.map(i => i.id === ing.id ? { ...i, ingredientId: val, unit: selectedItem?.metric || 'units' } : i) } : m));
+                                                                            }}
+                                                                            options={ingredientsList.map(item => ({ value: item.id, label: item.name }))}
+                                                                            placeholder="Select..."
+                                                                            required
+                                                                        />
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem' }}>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.001"
+                                                                            value={ing.quantity}
+                                                                            onChange={e => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.map(i => i.id === ing.id ? { ...i, quantity: e.target.value } : i) } : m))}
+                                                                            className="input-field"
+                                                                            style={{ padding: '0.5rem' }}
+                                                                            required
+                                                                        />
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem' }}>
+                                                                        {(() => {
+                                                                            const dbIng = ingredientsList.find(i => i.id === ing.ingredientId);
+                                                                            const baseUnit = dbIng ? (dbIng.metric || 'Units') : 'Units';
+
+                                                                            const options = baseUnit.toLowerCase() === 'units'
+                                                                                ? [{ value: 'Units', label: 'Units' }]
+                                                                                : ALLOWED_METRICS.filter(m => m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }));
+
+                                                                            return (
+                                                                                <SearchableSelect
+                                                                                    value={ing.unit || 'units'}
+                                                                                    onChange={val => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.map(i => i.id === ing.id ? { ...i, unit: val } : i) } : m))}
+                                                                                    options={options}
+                                                                                    disabled={baseUnit.toLowerCase() === 'units'}
+                                                                                />
+                                                                            );
+                                                                        })()}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'right' }}>
+                                                                        {(() => {
+                                                                            const dbIng = ingredientsList.find(i => i.id === ing.ingredientId);
+                                                                            if (!dbIng) return '$0.00';
+
+                                                                            const baseUnit = dbIng.metric || 'Units';
+                                                                            const ingUnit = ing.unit || 'units';
+                                                                            let lineCost = 0;
+
+                                                                            if (baseUnit.toLowerCase() === 'units' || ingUnit.toLowerCase() === 'units') {
+                                                                                lineCost = resolveIngredientCost(dbIng, ingredientsList) * (parseFloat(ing.quantity) || 0);
+                                                                            } else {
+                                                                                const cFactor = getConversionFactor(baseUnit, ingUnit);
+                                                                                if (cFactor) {
+                                                                                    lineCost = (resolveIngredientCost(dbIng, ingredientsList) / cFactor) * (parseFloat(ing.quantity) || 0);
+                                                                                } else {
+                                                                                    return <span style={{ color: 'var(--warning)', fontSize: '0.75rem' }}>{locale === 'es' ? 'Unidad Inválida' : 'Invalid Unit'}</span>;
+                                                                                }
+                                                                            }
+
+                                                                            return `$${lineCost.toFixed(2)}`;
+                                                                        })()}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'center' }}>
+                                                                        <button type="button" onClick={() => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.filter(i => i.id !== ing.id) } : m))} style={{ color: 'var(--danger)', padding: '0.4rem' }}>
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                )}
+
+                                                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                                    <button type="button" onClick={() => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: [...m.ingredients, { id: Math.random().toString(), ingredientId: '', quantity: '0', unit: 'units' }] } : m))} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+                                                        <Plus size={14} /> Add Modifier Ingredient
+                                                    </button>
                                                 </div>
+
+                                                {mod.ingredients.length > 0 && (() => {
+                                                    const cloverMod = cloverModifiersOpt.find(m => m.id === mod.cloverModifierId);
+                                                    const modUpcharge = cloverMod && cloverMod.price ? (cloverMod.price / 100) : 0;
+                                                    const modSellingPrice = parseFloat(salePrice) + modUpcharge;
+                                                    const currentModFoodCostPct = modSellingPrice > 0 ? ((totalCalculatedCost + modCost) / modSellingPrice) * 100 : 0;
+
+                                                    return (
+                                                        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Costo Modificador' : 'Modifier Cost'}</span>
+                                                                <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>${modCost.toFixed(2)}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Precio Final (Base + Upcharge)' : 'Final Selling Price'}</span>
+                                                                <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>${modSellingPrice.toFixed(2)}</span>
+                                                            </div>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                                                <span style={{ fontSize: '0.75rem', color: currentModFoodCostPct > parseFloat(targetFoodCostPct) ? 'var(--danger)' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Food Cost % Real' : 'Actual Food Cost %'}</span>
+                                                                <span style={{ fontSize: '1.1rem', fontWeight: 600, color: currentModFoodCostPct > parseFloat(targetFoodCostPct) ? 'var(--danger)' : 'var(--text-primary)' }}>{currentModFoodCostPct.toFixed(1)}%</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     )

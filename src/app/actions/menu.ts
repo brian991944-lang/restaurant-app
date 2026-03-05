@@ -45,7 +45,7 @@ export async function addMenuItem(data: any) {
                             create: mod.ingredients.map((ing: any) => ({
                                 ingredientId: ing.ingredientId,
                                 quantity: ing.quantity,
-                                unit: 'units' // keeping unit simple for mods or mapped correctly
+                                unit: ing.unit || 'units'
                             }))
                         }
                     }))
@@ -90,7 +90,7 @@ export async function editMenuItem(id: string, data: any) {
                             create: mod.ingredients.map((ing: any) => ({
                                 ingredientId: ing.ingredientId,
                                 quantity: ing.quantity,
-                                unit: 'units'
+                                unit: ing.unit || 'units'
                             }))
                         }
                     }))

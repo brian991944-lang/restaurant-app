@@ -52,7 +52,7 @@ export async function fetchCloverModifiers() {
         let allMods: any[] = [];
         data.elements?.forEach((group: any) => {
             group.modifiers?.elements?.forEach((mod: any) => {
-                allMods.push({ id: mod.id, name: mod.name, group: group.name });
+                allMods.push({ id: mod.id, name: mod.name, group: group.name, price: mod.price || 0 });
             });
         });
         // also get standalone modifiers if any, but clover API separates them. Let's fallback to /modifiers endpoint
@@ -61,7 +61,7 @@ export async function fetchCloverModifiers() {
         const data2 = await res2.json();
         data2.elements?.forEach((mod: any) => {
             if (!allMods.find(m => m.id === mod.id)) {
-                allMods.push({ id: mod.id, name: mod.name, group: 'Misc' });
+                allMods.push({ id: mod.id, name: mod.name, group: 'Misc', price: mod.price || 0 });
             }
         });
         return allMods;
