@@ -311,16 +311,27 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                     return (
                                         <div key={mod.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                                <div style={{ display: 'flex', gap: '1rem', flex: 1, paddingRight: '1rem' }}>
-                                                    <input value={mod.name} onChange={e => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, name: e.target.value } : m))} placeholder="Modifier Title e.g. Add Shrimp" className="input-field" required />
-                                                    <div style={{ flex: 1 }}>
-                                                        <SearchableSelect
-                                                            value={mod.cloverModifierId}
-                                                            onChange={(val) => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, cloverModifierId: val } : m))}
-                                                            options={cloverModifiersOpt.map(m => ({ value: m.id, label: `${m.name} (${m.group})` }))}
-                                                            placeholder="Clover Modifier ID"
-                                                        />
-                                                    </div>
+                                                <div style={{ display: 'flex', flex: 1, paddingRight: '1rem' }}>
+                                                    <select
+                                                        value={mod.cloverModifierId || ''}
+                                                        onChange={(e) => {
+                                                            const selectedId = e.target.value;
+                                                            const selectedOption = cloverModifiersOpt.find(m => m.id === selectedId);
+                                                            setModifiers(modifiers.map(m => m.id === mod.id ? {
+                                                                ...m,
+                                                                cloverModifierId: selectedId,
+                                                                name: selectedOption ? selectedOption.name : ''
+                                                            } : m));
+                                                        }}
+                                                        className="input-field"
+                                                        style={{ width: '100%', padding: '0.8rem' }}
+                                                        required
+                                                    >
+                                                        <option value="">Select Clover Modifier...</option>
+                                                        {cloverModifiersOpt.map(m => (
+                                                            <option key={m.id} value={m.id}>{m.name} ({m.group})</option>
+                                                        ))}
+                                                    </select>
                                                 </div>
                                                 <button type="button" onClick={() => setModifiers(modifiers.filter(m => m.id !== mod.id))} style={{ color: 'var(--danger)' }}><Trash2 size={18} /></button>
                                             </div>
