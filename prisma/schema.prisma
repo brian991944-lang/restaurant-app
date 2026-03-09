@@ -31,6 +31,7 @@ model Category {
   id            String       @id @default(cuid())
   name          String
   nameEs        String?
+  type          String       @default("INGREDIENT") // INGREDIENT, TASK
   autoTranslate Boolean      @default(true)
   department    String // FOOD, DRINKS, CLEANING
   ingredients   Ingredient[]

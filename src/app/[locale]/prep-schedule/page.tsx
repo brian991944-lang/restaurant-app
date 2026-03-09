@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus } from 'lucide-react';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
@@ -11,6 +11,7 @@ import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addPrepTaskItem, removePrepTaskItem, getBaseIngredients, editPrepTaskItem } from '@/app/actions/teamTasks';
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 
 export default function PrepSchedulePage() {
     const t = useTranslations();
@@ -152,7 +153,7 @@ export default function PrepSchedulePage() {
             const data = await getCompletedPrepLogs();
             setCompletedLogs(data);
         } else if (tab === 'team') {
-            const [members, tasks, cats, bases] = await Promise.all([getTeamMembers(), getPrepTaskItems(), getCategories(), getBaseIngredients()]);
+            const [members, tasks, cats, bases] = await Promise.all([getTeamMembers(), getPrepTaskItems(), getCategories('TASK'), getBaseIngredients()]);
             setTeamMembers(members);
             setPrepItems(tasks);
             setCategories(cats);
@@ -809,6 +810,7 @@ export default function PrepSchedulePage() {
     const [newTaskMetric, setNewTaskMetric] = useState('units');
     const [newTaskSubtract, setNewTaskSubtract] = useState(false);
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+    const [isManageOptionsOpen, setIsManageOptionsOpen] = useState(false);
 
     const [showEditTaskModal, setShowEditTaskModal] = useState(false);
     const [editingTask, setEditingTask] = useState<any>(null);
@@ -891,9 +893,14 @@ export default function PrepSchedulePage() {
                 <div className="glass-panel" style={{ flex: 2, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
                         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Layers size={20} color="#a855f7" /> {locale === 'es' ? 'Tareas de Prep Elegibles' : 'Eligible Prep Tasks'}</h3>
-                        <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
-                            <Plus size={16} /> Add Task
-                        </button>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button onClick={() => setIsManageOptionsOpen(true)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
+                                <Settings size={16} /> Manage Categories
+                            </button>
+                            <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
+                                <Plus size={16} /> Add Task
+                            </button>
+                        </div>
                     </div>
 
                     <div className="glass-panel" style={{ overflowX: 'auto', padding: 0, marginTop: '1rem' }}>
@@ -1203,6 +1210,15 @@ export default function PrepSchedulePage() {
                     </div>
                 </div>
             )}
+
+            <ManageOptionsModal
+                isOpen={isManageOptionsOpen}
+                onClose={() => {
+                    setIsManageOptionsOpen(false);
+                    loadDataForTab('team');
+                }}
+                categoryType="TASK"
+            />
         </div>
     );
 }

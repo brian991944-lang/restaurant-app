@@ -9,9 +9,10 @@ import { getCategories, addCategory, deleteCategory, editCategory, getProviders,
 interface ManageOptionsModalProps {
     isOpen: boolean;
     onClose: () => void;
+    categoryType?: 'INGREDIENT' | 'TASK';
 }
 
-export default function ManageOptionsModal({ isOpen, onClose }: ManageOptionsModalProps) {
+export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'INGREDIENT' }: ManageOptionsModalProps) {
     const t = useTranslations('Inventory');
     const locale = useLocale();
     const [selectedGroup, setSelectedGroup] = useState<'Category' | 'Type' | 'Provider'>('Category');
@@ -36,7 +37,7 @@ export default function ManageOptionsModal({ isOpen, onClose }: ManageOptionsMod
         setIsLoading(true);
         try {
             if (selectedGroup === 'Category') {
-                const data = await getCategories();
+                const data = await getCategories(categoryType);
                 setOptions(data);
             } else if (selectedGroup === 'Provider') {
                 const data = await getProviders();
@@ -66,7 +67,7 @@ export default function ManageOptionsModal({ isOpen, onClose }: ManageOptionsMod
             }
         } else {
             if (selectedGroup === 'Category') {
-                res = await addCategory(newOptionName, 'FOOD', autoTranslate ? undefined : newOptionNameEs); // default to FOOD department
+                res = await addCategory(newOptionName, 'FOOD', autoTranslate ? undefined : newOptionNameEs, categoryType); // default to FOOD department
             } else if (selectedGroup === 'Provider') {
                 res = await addProvider(newOptionName);
             } else {
@@ -117,14 +118,14 @@ export default function ManageOptionsModal({ isOpen, onClose }: ManageOptionsMod
 
                 {/* Group Selector */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('option_type')}</label>
+                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{categoryType === 'TASK' ? (locale === 'es' ? 'Tipo de Configuración' : 'Configuration Type') : t('option_type')}</label>
                     <select
                         className="input-field"
                         value={selectedGroup}
                         onChange={(e) => setSelectedGroup(e.target.value as any)}
                         style={{ padding: '0.8rem', fontSize: '1rem' }}>
-                        <option value="Category">{t('category')}</option>
-                        <option value="Provider">Provider</option>
+                        <option value="Category">{categoryType === 'TASK' ? (locale === 'es' ? 'Categoría de Tarea' : 'Task Category') : t('category')}</option>
+                        {categoryType !== 'TASK' && <option value="Provider">{locale === 'es' ? 'Proveedor' : 'Provider'}</option>}
                     </select>
                 </div>
 

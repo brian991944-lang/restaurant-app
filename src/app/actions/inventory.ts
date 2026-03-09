@@ -55,8 +55,9 @@ export async function getProviders() {
     });
 }
 
-export async function getCategories() {
+export async function getCategories(type?: 'INGREDIENT' | 'TASK') {
     return prisma.category.findMany({
+        where: type ? { type } : undefined,
         include: {
             _count: {
                 select: { ingredients: true }
@@ -414,10 +415,10 @@ export async function bulkAddIngredients(ingredients: any[]) {
     }
 }
 
-export async function addCategory(name: string, department: string = 'FOOD', nameEs?: string) {
+export async function addCategory(name: string, department: string = 'FOOD', nameEs?: string, type: 'INGREDIENT' | 'TASK' = 'INGREDIENT') {
     try {
         const category = await prisma.category.create({
-            data: { name, department, nameEs: nameEs || null }
+            data: { name, department, nameEs: nameEs || null, type }
         });
         return { success: true, category };
     } catch (error) {
