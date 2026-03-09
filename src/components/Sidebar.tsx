@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useAdmin } from '@/components/AdminContext';
 
 export default function Sidebar({ locale }: { locale: string }) {
     const t = useTranslations('Nav');
@@ -16,7 +17,7 @@ export default function Sidebar({ locale }: { locale: string }) {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     // Admin View State
-    const [isAdmin, setIsAdmin] = useState(false);
+    const { isAdmin, setIsAdmin } = useAdmin();
     const [showAdminModal, setShowAdminModal] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
     const [loginError, setLoginError] = useState(false);
