@@ -8,7 +8,7 @@ import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import RecipeBuilderModal from '@/components/modals/RecipeBuilderModal';
-import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment, setUnfrozenQuantityAction } from '@/app/actions/inventory';
+import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment, setUnfrozenQuantityAction, getProviders, addProvider, editProvider, deleteProvider } from '@/app/actions/inventory';
 import { getPrepUsers } from '@/app/actions/users';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
@@ -67,6 +67,7 @@ const MOCK_PRODUCTION: ProductionSchedule[] = [
 
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('ALL');
+    const [categoryTab, setCategoryTab] = useState<'CATEGORIES' | 'PROVEEDORES'>('CATEGORIES');
     const [overviewTab, setOverviewTab] = useState<'RAW' | 'FREEZER' | 'PROCESSED' | 'RELATIONSHIPS'>('FREEZER');
     const [rawCategoryFilter, setRawCategoryFilter] = useState('');
     const [rawIngredientFilter, setRawIngredientFilter] = useState('');
@@ -88,6 +89,7 @@ export default function InventoryPage() {
 
     const [dbIngredients, setDbIngredients] = useState<any[]>([]);
     const [dbCategories, setDbCategories] = useState<any[]>([]);
+    const [dbProviders, setDbProviders] = useState<any[]>([]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
@@ -107,9 +109,10 @@ export default function InventoryPage() {
     }, []);
 
     const loadData = async () => {
-        const [invRes, catRes, syncRes, usersRes] = await Promise.all([getInventory(), getCategories(), getLastSyncTime(), getPrepUsers()]);
+        const [invRes, catRes, provRes, syncRes, usersRes] = await Promise.all([getInventory(), getCategories(), getProviders(), getLastSyncTime(), getPrepUsers()]);
         setDbIngredients(invRes);
         setDbCategories(catRes);
+        setDbProviders(provRes);
         setLastSyncTime(syncRes);
         setPrepUsers(usersRes);
     };
@@ -221,6 +224,26 @@ export default function InventoryPage() {
         } else {
             alert(res.error || 'Failed to delete category');
         }
+    };
+
+    const handleAddProvider = async () => {
+        const name = prompt('Nombre del Proveedor (Supplier Name):');
+        if (!name) return;
+        await addProvider(name);
+        loadData();
+    };
+
+    const handleEditProvider = async (id: string, oldName: string) => {
+        const name = prompt('Nuevo Nombre (New Name):', oldName);
+        if (!name || name === oldName) return;
+        await editProvider(id, name);
+        loadData();
+    };
+
+    const handleDeleteProvider = async (id: string) => {
+        if (!confirm('Eliminar Proveedor (Delete Supplier)?')) return;
+        await deleteProvider(id);
+        loadData();
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -459,7 +482,11 @@ export default function InventoryPage() {
                     )}
                     <button className="btn-primary" onClick={() => {
                         if (activeTab === 'CATEGORIES') {
-                            setIsManageOptionsOpen(true);
+                            if (categoryTab === 'CATEGORIES') {
+                                setIsManageOptionsOpen(true);
+                            } else {
+                                handleAddProvider();
+                            }
                         } else if (activeTab === 'PREP_RECIPES') {
                             setEditingIngredient(null);
                             setIsRecipeModalOpen(true);
@@ -469,7 +496,7 @@ export default function InventoryPage() {
                         }
                     }} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem' }}>
                         <Plus size={18} />
-                        <span>{activeTab === 'PRODUCTION' ? t('add_production') : activeTab === 'PREP_RECIPES' ? 'Add Prep Recipe' : activeTab === 'CATEGORIES' ? 'Manage Categories' : t('add_ingredient')}</span>
+                        <span>{activeTab === 'PRODUCTION' ? t('add_production') : activeTab === 'PREP_RECIPES' ? (locale === 'es' ? 'Añadir Receta' : 'Add Prep Recipe') : activeTab === 'CATEGORIES' ? (categoryTab === 'CATEGORIES' ? (locale === 'es' ? 'Gestionar Categorías' : 'Manage Categories') : (locale === 'es' ? 'Añadir Proveedor' : 'Add Supplier')) : t('add_ingredient')}</span>
                     </button>
                 </div>
             </div>
@@ -480,10 +507,10 @@ export default function InventoryPage() {
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px' }}>
                     {[
-                        { id: 'ALL', label: t('overview') },
-                        { id: 'ALL_INGREDIENTS', label: t('all_ingredients') },
-                        { id: 'PREP_RECIPES', label: 'Prep Recipes' },
-                        { id: 'CATEGORIES', label: t('categories') || 'Categories' }
+                        { id: 'ALL', label: locale === 'es' ? 'Inventario' : 'Inventory' },
+                        { id: 'ALL_INGREDIENTS', label: locale === 'es' ? 'Ingredientes' : 'Ingredients' },
+                        { id: 'PREP_RECIPES', label: locale === 'es' ? 'Recetas' : 'Recipes' },
+                        { id: 'CATEGORIES', label: locale === 'es' ? 'Categorías y Proveedores' : 'Categories & Suppliers' }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -933,53 +960,90 @@ export default function InventoryPage() {
 
             {
                 activeTab === 'CATEGORIES' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
-                        {/* Render DB Categories grouped by department */}
-                        {Object.entries(
-                            dbCategories.reduce((acc, cat) => {
-                                if (!acc[cat.department]) acc[cat.department] = [];
-                                acc[cat.department].push(cat);
-                                return acc;
-                            }, {} as Record<string, any[]>)
-                        ).map(([dept, categoriesArray]) => {
-                            const categories = categoriesArray as any[];
-                            const deptColors = dept === 'FOOD' ? { bg: 'rgba(59, 130, 246, 0.2)', text: 'var(--accent-primary)' } :
-                                dept === 'DRINKS' ? { bg: 'rgba(245, 158, 11, 0.2)', text: 'var(--warning)' } :
-                                    dept === 'CLEANING' ? { bg: 'rgba(16, 185, 129, 0.2)', text: 'var(--success)' } :
-                                        { bg: 'rgba(255, 255, 255, 0.1)', text: 'var(--text-primary)' };
-                            return (
-                                <div key={dept} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                            <button onClick={() => setCategoryTab('CATEGORIES')} className={categoryTab === 'CATEGORIES' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: categoryTab === 'CATEGORIES' ? 'none' : '1px solid var(--glass-border)', color: categoryTab === 'CATEGORIES' ? 'white' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Categorías' : 'Categories'}</button>
+                            <button onClick={() => setCategoryTab('PROVEEDORES')} className={categoryTab === 'PROVEEDORES' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: categoryTab === 'PROVEEDORES' ? 'none' : '1px solid var(--glass-border)', color: categoryTab === 'PROVEEDORES' ? 'white' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Proveedores' : 'Suppliers'}</button>
+                        </div>
+
+                        {categoryTab === 'CATEGORIES' && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
+                                {/* Render DB Categories grouped by department */}
+                                {Object.entries(
+                                    dbCategories.reduce((acc, cat) => {
+                                        if (!acc[cat.department]) acc[cat.department] = [];
+                                        acc[cat.department].push(cat);
+                                        return acc;
+                                    }, {} as Record<string, any[]>)
+                                ).map(([dept, categoriesArray]) => {
+                                    const categories = categoriesArray as any[];
+                                    const deptColors = dept === 'FOOD' ? { bg: 'rgba(59, 130, 246, 0.2)', text: 'var(--accent-primary)' } :
+                                        dept === 'DRINKS' ? { bg: 'rgba(245, 158, 11, 0.2)', text: 'var(--warning)' } :
+                                            dept === 'CLEANING' ? { bg: 'rgba(16, 185, 129, 0.2)', text: 'var(--success)' } :
+                                                { bg: 'rgba(255, 255, 255, 0.1)', text: 'var(--text-primary)' };
+                                    return (
+                                        <div key={dept} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                                                <h2 style={{ fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <span style={{
+                                                        display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%',
+                                                        backgroundColor: deptColors.text, boxShadow: `0 0 8px ${deptColors.text}`
+                                                    }}></span>
+                                                    {dept}
+                                                </h2>
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{categories.length} categories</span>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                {categories.sort((a, b) => a.name.localeCompare(b.name)).map((category: any) => (
+                                                    <div key={category.id} style={{
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                        padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
+                                                        border: '1px solid rgba(255,255,255,0.03)'
+                                                    }}>
+                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                            <span style={{ fontWeight: 500 }}>{category.name}</span>
+                                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{category._count.ingredients} items linked</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }}>
+                                                            <button style={{ color: 'inherit', padding: '0.25rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}><Pencil size={16} /></button>
+                                                            <button onClick={() => handleDeleteCategory(category.id)} style={{ color: 'var(--danger)', padding: '0.25rem' }}><Trash2 size={16} /></button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {categoryTab === 'PROVEEDORES' && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
+                                <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem', gridColumn: '1 / -1' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
-                                        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                            <span style={{
-                                                display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%',
-                                                backgroundColor: deptColors.text, boxShadow: `0 0 8px ${deptColors.text}`
-                                            }}></span>
-                                            {dept}
-                                        </h2>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{categories.length} categories</span>
+                                        <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{locale === 'es' ? 'Lista de Proveedores' : 'Supplier List'}</h2>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{dbProviders.length} providers</span>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        {categories.sort((a, b) => a.name.localeCompare(b.name)).map((category: any) => (
-                                            <div key={category.id} style={{
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                                        {dbProviders.sort((a, b) => a.name.localeCompare(b.name)).map((prov: any) => (
+                                            <div key={prov.id} style={{
                                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
+                                                padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
                                                 border: '1px solid rgba(255,255,255,0.03)'
                                             }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                    <span style={{ fontWeight: 500 }}>{category.name}</span>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{category._count.ingredients} items linked</span>
+                                                    <span style={{ fontWeight: 500, fontSize: '1.1rem' }}>{prov.name}</span>
+                                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{prov._count?.ingredients || 0} items linked</span>
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                                                    <button style={{ color: 'inherit', padding: '0.25rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}><Pencil size={16} /></button>
-                                                    <button onClick={() => handleDeleteCategory(category.id)} style={{ color: 'var(--danger)', padding: '0.25rem' }}><Trash2 size={16} /></button>
+                                                    <button onClick={() => handleEditProvider(prov.id, prov.name)} style={{ color: 'inherit', padding: '0.4rem', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px' }} onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; }} onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}><Pencil size={16} /></button>
+                                                    <button onClick={() => handleDeleteProvider(prov.id)} style={{ color: 'var(--danger)', padding: '0.4rem', border: '1px solid rgba(220, 38, 38, 0.2)', borderRadius: '6px' }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(220, 38, 38, 0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}><Trash2 size={16} /></button>
                                                 </div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
-                            );
-                        })}
+                            </div>
+                        )}
                     </div>
                 )
             }

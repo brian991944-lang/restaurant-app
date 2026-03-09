@@ -11,7 +11,7 @@ export async function getTeamMembers() {
 
 export async function getBaseIngredients() {
     return prisma.ingredient.findMany({
-        where: { type: { in: ['RAW', 'PROCESSED'] } },
+        where: { type: { in: ['RAW', 'PROCESSED', 'PREP_RECIPE'] } },
         orderBy: { name: 'asc' }
     });
 }
