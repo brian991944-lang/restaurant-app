@@ -187,8 +187,9 @@ export default function PrepSchedulePage() {
 
         const res = await completePrepTask(task.ingredientId, actual, cookId, task.assignmentId);
         if (res.success) {
-            setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: actual } : t));
-            setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: actual } : t));
+            const cookName = prepUsers.find(u => u.id === cookId)?.name || 'Any Cook';
+            setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: actual, completedBy: cookName } : t));
+            setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: actual, completedBy: cookName } : t));
         }
         setCompleting(null);
     };
@@ -218,8 +219,8 @@ export default function PrepSchedulePage() {
             const cookName = cook ? cook.name : 'Unknown Cook';
             const res = await completePrepTask(task.ingredientId, 0, deleteTaskCook, task.assignmentId, `Not Necessary, skipped by ${cookName}`);
             if (res.success) {
-                if (isTodayTasks) setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0 } : t));
-                else setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0 } : t));
+                if (isTodayTasks) setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
+                else setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
             } else {
                 alert("Error updating task.");
             }
@@ -238,8 +239,8 @@ export default function PrepSchedulePage() {
 
         const res = await undoPrepTask(task.ingredientId, actual, task.assignmentId);
         if (res.success) {
-            setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: false, actualAmount: null } : t));
-            setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: false, actualAmount: null } : t));
+            setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: false, actualAmount: null, completedBy: undefined } : t));
+            setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: false, actualAmount: null, completedBy: undefined } : t));
         }
         setCompleting(null);
     };
@@ -344,7 +345,9 @@ export default function PrepSchedulePage() {
                                             })()}
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
-                                            {!isDone && (
+                                            {isDone ? (
+                                                <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
+                                            ) : (
                                                 <select value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)' }}>
                                                     <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
                                                     {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}

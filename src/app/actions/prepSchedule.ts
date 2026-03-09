@@ -16,6 +16,7 @@ export interface PrepTask {
     hasNightShift: boolean;
     hasRecurring: boolean;
     isUrgent: boolean;
+    completedBy?: string;
 }
 
 /**
@@ -38,7 +39,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                     include: {
                         ingredient: {
                             include: { category: true }
-                        }
+                        },
+                        user: true
                     }
                 }
             }
@@ -97,7 +99,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 assignmentId: assignment?.id,
                 hasNightShift,
                 hasRecurring,
-                isUrgent
+                isUrgent,
+                completedBy: assignment?.user?.name || undefined
             });
         }
 
