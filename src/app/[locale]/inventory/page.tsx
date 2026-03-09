@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check } from 'lucide-react';
+import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
@@ -68,6 +68,16 @@ const MOCK_PRODUCTION: ProductionSchedule[] = [
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('ALL');
     const [categoryTab, setCategoryTab] = useState<'CATEGORIES' | 'PROVEEDORES'>('CATEGORIES');
+    const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+    const toggleCategoryExpand = (id: string) => {
+        setExpandedCategories(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
     const [overviewTab, setOverviewTab] = useState<'RAW' | 'FREEZER' | 'PROCESSED' | 'RELATIONSHIPS'>('FREEZER');
     const [rawCategoryFilter, setRawCategoryFilter] = useState('');
     const [rawIngredientFilter, setRawIngredientFilter] = useState('');
@@ -994,22 +1004,78 @@ export default function InventoryPage() {
                                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{categories.length} categories</span>
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                {categories.sort((a, b) => a.name.localeCompare(b.name)).map((category: any) => (
-                                                    <div key={category.id} style={{
-                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                        padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
-                                                        border: '1px solid rgba(255,255,255,0.03)'
-                                                    }}>
-                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                            <span style={{ fontWeight: 500 }}>{category.name}</span>
-                                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{category._count.ingredients} items linked</span>
+                                                {categories.sort((a, b) => a.name.localeCompare(b.name)).map((category: any) => {
+                                                    const isExpanded = expandedCategories.has(category.id);
+                                                    const categoryIngredients = filteredInventory.filter(i => i.rawCategory === category.name);
+                                                    return (
+                                                        <div key={category.id} style={{
+                                                            display: 'flex', flexDirection: 'column',
+                                                            background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
+                                                            border: '1px solid rgba(255,255,255,0.03)',
+                                                            overflow: 'hidden'
+                                                        }}>
+                                                            <div
+                                                                onClick={() => toggleCategoryExpand(category.id)}
+                                                                style={{
+                                                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                                    padding: '0.75rem 1rem', cursor: 'pointer',
+                                                                    background: isExpanded ? 'rgba(255,255,255,0.05)' : 'transparent',
+                                                                    transition: 'background 0.2s'
+                                                                }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                                    <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                                                                        {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                                        <span style={{ fontWeight: 500 }}>{category.name}</span>
+                                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{category._count.ingredients} items linked</span>
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }} onClick={(e) => e.stopPropagation()}>
+                                                                    <button style={{ color: 'inherit', padding: '0.25rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}><Pencil size={16} /></button>
+                                                                    <button onClick={() => handleDeleteCategory(category.id)} style={{ color: 'var(--danger)', padding: '0.25rem' }}><Trash2 size={16} /></button>
+                                                                </div>
+                                                            </div>
+                                                            {isExpanded && (
+                                                                <div style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', padding: '1rem' }}>
+                                                                    {categoryIngredients.length === 0 ? (
+                                                                        <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem 0' }}>
+                                                                            {locale === 'es' ? 'No hay ingredientes en esta categoría' : 'No ingredients in this category'}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                                                                            <thead>
+                                                                                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                                                                                    <th style={{ padding: '0.5rem', fontWeight: 500 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
+                                                                                    <th style={{ padding: '0.5rem', fontWeight: 500, textAlign: 'right' }}>{locale === 'es' ? 'Stock' : 'Stock'}</th>
+                                                                                    <th style={{ padding: '0.5rem', fontWeight: 500 }}>{locale === 'es' ? 'Unidad' : 'Metric'}</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody>
+                                                                                {categoryIngredients.sort((a, b) => a.name.localeCompare(b.name)).map(ing => (
+                                                                                    <tr key={ing.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                                                                        <td style={{ padding: '0.5rem' }}>
+                                                                                            <button
+                                                                                                onClick={(e) => { e.stopPropagation(); setEditingIngredient(ing); setIsAddModalOpen(true); }}
+                                                                                                style={{ color: 'var(--accent-primary)', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 500, textAlign: 'left', textDecoration: 'none' }}
+                                                                                                onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                                                                                                onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                                                                                            >
+                                                                                                {ing.name}
+                                                                                            </button>
+                                                                                        </td>
+                                                                                        <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>{ing.total}</td>
+                                                                                        <td style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>{typeof getOptName === 'function' ? getOptName(ing.metric) : ing.metric}</td>
+                                                                                    </tr>
+                                                                                ))}
+                                                                            </tbody>
+                                                                        </table>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-                                                            <button style={{ color: 'inherit', padding: '0.25rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'} onMouseOut={(e) => e.currentTarget.style.color = 'inherit'}><Pencil size={16} /></button>
-                                                            <button onClick={() => handleDeleteCategory(category.id)} style={{ color: 'var(--danger)', padding: '0.25rem' }}><Trash2 size={16} /></button>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     );
