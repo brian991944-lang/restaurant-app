@@ -1073,18 +1073,22 @@ export default function PrepSchedulePage() {
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Category</label>
-                                <select value={newTaskCatId} onChange={e => setNewTaskCatId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    <option value="">-- Select Category --</option>
-                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={newTaskCatId}
+                                    onChange={(val) => setNewTaskCatId(val)}
+                                    options={[{ value: '', label: '-- Select Category --' }, ...[...categories].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ value: c.id, label: c.name }))]}
+                                    placeholder="-- Select Category --"
+                                />
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Enlace a Ingrediente Base (Opcional)' : 'Base Ingredient Link (Optional)'}</label>
-                                <select value={newTaskParentId} onChange={e => setNewTaskParentId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    <option value="">-- None --</option>
-                                    {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={newTaskParentId}
+                                    onChange={(val) => setNewTaskParentId(val)}
+                                    options={[{ value: '', label: '-- None --' }, ...[...baseIngredients].sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ value: b.id, label: b.name }))]}
+                                    placeholder="-- None --"
+                                />
                             </div>
 
                             <div>
@@ -1124,17 +1128,22 @@ export default function PrepSchedulePage() {
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Category</label>
-                                <select value={editTaskCatId} onChange={e => setEditTaskCatId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={editTaskCatId}
+                                    onChange={(val) => setEditTaskCatId(val)}
+                                    options={[...categories].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ value: c.id, label: c.name }))}
+                                    placeholder="-- Select Category --"
+                                />
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Enlace a Ingrediente Base (Opcional)' : 'Base Ingredient Link (Optional)'}</label>
-                                <select value={editTaskParentId} onChange={e => setEditTaskParentId(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    <option value="">-- None --</option>
-                                    {baseIngredients.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                </select>
+                                <SearchableSelect
+                                    value={editTaskParentId}
+                                    onChange={(val) => setEditTaskParentId(val)}
+                                    options={[{ value: '', label: '-- None --' }, ...[...baseIngredients].sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ value: b.id, label: b.name }))]}
+                                    placeholder="-- None --"
+                                />
                             </div>
 
                             <div>
