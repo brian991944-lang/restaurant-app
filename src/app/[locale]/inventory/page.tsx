@@ -119,7 +119,7 @@ export default function InventoryPage() {
     }, []);
 
     const loadData = async () => {
-        const [invRes, catRes, provRes, syncRes, usersRes] = await Promise.all([getInventory(), getCategories(), getProviders(), getLastSyncTime(), getPrepUsers()]);
+        const [invRes, catRes, provRes, syncRes, usersRes] = await Promise.all([getInventory(), getCategories('INGREDIENT'), getProviders(), getLastSyncTime(), getPrepUsers()]);
         setDbIngredients(invRes);
         setDbCategories(catRes);
         setDbProviders(provRes);

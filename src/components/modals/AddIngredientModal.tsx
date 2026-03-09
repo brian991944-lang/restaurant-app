@@ -121,7 +121,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     useEffect(() => {
         if (isOpen) {
             Promise.all([
-                getCategories(),
+                getCategories('INGREDIENT'),
                 getProviders(),
                 getDropdownOptions('Type'),
                 getInventory()
