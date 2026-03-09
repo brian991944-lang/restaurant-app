@@ -15,6 +15,12 @@ export default function Sidebar({ locale }: { locale: string }) {
     const [mounted, setMounted] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
 
+    // Admin View State
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [showAdminModal, setShowAdminModal] = useState(false);
+    const [passwordInput, setPasswordInput] = useState('');
+    const [loginError, setLoginError] = useState(false);
+
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -34,6 +40,10 @@ export default function Sidebar({ locale }: { locale: string }) {
         { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp },
         { name: t('raw_data'), href: `/${locale}/data`, icon: Database },
     ];
+
+    const filteredNavItems = isAdmin
+        ? navItems
+        : navItems.filter(item => item.href.includes('/inventory') || item.href.includes('/prep-schedule'));
 
     return (
         <aside style={{
@@ -79,7 +89,7 @@ export default function Sidebar({ locale }: { locale: string }) {
 
             {/* Navigation Links */}
             <nav style={{ flex: 1, padding: isCollapsed ? '1.5rem 0' : '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', alignItems: isCollapsed ? 'center' : 'stretch' }}>
-                {navItems.map((item) => {
+                {filteredNavItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
                     return (
@@ -176,16 +186,71 @@ export default function Sidebar({ locale }: { locale: string }) {
                     )}
                 </div>
 
-                {/* Login Button */}
+                {/* Admin View Button */}
                 {!isCollapsed && (
                     <button
-                        className="btn-primary"
+                        onClick={() => {
+                            if (isAdmin) {
+                                setIsAdmin(false);
+                            } else {
+                                setShowAdminModal(true);
+                                setLoginError(false);
+                                setPasswordInput('');
+                            }
+                        }}
+                        className={isAdmin ? "btn-secondary" : "btn-primary"}
                         style={{ width: '100%', padding: '0.8rem', borderRadius: '12px', textAlign: 'center' }}
                     >
-                        {t('login')}
+                        {isAdmin ? 'Exit Admin' : 'Admin View'}
                     </button>
                 )}
             </div>
+
+            {/* Admin Password Modal */}
+            {showAdminModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="glass-panel" style={{ padding: '2rem', width: '320px', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
+                        <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Admin Access</h3>
+                        <input
+                            type="password"
+                            value={passwordInput}
+                            onChange={e => { setPasswordInput(e.target.value); setLoginError(false); }}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                    if (passwordInput === 'Fus10nY&Y') {
+                                        setIsAdmin(true);
+                                        setShowAdminModal(false);
+                                    } else {
+                                        setLoginError(true);
+                                    }
+                                }
+                            }}
+                            className="input-field"
+                            placeholder="Password"
+                            style={{ padding: '0.8rem', width: '100%' }}
+                            autoFocus
+                        />
+                        {loginError && <span style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>Acceso Denegado</span>}
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                            <button onClick={() => setShowAdminModal(false)} className="btn-secondary" style={{ padding: '0.5rem 1rem' }}>Cancel</button>
+                            <button
+                                onClick={() => {
+                                    if (passwordInput === 'Fus10nY&Y') {
+                                        setIsAdmin(true);
+                                        setShowAdminModal(false);
+                                    } else {
+                                        setLoginError(true);
+                                    }
+                                }}
+                                className="btn-primary"
+                                style={{ padding: '0.5rem 1rem' }}
+                            >
+                                Unlock
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </aside>
     );
 }
