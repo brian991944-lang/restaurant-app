@@ -804,6 +804,7 @@ export default function PrepSchedulePage() {
     const [newTaskCatId, setNewTaskCatId] = useState('');
     const [newTaskParentId, setNewTaskParentId] = useState('');
     const [newTaskMetric, setNewTaskMetric] = useState('units');
+    const [newTaskSubtract, setNewTaskSubtract] = useState(false);
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
 
     const [showEditTaskModal, setShowEditTaskModal] = useState(false);
@@ -812,17 +813,19 @@ export default function PrepSchedulePage() {
     const [editTaskCatId, setEditTaskCatId] = useState('');
     const [editTaskParentId, setEditTaskParentId] = useState('');
     const [editTaskMetric, setEditTaskMetric] = useState('units');
+    const [editTaskSubtract, setEditTaskSubtract] = useState(false);
 
     const handleAddPrepTask = async () => {
         if (!newTaskName) return alert("Enter task name");
         if (!newTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined);
+        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined, newTaskSubtract);
         setPrepItems(await getPrepTaskItems());
         setNewTaskName('');
         setNewTaskCatId('');
         setNewTaskParentId('');
         setNewTaskMetric('units');
+        setNewTaskSubtract(false);
         setShowAddTaskModal(false);
         setIsLoading(false);
     };
@@ -833,6 +836,7 @@ export default function PrepSchedulePage() {
         setEditTaskCatId(task.categoryId);
         setEditTaskParentId(task.parentId || '');
         setEditTaskMetric(task.metric || 'units');
+        setEditTaskSubtract(task.subtractFromInventory || false);
         setShowEditTaskModal(true);
     };
 
@@ -840,7 +844,7 @@ export default function PrepSchedulePage() {
         if (!editTaskName) return alert("Enter task name");
         if (!editTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined);
+        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined, editTaskSubtract);
         setPrepItems(await getPrepTaskItems());
         setShowEditTaskModal(false);
         setEditingTask(null);
@@ -1104,6 +1108,20 @@ export default function PrepSchedulePage() {
                                     <option value="gallons">gallons</option>
                                 </select>
                             </div>
+
+                            {newTaskParentId && (
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={newTaskSubtract}
+                                            onChange={(e) => setNewTaskSubtract(e.target.checked)}
+                                            style={{ width: '1.2rem', height: '1.2rem' }}
+                                        />
+                                        {locale === 'es' ? 'Restar del Inventario al Completar' : 'Subtract from Inventory on Completion'}
+                                    </label>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
@@ -1159,6 +1177,20 @@ export default function PrepSchedulePage() {
                                     <option value="gallons">gallons</option>
                                 </select>
                             </div>
+
+                            {editTaskParentId && (
+                                <div>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={editTaskSubtract}
+                                            onChange={(e) => setEditTaskSubtract(e.target.checked)}
+                                            style={{ width: '1.2rem', height: '1.2rem' }}
+                                        />
+                                        {locale === 'es' ? 'Restar del Inventario al Completar' : 'Subtract from Inventory on Completion'}
+                                    </label>
+                                </div>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>

@@ -200,11 +200,17 @@ export async function completePrepTask(
                 thawingInc = 0;
             }
 
+            // Invert the increment logic if 'subtractFromInventory' is true
+            if (taskIngredient.subtractFromInventory) {
+                frozenInc = -frozenInc;
+                thawingInc = -thawingInc;
+            }
+
             await prisma.inventory.update({
                 where: { id: inventory.id },
                 data: {
-                    frozenQty: inventory.frozenQty + frozenInc,
-                    thawingQty: inventory.thawingQty + thawingInc
+                    frozenQty: Math.max(0, inventory.frozenQty + frozenInc),
+                    thawingQty: Math.max(0, inventory.thawingQty + thawingInc)
                 }
             });
 
@@ -264,10 +270,16 @@ export async function undoPrepTask(
                     thawingDec = actualAmount;
                 }
 
+                // Invert the decrement logic if 'subtractFromInventory' is true
+                if (taskIngredient.subtractFromInventory) {
+                    frozenDec = -frozenDec;
+                    thawingDec = -thawingDec;
+                }
+
                 await prisma.inventory.update({
                     where: { id: inventory.id },
                     data: {
-                        frozenQty: inventory.frozenQty - frozenDec, // Restored stock decrement logic
+                        frozenQty: Math.max(0, inventory.frozenQty - frozenDec), // Restored stock decrement logic
                         thawingQty: Math.max(0, inventory.thawingQty - thawingDec)
                     }
                 });

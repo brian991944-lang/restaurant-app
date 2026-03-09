@@ -54,6 +54,7 @@ model Ingredient {
   trackFreezerStatus Boolean @default(false)
   unfrozenQuantity Float @default(0)
   allowNegativeStock Boolean @default(true)
+  subtractFromInventory Boolean @default(false)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?

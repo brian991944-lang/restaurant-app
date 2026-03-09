@@ -55,7 +55,7 @@ export async function getPrepTaskItems() {
     });
 }
 
-export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string) {
+export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false) {
     try {
         let actualMetric = metric;
         if (parentId) {
@@ -71,7 +71,8 @@ export async function addPrepTaskItem(name: string, categoryId: string, metric: 
                 metric: actualMetric,
                 parentId: parentId || null,
                 currentPrice: 0,
-                yieldPercent: 100
+                yieldPercent: 100,
+                subtractFromInventory
             }
         });
         return { success: true, item };
@@ -91,7 +92,7 @@ export async function removePrepTaskItem(id: string) {
     }
 }
 
-export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string) {
+export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false) {
     try {
         let actualMetric = metric;
         if (parentId) {
@@ -106,6 +107,7 @@ export async function editPrepTaskItem(id: string, name: string, categoryId: str
                 categoryId,
                 metric: actualMetric,
                 parentId: parentId || null,
+                subtractFromInventory
             }
         });
         return { success: true, item };
