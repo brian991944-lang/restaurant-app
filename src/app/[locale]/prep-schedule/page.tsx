@@ -626,22 +626,22 @@ export default function PrepSchedulePage() {
         // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
         // Note: The value for today's index represents the required quantity to unfreeze for TOMORROW.
         const UNFREEZE_RECOMMENDATIONS: Record<string, Record<number, number>> = {
-            'Calamar Descongelado Porcion': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Camaron Descongelado Porcion': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Camaron Hervido': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Pescado Jalea Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Pescado Ceviche': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Pescado Macho Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Patas de Pulpo Anticuchadas': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Salmon Filete Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Seafood Mix Porcion Descongelada': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Pollo Para Causa Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Pollo Para Chaufa Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Croquetas Descongeladas': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Chicharron Porciones Descongeladas': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Churrasco': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Carne Lomo Chaufa': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
-            'Carne Lomo': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Calamar Descongelado Porcion': { 0: 40, 1: 40, 2: 40, 3: 40, 4: 100, 5: 100, 6: 100 },
+            'Camaron Descongelado Porcion': { 0: 40, 1: 40, 2: 35, 3: 40, 4: 60, 5: 60, 6: 60 },
+            'Camaron Hervido': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 15, 5: 15, 6: 15 },
+            'Pescado Jalea Descongelado': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
+            'Pescado Ceviche': { 0: 30, 1: 30, 2: 30, 3: 30, 4: 60, 5: 5, 6: 60 },
+            'Pescado Macho Descongelado': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 60, 5: 60, 6: 60 },
+            'Patas de Pulpo Anticuchadas': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 15, 6: 15 },
+            'Salmon Filete Descongelado': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 5, 6: 15 },
+            'Seafood Mix Porcion Descongelada': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 10, 6: 15 },
+            'Pollo Para Causa Descongelado': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
+            'Pollo Para Chaufa Descongelado': { 0: 25, 1: 25, 2: 20, 3: 25, 4: 50, 5: 50, 6: 50 },
+            'Croquetas Descongeladas': { 0: 15, 1: 10, 2: 10, 3: 10, 4: 30, 5: 30, 6: 30 },
+            'Chicharron Porciones Descongeladas': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 12, 5: 12, 6: 12 },
+            'Churrasco': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 20, 5: 25, 6: 25 },
+            'Carne Lomo Chaufa': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
+            'Carne Lomo': { 0: 20, 1: 20, 2: 20, 3: 20, 4: 35, 5: 45, 6: 35 },
         };
 
         const todayDayIndex = new Date().getDay();
@@ -1203,6 +1203,12 @@ export default function PrepSchedulePage() {
                         {t('PrepSchedule.tab_night')}
                     </button>
                     <button
+                        onClick={() => setActiveTab('defrosting')}
+                        style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'defrosting' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'defrosting' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'defrosting' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <Snowflake size={20} color={activeTab === 'defrosting' ? '#3b82f6' : 'inherit'} />
+                        Estación de Descongelado
+                    </button>
+                    <button
                         onClick={() => setActiveTab('recurring')}
                         style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'recurring' ? '2px solid #a855f7' : '2px solid transparent', color: activeTab === 'recurring' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'recurring' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
                         <Repeat size={20} color={activeTab === 'recurring' ? '#a855f7' : 'inherit'} />
@@ -1219,12 +1225,6 @@ export default function PrepSchedulePage() {
                         style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'team' ? '2px solid var(--accent-secondary)' : '2px solid transparent', color: activeTab === 'team' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'team' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
                         <Users size={20} color={activeTab === 'team' ? 'var(--accent-secondary)' : 'inherit'} />
                         {t('PrepSchedule.tab_team')}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('defrosting')}
-                        style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'defrosting' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'defrosting' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'defrosting' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
-                        <Snowflake size={20} color={activeTab === 'defrosting' ? '#3b82f6' : 'inherit'} />
-                        Estación de Descongelado
                     </button>
                 </div>
 

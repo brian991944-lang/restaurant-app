@@ -45,7 +45,7 @@ export async function removeTeamMember(id: string) {
 
 export async function getPrepTaskItems() {
     return prisma.ingredient.findMany({
-        where: { type: 'PREP' },
+        where: { type: { in: ['PREP', 'TASK'] } }, // Include both PREP and system TASK (Descongelar)
         include: { category: true, parent: true, _count: { select: { usedInPreps: true } } },
         orderBy: [
             { category: { name: 'asc' } },
@@ -63,15 +63,21 @@ export async function addPrepTaskItem(name: string, categoryId: string, metric: 
             if (parent) actualMetric = parent.metric;
         }
 
+        // Determine type based on category type if possible, default to PREP
+        const category = await prisma.category.findUnique({ where: { id: categoryId } });
+        const type = category?.type === 'TASK' ? 'TASK' : 'PREP';
+
         const item = await prisma.ingredient.create({
             data: {
                 name,
                 categoryId,
-                type: 'PREP',
+                // @ts-ignore
+                type: type,
                 metric: actualMetric,
                 parentId: parentId || null,
                 currentPrice: 0,
                 yieldPercent: 100,
+                // @ts-ignore
                 subtractFromInventory
             }
         });
@@ -107,6 +113,7 @@ export async function editPrepTaskItem(id: string, name: string, categoryId: str
                 categoryId,
                 metric: actualMetric,
                 parentId: parentId || null,
+                // @ts-ignore
                 subtractFromInventory
             }
         });
