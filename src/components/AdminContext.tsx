@@ -16,12 +16,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const [showRestrictedAlert, setShowRestrictedAlert] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
-
     useEffect(() => {
         const stored = sessionStorage.getItem('isAdmin');
         if (stored === 'true') {
             setIsAdmin(true);
         }
+
+        if (sessionStorage.getItem('showRestrictedAlert') === 'true') {
+            setShowRestrictedAlert(true);
+            sessionStorage.removeItem('showRestrictedAlert');
+            setTimeout(() => setShowRestrictedAlert(false), 3000);
+        }
+
         setIsLoaded(true);
     }, []);
 
@@ -31,28 +37,33 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAdmin, isLoaded]);
 
+    const restrictedRoutes = ['/dashboard', '/purchases', '/menu', '/sales', '/data'];
+    const isRestricted = restrictedRoutes.some(route => pathname.includes(route));
+
     useEffect(() => {
         if (!isLoaded) return;
 
-        // Ensure strictly admin pages are protected
-        const restrictedRoutes = ['/dashboard', '/purchases', '/menu', '/sales', '/data'];
-        const isRestricted = restrictedRoutes.some(route => pathname.includes(route));
-
         if (isRestricted && !isAdmin) {
-            // Find locale to push to the correct inventory path if possible
-            const localeMatch = pathname.match(/^\/([a-z]{2})\//);
+            const localeMatch = pathname.match(/^\/([a-z]{2})/);
             const localePrefix = localeMatch ? `/${localeMatch[1]}` : '/en';
 
-            router.push(`${localePrefix}/inventory`);
-
-            setShowRestrictedAlert(true);
-            setTimeout(() => setShowRestrictedAlert(false), 3000);
+            sessionStorage.setItem('showRestrictedAlert', 'true');
+            window.location.replace(`${localePrefix}/inventory`);
         }
-    }, [pathname, isAdmin, isLoaded, router]);
+    }, [pathname, isAdmin, isLoaded, isRestricted]);
+
+    // To prevent flashing the full restricted UI post-hydration:
+    const hideContent = isLoaded && isRestricted && !isAdmin;
 
     return (
         <AdminContext.Provider value={{ isAdmin, setIsAdmin }}>
-            {children}
+            {hideContent ? (
+                <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+                    <div style={{ color: 'var(--text-secondary)' }}>Redirigiendo...</div>
+                </div>
+            ) : (
+                children
+            )}
             {showRestrictedAlert && (
                 <div style={{
                     position: 'fixed',
