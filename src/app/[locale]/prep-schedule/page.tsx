@@ -1,9 +1,9 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings } from 'lucide-react';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment } from '@/app/actions/prepSchedule';
+import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
 import { getRecurringRules, createRecurringRule, deleteRecurringRule } from '@/app/actions/recurringPrep';
 import { getPrepUsers } from '@/app/actions/users';
@@ -18,7 +18,7 @@ export default function PrepSchedulePage() {
     const locale = useLocale();
 
     // Tab State
-    const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'completed' | 'team'>('morning');
+    const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'completed' | 'team' | 'defrosting'>('morning');
     const [morningDate, setMorningDate] = useState<Date>(new Date());
 
     // Data States
@@ -31,6 +31,12 @@ export default function PrepSchedulePage() {
     const [teamMembers, setTeamMembers] = useState<any[]>([]);
     const [prepItems, setPrepItems] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
+
+    // Defrosting State
+    const [defrostTasks, setDefrostTasks] = useState<any[]>([]);
+    const [defrostSubTab, setDefrostSubTab] = useState<'cocinero1' | 'cocinero2'>('cocinero1');
+    const [defrostQuantities, setDefrostQuantities] = useState<Record<string, string>>({});
+    const [defrostCooks, setDefrostCooks] = useState<Record<string, string>>({});
 
     // UI States
     const [isLoading, setIsLoading] = useState(true);
@@ -115,7 +121,7 @@ export default function PrepSchedulePage() {
         }
     }, [targetAssignDate]);
 
-    const loadDataForTab = async (tab: 'morning' | 'night' | 'recurring' | 'completed' | 'team') => {
+    const loadDataForTab = async (tab: 'morning' | 'night' | 'recurring' | 'completed' | 'team' | 'defrosting') => {
         setIsLoading(true);
         if (prepUsers.length === 0) {
             const users = await getPrepUsers();
@@ -158,6 +164,21 @@ export default function PrepSchedulePage() {
             setPrepItems(tasks);
             setCategories(cats);
             setBaseIngredients(bases);
+        } else if (tab === 'defrosting') {
+            const [presets, members, logs] = await Promise.all([
+                getDefrostingPresets([
+                    'Calamar Descongelado Porcion', 'Camaron Descongelado Porcion', 'Camaron Hervido',
+                    'Pescado Jalea Descongelado', 'Pescado Ceviche', 'Pescado Macho Descongelado',
+                    'Patas de Pulpo Anticuchadas', 'Salmon Filete Descongelado', 'Seafood Mix Porcion Descongelada',
+                    'Pollo Para Causa Descongelado', 'Pollo Para Chaufa Descongelado', 'Croquetas Descongeladas',
+                    'Chicharron Porciones Descongeladas', 'Churrasco', 'Carne Lomo Chaufa', 'Carne Lomo'
+                ]),
+                getTeamMembers(),
+                getCompletedPrepLogs()
+            ]);
+            setDefrostTasks(presets);
+            setTeamMembers(members);
+            setCompletedLogs(logs);
         }
         setIsLoading(false);
     };
@@ -597,6 +618,159 @@ export default function PrepSchedulePage() {
         );
     };
 
+    const renderDefrostingStation = () => {
+        const cocinero1Tasks = ['Calamar Descongelado Porcion', 'Camaron Descongelado Porcion', 'Camaron Hervido', 'Pescado Jalea Descongelado', 'Pescado Ceviche', 'Pescado Macho Descongelado', 'Patas de Pulpo Anticuchadas', 'Salmon Filete Descongelado', 'Seafood Mix Porcion Descongelada'];
+        const cocinero2Tasks = ['Pollo Para Causa Descongelado', 'Pollo Para Chaufa Descongelado', 'Croquetas Descongeladas', 'Chicharron Porciones Descongeladas', 'Churrasco', 'Carne Lomo Chaufa', 'Carne Lomo'];
+
+        const currentTargetList = defrostSubTab === 'cocinero1' ? cocinero1Tasks : cocinero2Tasks;
+
+        // Filter out completed tasks from today
+        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+
+        const handleCompleteDefrost = async (ing: any) => {
+            const qtyStr = defrostQuantities[ing.id];
+            const userId = defrostCooks[ing.id];
+
+            if (!qtyStr || isNaN(parseFloat(qtyStr))) {
+                alert("Ingrese una cantidad válida a descongelar.");
+                return;
+            }
+            if (!userId) {
+                alert("Seleccione un preparador.");
+                return;
+            }
+
+            setCompleting(ing.id);
+            // We use completePrepTask since it has the "Descongelar" magic via its naming checks.
+            // We pass it as a manual ad-hoc completion (no assignmentId)
+            const res = await completePrepTask(ing.id, parseFloat(qtyStr), userId);
+
+            if (res.success) {
+                // Refresh logs so it shows as completed today
+                const logs = await getCompletedPrepLogs();
+                setCompletedLogs(logs);
+
+                // Clear input
+                setDefrostQuantities(prev => ({ ...prev, [ing.id]: '' }));
+                setDefrostCooks(prev => ({ ...prev, [ing.id]: '' }));
+            } else {
+                alert("Error completando la tarea.");
+            }
+            setCompleting(null);
+        };
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1rem' }}>
+                    <button
+                        onClick={() => setDefrostSubTab('cocinero1')}
+                        style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero1' ? '2px solid #3b82f6' : '2px solid transparent', color: defrostSubTab === 'cocinero1' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero1' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
+                        Cocinero 1 (Seafood)
+                    </button>
+                    <button
+                        onClick={() => setDefrostSubTab('cocinero2')}
+                        style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero2' ? '2px solid #ef4444' : '2px solid transparent', color: defrostSubTab === 'cocinero2' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero2' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
+                        Cocinero 2 (Pollo/Carnes)
+                    </button>
+                </div>
+
+                {isLoading ? (
+                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Cargando Estación...</div>
+                ) : (
+                    <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+                            <thead>
+                                <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Tarea de Descongelado</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Cantidad</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Preparador</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {currentTargetList.map(taskName => {
+                                    const ing = defrostTasks.find(t => t.name === taskName);
+
+                                    if (!ing) {
+                                        return (
+                                            <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <td style={{ padding: '1rem', color: 'var(--danger)' }}>{taskName} (No encontrado en Base de Datos)</td>
+                                                <td colSpan={3}></td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    // Check if completed today by inspecting logs
+                                    const completedLogsToday = completedLogs.filter(log => {
+                                        const logEstStr = new Date(log.completedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                                        return log.ingredientName === taskName && logEstStr === todayStr;
+                                    });
+
+                                    const isCompletedToday = completedLogsToday.length > 0;
+
+                                    if (isCompletedToday) {
+                                        const totalQty = completedLogsToday.reduce((sum, log) => sum + log.actualAmount, 0);
+                                        const preparers = Array.from(new Set(completedLogsToday.map(log => log.completedBy))).join(', ');
+                                        return (
+                                            <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(16, 185, 129, 0.05)' }}>
+                                                <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{taskName}</td>
+                                                <td colSpan={2} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
+                                                    ✅ Completado ({totalQty} {ing.metric}) - Por: {preparers}
+                                                </td>
+                                                <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Logueado</span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+
+                                    return (
+                                        <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
+                                            <td style={{ padding: '1rem', fontWeight: 500 }}>{taskName}</td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.1"
+                                                        value={defrostQuantities[ing.id] || ''}
+                                                        onChange={(e) => setDefrostQuantities(prev => ({ ...prev, [ing.id]: e.target.value }))}
+                                                        style={{ width: '80px', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                                    />
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{ing.metric}</span>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <select
+                                                    value={defrostCooks[ing.id] || ''}
+                                                    onChange={(e) => setDefrostCooks(prev => ({ ...prev, [ing.id]: e.target.value }))}
+                                                    style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    <option value="">Seleccionar...</option>
+                                                    {teamMembers.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                <button
+                                                    disabled={completing === ing.id}
+                                                    onClick={() => handleCompleteDefrost(ing)}
+                                                    className="btn-primary"
+                                                    style={{ padding: '0.6rem 1rem', background: completing === ing.id ? 'var(--text-secondary)' : '#3b82f6', opacity: (!defrostCooks[ing.id] || !defrostQuantities[ing.id]) ? 0.5 : 1 }}>
+                                                    {completing === ing.id ? 'Procesando...' : 'Completar'}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     const renderRecurringPrep = () => {
         // Group and sort prep items for dropdown
         const groupedItems: Record<string, any[]> = {};
@@ -1011,6 +1185,12 @@ export default function PrepSchedulePage() {
                         <Users size={20} color={activeTab === 'team' ? 'var(--accent-secondary)' : 'inherit'} />
                         {t('PrepSchedule.tab_team')}
                     </button>
+                    <button
+                        onClick={() => setActiveTab('defrosting')}
+                        style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'defrosting' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'defrosting' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'defrosting' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                        <Snowflake size={20} color={activeTab === 'defrosting' ? '#3b82f6' : 'inherit'} />
+                        Estación de Descongelado
+                    </button>
                 </div>
 
                 {/* Tab Output Section */}
@@ -1020,6 +1200,7 @@ export default function PrepSchedulePage() {
                     {activeTab === 'recurring' && renderRecurringPrep()}
                     {activeTab === 'completed' && renderCompletedLogs()}
                     {activeTab === 'team' && renderTeamAndTasks()}
+                    {activeTab === 'defrosting' && renderDefrostingStation()}
                 </div>
 
             </div>

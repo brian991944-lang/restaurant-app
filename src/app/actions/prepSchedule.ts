@@ -443,3 +443,28 @@ export async function deletePrepAssignment(assignmentId: string) {
         return { success: false, error: 'Database error' };
     }
 }
+
+/**
+ * Gets the ingredient data for static defrosting presets by exact name match.
+ */
+export async function getDefrostingPresets(names: string[]) {
+    try {
+        const ingredients = await prisma.ingredient.findMany({
+            where: {
+                name: { in: names }
+            },
+            include: { category: true }
+        });
+
+        // Return a map of name to id along with any needed metadata
+        return ingredients.map(ing => ({
+            id: ing.id,
+            name: ing.name,
+            metric: ing.metric,
+            category: ing.category?.name
+        }));
+    } catch (error) {
+        console.error('Failed to fetch defrosting presets:', error);
+        return [];
+    }
+}
