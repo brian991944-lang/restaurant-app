@@ -176,7 +176,10 @@ export async function completePrepTask(
         }
 
         // 2. Handle Base Ingredient Linking (Enlace a Ingrediente Base)
-        const taskIngredient = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
+        const taskIngredient = await prisma.ingredient.findUnique({
+            where: { id: ingredientId },
+            include: { category: true } // Need category to check for 'Descongelar'
+        });
 
         if (taskIngredient && taskIngredient.parentId) {
             const taskName = (taskIngredient.name || '').toLowerCase();
@@ -195,8 +198,12 @@ export async function completePrepTask(
             let frozenInc = actualAmount;
             let thawingInc = 0;
 
-            if (taskName.includes('descongelar')) {
-                // "Descongelar" -> increments FrozenQty (Total) AND UnfrozenQty (Thawing)
+            const isDescongelar = taskName.includes('descongelar') ||
+                (taskIngredient.category && taskIngredient.category.name.toLowerCase().includes('descongelar'));
+
+            if (isDescongelar) {
+                // "Descongelar" -> does NOT increment total stock (frozenQty). It only increments thawingQty/unfrozenQuantity.
+                frozenInc = 0;
                 thawingInc = actualAmount;
             } else if (taskName.includes('congelar')) {
                 // "Congelar" -> only increments FrozenQty (Total)
@@ -204,16 +211,28 @@ export async function completePrepTask(
             }
 
             // Invert the increment logic if 'subtractFromInventory' is true
-            if (taskIngredient.subtractFromInventory) {
+            if ((taskIngredient as any).subtractFromInventory) {
                 frozenInc = -frozenInc;
                 thawingInc = -thawingInc;
             }
 
+            const newFrozenQty = Math.max(0, inventory.frozenQty + frozenInc);
+            // Cap the thawingQty (unfrozen stock) so it never exceeds the total available stock
+            const cappedThawingQty = Math.min(newFrozenQty, Math.max(0, inventory.thawingQty + thawingInc));
+
             await prisma.inventory.update({
                 where: { id: inventory.id },
                 data: {
-                    frozenQty: Math.max(0, inventory.frozenQty + frozenInc),
-                    thawingQty: Math.max(0, inventory.thawingQty + thawingInc)
+                    frozenQty: newFrozenQty,
+                    thawingQty: cappedThawingQty
+                }
+            });
+
+            // Also update the ingredient's unfrozenQuantity field for complete sync
+            await prisma.ingredient.update({
+                where: { id: baseIngredientId },
+                data: {
+                    unfrozenQuantity: cappedThawingQty
                 }
             });
 
@@ -257,7 +276,10 @@ export async function undoPrepTask(
             });
         }
 
-        const taskIngredient = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
+        const taskIngredient = await prisma.ingredient.findUnique({
+            where: { id: ingredientId },
+            include: { category: true }
+        });
 
         if (taskIngredient && taskIngredient.parentId) {
             const taskName = (taskIngredient.name || '').toLowerCase();
@@ -269,21 +291,36 @@ export async function undoPrepTask(
                 let frozenDec = actualAmount;
                 let thawingDec = 0;
 
-                if (taskName.includes('descongelar')) {
+                const isDescongelar = taskName.includes('descongelar') ||
+                    (taskIngredient.category && taskIngredient.category.name.toLowerCase().includes('descongelar'));
+
+                if (isDescongelar) {
+                    // Do not decrement total stock when undoing a 'Descongelar' task
+                    frozenDec = 0;
                     thawingDec = actualAmount;
                 }
 
                 // Invert the decrement logic if 'subtractFromInventory' is true
-                if (taskIngredient.subtractFromInventory) {
+                if ((taskIngredient as any).subtractFromInventory) {
                     frozenDec = -frozenDec;
                     thawingDec = -thawingDec;
                 }
 
+                const newFrozenQty = Math.max(0, inventory.frozenQty - frozenDec);
+                const newThawingQty = Math.min(newFrozenQty, Math.max(0, inventory.thawingQty - thawingDec));
+
                 await prisma.inventory.update({
                     where: { id: inventory.id },
                     data: {
-                        frozenQty: Math.max(0, inventory.frozenQty - frozenDec), // Restored stock decrement logic
-                        thawingQty: Math.max(0, inventory.thawingQty - thawingDec)
+                        frozenQty: newFrozenQty,
+                        thawingQty: newThawingQty
+                    }
+                });
+
+                await prisma.ingredient.update({
+                    where: { id: baseIngredientId },
+                    data: {
+                        unfrozenQuantity: newThawingQty
                     }
                 });
 
