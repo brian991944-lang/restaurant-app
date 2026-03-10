@@ -165,20 +165,22 @@ export default function PrepSchedulePage() {
             setCategories(cats);
             setBaseIngredients(bases);
         } else if (tab === 'defrosting') {
-            const [presets, members, logs] = await Promise.all([
+            const [presets, members, logs, rules] = await Promise.all([
                 getDefrostingPresets([
                     'Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido',
                     'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho',
                     'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion',
                     'Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas',
-                    'Descongelar Chicharron Porciones', 'Descongelar Churrasco', 'Descongelar Carne Lomo Chaufa', 'Descongelar Carne Lomo'
+                    'Descongelar Chicharron Porciones', 'Bisteck - Porcionar', 'Lomo Chaufa - Cortar y Porcionar', 'Lomo - Cortar y Porcionar'
                 ]),
                 getTeamMembers(),
-                getCompletedPrepLogs()
+                getCompletedPrepLogs(),
+                getRecurringRules()
             ]);
             setDefrostTasks(presets);
             setTeamMembers(members);
             setCompletedLogs(logs);
+            setRecurringRules(rules);
         }
         setIsLoading(false);
     };
@@ -620,33 +622,9 @@ export default function PrepSchedulePage() {
 
     const renderDefrostingStation = () => {
         const cocinero1Tasks = ['Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido', 'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho', 'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion'];
-        const cocinero2Tasks = ['Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas', 'Descongelar Chicharron Porciones', 'Descongelar Churrasco', 'Descongelar Carne Lomo Chaufa', 'Descongelar Carne Lomo'];
+        const cocinero2Tasks = ['Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas', 'Descongelar Chicharron Porciones', 'Bisteck - Porcionar', 'Lomo Chaufa - Cortar y Porcionar', 'Lomo - Cortar y Porcionar'];
 
-        // RECOMMENDATION MATRIX Placeholder
-        // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
-        // Note: The value for today's index represents the required quantity to unfreeze for TOMORROW.
-        const UNFREEZE_RECOMMENDATIONS: Record<string, Record<number, number>> = {
-            'Descongelar Calamar Porcion': { 0: 40, 1: 40, 2: 40, 3: 40, 4: 100, 5: 100, 6: 100 },
-            'Descongelar Camaron Porcion': { 0: 40, 1: 40, 2: 35, 3: 40, 4: 60, 5: 60, 6: 60 },
-            'Descongelar Camaron Hervido': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 15, 5: 15, 6: 15 },
-            'Descongelar Pescado Jalea': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
-            'Descongelar Pescado Ceviche': { 0: 30, 1: 30, 2: 30, 3: 30, 4: 60, 5: 5, 6: 60 },
-            'Descongelar Pescado Macho': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 60, 5: 60, 6: 60 },
-            'Descongelar Patas de Pulpo Anticuchadas': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 15, 6: 15 },
-            'Descongelar Salmon Filete': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 5, 6: 15 },
-            'Descongelar Seafood Mix Porcion': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 10, 6: 15 },
-            'Descongelar Pollo Para Causa': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
-            'Descongelar Pollo Para Chaufa': { 0: 25, 1: 25, 2: 20, 3: 25, 4: 50, 5: 50, 6: 50 },
-            'Descongelar Croquetas': { 0: 15, 1: 10, 2: 10, 3: 10, 4: 30, 5: 30, 6: 30 },
-            'Descongelar Chicharron Porciones': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 12, 5: 12, 6: 12 },
-            'Descongelar Churrasco': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 20, 5: 25, 6: 25 },
-            'Descongelar Carne Lomo Chaufa': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
-            'Descongelar Carne Lomo': { 0: 20, 1: 20, 2: 20, 3: 20, 4: 35, 5: 45, 6: 35 },
-        };
-
-        const todayDayIndex = new Date().getDay();
-
-        const currentTargetList = defrostSubTab === 'cocinero1' ? cocinero1Tasks : cocinero2Tasks;
+        const activePresetNames = defrostSubTab === 'cocinero1' ? cocinero1Tasks : cocinero2Tasks;
 
         // Filter out completed tasks from today
         const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -713,7 +691,7 @@ export default function PrepSchedulePage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {currentTargetList.map(taskName => {
+                                {activePresetNames.map(taskName => {
                                     const ing = defrostTasks.find(t => t.name === taskName);
 
                                     if (!ing) {
@@ -733,7 +711,10 @@ export default function PrepSchedulePage() {
 
                                     const isCompletedToday = completedLogsToday.length > 0;
 
-                                    const recommendedQty = UNFREEZE_RECOMMENDATIONS[taskName]?.[todayDayIndex] || 0;
+                                    const todayIndex = new Date().getDay();
+                                    // Retrieve the suggestion directly from the DB recurring rule for today
+                                    const ruleForToday = recurringRules.find(r => r.ingredientId === ing.id && r.dayOfWeek === todayIndex);
+                                    const suggested = ruleForToday ? ruleForToday.amount : 0;
 
                                     if (isCompletedToday) {
                                         const totalQty = completedLogsToday.reduce((sum, log) => sum + log.actualAmount, 0);
