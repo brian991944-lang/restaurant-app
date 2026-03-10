@@ -1341,15 +1341,27 @@ export default function PrepSchedulePage() {
 
                             {newTaskParentId && (
                                 <div>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={newTaskSubtract}
-                                            onChange={(e) => setNewTaskSubtract(e.target.checked)}
-                                            style={{ width: '1.2rem', height: '1.2rem' }}
-                                        />
-                                        {locale === 'es' ? 'Restar del Inventario al Completar' : 'Subtract from Inventory on Completion'}
-                                    </label>
+                                    {categories.find(c => c.id === newTaskCatId)?.name === 'Descongelar' ? (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'not-allowed', color: 'var(--accent-primary)' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={true}
+                                                readOnly
+                                                style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--accent-primary)' }}
+                                            />
+                                            {locale === 'es' ? 'Descongelar (Mueve a Descongelados, no resta inventario)' : 'Defrost (Moves to Unfrozen, does not reduce inventory)'}
+                                        </label>
+                                    ) : (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={newTaskSubtract}
+                                                onChange={(e) => setNewTaskSubtract(e.target.checked)}
+                                                style={{ width: '1.2rem', height: '1.2rem' }}
+                                            />
+                                            {locale === 'es' ? 'Restar del Inventario al Completar' : 'Subtract from Inventory on Completion'}
+                                        </label>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -1410,15 +1422,27 @@ export default function PrepSchedulePage() {
 
                             {editTaskParentId && (
                                 <div>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={editTaskSubtract}
-                                            onChange={(e) => setEditTaskSubtract(e.target.checked)}
-                                            style={{ width: '1.2rem', height: '1.2rem' }}
-                                        />
-                                        {locale === 'es' ? 'Restar del Inventario al Completar' : 'Subtract from Inventory on Completion'}
-                                    </label>
+                                    {categories.find(c => c.id === editTaskCatId)?.name === 'Descongelar' ? (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'not-allowed', color: 'var(--accent-primary)' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={true}
+                                                readOnly
+                                                style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--accent-primary)' }}
+                                            />
+                                            {locale === 'es' ? 'Descongelar (Mueve a Descongelados, no resta inventario)' : 'Defrost (Moves to Unfrozen, does not reduce inventory)'}
+                                        </label>
+                                    ) : (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={editTaskSubtract}
+                                                onChange={(e) => setEditTaskSubtract(e.target.checked)}
+                                                style={{ width: '1.2rem', height: '1.2rem' }}
+                                            />
+                                            {locale === 'es' ? 'Restar del Inventario al Completar' : 'Subtract from Inventory on Completion'}
+                                        </label>
+                                    )}
                                 </div>
                             )}
                         </div>
