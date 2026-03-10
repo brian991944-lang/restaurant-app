@@ -619,29 +619,29 @@ export default function PrepSchedulePage() {
     };
 
     const renderDefrostingStation = () => {
-        const cocinero1Tasks = ['Calamar Descongelado Porcion', 'Camaron Descongelado Porcion', 'Camaron Hervido', 'Pescado Jalea Descongelado', 'Pescado Ceviche', 'Pescado Macho Descongelado', 'Patas de Pulpo Anticuchadas', 'Salmon Filete Descongelado', 'Seafood Mix Porcion Descongelada'];
-        const cocinero2Tasks = ['Pollo Para Causa Descongelado', 'Pollo Para Chaufa Descongelado', 'Croquetas Descongeladas', 'Chicharron Porciones Descongeladas', 'Churrasco', 'Carne Lomo Chaufa', 'Carne Lomo'];
+        const cocinero1Tasks = ['Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido', 'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho', 'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion'];
+        const cocinero2Tasks = ['Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas', 'Descongelar Chicharron Porciones', 'Descongelar Churrasco', 'Descongelar Carne Lomo Chaufa', 'Descongelar Carne Lomo'];
 
         // RECOMMENDATION MATRIX Placeholder
         // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
         // Note: The value for today's index represents the required quantity to unfreeze for TOMORROW.
         const UNFREEZE_RECOMMENDATIONS: Record<string, Record<number, number>> = {
-            'Calamar Descongelado Porcion': { 0: 40, 1: 40, 2: 40, 3: 40, 4: 100, 5: 100, 6: 100 },
-            'Camaron Descongelado Porcion': { 0: 40, 1: 40, 2: 35, 3: 40, 4: 60, 5: 60, 6: 60 },
-            'Camaron Hervido': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 15, 5: 15, 6: 15 },
-            'Pescado Jalea Descongelado': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
-            'Pescado Ceviche': { 0: 30, 1: 30, 2: 30, 3: 30, 4: 60, 5: 5, 6: 60 },
-            'Pescado Macho Descongelado': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 60, 5: 60, 6: 60 },
-            'Patas de Pulpo Anticuchadas': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 15, 6: 15 },
-            'Salmon Filete Descongelado': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 5, 6: 15 },
-            'Seafood Mix Porcion Descongelada': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 10, 6: 15 },
-            'Pollo Para Causa Descongelado': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
-            'Pollo Para Chaufa Descongelado': { 0: 25, 1: 25, 2: 20, 3: 25, 4: 50, 5: 50, 6: 50 },
-            'Croquetas Descongeladas': { 0: 15, 1: 10, 2: 10, 3: 10, 4: 30, 5: 30, 6: 30 },
-            'Chicharron Porciones Descongeladas': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 12, 5: 12, 6: 12 },
-            'Churrasco': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 20, 5: 25, 6: 25 },
-            'Carne Lomo Chaufa': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
-            'Carne Lomo': { 0: 20, 1: 20, 2: 20, 3: 20, 4: 35, 5: 45, 6: 35 },
+            'Descongelar Calamar Porcion': { 0: 40, 1: 40, 2: 40, 3: 40, 4: 100, 5: 100, 6: 100 },
+            'Descongelar Camaron Porcion': { 0: 40, 1: 40, 2: 35, 3: 40, 4: 60, 5: 60, 6: 60 },
+            'Descongelar Camaron Hervido': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 15, 5: 15, 6: 15 },
+            'Descongelar Pescado Jalea': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
+            'Descongelar Pescado Ceviche': { 0: 30, 1: 30, 2: 30, 3: 30, 4: 60, 5: 5, 6: 60 },
+            'Descongelar Pescado Macho': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 60, 5: 60, 6: 60 },
+            'Descongelar Patas de Pulpo Anticuchadas': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 15, 6: 15 },
+            'Descongelar Salmon Filete': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 5, 6: 15 },
+            'Descongelar Seafood Mix Porcion': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 15, 5: 10, 6: 15 },
+            'Descongelar Pollo Para Causa': { 0: 5, 1: 5, 2: 5, 3: 5, 4: 10, 5: 10, 6: 10 },
+            'Descongelar Pollo Para Chaufa': { 0: 25, 1: 25, 2: 20, 3: 25, 4: 50, 5: 50, 6: 50 },
+            'Descongelar Croquetas': { 0: 15, 1: 10, 2: 10, 3: 10, 4: 30, 5: 30, 6: 30 },
+            'Descongelar Chicharron Porciones': { 0: 7, 1: 7, 2: 7, 3: 7, 4: 12, 5: 12, 6: 12 },
+            'Descongelar Churrasco': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 20, 5: 25, 6: 25 },
+            'Descongelar Carne Lomo Chaufa': { 0: 10, 1: 10, 2: 10, 3: 10, 4: 10, 5: 10, 6: 10 },
+            'Descongelar Carne Lomo': { 0: 20, 1: 20, 2: 20, 3: 20, 4: 35, 5: 45, 6: 35 },
         };
 
         const todayDayIndex = new Date().getDay();
