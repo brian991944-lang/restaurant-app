@@ -159,7 +159,7 @@ export default function PrepSchedulePage() {
             const data = await getCompletedPrepLogs();
             setCompletedLogs(data);
         } else if (tab === 'team') {
-            const [members, tasks, cats, bases] = await Promise.all([getTeamMembers(), getPrepTaskItems(), getCategories('TASK'), getBaseIngredients()]);
+            const [members, tasks, cats, bases] = await Promise.all([getTeamMembers(), getPrepTaskItems(), getCategories(), getBaseIngredients()]);
             setTeamMembers(members);
             setPrepItems(tasks);
             setCategories(cats);
@@ -167,11 +167,11 @@ export default function PrepSchedulePage() {
         } else if (tab === 'defrosting') {
             const [presets, members, logs] = await Promise.all([
                 getDefrostingPresets([
-                    'Calamar Descongelado Porcion', 'Camaron Descongelado Porcion', 'Camaron Hervido',
-                    'Pescado Jalea Descongelado', 'Pescado Ceviche', 'Pescado Macho Descongelado',
-                    'Patas de Pulpo Anticuchadas', 'Salmon Filete Descongelado', 'Seafood Mix Porcion Descongelada',
-                    'Pollo Para Causa Descongelado', 'Pollo Para Chaufa Descongelado', 'Croquetas Descongeladas',
-                    'Chicharron Porciones Descongeladas', 'Churrasco', 'Carne Lomo Chaufa', 'Carne Lomo'
+                    'Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido',
+                    'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho',
+                    'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion',
+                    'Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas',
+                    'Descongelar Chicharron Porciones', 'Descongelar Churrasco', 'Descongelar Carne Lomo Chaufa', 'Descongelar Carne Lomo'
                 ]),
                 getTeamMembers(),
                 getCompletedPrepLogs()
@@ -1078,7 +1078,11 @@ export default function PrepSchedulePage() {
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
             const cat = item.category?.name || 'Uncategorized';
-            const parent = item.parent?.name || 'Base Tasks';
+            let parent = item.parent?.name || 'Base Tasks';
+            // Explicitly classify 'Descongelar' without parent as belonging directly to the 'Descongelar Tasks' group to stand out
+            if (cat === 'Descongelar' && !item.parentId) {
+                parent = 'Descongelar Tasks';
+            }
             if (!grouped[cat]) grouped[cat] = {};
             if (!grouped[cat][parent]) grouped[cat][parent] = [];
             grouped[cat][parent].push(item);
