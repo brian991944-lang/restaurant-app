@@ -737,10 +737,10 @@ export default function PrepSchedulePage() {
                                             <td style={{ padding: '1rem', fontWeight: 500 }}>{taskName}</td>
                                             <td style={{ padding: '1rem' }}>
                                                 <button
-                                                    onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: recommendedQty.toString() }))}
+                                                    onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: suggested.toString() }))}
                                                     title="Click para autocompletar"
                                                     style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>
-                                                    {recommendedQty} {ing.metric}
+                                                    {suggested} {ing.metric}
                                                 </button>
                                             </td>
                                             <td style={{ padding: '1rem' }}>

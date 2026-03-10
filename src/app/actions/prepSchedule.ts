@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { unstable_noStore as noStore } from 'next/cache';
 
 export interface PrepTask {
     ingredientId: string;
@@ -448,6 +449,7 @@ export async function deletePrepAssignment(assignmentId: string) {
  * Gets the ingredient data for static defrosting presets by exact name match.
  */
 export async function getDefrostingPresets(names: string[]) {
+    noStore();
     try {
         const ingredients = await prisma.ingredient.findMany({
             where: {
