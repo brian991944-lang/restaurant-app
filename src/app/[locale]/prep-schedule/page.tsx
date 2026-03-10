@@ -622,6 +622,30 @@ export default function PrepSchedulePage() {
         const cocinero1Tasks = ['Calamar Descongelado Porcion', 'Camaron Descongelado Porcion', 'Camaron Hervido', 'Pescado Jalea Descongelado', 'Pescado Ceviche', 'Pescado Macho Descongelado', 'Patas de Pulpo Anticuchadas', 'Salmon Filete Descongelado', 'Seafood Mix Porcion Descongelada'];
         const cocinero2Tasks = ['Pollo Para Causa Descongelado', 'Pollo Para Chaufa Descongelado', 'Croquetas Descongeladas', 'Chicharron Porciones Descongeladas', 'Churrasco', 'Carne Lomo Chaufa', 'Carne Lomo'];
 
+        // RECOMMENDATION MATRIX Placeholder
+        // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
+        // Note: The value for today's index represents the required quantity to unfreeze for TOMORROW.
+        const UNFREEZE_RECOMMENDATIONS: Record<string, Record<number, number>> = {
+            'Calamar Descongelado Porcion': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Camaron Descongelado Porcion': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Camaron Hervido': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Pescado Jalea Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Pescado Ceviche': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Pescado Macho Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Patas de Pulpo Anticuchadas': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Salmon Filete Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Seafood Mix Porcion Descongelada': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Pollo Para Causa Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Pollo Para Chaufa Descongelado': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Croquetas Descongeladas': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Chicharron Porciones Descongeladas': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Churrasco': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Carne Lomo Chaufa': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+            'Carne Lomo': { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+        };
+
+        const todayDayIndex = new Date().getDay();
+
         const currentTargetList = defrostSubTab === 'cocinero1' ? cocinero1Tasks : cocinero2Tasks;
 
         // Filter out completed tasks from today
@@ -682,6 +706,7 @@ export default function PrepSchedulePage() {
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Tarea de Descongelado</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Sugerido</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Cantidad</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Preparador</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>Acción</th>
@@ -708,13 +733,15 @@ export default function PrepSchedulePage() {
 
                                     const isCompletedToday = completedLogsToday.length > 0;
 
+                                    const recommendedQty = UNFREEZE_RECOMMENDATIONS[taskName]?.[todayDayIndex] || 0;
+
                                     if (isCompletedToday) {
                                         const totalQty = completedLogsToday.reduce((sum, log) => sum + log.actualAmount, 0);
                                         const preparers = Array.from(new Set(completedLogsToday.map(log => log.completedBy))).join(', ');
                                         return (
                                             <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(16, 185, 129, 0.05)' }}>
                                                 <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{taskName}</td>
-                                                <td colSpan={2} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
+                                                <td colSpan={3} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
                                                     ✅ Completado ({totalQty} {ing.metric}) - Por: {preparers}
                                                 </td>
                                                 <td style={{ padding: '1rem', textAlign: 'center' }}>
@@ -727,6 +754,14 @@ export default function PrepSchedulePage() {
                                     return (
                                         <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
                                             <td style={{ padding: '1rem', fontWeight: 500 }}>{taskName}</td>
+                                            <td style={{ padding: '1rem' }}>
+                                                <button
+                                                    onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: recommendedQty.toString() }))}
+                                                    title="Click para autocompletar"
+                                                    style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>
+                                                    {recommendedQty} {ing.metric}
+                                                </button>
+                                            </td>
                                             <td style={{ padding: '1rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                     <input
