@@ -1,6 +1,6 @@
 'use client';
 
-import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
@@ -568,19 +568,24 @@ export default function InventoryPage() {
             {activeTab === 'ALL' && (
                 <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-                    {lastSyncTime && (
-                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px' }}>
-                            <span>Last Clover Sync: {new Date(lastSyncTime).toLocaleString()}</span>
-                            <button onClick={handleSyncClover} disabled={isSyncing} className="btn-secondary" style={{ padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>{isSyncing ? 'Syncing...' : 'Sync Now'}</button>
-                        </div>
-                    )}
-
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                         <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
                         <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
                         <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
                         <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
+
+                    {lastSyncTime && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                            <button onClick={handleSyncClover} disabled={isSyncing} className="btn-primary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', borderRadius: '8px', background: '#1e3a8a', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'background 0.2s', cursor: isSyncing ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} onMouseOver={(e) => { if (!isSyncing) e.currentTarget.style.background = '#1e40af'; }} onMouseOut={(e) => { if (!isSyncing) e.currentTarget.style.background = '#1e3a8a'; }}>
+                                <RefreshCw size={16} className={isSyncing ? 'spin-anim' : ''} />
+                                {isSyncing ? (locale === 'es' ? 'Actualizando...' : 'Syncing...') : (locale === 'es' ? 'Actualizar' : 'Sync Now')}
+                            </button>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                {locale === 'es' ? 'Última Actualización:' : 'Last Clover Sync:'} {new Date(lastSyncTime).toLocaleString()}
+                            </span>
+                        </div>
+                    )}
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', marginTop: '2rem', width: '100%', alignItems: 'flex-start' }}>
                         {overviewTab === 'FREEZER' && (
