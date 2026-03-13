@@ -263,7 +263,7 @@ export default function RecetarioPage() {
                                 value={docData.name}
                                 onChange={e => setEditData({ ...docData, name: e.target.value })}
                                 placeholder={locale === 'es' ? 'Título de la Receta' : 'Recipe Title'}
-                                style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.2)', width: '100%', color: 'white', padding: '0.5rem 0' }}
+                                style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.2)', width: '100%', color: 'var(--text-primary)', padding: '0.5rem 0' }}
                             />
                         ) : (
                             <h1 style={{ fontSize: '2.5rem', margin: 0 }}>{docData.name}</h1>
@@ -277,7 +277,7 @@ export default function RecetarioPage() {
                                     value={docData.yield || ''}
                                     onChange={e => setEditData({ ...docData, yield: e.target.value })}
                                     placeholder="e.g. Approx. 5 Litros"
-                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'white', textAlign: 'right' }}
+                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
                                 />
                             ) : (
                                 <span style={{ fontWeight: 600 }}>{docData.yield || '-'}</span>
@@ -298,7 +298,7 @@ export default function RecetarioPage() {
                             value={docData.overview || ''}
                             onChange={e => setEditData({ ...docData, overview: e.target.value })}
                             rows={3}
-                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'white', resize: 'vertical' }}
+                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical' }}
                         />
                     ) : (
                         <p style={{ fontSize: '1.1rem', lineHeight: 1.6, margin: 0 }}>{docData.overview}</p>
@@ -323,10 +323,10 @@ export default function RecetarioPage() {
                                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     {isEditing ? (
                                         <>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'white' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'white' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'white' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'white' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
                                             <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
                                         </>
                                     ) : (
@@ -360,7 +360,7 @@ export default function RecetarioPage() {
                                 <div style={{ flex: 1 }}>
                                     {isEditing ? (
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'white', resize: 'vertical' }} />
+                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
                                             <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
                                         </div>
                                     ) : (
@@ -385,7 +385,7 @@ export default function RecetarioPage() {
                             value={docData.chefNotes || ''}
                             onChange={e => setEditData({ ...docData, chefNotes: e.target.value })}
                             rows={4}
-                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'white', resize: 'vertical' }}
+                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical' }}
                         />
                     ) : (
                         <div style={{ background: 'rgba(255,215,0,0.05)', borderLeft: '4px solid #fbbf24', padding: '1rem', borderRadius: '0 8px 8px 0' }}>

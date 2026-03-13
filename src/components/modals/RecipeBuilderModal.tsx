@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { X, Plus } from 'lucide-react';
 import { savePrepRecipe } from '@/app/actions/inventory';
+import { getDigitalRecipes } from '@/app/actions/recetario';
 import { ComponentRow } from './ComponentRow';
 import { getConversionFactor, ALLOWED_METRICS } from '@/lib/conversion';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -15,12 +16,23 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
     const [recipeYield, setRecipeYield] = useState<number>(1);
     const [selectedMetric, setSelectedMetric] = useState<string>('L');
 
+    const [recipeName, setRecipeName] = useState<string>('');
+    const [selectedDigitalRecipeId, setSelectedDigitalRecipeId] = useState<string>('');
+    const [availableDigitalRecipes, setAvailableDigitalRecipes] = useState<any[]>([]);
+
     // LIVE COST STATES
     const [totalCalculatedCost, setTotalCalculatedCost] = useState<number>(0);
     const [currentPricePreview, setCurrentPricePreview] = useState<number>(0);
 
     useEffect(() => {
         if (isOpen) {
+            setRecipeName(initialData?.name || '');
+            setSelectedDigitalRecipeId(initialData?.digitalRecipeId || '');
+
+            getDigitalRecipes().then(recipes => {
+                const linkedRecipeIds = new Set(dbIngredients.filter((i: any) => i.digitalRecipeId && i.id !== initialData?.id).map((i: any) => i.digitalRecipeId));
+                setAvailableDigitalRecipes(recipes.filter((r: any) => r.type === 'RECETA' && !linkedRecipeIds.has(r.id)));
+            });
 
             if (initialData?.composedOf && initialData.composedOf.length > 0) {
                 setRecipeYield(initialData.portionWeightG || 1);
@@ -90,13 +102,14 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const data = {
-            name: formData.get('name') as string,
-            nameEs: formData.get('name') as string,
+            name: recipeName,
+            nameEs: recipeName,
             categoryName: 'Prep Items', // Hardcoded fix to bypass database error for category creation!
             metric: formData.get('metric') as string,
             batchSize: parseFloat(formData.get('batchSize') as string) || 1,
             currentPrice: currentPricePreview,
             autoTranslate: false,
+            digitalRecipeId: selectedDigitalRecipeId || null,
             components: components.filter(c => c.ingredientId && parseFloat(c.quantity) > 0)
         };
 
@@ -126,10 +139,26 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Recipe Name</label>
-                            <input name="name" className="input-field" placeholder="e.g. Salsa Huancaina" defaultValue={initialData?.name} required />
+                            <input name="name" className="input-field" placeholder="e.g. Salsa Huancaina" value={recipeName} onChange={(e) => setRecipeName(e.target.value)} required />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)' }}>Enlace a Recetario Documentado</label>
+                            <SearchableSelect
+                                name="digitalRecipeId"
+                                value={selectedDigitalRecipeId}
+                                onChange={(val) => {
+                                    setSelectedDigitalRecipeId(val);
+                                    if (val) {
+                                        const match = availableDigitalRecipes.find(r => r.id === val);
+                                        if (match && !recipeName) setRecipeName(match.name);
+                                    }
+                                }}
+                                options={[{ value: '', label: 'Ninguno (Manual)' }, ...availableDigitalRecipes.map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
+                                placeholder="Vincular con Recetario..."
+                            />
                         </div>
                     </div>
 

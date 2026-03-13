@@ -290,6 +290,7 @@ export async function savePrepRecipe(id: string | null, data: any) {
             portionWeightG: data.batchSize || 1, // Store batch size in portionWeightG!
             yieldPercent: existing ? existing.yieldPercent : 100, // Preserve Waste %, defaults to 100% (0% waste)
             currentPrice: data.currentPrice || 0,
+            digitalRecipeId: data.digitalRecipeId || null,
         };
 
         if (id) {
