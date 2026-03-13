@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft } from 'lucide-react';
 import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
@@ -21,6 +21,16 @@ export default function RecetarioPage() {
     const [recipes, setRecipes] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState('RECETA'); // RECETA, EMPLATADO, GUIA
     const [isLoading, setIsLoading] = useState(true);
+
+    const tOptions = useTranslations('Options');
+    const getOptName = (name: string) => {
+        if (!name) return name;
+        try {
+            const translated = tOptions(name as any);
+            if (translated && translated.includes('Options.')) return name;
+            return translated || name;
+        } catch { return name; }
+    };
 
     const [selectedRecipe, setSelectedRecipe] = useState<any>(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -289,7 +299,7 @@ export default function RecetarioPage() {
 
                                                     if (match.composedOf && match.composedOf.length > 0) {
                                                         const newIngr = match.composedOf.map((comp: any) => ({
-                                                            ingredient: comp.ingredient?.name || '',
+                                                            ingredient: (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || ''),
                                                             quantity: comp.quantity?.toString() || '',
                                                             metric: comp.unit || '',
                                                             notes: ''
@@ -369,18 +379,28 @@ export default function RecetarioPage() {
                             {ingrList.map((ingr: any, idx: number) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     {isEditing ? (
-                                        <>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
-                                            <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
-                                        </>
+                                        docData.linkedIngredientId ? (
+                                            <>
+                                                <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
+                                                <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
+                                                <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
+                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit', resize: 'vertical' }} /></td>
+                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}></td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit', resize: 'vertical' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit', resize: 'vertical' }} /></td>
+                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
+                                            </>
+                                        )
                                     ) : (
                                         <>
                                             <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
                                             <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
-                                            <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.metric}</td>
+                                            <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
                                             <td style={{ padding: '0.8rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{ingr.notes}</td>
                                         </>
                                     )}
@@ -388,7 +408,7 @@ export default function RecetarioPage() {
                             ))}
                         </tbody>
                     </table>
-                    {isEditing && (
+                    {isEditing && !docData.linkedIngredientId && (
                         <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
                             + Agregar Ingrediente
                         </button>
