@@ -4,6 +4,7 @@ import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
+import { useAdmin } from '@/components/AdminContext';
 import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
@@ -66,6 +67,7 @@ const MOCK_PRODUCTION: ProductionSchedule[] = [
 ];
 
 export default function InventoryPage() {
+    const { isAdmin } = useAdmin();
     const [activeTab, setActiveTab] = useState<'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('ALL');
     const [categoryTab, setCategoryTab] = useState<'CATEGORIES' | 'PROVEEDORES'>('CATEGORIES');
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
@@ -540,8 +542,10 @@ export default function InventoryPage() {
                     {[
                         { id: 'ALL', label: locale === 'es' ? 'Inventario' : 'Inventory' },
                         { id: 'ALL_INGREDIENTS', label: locale === 'es' ? 'Ingredientes' : 'Ingredients' },
-                        { id: 'PREP_RECIPES', label: locale === 'es' ? 'Recetas' : 'Recipes' },
-                        { id: 'CATEGORIES', label: locale === 'es' ? 'Categorías y Proveedores' : 'Categories & Suppliers' }
+                        ...(isAdmin ? [
+                            { id: 'PREP_RECIPES', label: locale === 'es' ? 'Costeo de Receta' : 'Recipe Costing' },
+                            { id: 'CATEGORIES', label: locale === 'es' ? 'Categorías y Proveedores' : 'Categories & Suppliers' }
+                        ] : [])
                     ].map(tab => (
                         <button
                             key={tab.id}
