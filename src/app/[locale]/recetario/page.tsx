@@ -277,7 +277,29 @@ export default function RecetarioPage() {
                                     <SearchableSelect
                                         name="linkedIngredientId"
                                         value={docData.linkedIngredientId || ''}
-                                        onChange={(val) => setEditData({ ...docData, linkedIngredientId: val })}
+                                        onChange={(val) => {
+                                            const newEditData = { ...docData, linkedIngredientId: val };
+                                            if (val) {
+                                                const match = availablePreps.find(p => p.id === val);
+                                                if (match) {
+                                                    if (!docData.name) newEditData.name = match.name;
+
+                                                    const yieldStr = `${match.portionWeightG || 1} ${match.metric === 'L' ? 'Litros' : match.metric === 'Kg' ? 'Kilos' : match.metric || ''}`.trim();
+                                                    newEditData.yield = yieldStr;
+
+                                                    if (match.composedOf && match.composedOf.length > 0) {
+                                                        const newIngr = match.composedOf.map((comp: any) => ({
+                                                            ingredient: comp.ingredient?.name || '',
+                                                            quantity: comp.quantity?.toString() || '',
+                                                            metric: comp.unit || '',
+                                                            notes: ''
+                                                        }));
+                                                        newEditData.ingredientsJson = JSON.stringify(newIngr);
+                                                    }
+                                                }
+                                            }
+                                            setEditData(newEditData);
+                                        }}
                                         options={[{ value: '', label: 'Ninguno' }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
                                         placeholder="Vincular con Receta de Inventario..."
                                     />

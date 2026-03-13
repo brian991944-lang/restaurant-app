@@ -19,7 +19,24 @@ export async function getAvailablePrepRecipes() {
     try {
         return await prisma.ingredient.findMany({
             where: { type: 'PREP_RECIPE' },
-            select: { id: true, name: true, digitalRecipeId: true }
+            select: {
+                id: true,
+                name: true,
+                digitalRecipeId: true,
+                portionWeightG: true,
+                metric: true,
+                composedOf: {
+                    select: {
+                        quantity: true,
+                        unit: true,
+                        ingredient: {
+                            select: {
+                                name: true
+                            }
+                        }
+                    }
+                }
+            }
         });
     } catch (e) {
         console.error(e);
