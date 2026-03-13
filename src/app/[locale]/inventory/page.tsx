@@ -408,7 +408,7 @@ export default function InventoryPage() {
         const totalWithAdj = item.total + adj;
 
         return (
-            <div key={item.id} className="glass-panel" style={{ flex: '1 1 300px', minWidth: '280px', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+            <div key={item.id} className="glass-panel" style={{ width: '100%', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{item.name}</h3>
                     {item.type === 'PROCESSED' && item.parent && (
@@ -488,7 +488,7 @@ export default function InventoryPage() {
                         <h3 style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.8, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', marginTop: 0 }}>
                             {getOptName(cat)}
                         </h3>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
                             {grouped[cat].sort((a, b) => a.name.localeCompare(b.name)).map(item => renderIngredientBox(item))}
                         </div>
                     </div>
