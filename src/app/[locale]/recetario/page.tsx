@@ -239,8 +239,27 @@ export default function RecetarioPage() {
     // EDITOR OR VIEWER RENDER
     // ============================================
     const docData = isEditing ? editData : selectedRecipe;
-    const ingrList = JSON.parse(docData.ingredientsJson || '[]');
-    const procList = JSON.parse(docData.procedureJson || '[]');
+
+    let ingrList: any[] = [];
+    try { ingrList = JSON.parse(docData.ingredientsJson || '[]'); } catch { }
+
+    let procList: string[] = [];
+    try { procList = JSON.parse(docData.procedureJson || '[]'); } catch { }
+
+    if (docData?.linkedIngredientId) {
+        const match = availablePreps.find(p => p.id === docData.linkedIngredientId);
+        if (match && match.composedOf) {
+            ingrList = match.composedOf.map((comp: any, idx: number) => {
+                const liveName = (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || '');
+                return {
+                    ingredient: liveName,
+                    quantity: comp.quantity?.toString() || '',
+                    metric: comp.unit || '',
+                    notes: ingrList[idx]?.notes || ''
+                };
+            });
+        }
+    }
 
     return (
         <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>

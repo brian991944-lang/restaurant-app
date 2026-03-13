@@ -86,10 +86,18 @@
     "PROCESSED": "Processed Food",
     "PREP_RECIPE": "Prep Recipe",
     "kg": "kilograms (kg)",
+    "Kg": "kilograms (kg)",
+    "Kilograms": "kilograms (kg)",
     "g": "grams (g)",
+    "Grams": "grams (g)",
     "L": "liters (L)",
+    "Liters": "liters (L)",
+    "liters": "liters (L)",
     "ml": "milliliters (ml)",
-    "unit": "units"
+    "unit": "units",
+    "units": "units",
+    "Units": "units",
+    "Unit": "units"
   },
   "PrepSchedule": {
     "title": "Prep Schedule ecosystem",

@@ -86,10 +86,18 @@
         "PROCESSED": "Alimentos Procesados",
         "PREP_RECIPE": "Receta de Prep",
         "kg": "kilogramos (kg)",
+        "Kg": "kilogramos (kg)",
+        "Kilograms": "kilogramos (kg)",
         "g": "gramos (g)",
+        "Grams": "gramos (g)",
         "L": "litros (L)",
+        "Liters": "litros (L)",
+        "liters": "litros (L)",
         "ml": "mililitros (ml)",
-        "unit": "unidades"
+        "unit": "unidades",
+        "units": "unidades",
+        "Units": "unidades",
+        "Unit": "unidades"
     },
     "PrepSchedule": {
         "title": "Ecosistema de Cronograma de Prep",

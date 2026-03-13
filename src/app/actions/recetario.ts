@@ -31,7 +31,8 @@ export async function getAvailablePrepRecipes() {
                         unit: true,
                         ingredient: {
                             select: {
-                                name: true
+                                name: true,
+                                nameEs: true
                             }
                         }
                     }
