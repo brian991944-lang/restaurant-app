@@ -495,9 +495,9 @@ export default function RecetarioPage() {
                         />
                     ) : (
                         <div style={{ background: 'rgba(255,215,0,0.05)', borderLeft: '4px solid #fbbf24', padding: '1rem', borderRadius: '0 8px 8px 0' }}>
-                            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                            <div style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6, color: 'var(--text-primary)' }}>
                                 {renderBoldText(docData.chefNotes)}
-                            </pre>
+                            </div>
                         </div>
                     )}
                 </div>
