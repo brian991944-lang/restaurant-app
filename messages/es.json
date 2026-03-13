@@ -19,7 +19,8 @@
         "recurring_prep": "Reglas Recurrentes",
         "sales": "Ventas",
         "integrations": "Integraciones",
-        "raw_data": "Datos Sin Procesar"
+        "raw_data": "Datos Sin Procesar",
+        "recetario": "Recetario"
     },
     "Dashboard": {
         "welcome": "Bienvenido de nuevo",

@@ -46,7 +46,7 @@ export async function removeTeamMember(id: string) {
 export async function getPrepTaskItems() {
     return prisma.ingredient.findMany({
         where: { type: { in: ['PREP', 'TASK'] } }, // Include both PREP and system TASK (Descongelar)
-        include: { category: true, parent: true, _count: { select: { usedInPreps: true } } },
+        include: { category: true, parent: true, digitalRecipe: true, _count: { select: { usedInPreps: true } } },
         orderBy: [
             { category: { name: 'asc' } },
             { parent: { name: 'asc' } },
@@ -55,7 +55,7 @@ export async function getPrepTaskItems() {
     });
 }
 
-export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false) {
+export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false, digitalRecipeId?: string) {
     try {
         let actualMetric = metric;
         if (parentId) {
@@ -78,7 +78,8 @@ export async function addPrepTaskItem(name: string, categoryId: string, metric: 
                 currentPrice: 0,
                 yieldPercent: 100,
                 // @ts-ignore
-                subtractFromInventory
+                subtractFromInventory,
+                digitalRecipeId: digitalRecipeId || null
             }
         });
         return { success: true, item };
@@ -98,7 +99,7 @@ export async function removePrepTaskItem(id: string) {
     }
 }
 
-export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false) {
+export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false, digitalRecipeId?: string) {
     try {
         let actualMetric = metric;
         if (parentId) {
@@ -114,7 +115,8 @@ export async function editPrepTaskItem(id: string, name: string, categoryId: str
                 metric: actualMetric,
                 parentId: parentId || null,
                 // @ts-ignore
-                subtractFromInventory
+                subtractFromInventory,
+                digitalRecipeId: digitalRecipeId || null
             }
         });
         return { success: true, item };

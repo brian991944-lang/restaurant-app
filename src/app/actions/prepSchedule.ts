@@ -18,6 +18,8 @@ export interface PrepTask {
     hasRecurring: boolean;
     isUrgent: boolean;
     completedBy?: string;
+    digitalRecipeId?: string | null;
+    digitalRecipeName?: string | null;
 }
 
 /**
@@ -69,8 +71,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 
         // 3. Fetch all ingredients
         const rawIngredients = await prisma.ingredient.findMany({
-            where: { type: { in: ['RAW', 'PREP', 'PROCESSED'] } },
-            include: { category: true, parent: true }
+            where: { type: { in: ['RAW', 'PREP', 'PROCESSED', 'TASK'] } },
+            include: { category: true, parent: true, digitalRecipe: true }
         });
 
         const mergedTasks: PrepTask[] = [];
@@ -101,7 +103,11 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 hasNightShift,
                 hasRecurring,
                 isUrgent,
-                completedBy: assignment?.user?.name || undefined
+                completedBy: assignment?.user?.name || undefined,
+                // @ts-ignore
+                digitalRecipeId: ingredient.digitalRecipeId || null,
+                // @ts-ignore
+                digitalRecipeName: ingredient.digitalRecipe?.name || null
             });
         }
 

@@ -1,8 +1,9 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake } from 'lucide-react';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
 import { getRecurringRules, createRecurringRule, deleteRecurringRule } from '@/app/actions/recurringPrep';
@@ -31,6 +32,7 @@ export default function PrepSchedulePage() {
     const [teamMembers, setTeamMembers] = useState<any[]>([]);
     const [prepItems, setPrepItems] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
+    const [digitalRecipes, setDigitalRecipes] = useState<any[]>([]);
 
     // Defrosting State
     const [defrostTasks, setDefrostTasks] = useState<any[]>([]);
@@ -48,6 +50,7 @@ export default function PrepSchedulePage() {
     const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<PrepTask | null>(null);
     const [deleteTaskReason, setDeleteTaskReason] = useState<'NOT_NECESSARY' | 'MISTAKE' | null>(null);
     const [deleteTaskCook, setDeleteTaskCook] = useState<string>('');
+    const [viewingRecipeId, setViewingRecipeId] = useState<string | null>(null);
     const [isTodayTasks, setIsTodayTasks] = useState(false);
 
     // Night Shift form state
@@ -137,14 +140,16 @@ export default function PrepSchedulePage() {
             const tmwDate = new Date();
             tmwDate.setDate(tmwDate.getDate() + 1);
 
-            const [todayData, tomorrowData, items] = await Promise.all([
+            const [todayData, tomorrowData, items, recipes] = await Promise.all([
                 getDailyPrepTasks(todayDate),
                 getDailyPrepTasks(tmwDate),
-                getPrepTaskItems()
+                getPrepTaskItems(),
+                getDigitalRecipes()
             ]);
             setMorningTasks(todayData);
             setTomorrowTasks(tomorrowData);
             setPrepItems(items);
+            setDigitalRecipes(recipes);
         } else if (tab === 'night') {
             const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
             const [assignments, members, tasks] = await Promise.all([getAssignmentsForDate(tzDate), getTeamMembers(), getPrepTaskItems()]);
@@ -159,11 +164,12 @@ export default function PrepSchedulePage() {
             const data = await getCompletedPrepLogs();
             setCompletedLogs(data);
         } else if (tab === 'team') {
-            const [members, tasks, cats, bases] = await Promise.all([getTeamMembers(), getPrepTaskItems(), getCategories(), getBaseIngredients()]);
+            const [members, tasks, cats, bases, recipes] = await Promise.all([getTeamMembers(), getPrepTaskItems(), getCategories(), getBaseIngredients(), getDigitalRecipes()]);
             setTeamMembers(members);
             setPrepItems(tasks);
             setCategories(cats);
             setBaseIngredients(bases);
+            setDigitalRecipes(recipes);
         } else if (tab === 'defrosting') {
             const [presets, members, logs, rules] = await Promise.all([
                 getDefrostingPresets([
@@ -335,7 +341,16 @@ export default function PrepSchedulePage() {
                                         <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none' }}>{task.ingredientName}</span>
+                                                {task.digitalRecipeId && (
+                                                    <button
+                                                        onClick={() => setViewingRecipeId(task.digitalRecipeId!)}
+                                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                                                        title={task.digitalRecipeName || 'Ver Receta'}
+                                                    >
+                                                        <BookOpen size={16} color="var(--accent-primary)" />
+                                                    </button>
+                                                )}
+                                                <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit' }}>{task.ingredientName}</span>
                                                 {task.isUrgent && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
                                             </div>
                                         </td>
@@ -999,6 +1014,7 @@ export default function PrepSchedulePage() {
     const [newTaskParentId, setNewTaskParentId] = useState('');
     const [newTaskMetric, setNewTaskMetric] = useState('units');
     const [newTaskSubtract, setNewTaskSubtract] = useState(false);
+    const [newTaskRecipeId, setNewTaskRecipeId] = useState('');
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
     const [isManageOptionsOpen, setIsManageOptionsOpen] = useState(false);
 
@@ -1009,18 +1025,20 @@ export default function PrepSchedulePage() {
     const [editTaskParentId, setEditTaskParentId] = useState('');
     const [editTaskMetric, setEditTaskMetric] = useState('units');
     const [editTaskSubtract, setEditTaskSubtract] = useState(false);
+    const [editTaskRecipeId, setEditTaskRecipeId] = useState('');
 
     const handleAddPrepTask = async () => {
         if (!newTaskName) return alert("Enter task name");
         if (!newTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined, newTaskSubtract);
+        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined, newTaskSubtract, newTaskRecipeId || undefined);
         setPrepItems(await getPrepTaskItems());
         setNewTaskName('');
         setNewTaskCatId('');
         setNewTaskParentId('');
         setNewTaskMetric('units');
         setNewTaskSubtract(false);
+        setNewTaskRecipeId('');
         setShowAddTaskModal(false);
         setIsLoading(false);
     };
@@ -1032,6 +1050,7 @@ export default function PrepSchedulePage() {
         setEditTaskParentId(task.parentId || '');
         setEditTaskMetric(task.metric || 'units');
         setEditTaskSubtract(task.subtractFromInventory || false);
+        setEditTaskRecipeId(task.digitalRecipeId || '');
         setShowEditTaskModal(true);
     };
 
@@ -1039,7 +1058,7 @@ export default function PrepSchedulePage() {
         if (!editTaskName) return alert("Enter task name");
         if (!editTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined, editTaskSubtract);
+        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined, editTaskSubtract, editTaskRecipeId || undefined);
         setPrepItems(await getPrepTaskItems());
         setShowEditTaskModal(false);
         setEditingTask(null);
@@ -1307,6 +1326,19 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
+                                <label style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <BookOpen size={16} color="var(--accent-primary)" />
+                                    {locale === 'es' ? 'Vincular con Receta (Aparecerá en Preparaciones)' : 'Link to Recipe Book'}
+                                </label>
+                                <SearchableSelect
+                                    value={newTaskRecipeId}
+                                    onChange={(val) => setNewTaskRecipeId(val)}
+                                    options={[{ value: '', label: '-- None --' }, ...[...digitalRecipes].sort((a, b) => a.name.localeCompare(b.name)).map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
+                                    placeholder="-- None --"
+                                />
+                            </div>
+
+                            <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
                                 <select value={newTaskMetric} onChange={e => setNewTaskMetric(e.target.value)} disabled={!!newTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: newTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: newTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="units">units</option>
@@ -1388,6 +1420,19 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
+                                <label style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <BookOpen size={16} color="var(--accent-primary)" />
+                                    {locale === 'es' ? 'Vincular con Receta (Aparecerá en Preparaciones)' : 'Link to Recipe Book'}
+                                </label>
+                                <SearchableSelect
+                                    value={editTaskRecipeId}
+                                    onChange={(val) => setEditTaskRecipeId(val)}
+                                    options={[{ value: '', label: '-- None --' }, ...[...digitalRecipes].sort((a, b) => a.name.localeCompare(b.name)).map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
+                                    placeholder="-- None --"
+                                />
+                            </div>
+
+                            <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
                                 <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="units">units</option>
@@ -1444,6 +1489,79 @@ export default function PrepSchedulePage() {
                 }}
                 categoryType="TASK"
             />
+            {/* RECIPE VIEW MODAL */}
+            {viewingRecipeId && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '800px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
+                        {(() => {
+                            const recipe = digitalRecipes.find(r => r.id === viewingRecipeId);
+                            if (!recipe) return <div style={{ textAlign: 'center' }}>Cargando Receta...</div>;
+
+                            let items = [];
+                            try { items = typeof recipe.ingredients === 'string' ? JSON.parse(recipe.ingredients) : recipe.ingredients; } catch (e) { }
+
+                            let steps = [];
+                            try { steps = typeof recipe.procedure === 'string' ? JSON.parse(recipe.procedure) : recipe.procedure; } catch (e) { }
+
+                            return (
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                <h2 style={{ margin: 0 }}>{recipe.name}</h2>
+                                                <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.8rem' }}>{recipe.recipeCode}</span>
+                                            </div>
+                                            {recipe.yieldInfo && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem', display: 'block' }}>Rendimiento: {recipe.yieldInfo}</span>}
+                                        </div>
+                                        <button onClick={() => setViewingRecipeId(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>&times;</button>
+                                    </div>
+
+                                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{recipe.overview || 'Sin descripción general.'}</p>
+
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Ingredientes</h4>
+                                    <table style={{ width: '100%', marginBottom: '2rem', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                                                <th style={{ padding: '0.5rem' }}>Ingrediente</th>
+                                                <th style={{ padding: '0.5rem' }}>Cantidad</th>
+                                                <th style={{ padding: '0.5rem' }}>Notas</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {items.map((it: any, i: number) => (
+                                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <td style={{ padding: '0.5rem' }}>{it.name}</td>
+                                                    <td style={{ padding: '0.5rem', color: 'var(--accent-primary)' }}>{it.qty} {it.unit}</td>
+                                                    <td style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>{it.notes}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Procedimiento</h4>
+                                    <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                        {steps.map((st: any, i: number) => (
+                                            <div key={i} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <div style={{ fontWeight: 'bold', color: 'var(--accent-primary)' }}>{i + 1}.</div>
+                                                <div style={{ lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{st.text}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {recipe.chefNotes && (
+                                        <>
+                                            <h4 style={{ marginBottom: '1rem', color: 'var(--warning)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Notas del Chef</h4>
+                                            <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                                                {recipe.chefNotes}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

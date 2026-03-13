@@ -77,6 +77,9 @@ model Ingredient {
   cloverId           String?
   mappingMultiplier  Float                @default(1.0)
   ModifierIngredient ModifierIngredient[]
+
+  digitalRecipeId    String?
+  digitalRecipe      DigitalRecipe?       @relation("IngredientToDigitalRecipe", fields: [digitalRecipeId], references: [id])
 }
 
 model ProcessedCloverLineItem {
@@ -245,4 +248,39 @@ model RecurringPrepRule {
   amount       Float
 
   ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+}
+
+model DigitalRecipe {
+  id              String   @id @default(cuid())
+  type            String   // RECIPE, PLATING, GUIDE
+  recipeCode      String   @unique
+  name            String
+  yield           String?
+  overview        String?
+  ingredientsJson String?  // JSON text: [{ id, ingredient, quantity, metric, notes }]
+  procedureJson   String?  // JSON text: array of steps/strings
+  chefNotes       String?
+  revisionDate    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  history         DigitalRecipeHistory[]
+  linkedTasks     Ingredient[] @relation("IngredientToDigitalRecipe")
+}
+
+model DigitalRecipeHistory {
+  id              String   @id @default(cuid())
+  recipeId        String
+  recipe          DigitalRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  type            String
+  recipeCode      String
+  name            String
+  yield           String?
+  overview        String?
+  ingredientsJson String?
+  procedureJson   String?
+  chefNotes       String?
+  revisionDate    DateTime
+  savedAt         DateTime @default(now())
+  savedBy         String?
 }

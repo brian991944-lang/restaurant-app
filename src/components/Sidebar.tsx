@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 
@@ -37,6 +37,7 @@ export default function Sidebar({ locale }: { locale: string }) {
         { name: t('inventory'), href: `/${locale}/inventory`, icon: Package },
         { name: t('purchases'), href: `/${locale}/purchases`, icon: ShoppingCart },
         { name: t('menu'), href: `/${locale}/menu`, icon: ChefHat },
+        { name: t('recetario'), href: `/${locale}/recetario`, icon: BookOpen },
         { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar },
         { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp },
         { name: t('raw_data'), href: `/${locale}/data`, icon: Database },
@@ -44,7 +45,7 @@ export default function Sidebar({ locale }: { locale: string }) {
 
     const filteredNavItems = isAdmin
         ? navItems
-        : navItems.filter(item => item.href.includes('/inventory') || item.href.includes('/prep-schedule'));
+        : navItems.filter(item => item.href.includes('/inventory') || item.href.includes('/prep-schedule') || item.href.includes('/recetario'));
 
     return (
         <aside style={{
