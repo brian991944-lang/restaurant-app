@@ -248,6 +248,17 @@ export default function RecetarioPage() {
 
     const activeLinkedId = docData?.linkedIngredientId || availablePreps.find(p => p.digitalRecipeId === docData?.id)?.id;
 
+    const renderBoldText = (text: string) => {
+        if (!text) return null;
+        const parts = text.split(/(\*\*.*?\*\*)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={i} style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>{part.slice(2, -2)}</strong>;
+            }
+            return <span key={i}>{part}</span>;
+        });
+    };
+
     if (activeLinkedId) {
         const match = availablePreps.find(p => p.id === activeLinkedId);
         if (match && match.composedOf) {
@@ -288,9 +299,9 @@ export default function RecetarioPage() {
                 </div>
             </div>
 
-            <div className="glass-panel" style={{ padding: '3rem', background: isEditing ? 'rgba(255,255,255,0.02)' : 'var(--bg-primary)', border: isEditing ? '1px dashed rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.05)', fontFamily: "'Times New Roman', Times, serif", fontSize: '12pt', color: 'var(--text-primary)' }}>
+            <div className="glass-panel" style={{ padding: '3rem', background: isEditing ? 'var(--bg-secondary)' : 'var(--bg-primary)', border: isEditing ? '1px dashed var(--border)' : '1px solid var(--border)', color: 'var(--text-primary)' }}>
                 {/* Header Section */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--border)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                     <div style={{ flex: 1 }}>
                         <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
                             {docData.recipeCode || 'NEW'}
@@ -301,7 +312,7 @@ export default function RecetarioPage() {
                                     value={docData.name}
                                     onChange={e => setEditData({ ...docData, name: e.target.value })}
                                     placeholder={locale === 'es' ? 'Título de la Receta' : 'Recipe Title'}
-                                    style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.2)', width: '100%', color: 'var(--text-primary)', padding: '0.5rem 0', fontFamily: 'inherit' }}
+                                    style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', width: '100%', color: 'var(--text-primary)', padding: '0.5rem 0' }}
                                 />
                                 <div>
                                     <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Enlace a Receta del Inventario (Opcional)</label>
@@ -338,7 +349,7 @@ export default function RecetarioPage() {
                             </div>
                         ) : (
                             <div>
-                                <h1 style={{ fontSize: '2.5rem', margin: 0, fontFamily: 'inherit' }}>{docData.name}</h1>
+                                <h1 style={{ fontSize: '2.5rem', margin: 0 }}>{docData.name}</h1>
                                 {docData.id && availablePreps.find(p => p.digitalRecipeId === docData.id) && (
                                     <span style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '0.5rem', display: 'inline-block' }}>
                                         Vinculado a: {availablePreps.find(p => p.digitalRecipeId === docData.id)?.name}
@@ -355,7 +366,7 @@ export default function RecetarioPage() {
                                     value={docData.yield || ''}
                                     onChange={e => setEditData({ ...docData, yield: e.target.value })}
                                     placeholder="e.g. Approx. 5 Litros"
-                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right', fontFamily: 'inherit' }}
+                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
                                 />
                             ) : (
                                 <span style={{ fontWeight: 600, fontSize: '14pt' }}>{docData.yield || '-'}</span>
@@ -376,7 +387,7 @@ export default function RecetarioPage() {
                             value={docData.overview || ''}
                             onChange={e => setEditData({ ...docData, overview: e.target.value })}
                             rows={3}
-                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit' }}
+                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical' }}
                         />
                     ) : (
                         <p style={{ lineHeight: 1.6, margin: 0 }}>{docData.overview}</p>
@@ -388,7 +399,7 @@ export default function RecetarioPage() {
                     <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Ingredientes' : 'Ingredients'}</h3>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
-                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                 <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
                                 <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'Cantidad' : 'Quantity'}</th>
                                 <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'U. de Medida' : 'Metric'}</th>
@@ -398,22 +409,22 @@ export default function RecetarioPage() {
                         </thead>
                         <tbody>
                             {ingrList.map((ingr: any, idx: number) => (
-                                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'var(--bg-secondary)' : 'transparent' }}>
                                     {isEditing ? (
                                         activeLinkedId ? (
                                             <>
                                                 <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
                                                 <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
                                                 <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
-                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit', resize: 'vertical' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
                                                 <td style={{ padding: '0.4rem', textAlign: 'center' }}></td>
                                             </>
                                         ) : (
                                             <>
-                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit', resize: 'vertical' }} /></td>
-                                                <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
-                                                <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
-                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit', resize: 'vertical' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
                                                 <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
                                             </>
                                         )
@@ -438,7 +449,14 @@ export default function RecetarioPage() {
 
                 {/* Procedure List */}
                 <div style={{ marginBottom: '2.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Procedimiento' : 'Procedure'}</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Procedimiento' : 'Procedure'}</h3>
+                        {isEditing && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                {locale === 'es' ? 'Use **texto** para negrita' : 'Use **text** for bold'}
+                            </span>
+                        )}
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', counterReset: 'step-counter' }}>
                         {procList.map((step: string, idx: number) => (
                             <div key={idx} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
@@ -448,11 +466,11 @@ export default function RecetarioPage() {
                                 <div style={{ flex: 1 }}>
                                     {isEditing ? (
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit' }} />
+                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
                                             <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
                                         </div>
                                     ) : (
-                                        <p style={{ margin: 0, lineHeight: 1.6 }}>{step}</p>
+                                        <p style={{ margin: 0, lineHeight: 1.6 }}>{renderBoldText(step)}</p>
                                     )}
                                 </div>
                             </div>
@@ -473,12 +491,12 @@ export default function RecetarioPage() {
                             value={docData.chefNotes || ''}
                             onChange={e => setEditData({ ...docData, chefNotes: e.target.value })}
                             rows={4}
-                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit' }}
+                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical' }}
                         />
                     ) : (
                         <div style={{ background: 'rgba(255,215,0,0.05)', borderLeft: '4px solid #fbbf24', padding: '1rem', borderRadius: '0 8px 8px 0' }}>
-                            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', lineHeight: 1.6, color: 'var(--text-primary)' }}>
-                                {docData.chefNotes}
+                            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                                {renderBoldText(docData.chefNotes)}
                             </pre>
                         </div>
                     )}
@@ -488,7 +506,7 @@ export default function RecetarioPage() {
             {showHistory && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <div className="glass-panel" style={{ width: '600px', maxWidth: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', padding: '2rem', background: 'var(--bg-primary)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                             <h2 style={{ margin: 0 }}>{locale === 'es' ? 'Historial de Versiones' : 'Version History'}</h2>
                             <button onClick={() => setShowHistory(false)} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><X size={24} /></button>
                         </div>
@@ -497,10 +515,10 @@ export default function RecetarioPage() {
                                 <p style={{ color: 'var(--text-secondary)' }}>No history found.</p>
                             ) : (
                                 historyLogs.map(log => (
-                                    <div key={log.id} style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
+                                    <div key={log.id} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                             <span style={{ fontWeight: 600 }}>{new Date(log.savedAt).toLocaleString()}</span>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{log.savedBy || 'System'}</span>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{log.savedBy || 'System'}</span>
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                             <div><strong>Name:</strong> {log.name}</div>
