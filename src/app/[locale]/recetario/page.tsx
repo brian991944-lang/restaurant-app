@@ -246,8 +246,10 @@ export default function RecetarioPage() {
     let procList: string[] = [];
     try { procList = JSON.parse(docData.procedureJson || '[]'); } catch { }
 
-    if (docData?.linkedIngredientId) {
-        const match = availablePreps.find(p => p.id === docData.linkedIngredientId);
+    const activeLinkedId = docData?.linkedIngredientId || availablePreps.find(p => p.digitalRecipeId === docData?.id)?.id;
+
+    if (activeLinkedId) {
+        const match = availablePreps.find(p => p.id === activeLinkedId);
         if (match && match.composedOf) {
             ingrList = match.composedOf.map((comp: any, idx: number) => {
                 const liveName = (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || '');
@@ -398,7 +400,7 @@ export default function RecetarioPage() {
                             {ingrList.map((ingr: any, idx: number) => (
                                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     {isEditing ? (
-                                        docData.linkedIngredientId ? (
+                                        activeLinkedId ? (
                                             <>
                                                 <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
                                                 <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
@@ -427,7 +429,7 @@ export default function RecetarioPage() {
                             ))}
                         </tbody>
                     </table>
-                    {isEditing && !docData.linkedIngredientId && (
+                    {isEditing && !activeLinkedId && (
                         <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
                             + Agregar Ingrediente
                         </button>
