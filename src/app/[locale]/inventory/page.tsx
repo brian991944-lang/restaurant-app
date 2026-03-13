@@ -593,6 +593,7 @@ export default function InventoryPage() {
                                     <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '800px' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                                                <th style={{ padding: '1rem', fontWeight: 500 }}>{locale === 'es' ? 'Categoría' : 'Category'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500 }}>{locale === 'es' ? 'Nombre' : 'Name'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>{locale === 'es' ? 'Stock Total' : 'Total Stock'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center', color: '#60a5fa' }}>{locale === 'es' ? 'Congelado ❄️' : 'Frozen ❄️'}</th>
@@ -600,44 +601,64 @@ export default function InventoryPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {filteredInventory.filter(i => (i.type === 'PROCESSED' || i.type === 'PREP_RECIPE') && i.trackFreezerStatus).sort((a, b) => a.name.localeCompare(b.name)).map(item => {
-                                                const baseUnfrozen = item.unfrozenQuantity || 0;
-                                                const draftVal = draftUnfrozen[item.id];
-                                                const hasDraft = draftVal !== undefined && draftVal !== baseUnfrozen;
-                                                const displayUnfrozen = draftVal !== undefined ? draftVal : baseUnfrozen;
+                                            {(() => {
+                                                const frozenItems = filteredInventory.filter(i => (i.type === 'PROCESSED' || i.type === 'PREP_RECIPE') && i.trackFreezerStatus);
+                                                const grouped: Record<string, typeof frozenItems> = {};
+                                                frozenItems.forEach(item => {
+                                                    const catName = getOptName(item.category || 'Uncategorized');
+                                                    if (!grouped[catName]) grouped[catName] = [];
+                                                    grouped[catName].push(item);
+                                                });
 
-                                                const totalStock = item.total || 0;
-                                                const frozenAmt = Math.max(0, totalStock - displayUnfrozen);
+                                                return Object.keys(grouped)
+                                                    .sort((a, b) => a.localeCompare(b))
+                                                    .map(cat => {
+                                                        const catItems = grouped[cat].sort((a, b) => a.name.localeCompare(b.name));
+                                                        return catItems.map((item, index) => {
+                                                            const baseUnfrozen = item.unfrozenQuantity || 0;
+                                                            const draftVal = draftUnfrozen[item.id];
+                                                            const hasDraft = draftVal !== undefined && draftVal !== baseUnfrozen;
+                                                            const displayUnfrozen = draftVal !== undefined ? draftVal : baseUnfrozen;
 
-                                                return (
-                                                    <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                                        <td style={{ padding: '1rem', fontWeight: 'bold' }}>
-                                                            {item.name}
-                                                            {item.providerName && <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.providerName}</span>}
-                                                        </td>
-                                                        <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}>{totalStock} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.metric}</span></td>
-                                                        <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: '#60a5fa', fontWeight: 600 }}>{frozenAmt}</td>
-                                                        <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                            <div style={{ display: 'inline-flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                                <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: Math.max(0, displayUnfrozen - 1) }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--danger)', opacity: displayUnfrozen <= 0 ? 0.3 : 1, cursor: displayUnfrozen <= 0 ? 'not-allowed' : 'pointer' }} disabled={displayUnfrozen <= 0}>
-                                                                    <Minus size={16} />
-                                                                </button>
-                                                                <span style={{ fontWeight: 'bold', fontSize: '1.2rem', minWidth: '30px', textAlign: 'center', color: 'var(--warning)' }}>{displayUnfrozen}</span>
-                                                                <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: displayUnfrozen + 1 }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--success)', cursor: 'pointer' }}>
-                                                                    <Plus size={16} />
-                                                                </button>
+                                                            const totalStock = item.total || 0;
+                                                            const frozenAmt = Math.max(0, totalStock - displayUnfrozen);
 
-                                                                {hasDraft && (
-                                                                    <button onClick={() => handleConfirmUnfrozen(item)} className="btn-primary" style={{ marginLeft: '1rem', padding: '0.3rem 0.8rem', fontSize: '0.85rem', background: '#3b82f6', border: 'none', borderRadius: '6px', color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                                                                        <Check size={14} />
-                                                                        {locale === 'es' ? 'Confirmar' : 'Confirm'}
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
+                                                            return (
+                                                                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                    {index === 0 && (
+                                                                        <td rowSpan={catItems.length} style={{ padding: '1rem', fontWeight: 600, verticalAlign: 'middle', width: '200px', borderRight: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
+                                                                            {cat}
+                                                                        </td>
+                                                                    )}
+                                                                    <td style={{ padding: '1rem', fontWeight: 'bold' }}>
+                                                                        {item.name}
+                                                                        {item.providerName && <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.providerName}</span>}
+                                                                    </td>
+                                                                    <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}>{totalStock} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.metric}</span></td>
+                                                                    <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: '#60a5fa', fontWeight: 600 }}>{frozenAmt}</td>
+                                                                    <td style={{ padding: '1rem', textAlign: 'center' }}>
+                                                                        <div style={{ display: 'inline-flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                            <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: Math.max(0, displayUnfrozen - 1) }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--danger)', opacity: displayUnfrozen <= 0 ? 0.3 : 1, cursor: displayUnfrozen <= 0 ? 'not-allowed' : 'pointer' }} disabled={displayUnfrozen <= 0}>
+                                                                                <Minus size={16} />
+                                                                            </button>
+                                                                            <span style={{ fontWeight: 'bold', fontSize: '1.2rem', minWidth: '30px', textAlign: 'center', color: 'var(--warning)' }}>{displayUnfrozen}</span>
+                                                                            <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: displayUnfrozen + 1 }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--success)', cursor: 'pointer' }}>
+                                                                                <Plus size={16} />
+                                                                            </button>
+
+                                                                            {hasDraft && (
+                                                                                <button onClick={() => handleConfirmUnfrozen(item)} className="btn-primary" style={{ marginLeft: '1rem', padding: '0.3rem 0.8rem', fontSize: '0.85rem', background: '#3b82f6', border: 'none', borderRadius: '6px', color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                                                                                    <Check size={14} />
+                                                                                    {locale === 'es' ? 'Confirmar' : 'Confirm'}
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        });
+                                                    });
+                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
