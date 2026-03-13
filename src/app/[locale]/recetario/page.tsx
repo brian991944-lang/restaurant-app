@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft } from 'lucide-react';
-import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe } from '@/app/actions/recetario';
+import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
+import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 interface RecipeIngredient {
     ingredient: string;
@@ -26,6 +27,8 @@ export default function RecetarioPage() {
     const [showHistory, setShowHistory] = useState(false);
     const [historyLogs, setHistoryLogs] = useState<any[]>([]);
 
+    const [availablePreps, setAvailablePreps] = useState<any[]>([]);
+
     // Editor state
     const [editData, setEditData] = useState<any>(null);
 
@@ -35,8 +38,9 @@ export default function RecetarioPage() {
 
     const loadData = async () => {
         setIsLoading(true);
-        const data = await getDigitalRecipes();
+        const [data, preps] = await Promise.all([getDigitalRecipes(), getAvailablePrepRecipes()]);
         setRecipes(data);
+        setAvailablePreps(preps);
         setIsLoading(false);
     };
 
@@ -49,6 +53,7 @@ export default function RecetarioPage() {
             ingredientsJson: JSON.stringify([{ ingredient: '', quantity: '', metric: '', notes: '' }]),
             procedureJson: JSON.stringify(['']),
             chefNotes: '• Vida Útil:\n• ',
+            linkedIngredientId: '',
         };
         setSelectedRecipe(null);
         setEditData(newData);
@@ -56,8 +61,9 @@ export default function RecetarioPage() {
     };
 
     const handleEdit = (recipe: any) => {
+        const linked = availablePreps.find(p => p.digitalRecipeId === recipe.id);
         setSelectedRecipe(recipe);
-        setEditData({ ...recipe });
+        setEditData({ ...recipe, linkedIngredientId: linked ? linked.id : '' });
         setIsEditing(true);
     };
 
@@ -251,7 +257,7 @@ export default function RecetarioPage() {
                 </div>
             </div>
 
-            <div className="glass-panel" style={{ padding: '3rem', background: isEditing ? 'rgba(255,255,255,0.02)' : 'var(--bg-primary)', border: isEditing ? '1px dashed rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.05)' }}>
+            <div className="glass-panel" style={{ padding: '3rem', background: isEditing ? 'rgba(255,255,255,0.02)' : 'var(--bg-primary)', border: isEditing ? '1px dashed rgba(255,255,255,0.2)' : '1px solid rgba(255,255,255,0.05)', fontFamily: "'Times New Roman', Times, serif", fontSize: '12pt', color: 'var(--text-primary)' }}>
                 {/* Header Section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                     <div style={{ flex: 1 }}>
@@ -259,14 +265,33 @@ export default function RecetarioPage() {
                             {docData.recipeCode || 'NEW'}
                         </div>
                         {isEditing ? (
-                            <input
-                                value={docData.name}
-                                onChange={e => setEditData({ ...docData, name: e.target.value })}
-                                placeholder={locale === 'es' ? 'Título de la Receta' : 'Recipe Title'}
-                                style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.2)', width: '100%', color: 'var(--text-primary)', padding: '0.5rem 0' }}
-                            />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <input
+                                    value={docData.name}
+                                    onChange={e => setEditData({ ...docData, name: e.target.value })}
+                                    placeholder={locale === 'es' ? 'Título de la Receta' : 'Recipe Title'}
+                                    style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.2)', width: '100%', color: 'var(--text-primary)', padding: '0.5rem 0', fontFamily: 'inherit' }}
+                                />
+                                <div>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Enlace a Receta del Inventario (Opcional)</label>
+                                    <SearchableSelect
+                                        name="linkedIngredientId"
+                                        value={docData.linkedIngredientId || ''}
+                                        onChange={(val) => setEditData({ ...docData, linkedIngredientId: val })}
+                                        options={[{ value: '', label: 'Ninguno' }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
+                                        placeholder="Vincular con Receta de Inventario..."
+                                    />
+                                </div>
+                            </div>
                         ) : (
-                            <h1 style={{ fontSize: '2.5rem', margin: 0 }}>{docData.name}</h1>
+                            <div>
+                                <h1 style={{ fontSize: '2.5rem', margin: 0, fontFamily: 'inherit' }}>{docData.name}</h1>
+                                {docData.id && availablePreps.find(p => p.digitalRecipeId === docData.id) && (
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '0.5rem', display: 'inline-block' }}>
+                                        Vinculado a: {availablePreps.find(p => p.digitalRecipeId === docData.id)?.name}
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
                     <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'flex-end', marginLeft: '2rem' }}>
@@ -277,10 +302,10 @@ export default function RecetarioPage() {
                                     value={docData.yield || ''}
                                     onChange={e => setEditData({ ...docData, yield: e.target.value })}
                                     placeholder="e.g. Approx. 5 Litros"
-                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
+                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right', fontFamily: 'inherit' }}
                                 />
                             ) : (
-                                <span style={{ fontWeight: 600 }}>{docData.yield || '-'}</span>
+                                <span style={{ fontWeight: 600, fontSize: '14pt' }}>{docData.yield || '-'}</span>
                             )}
                         </div>
                         <div>
@@ -298,10 +323,10 @@ export default function RecetarioPage() {
                             value={docData.overview || ''}
                             onChange={e => setEditData({ ...docData, overview: e.target.value })}
                             rows={3}
-                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical' }}
+                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit' }}
                         />
                     ) : (
-                        <p style={{ fontSize: '1.1rem', lineHeight: 1.6, margin: 0 }}>{docData.overview}</p>
+                        <p style={{ lineHeight: 1.6, margin: 0 }}>{docData.overview}</p>
                     )}
                 </div>
 
@@ -323,10 +348,10 @@ export default function RecetarioPage() {
                                 <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     {isEditing ? (
                                         <>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
-                                            <td style={{ padding: '0.4rem' }}><input value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: 'inherit' }} /></td>
                                             <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
                                         </>
                                     ) : (
@@ -360,7 +385,7 @@ export default function RecetarioPage() {
                                 <div style={{ flex: 1 }}>
                                     {isEditing ? (
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
+                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit' }} />
                                             <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
                                         </div>
                                     ) : (
@@ -385,7 +410,7 @@ export default function RecetarioPage() {
                             value={docData.chefNotes || ''}
                             onChange={e => setEditData({ ...docData, chefNotes: e.target.value })}
                             rows={4}
-                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical' }}
+                            style={{ width: '100%', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', fontSize: 'inherit' }}
                         />
                     ) : (
                         <div style={{ background: 'rgba(255,215,0,0.05)', borderLeft: '4px solid #fbbf24', padding: '1rem', borderRadius: '0 8px 8px 0' }}>

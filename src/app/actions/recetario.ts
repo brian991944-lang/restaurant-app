@@ -15,6 +15,18 @@ export async function getDigitalRecipes() {
     }
 }
 
+export async function getAvailablePrepRecipes() {
+    try {
+        return await prisma.ingredient.findMany({
+            where: { type: 'PREP_RECIPE' },
+            select: { id: true, name: true, digitalRecipeId: true }
+        });
+    } catch (e) {
+        console.error(e);
+        return [];
+    }
+}
+
 export async function getRecipeHistory(recipeId: string) {
     try {
         return await prisma.digitalRecipeHistory.findMany({
@@ -69,6 +81,13 @@ export async function createDigitalRecipe(data: any) {
             }
         });
 
+        if (data.linkedIngredientId) {
+            await prisma.ingredient.update({
+                where: { id: data.linkedIngredientId },
+                data: { digitalRecipeId: newRec.id }
+            });
+        }
+
         revalidatePath('/[locale]/recetario');
         return { success: true, recipe: newRec };
     } catch (e) {
@@ -111,6 +130,18 @@ export async function updateDigitalRecipe(id: string, data: any) {
                 revisionDate: new Date()
             }
         });
+
+        await prisma.ingredient.updateMany({
+            where: { digitalRecipeId: id },
+            data: { digitalRecipeId: null }
+        });
+
+        if (data.linkedIngredientId) {
+            await prisma.ingredient.update({
+                where: { id: data.linkedIngredientId },
+                data: { digitalRecipeId: id }
+            });
+        }
 
         revalidatePath('/[locale]/recetario');
         return { success: true, recipe: updated };
