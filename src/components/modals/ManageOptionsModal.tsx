@@ -9,7 +9,7 @@ import { getCategories, addCategory, deleteCategory, editCategory, getProviders,
 interface ManageOptionsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    categoryType?: 'INGREDIENT' | 'TASK';
+    categoryType?: 'INGREDIENT' | 'TASK' | 'RECIPE';
 }
 
 export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'INGREDIENT' }: ManageOptionsModalProps) {
@@ -118,14 +118,22 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
 
                 {/* Group Selector */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{categoryType === 'TASK' ? (locale === 'es' ? 'Tipo de Configuración' : 'Configuration Type') : t('option_type')}</label>
+                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        {categoryType === 'TASK' ? (locale === 'es' ? 'Tipo de Configuración' : 'Configuration Type') :
+                            categoryType === 'RECIPE' ? (locale === 'es' ? 'Tipo de Categoría' : 'Category Type') :
+                                t('option_type')}
+                    </label>
                     <select
                         className="input-field"
                         value={selectedGroup}
                         onChange={(e) => setSelectedGroup(e.target.value as any)}
                         style={{ padding: '0.8rem', fontSize: '1rem' }}>
-                        <option value="Category">{categoryType === 'TASK' ? (locale === 'es' ? 'Categoría de Tarea' : 'Task Category') : t('category')}</option>
-                        {categoryType !== 'TASK' && <option value="Provider">{locale === 'es' ? 'Proveedor' : 'Provider'}</option>}
+                        <option value="Category">
+                            {categoryType === 'TASK' ? (locale === 'es' ? 'Categoría de Tarea' : 'Task Category') :
+                                categoryType === 'RECIPE' ? (locale === 'es' ? 'Categoría de Receta' : 'Recipe Category') :
+                                    t('category')}
+                        </option>
+                        {categoryType === 'INGREDIENT' && <option value="Provider">{locale === 'es' ? 'Proveedor' : 'Provider'}</option>}
                     </select>
                 </div>
 

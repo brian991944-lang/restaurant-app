@@ -28,13 +28,14 @@ model Provider {
 }
 
 model Category {
-  id            String       @id @default(cuid())
+  id            String          @id @default(cuid())
   name          String
   nameEs        String?
-  type          String       @default("INGREDIENT") // INGREDIENT, TASK
-  autoTranslate Boolean      @default(true)
+  type          String          @default("INGREDIENT") // INGREDIENT, TASK, RECIPE
+  autoTranslate Boolean         @default(true)
   department    String // FOOD, DRINKS, CLEANING
   ingredients   Ingredient[]
+  digitalRecipes DigitalRecipe[]
 }
 
 model Ingredient {
@@ -263,6 +264,9 @@ model DigitalRecipe {
   revisionDate    DateTime @default(now())
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
 
   history         DigitalRecipeHistory[]
   linkedTasks     Ingredient[] @relation("IngredientToDigitalRecipe")

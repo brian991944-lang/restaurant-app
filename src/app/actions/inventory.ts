@@ -55,7 +55,7 @@ export async function getProviders() {
     });
 }
 
-export async function getCategories(type?: 'INGREDIENT' | 'TASK') {
+export async function getCategories(type?: 'INGREDIENT' | 'TASK' | 'RECIPE') {
     return prisma.category.findMany({
         where: type ? { type } : undefined,
         include: {

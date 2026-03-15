@@ -7,7 +7,7 @@ export async function getDigitalRecipes() {
     try {
         return await prisma.digitalRecipe.findMany({
             orderBy: { recipeCode: 'asc' },
-            include: { linkedTasks: true }
+            include: { linkedTasks: true, category: true }
         });
     } catch (e) {
         console.error(e);
@@ -79,6 +79,7 @@ export async function createDigitalRecipe(data: any) {
                 ingredientsJson: data.ingredientsJson,
                 procedureJson: data.procedureJson,
                 chefNotes: data.chefNotes,
+                categoryId: data.categoryId || null,
                 revisionDate: new Date()
             }
         });
@@ -145,6 +146,7 @@ export async function updateDigitalRecipe(id: string, data: any) {
                 ingredientsJson: data.ingredientsJson,
                 procedureJson: data.procedureJson,
                 chefNotes: data.chefNotes,
+                categoryId: data.categoryId || null,
                 revisionDate: new Date()
             }
         });

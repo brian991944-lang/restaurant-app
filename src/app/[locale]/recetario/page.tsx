@@ -5,7 +5,9 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft } from 'lucide-react';
 import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
+import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 
 interface RecipeIngredient {
     ingredient: string;
@@ -38,6 +40,8 @@ export default function RecetarioPage() {
     const [historyLogs, setHistoryLogs] = useState<any[]>([]);
 
     const [availablePreps, setAvailablePreps] = useState<any[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
+    const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
 
     // Editor state
     const [editData, setEditData] = useState<any>(null);
@@ -48,9 +52,14 @@ export default function RecetarioPage() {
 
     const loadData = async () => {
         setIsLoading(true);
-        const [data, preps] = await Promise.all([getDigitalRecipes(), getAvailablePrepRecipes()]);
+        const [data, preps, cats] = await Promise.all([
+            getDigitalRecipes(),
+            getAvailablePrepRecipes(),
+            getCategories('RECIPE')
+        ]);
         setRecipes(data);
         setAvailablePreps(preps);
+        setCategories(cats || []);
         setIsLoading(false);
     };
 
@@ -64,6 +73,7 @@ export default function RecetarioPage() {
             procedureJson: JSON.stringify(['']),
             chefNotes: '• Vida Útil:\n• ',
             linkedIngredientId: '',
+            categoryId: '',
         };
         setSelectedRecipe(null);
         setEditData(newData);
@@ -163,10 +173,16 @@ export default function RecetarioPage() {
                         <p style={{ color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Documentación estándar y guías operativas.' : 'Standard operating procedures and recipes.'}</p>
                     </div>
                     {isAdmin && (
-                        <button className="btn-primary" onClick={handleCreateNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
-                            <Plus size={18} />
-                            {locale === 'es' ? 'Nueva Entrada' : 'New Entry'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '1rem' }}>
+                            <button className="btn-secondary" onClick={() => setIsManageCategoriesOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
+                                <BookOpen size={18} />
+                                {locale === 'es' ? 'Categorías' : 'Categories'}
+                            </button>
+                            <button className="btn-primary" onClick={handleCreateNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
+                                <Plus size={18} />
+                                {locale === 'es' ? 'Nueva Entrada' : 'New Entry'}
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -198,38 +214,66 @@ export default function RecetarioPage() {
 
                 {isLoading ? (
                     <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
-                ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                        {filteredList.length === 0 ? (
-                            <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center', gridColumn: '1 / -1' }}>
-                                {locale === 'es' ? 'No hay documentos en esta sección.' : 'No documents in this section.'}
-                            </div>
-                        ) : (
-                            filteredList.map(recipe => (
-                                <div key={recipe.id} onClick={() => handleView(recipe)} className="glass-panel" style={{ padding: '1.5rem', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column', gap: '0.5rem' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
-                                            {recipe.recipeCode}
-                                        </span>
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                            ↻ {new Date(recipe.revisionDate).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                    <h3 style={{ margin: '0.5rem 0', fontSize: '1.25rem' }}>{recipe.name}</h3>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flex: 1, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                                        {recipe.overview || 'Sin descripción'}
-                                    </p>
-                                    {isAdmin && (
-                                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
-                                            <button onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
-                                                <Pencil size={14} /> Editar
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            ))
-                        )}
+                ) : filteredList.length === 0 ? (
+                    <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                        {locale === 'es' ? 'No hay documentos en esta sección.' : 'No documents in this section.'}
                     </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+                        {/* Group logic */}
+                        {(() => {
+                            const grouped = categories.map(cat => ({
+                                category: cat,
+                                items: filteredList.filter(r => r.categoryId === cat.id)
+                            })).filter(g => g.items.length > 0);
+
+                            const uncategorized = filteredList.filter(r => !r.categoryId);
+                            if (uncategorized.length > 0) {
+                                grouped.push({ category: { id: 'none', name: 'Sin Categoría', nameEs: 'Uncategorized' }, items: uncategorized });
+                            }
+
+                            return grouped.map(group => (
+                                <div key={group.category.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', margin: 0 }}>
+                                        {locale === 'es' && group.category.nameEs ? group.category.nameEs : group.category.name}
+                                    </h2>
+                                    <div style={{ display: 'flex', overflowX: 'auto', gap: '1.5rem', paddingBottom: '1rem', scrollbarWidth: 'thin' }}>
+                                        {group.items.map(recipe => (
+                                            <div key={recipe.id} onClick={() => handleView(recipe)} className="glass-panel" style={{ padding: '1.5rem', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '320px', maxWidth: '320px', flexShrink: 0 }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                    <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
+                                                        {recipe.recipeCode}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                        ↻ {new Date(recipe.revisionDate).toLocaleDateString()}
+                                                    </span>
+                                                </div>
+                                                <h3 style={{ margin: '0.5rem 0', fontSize: '1.25rem', whiteSpace: 'normal' }}>{recipe.name}</h3>
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flex: 1, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', whiteSpace: 'normal' }}>
+                                                    {recipe.overview || 'Sin descripción'}
+                                                </p>
+                                                {isAdmin && (
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
+                                                        <button onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
+                                                            <Pencil size={14} /> Editar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                )}
+
+                {isManageCategoriesOpen && (
+                    <ManageOptionsModal
+                        isOpen={isManageCategoriesOpen}
+                        onClose={() => { setIsManageCategoriesOpen(false); loadData(); }}
+                        categoryType="RECIPE"
+                    />
                 )}
             </div>
         );
@@ -344,6 +388,16 @@ export default function RecetarioPage() {
                                         }}
                                         options={[{ value: '', label: 'Ninguno' }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
                                         placeholder="Vincular con Receta de Inventario..."
+                                    />
+                                </div>
+                                <div>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>{locale === 'es' ? 'Categoría' : 'Category'}</label>
+                                    <SearchableSelect
+                                        name="categoryId"
+                                        value={docData.categoryId || ''}
+                                        onChange={(val) => setEditData({ ...docData, categoryId: val })}
+                                        options={[{ value: '', label: 'Sin Categoría' }, ...categories.map(c => ({ value: c.id, label: (locale === 'es' && c.nameEs) ? c.nameEs : c.name }))]}
+                                        placeholder="Seleccionar Categoría..."
                                     />
                                 </div>
                             </div>
