@@ -98,6 +98,10 @@ export default function RecetarioPage() {
             alert(locale === 'es' ? 'El nombre es obligatorio' : 'Name is mandatory');
             return;
         }
+        if (!editData.categoryId) {
+            alert(locale === 'es' ? 'La Categoría es obligatoria' : 'Category is mandatory');
+            return;
+        }
         setIsLoading(true);
         let res;
         if (selectedRecipe && selectedRecipe.id) {
@@ -176,7 +180,7 @@ export default function RecetarioPage() {
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             <button className="btn-secondary" onClick={() => setIsManageCategoriesOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
                                 <BookOpen size={18} />
-                                {locale === 'es' ? 'Categorías' : 'Categories'}
+                                {locale === 'es' ? 'Gestionar Categorías' : 'Manage Categories'}
                             </button>
                             <button className="btn-primary" onClick={handleCreateNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
                                 <Plus size={18} />
@@ -234,12 +238,12 @@ export default function RecetarioPage() {
 
                             return grouped.map(group => (
                                 <div key={group.category.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', margin: 0 }}>
+                                    <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', margin: 0, fontWeight: 'bold', textTransform: 'uppercase' }}>
                                         {locale === 'es' && group.category.nameEs ? group.category.nameEs : group.category.name}
                                     </h2>
-                                    <div style={{ display: 'flex', overflowX: 'auto', gap: '1.5rem', paddingBottom: '1rem', scrollbarWidth: 'thin' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', paddingBottom: '1rem' }}>
                                         {group.items.map(recipe => (
-                                            <div key={recipe.id} onClick={() => handleView(recipe)} className="glass-panel" style={{ padding: '1.5rem', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: '320px', maxWidth: '320px', flexShrink: 0 }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
+                                            <div key={recipe.id} onClick={() => handleView(recipe)} className="glass-panel" style={{ padding: '1.5rem', cursor: 'pointer', transition: 'transform 0.2s', display: 'flex', flexDirection: 'column', gap: '0.5rem' }} onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-4px)'} onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                     <span style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>
                                                         {recipe.recipeCode}
