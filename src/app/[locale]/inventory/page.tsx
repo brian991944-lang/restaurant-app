@@ -810,42 +810,65 @@ export default function InventoryPage() {
             )}
 
             {activeTab === 'PREP_RECIPES' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                            <thead>
-                                <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Recipe Name</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Yield / Batch Size</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Cost per Batch</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Cost per Unit</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredInventory.filter(i => i.type === 'PREP_RECIPE').length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No prep recipes found. Click "Add Prep Recipe" to create one.</td>
-                                    </tr>
-                                ) : (
-                                    filteredInventory.filter(i => i.type === 'PREP_RECIPE').map(item => (
-                                        <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{item.name}</td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{getOptName(item.category)}</td>
-                                            <td style={{ padding: '1rem 1.5rem' }}>{item.portionWeightG || 1} {getOptName(item.metric)}</td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * ((item.portionWeightG || 1) * (item.yieldPercent || 100) / 100)).toFixed(2)}</td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}</td>
-                                            <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                                                <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
-                                                <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>Delete</button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+                    {(() => {
+                        const prepRecipes = filteredInventory.filter(i => i.type === 'PREP_RECIPE');
+                        if (prepRecipes.length === 0) {
+                            return (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                    No prep recipes found. Click "Add Prep Recipe" to create one.
+                                </div>
+                            );
+                        }
+
+                        // Group by category string
+                        const grouped = prepRecipes.reduce((acc, item) => {
+                            const catName = getOptName(item.category) || 'SIN CATEGORÍA';
+                            if (!acc[catName]) acc[catName] = [];
+                            acc[catName].push(item);
+                            return acc;
+                        }, {} as Record<string, typeof prepRecipes>);
+
+                        return Object.entries(grouped)
+                            .sort(([catA], [catB]) => catA.localeCompare(catB))
+                            .map(([categoryName, items]) => (
+                                <div key={categoryName} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', margin: 0, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                        {categoryName}
+                                    </h2>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '1rem' }}>
+                                        {items.map(item => (
+                                            <div key={item.id} className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', whiteSpace: 'normal' }}>{item.name}</h3>
+                                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                        <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--success)', background: 'rgba(16, 185, 129, 0.1)', padding: '0.2rem 0.6rem', borderRadius: '4px' }}>
+                                                            ${((item.calculatedCost || 0) * ((item.portionWeightG || 1) * (item.yieldPercent || 100) / 100)).toFixed(2)} / Batch
+                                                        </span>
+                                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                            ${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                                                    Rendimiento: {item.portionWeightG || 1} {getOptName(item.metric)}
+                                                </p>
+                                                {isAdmin && (
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem', gap: '0.5rem' }}>
+                                                        <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: '0.4rem', fontSize: '0.9rem', fontWeight: 500 }} onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}>
+                                                            Editar
+                                                        </button>
+                                                        <button onClick={() => handleDeleteIngredient(item.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.4rem', fontSize: '0.9rem', fontWeight: 500 }} onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'} onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}>
+                                                            Eliminar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ));
+                    })()}
                 </div>
             )}
 
