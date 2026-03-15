@@ -226,21 +226,23 @@ export default function RecetarioPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
                         {/* Group logic */}
                         {(() => {
-                            const grouped = categories.map(cat => ({
+                            const validCategories = Array.isArray(categories) ? categories : [];
+
+                            const grouped = validCategories.map(cat => ({
                                 category: cat,
                                 items: filteredList.filter(r => r.categoryId === cat.id)
                             })).filter(g => g.items.length > 0);
 
                             // Any recipe that doesn't belong to an existing category goes here
-                            const uncategorized = filteredList.filter(r => !r.categoryId || !categories.some(c => c.id === r.categoryId));
+                            const uncategorized = filteredList.filter(r => !r.categoryId || !validCategories.some(c => c.id === r.categoryId));
                             if (uncategorized.length > 0) {
                                 grouped.push({ category: { id: 'none', name: 'Uncategorized', nameEs: 'Sin Categoría' }, items: uncategorized });
                             }
 
                             return grouped.map(group => (
-                                <div key={group.category.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div key={group.category?.id || 'none'} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', margin: 0, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                        {locale === 'es' && group.category.nameEs ? group.category.nameEs : group.category.name}
+                                        {locale === 'es' && group.category?.nameEs ? group.category.nameEs : (group.category?.name || 'SIN CATEGORÍA')}
                                     </h2>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1.5rem', paddingBottom: '1rem' }}>
                                         {group.items.map(recipe => (
