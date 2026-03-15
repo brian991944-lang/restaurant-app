@@ -231,9 +231,10 @@ export default function RecetarioPage() {
                                 items: filteredList.filter(r => r.categoryId === cat.id)
                             })).filter(g => g.items.length > 0);
 
-                            const uncategorized = filteredList.filter(r => !r.categoryId);
+                            // Any recipe that doesn't belong to an existing category goes here
+                            const uncategorized = filteredList.filter(r => !r.categoryId || !categories.some(c => c.id === r.categoryId));
                             if (uncategorized.length > 0) {
-                                grouped.push({ category: { id: 'none', name: 'Sin Categoría', nameEs: 'Uncategorized' }, items: uncategorized });
+                                grouped.push({ category: { id: 'none', name: 'Uncategorized', nameEs: 'Sin Categoría' }, items: uncategorized });
                             }
 
                             return grouped.map(group => (
