@@ -575,7 +575,7 @@ export default function RecetarioPage() {
                                             <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
                                         </div>
                                     ) : (
-                                        <p style={{ margin: 0, lineHeight: 1.6 }}>{renderBoldText(step)}</p>
+                                        <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(step)}</p>
                                     )}
                                 </div>
                             </div>
