@@ -162,6 +162,17 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             } else {
                 setComponents([]);
             }
+            setRecipeYield(initialData?.yieldPercent || 1);
+            if (initialData?.composedOf) {
+                setComponents(initialData.composedOf.map((c: any) => ({
+                    id: Math.random().toString(),
+                    ingredientId: c.ingredientId,
+                    quantity: c.quantity.toString(),
+                    unit: c.unit || 'units'
+                })));
+            } else {
+                setComponents([]);
+            }
 
             if (initialData?.metric) {
                 const match = ALLOWED_METRICS.find(m => m.toLowerCase() === initialData.metric.toLowerCase());
