@@ -29,6 +29,7 @@ export async function getAvailablePrepRecipes() {
                     select: {
                         quantity: true,
                         unit: true,
+                        groupName: true,
                         ingredient: {
                             select: {
                                 name: true,

@@ -385,7 +385,8 @@ export default function RecetarioPage() {
                                                             ingredient: (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || ''),
                                                             quantity: comp.quantity?.toString() || '',
                                                             metric: comp.unit || '',
-                                                            notes: ''
+                                                            notes: '',
+                                                            groupName: comp.groupName || 'Main Components'
                                                         }));
                                                         newEditData.ingredientsJson = JSON.stringify(newIngr);
                                                     }
@@ -457,53 +458,87 @@ export default function RecetarioPage() {
 
                 {/* Ingredients Table */}
                 <div style={{ marginBottom: '2.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Ingredientes' : 'Ingredients'}</h3>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                        <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                                <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
-                                <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'Cantidad' : 'Quantity'}</th>
-                                <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'U. de Medida' : 'Metric'}</th>
-                                <th style={{ padding: '0.5rem', fontWeight: 600 }}>{locale === 'es' ? 'Notas' : 'Notes'}</th>
-                                {isEditing && <th style={{ padding: '0.5rem', width: '40px' }}></th>}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {ingrList.map((ingr: any, idx: number) => (
-                                <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: idx % 2 === 0 ? 'var(--bg-secondary)' : 'transparent' }}>
-                                    {isEditing ? (
-                                        activeLinkedId ? (
-                                            <>
-                                                <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
-                                                <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
-                                                <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
-                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
-                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}></td>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
-                                                <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
-                                                <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
-                                                <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
-                                                <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
-                                            </>
-                                        )
-                                    ) : (
-                                        <>
-                                            <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
-                                            <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
-                                            <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
-                                            <td style={{ padding: '0.8rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{ingr.notes}</td>
-                                        </>
-                                    )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                    <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Ingredientes' : 'Ingredients'}</h3>
+
+                    {(() => {
+                        const groupedIngrs = ingrList.reduce((acc, ingr, idx) => {
+                            const group = ingr.groupName || 'Main Components';
+                            if (!acc[group]) acc[group] = [];
+                            acc[group].push({ ...ingr, originalIndex: idx });
+                            return acc;
+                        }, {} as Record<string, any[]>);
+
+                        const keys = Object.keys(groupedIngrs);
+                        if (keys.length === 0) {
+                            return (
+                                <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic', border: '1px dashed var(--border)', borderRadius: '8px' }}>
+                                    {locale === 'es' ? 'No hay ingredientes definidos.' : 'No ingredients defined.'}
+                                </div>
+                            );
+                        }
+
+                        return keys.map((groupName) => (
+                            <div key={groupName} style={{ marginBottom: '2rem' }}>
+                                {(keys.length > 1 || groupName !== 'Main Components') && (
+                                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '0.8rem', paddingBottom: '0.3rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                        {groupName}
+                                    </h4>
+                                )}
+                                <div className="glass-panel" style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
+                                                <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Cantidad' : 'Quantity'}</th>
+                                                <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'U. de Medida' : 'Metric'}</th>
+                                                <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Notas' : 'Notes'}</th>
+                                                {isEditing && <th style={{ padding: '0.5rem', width: '40px' }}></th>}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {groupedIngrs[groupName].map((ingr: any, localIdx: number) => {
+                                                const idx = ingr.originalIndex;
+                                                return (
+                                                    <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: localIdx % 2 === 0 ? 'rgba(0,0,0,0.15)' : 'transparent' }}>
+                                                        {isEditing ? (
+                                                            activeLinkedId ? (
+                                                                <>
+                                                                    <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
+                                                                    <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
+                                                                    <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
+                                                                    <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'center' }}></td>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <td style={{ padding: '0.4rem' }}><textarea value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                                                    <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                                                    <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                                                    <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                                                    <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
+                                                                </>
+                                                            )
+                                                        ) : (
+                                                            <>
+                                                                <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
+                                                                <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
+                                                                <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
+                                                                <td style={{ padding: '0.8rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{ingr.notes}</td>
+                                                            </>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ));
+                    })()}
+
                     {isEditing && !activeLinkedId && (
-                        <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
-                            + Agregar Ingrediente
+                        <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
+                            <Plus size={16} /> Agregar Ingrediente
                         </button>
                     )}
                 </div>
