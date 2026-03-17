@@ -143,6 +143,13 @@ export default function RecetarioPage() {
         setEditData({ ...editData, ingredientsJson: JSON.stringify(arr) });
     };
 
+    const updateLinkedIngredientNote = (ingredientName: string, val: string, currentList: any[]) => {
+        const updatedList = currentList.map(item =>
+            item.ingredient === ingredientName ? { ...item, notes: val } : item
+        );
+        setEditData({ ...editData, ingredientsJson: JSON.stringify(updatedList) });
+    };
+
     const updateProcedure = (index: number, val: string) => {
         const arr = JSON.parse(editData.procedureJson || '[]');
         arr[index] = val;
@@ -313,13 +320,15 @@ export default function RecetarioPage() {
     if (activeLinkedId) {
         const match = availablePreps.find(p => p.id === activeLinkedId);
         if (match && match.composedOf) {
-            ingrList = match.composedOf.map((comp: any, idx: number) => {
+            ingrList = match.composedOf.map((comp: any) => {
                 const liveName = (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || '');
+                const savedItem = ingrList.find((i: any) => i.ingredient === liveName);
                 return {
                     ingredient: liveName,
                     quantity: comp.quantity?.toString() || '',
                     metric: comp.unit || '',
-                    notes: ingrList[idx]?.notes || ''
+                    notes: savedItem?.notes || '',
+                    groupName: comp.groupName || 'Main Components'
                 };
             });
         }
@@ -506,7 +515,7 @@ export default function RecetarioPage() {
                                                                     <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
                                                                     <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
                                                                     <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
-                                                                    <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                                                    <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateLinkedIngredientNote(ingr.ingredient, e.target.value, ingrList)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
                                                                     <td style={{ padding: '0.4rem', textAlign: 'center' }}></td>
                                                                 </>
                                                             ) : (
