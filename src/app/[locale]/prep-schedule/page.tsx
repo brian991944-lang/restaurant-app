@@ -275,8 +275,11 @@ export default function PrepSchedulePage() {
         setCompleting(null);
     };
 
-    const sortedMorningTasks = [...morningTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
-    const sortedTomorrowTasks = [...tomorrowTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
+    const filteredMorningTasks = morningTasks.filter(t => t.category !== 'Descongelar');
+    const filteredTomorrowTasks = tomorrowTasks.filter(t => t.category !== 'Descongelar');
+
+    const sortedMorningTasks = [...filteredMorningTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
+    const sortedTomorrowTasks = [...filteredTomorrowTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
 
     const renderTaskTable = (tasksObj: PrepTask[], title: string, emptyMessage: string, isTodayList: boolean) => {
         if (tasksObj.length === 0) return (
@@ -444,11 +447,11 @@ export default function PrepSchedulePage() {
                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Clock size={18} color="var(--warning)" />
-                            <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.pending', { count: morningTasks.filter(t => !t.completed).length + tomorrowTasks.filter(t => !t.completed).length })}</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.pending', { count: filteredMorningTasks.filter(t => !t.completed).length + filteredTomorrowTasks.filter(t => !t.completed).length })}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Check size={18} color="var(--success)" />
-                            <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.completed', { count: morningTasks.filter(t => t.completed).length + tomorrowTasks.filter(t => t.completed).length })}</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.completed', { count: filteredMorningTasks.filter(t => t.completed).length + filteredTomorrowTasks.filter(t => t.completed).length })}</span>
                         </div>
                     </div>
                 </div>
@@ -676,19 +679,46 @@ export default function PrepSchedulePage() {
             setCompleting(null);
         };
 
+        let pendingCount = 0;
+        let completedCount = 0;
+
+        activePresetNames.forEach(taskName => {
+            const ing = defrostTasks.find(t => t.name === taskName);
+            if (!ing) return;
+            const isCompletedToday = completedLogs.some(log => {
+                const logEstStr = new Date(log.completedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                return log.ingredientName === taskName && logEstStr === todayStr;
+            });
+            if (isCompletedToday) completedCount++;
+            else pendingCount++;
+        });
+
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1rem' }}>
-                    <button
-                        onClick={() => setDefrostSubTab('cocinero1')}
-                        style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero1' ? '2px solid #3b82f6' : '2px solid transparent', color: defrostSubTab === 'cocinero1' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero1' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
-                        Cocinero 1 (Seafood)
-                    </button>
-                    <button
-                        onClick={() => setDefrostSubTab('cocinero2')}
-                        style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero2' ? '2px solid #ef4444' : '2px solid transparent', color: defrostSubTab === 'cocinero2' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero2' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
-                        Cocinero 2 (Pollo/Carnes)
-                    </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex' }}>
+                        <button
+                            onClick={() => setDefrostSubTab('cocinero1')}
+                            style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero1' ? '2px solid #3b82f6' : '2px solid transparent', color: defrostSubTab === 'cocinero1' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero1' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
+                            Cocinero 1 (Seafood)
+                        </button>
+                        <button
+                            onClick={() => setDefrostSubTab('cocinero2')}
+                            style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero2' ? '2px solid #ef4444' : '2px solid transparent', color: defrostSubTab === 'cocinero2' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero2' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
+                            Cocinero 2 (Pollo/Carnes)
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Clock size={18} color="var(--warning)" />
+                            <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.pending', { count: pendingCount })}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Check size={18} color="var(--success)" />
+                            <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.completed', { count: completedCount })}</span>
+                        </div>
+                    </div>
                 </div>
 
                 {isLoading ? (
