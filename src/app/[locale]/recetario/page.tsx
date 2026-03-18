@@ -235,13 +235,21 @@ export default function RecetarioPage() {
                         {(() => {
                             const validCategories = Array.isArray(categories) ? categories : [];
 
-                            const grouped = validCategories.map(cat => ({
-                                category: cat,
-                                items: filteredList.filter(r => r.categoryId === cat.id)
-                            })).filter(g => g.items.length > 0);
+                            const sortedCategories = [...validCategories].sort((a, b) => {
+                                const nameA = (locale === 'es' && a.nameEs ? a.nameEs : a.name) || '';
+                                const nameB = (locale === 'es' && b.nameEs ? b.nameEs : b.name) || '';
+                                return nameA.localeCompare(nameB);
+                            });
+
+                            const grouped = sortedCategories.map(cat => {
+                                const items = filteredList.filter(r => r.categoryId === cat.id);
+                                items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                                return { category: cat, items };
+                            }).filter(g => g.items.length > 0);
 
                             // Any recipe that doesn't belong to an existing category goes here
                             const uncategorized = filteredList.filter(r => !r.categoryId || !validCategories.some(c => c.id === r.categoryId));
+                            uncategorized.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
                             if (uncategorized.length > 0) {
                                 grouped.push({ category: { id: 'none', name: 'Uncategorized', nameEs: 'Sin Categoría' }, items: uncategorized });
                             }

@@ -60,15 +60,25 @@ export async function getRecipeHistory(recipeId: string) {
 
 export async function createDigitalRecipe(data: any) {
     try {
-        const all = await prisma.digitalRecipe.findMany();
+        let prefix = "LBX";
+        if (data.categoryId) {
+            const cat = await prisma.category.findUnique({ where: { id: data.categoryId } });
+            if (cat) {
+                const nameToUse = cat.nameEs || cat.name || '';
+                prefix = nameToUse.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase().padEnd(3, 'X');
+            }
+        }
+
+        const all = await prisma.digitalRecipe.findMany({
+            where: { recipeCode: { startsWith: `${prefix}-` } }
+        });
+
         let max = 0;
         all.forEach(r => {
-            if (r.recipeCode.startsWith('LB-')) {
-                const num = parseInt(r.recipeCode.split('-')[1]);
-                if (!isNaN(num) && num > max) max = num;
-            }
+            const num = parseInt(r.recipeCode.split('-')[1]);
+            if (!isNaN(num) && num > max) max = num;
         });
-        const nextCode = `LB-${String(max + 1).padStart(3, '0')}`;
+        const nextCode = `${prefix}-${String(max + 1).padStart(3, '0')}`;
 
         const newRec = await prisma.digitalRecipe.create({
             data: {
