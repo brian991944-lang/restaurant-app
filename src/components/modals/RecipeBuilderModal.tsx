@@ -193,13 +193,13 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                             const groupComps = components.filter(c => c.groupId === group.id);
                             const groupCost = groupComps.reduce((sum, comp) => sum + getComponentCost(comp), 0);
                             return (
-                                <div key={group.id} className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                                <div key={group.id} className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: 'var(--bg-glass)', border: 'var(--glass-border)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(128,128,128,0.2)', paddingBottom: '1rem' }}>
                                         <input
                                             value={group.name}
                                             onChange={e => updateGroupName(group.id, e.target.value)}
-                                            placeholder="Group Name (e.g. Relleno)"
-                                            style={{ background: 'transparent', border: 'none', color: 'var(--accent-primary)', fontSize: '1.1rem', fontWeight: 600, outline: 'none', minWidth: '250px' }}
+                                            placeholder="Group Name (e.g. Relleno) - REQUIRED"
+                                            style={{ background: 'rgba(128,128,128,0.08)', border: '1px solid rgba(128,128,128,0.2)', padding: '0.5rem 1rem', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600, outline: 'none', minWidth: '300px' }}
                                             required
                                         />
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -217,9 +217,9 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                             No items. Click "Add Ingredient" to start building this group.
                                         </div>
                                     ) : (
-                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '0.5rem' }}>
                                             <thead>
-                                                <tr style={{ background: 'transparent', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <tr style={{ borderBottom: '1px solid rgba(128,128,128,0.2)' }}>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Qty</th>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>Unidad</th>
@@ -251,8 +251,8 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                             );
                         })}
 
-                        <button type="button" onClick={addGroup} className="btn-secondary" style={{ width: '100%', padding: '0.8rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', borderStyle: 'dashed', background: 'transparent', opacity: 0.8, transition: 'opacity 0.2s' }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.8'}>
-                            <Plus size={18} /> Add Component Group
+                        <button type="button" onClick={addGroup} className="btn-secondary" style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', border: '2px dashed var(--accent-primary)', color: 'var(--text-primary)', background: 'rgba(128,128,128,0.05)', borderRadius: '8px', opacity: 0.9, transition: 'opacity 0.2s', fontWeight: 600 }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.9'}>
+                            <Plus size={18} /> Agregar Otro Componente (Add Block)
                         </button>
 
                         <div style={{ marginTop: '2rem', padding: '1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', textAlign: 'center' }}>
