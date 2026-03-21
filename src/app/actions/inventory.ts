@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getConversionFactor } from '@/lib/conversion';
+import { revalidatePath } from 'next/cache';
 
 async function translateToSpanish(text: string): Promise<string> {
     if (!text) return text;
@@ -143,6 +144,7 @@ export async function addIngredient(data: any) {
             });
         }
 
+        revalidatePath('/[locale]/inventory');
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to add ingredient:', e);
@@ -248,6 +250,7 @@ export async function editIngredient(id: string, data: any) {
             });
         }
 
+        revalidatePath('/[locale]/inventory');
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to edit ingredient:', e);
