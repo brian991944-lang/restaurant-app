@@ -275,8 +275,16 @@ export default function PrepSchedulePage() {
         setCompleting(null);
     };
 
-    const filteredMorningTasks = morningTasks.filter(t => t.category !== 'Descongelar');
-    const filteredTomorrowTasks = tomorrowTasks.filter(t => t.category !== 'Descongelar');
+    const filteredMorningTasks = morningTasks.filter(t => {
+        if (!t.category) return true;
+        const normalized = t.category.trim().toLowerCase();
+        return !normalized.includes('descongelar');
+    });
+    const filteredTomorrowTasks = tomorrowTasks.filter(t => {
+        if (!t.category) return true;
+        const normalized = t.category.trim().toLowerCase();
+        return !normalized.includes('descongelar');
+    });
 
     const sortedMorningTasks = [...filteredMorningTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
     const sortedTomorrowTasks = [...filteredTomorrowTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
