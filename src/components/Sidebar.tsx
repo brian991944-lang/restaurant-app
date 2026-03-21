@@ -7,8 +7,9 @@ import { useTheme } from 'next-themes';
 import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
+import { useWorkstation } from '@/components/WorkstationContext';
 
-export default function Sidebar({ locale }: { locale: string }) {
+export default function Sidebar({ locale, isOpen, onClose }: { locale: string, isOpen?: boolean, onClose?: () => void }) {
     const t = useTranslations('Nav');
     const router = useRouter();
     const pathname = usePathname();
@@ -18,6 +19,7 @@ export default function Sidebar({ locale }: { locale: string }) {
 
     // Admin View State
     const { isAdmin, setIsAdmin } = useAdmin();
+    const { station } = useWorkstation();
     const [showAdminModal, setShowAdminModal] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
     const [loginError, setLoginError] = useState(false);
@@ -41,11 +43,25 @@ export default function Sidebar({ locale }: { locale: string }) {
         { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar },
         { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp },
         { name: t('raw_data'), href: `/${locale}/data`, icon: Database },
+        { name: 'Inventory Salon', href: `/${locale}/inventory-salon`, icon: Package },
+        { name: 'Tips & Reviews', href: `/${locale}/tips-reviews`, icon: TrendingUp },
+        { name: 'Gift Cards', href: `/${locale}/gift-cards`, icon: Tags },
+        { name: 'Opening & Closing Lists', href: `/${locale}/closing-lists`, icon: LayoutDashboard },
     ];
 
     const filteredNavItems = isAdmin
         ? navItems
-        : navItems.filter(item => item.href.includes('/inventory') || item.href.includes('/prep-schedule') || item.href.includes('/recetario'));
+        : station === 'Cocina'
+            ? navItems.filter(item => {
+                const h = item.href;
+                return (h.endsWith('/inventory') || h.includes('/prep-schedule') || h.includes('/recetario'));
+            })
+            : station === 'Salon'
+                ? navItems.filter(item => {
+                    const h = item.href;
+                    return (h.includes('/inventory-salon') || h.includes('/tips-reviews') || h.includes('/gift-cards') || h.includes('/closing-lists'));
+                })
+                : [];
 
     return (
         <aside style={{
