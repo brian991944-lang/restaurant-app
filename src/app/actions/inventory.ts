@@ -137,7 +137,8 @@ export async function addIngredient(data: any) {
                     prepRecipeId: ingredient.id,
                     ingredientId: c.ingredientId,
                     quantity: parseFloat(c.quantity) || 0,
-                    unit: c.unit || null
+                    unit: c.unit || null,
+                    groupName: c.groupName || null
                 }))
             });
         }
@@ -241,7 +242,8 @@ export async function editIngredient(id: string, data: any) {
                     prepRecipeId: id,
                     ingredientId: c.ingredientId,
                     quantity: parseFloat(c.quantity) || 0,
-                    unit: c.unit || null
+                    unit: c.unit || null,
+                    groupName: c.groupName || null
                 }))
             });
         }
@@ -306,7 +308,8 @@ export async function savePrepRecipe(id: string | null, data: any) {
                         prepRecipeId: id,
                         ingredientId: c.ingredientId,
                         quantity: parseFloat(c.quantity) || 0,
-                        unit: c.unit || null
+                        unit: c.unit || null,
+                        groupName: c.groupName || null
                     }))
                 });
             }
@@ -336,7 +339,8 @@ export async function savePrepRecipe(id: string | null, data: any) {
                         prepRecipeId: ingredient.id,
                         ingredientId: c.ingredientId,
                         quantity: parseFloat(c.quantity) || 0,
-                        unit: c.unit || null
+                        unit: c.unit || null,
+                        groupName: c.groupName || null
                     }))
                 });
             }
