@@ -5,7 +5,6 @@ import { Menu } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { AdminProvider } from '@/components/AdminContext';
 import { WorkstationProvider } from '@/components/WorkstationContext';
-import WorkstationModal from '@/components/modals/WorkstationModal';
 
 export default function AppLayout({
   children,
@@ -19,7 +18,6 @@ export default function AppLayout({
   return (
     <AdminProvider>
       <WorkstationProvider>
-        <WorkstationModal />
         <div className="layout-container" style={{ flexDirection: 'column', width: '100%', height: '100vh', overflow: 'hidden' }}>
           {/* Mobile Top Header */}
           <div
@@ -68,6 +66,6 @@ export default function AppLayout({
           </div>
         </div>
       </WorkstationProvider>
-    </AdminProvider>
+    </AdminProvider >
   );
 }

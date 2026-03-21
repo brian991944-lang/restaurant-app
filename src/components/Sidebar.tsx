@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
@@ -19,10 +19,21 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
 
     // Admin View State
     const { isAdmin, setIsAdmin } = useAdmin();
-    const { station } = useWorkstation();
+    const { station, setStation } = useWorkstation();
     const [showAdminModal, setShowAdminModal] = useState(false);
     const [passwordInput, setPasswordInput] = useState('');
     const [loginError, setLoginError] = useState(false);
+
+    const switchStation = (newStation: 'Cocina' | 'Salon') => {
+        setStation(newStation);
+        if (!isAdmin) {
+            if (newStation === 'Cocina') {
+                router.push(`/${locale}/inventory`);
+            } else {
+                router.push(`/${locale}/inventory-salon`);
+            }
+        }
+    };
 
     useEffect(() => {
         setMounted(true);
@@ -152,6 +163,24 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
 
             {/* Bottom Controls */}
             <div style={{ padding: isCollapsed ? '1.5rem 0' : '1.5rem', borderTop: '1px solid rgba(150, 150, 150, 0.1)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: isCollapsed ? 'center' : 'stretch' }}>
+
+                {/* WORKSTATION TOGGLE HERE */}
+                {!isCollapsed && (
+                    <div style={{ display: 'flex', background: 'var(--bg-primary)', borderRadius: '12px', padding: '0.25rem', border: '1px solid var(--glass-border)' }}>
+                        <button
+                            onClick={() => switchStation('Cocina')}
+                            style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', background: station === 'Cocina' ? 'rgba(168, 85, 247, 0.1)' : 'transparent', color: station === 'Cocina' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: station === 'Cocina' ? 600 : 400, transition: 'all 0.2s', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                            <ChefHat size={16} color={station === 'Cocina' ? 'var(--accent-primary)' : 'currentColor'} />
+                            Cocina
+                        </button>
+                        <button
+                            onClick={() => switchStation('Salon')}
+                            style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', background: station === 'Salon' ? 'rgba(56, 189, 248, 0.1)' : 'transparent', color: station === 'Salon' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: station === 'Salon' ? 600 : 400, transition: 'all 0.2s', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                            <Coffee size={16} color={station === 'Salon' ? 'var(--accent-secondary)' : 'currentColor'} />
+                            Salón
+                        </button>
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', justifyContent: 'space-between', alignItems: 'center', gap: isCollapsed ? '1rem' : '0' }}>
 
