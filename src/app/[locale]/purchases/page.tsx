@@ -123,7 +123,7 @@ export default function PurchasesPage() {
                             const isReadyToSync = req.vendorName && currentIngredientId && req.normalizedMetric;
 
                             return (
-                                <div key={idx} style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div key={idx} style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--border)' }}>
 
                                     {/* Header Row */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -232,7 +232,7 @@ export default function PurchasesPage() {
                                                 />
                                             </div>
 
-                                            <div style={{ paddingLeft: '1rem', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <div style={{ paddingLeft: '1rem', borderLeft: '1px solid var(--border)' }}>
                                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Live Normalized Cost: </span>
                                                 <strong style={{ fontSize: '1.25rem', color: 'var(--success)' }}>${normalizedPrice.toFixed(4)}</strong> <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>/ {req.normalizedMetric || "unit"}</span>
                                             </div>
@@ -321,7 +321,7 @@ export default function PurchasesPage() {
 
                     return (
                         <div key={parentName} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>{parentName}</h2>
+                            <h2 style={{ fontSize: '1.5rem', fontWeight: 600, borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>{parentName}</h2>
 
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead>

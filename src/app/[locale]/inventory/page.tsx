@@ -443,7 +443,7 @@ export default function InventoryPage() {
 
                             {confirmingAdjust === item.id && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '8px', zIndex: 10 }}>
-                                    <select value={adjustCook} onChange={(e) => setAdjustCook(e.target.value)} style={{ padding: '0.3rem', borderRadius: '4px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)', fontSize: '0.85rem' }}>
+                                    <select value={adjustCook} onChange={(e) => setAdjustCook(e.target.value)} style={{ padding: '0.3rem', borderRadius: '4px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
                                         <option value="">Select Cook...</option>
                                         {prepUsers.map(user => (
                                             <option key={user.id} value={user.id}>{user.name}</option>
@@ -485,7 +485,7 @@ export default function InventoryPage() {
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: '2.5rem', position: 'relative', zIndex: 0 }}>
                 {sortedCategories.map(cat => (
                     <div key={cat} style={{ display: 'flex', flexDirection: 'column', marginBottom: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.8, color: 'var(--text-secondary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', marginBottom: '1.5rem', marginTop: 0 }}>
+                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.8, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1.5rem', marginTop: 0 }}>
                             {getOptName(cat)}
                         </h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
@@ -508,7 +508,7 @@ export default function InventoryPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     {activeTab === 'ALL_INGREDIENTS' && (
-                        <button className="btn-secondary" onClick={() => setIsManageOptionsOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <button className="btn-secondary" onClick={() => setIsManageOptionsOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
                             <Settings size={18} />
                             <span>{t('manage_options')}</span>
                         </button>
@@ -572,7 +572,7 @@ export default function InventoryPage() {
             {activeTab === 'ALL' && (
                 <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                         <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
                         <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
                         <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
@@ -581,7 +581,7 @@ export default function InventoryPage() {
 
                     {lastSyncTime && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                            <button onClick={handleSyncClover} disabled={isSyncing} className="btn-primary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', borderRadius: '8px', background: '#1e3a8a', border: '1px solid rgba(255,255,255,0.1)', color: 'white', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'background 0.2s', cursor: isSyncing ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} onMouseOver={(e) => { if (!isSyncing) e.currentTarget.style.background = '#1e40af'; }} onMouseOut={(e) => { if (!isSyncing) e.currentTarget.style.background = '#1e3a8a'; }}>
+                            <button onClick={handleSyncClover} disabled={isSyncing} className="btn-primary" style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', borderRadius: '8px', background: '#1e3a8a', border: '1px solid var(--border)', color: 'white', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'background 0.2s', cursor: isSyncing ? 'not-allowed' : 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }} onMouseOver={(e) => { if (!isSyncing) e.currentTarget.style.background = '#1e40af'; }} onMouseOut={(e) => { if (!isSyncing) e.currentTarget.style.background = '#1e3a8a'; }}>
                                 <RefreshCw size={16} className={isSyncing ? 'spin-anim' : ''} />
                                 {isSyncing ? (locale === 'es' ? 'Actualizando...' : 'Syncing...') : (locale === 'es' ? 'Actualizar' : 'Sync Now')}
                             </button>
@@ -601,7 +601,7 @@ export default function InventoryPage() {
                                 <div className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
                                     <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '800px' }}>
                                         <thead>
-                                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                                            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                                 <th style={{ padding: '1rem', fontWeight: 500 }}>{locale === 'es' ? 'Categoría' : 'Category'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500 }}>{locale === 'es' ? 'Nombre' : 'Name'}</th>
                                                 <th style={{ padding: '1rem', fontWeight: 500, textAlign: 'center' }}>{locale === 'es' ? 'Stock Total' : 'Total Stock'}</th>
@@ -633,9 +633,9 @@ export default function InventoryPage() {
                                                             const frozenAmt = Math.max(0, totalStock - displayUnfrozen);
 
                                                             return (
-                                                                <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                                     {index === 0 && (
-                                                                        <td rowSpan={catItems.length} style={{ padding: '1rem', fontWeight: 600, verticalAlign: 'middle', width: '200px', borderRight: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-secondary)' }}>
+                                                                        <td rowSpan={catItems.length} style={{ padding: '1rem', fontWeight: 600, verticalAlign: 'middle', width: '200px', borderRight: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                                                             {cat}
                                                                         </td>
                                                                     )}
@@ -646,7 +646,7 @@ export default function InventoryPage() {
                                                                     <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}>{totalStock} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.metric}</span></td>
                                                                     <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: '#60a5fa', fontWeight: 600 }}>{frozenAmt}</td>
                                                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                                        <div style={{ display: 'inline-flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                        <div style={{ display: 'inline-flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
                                                                             <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: Math.max(0, displayUnfrozen - 1) }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--danger)', opacity: displayUnfrozen <= 0 ? 0.3 : 1, cursor: displayUnfrozen <= 0 ? 'not-allowed' : 'pointer' }} disabled={displayUnfrozen <= 0}>
                                                                                 <Minus size={16} />
                                                                             </button>
@@ -744,7 +744,7 @@ export default function InventoryPage() {
                                                     <span style={{ color: 'var(--text-secondary)' }}>{parent.total} {getOptName(parent.metric)}</span>
                                                 </div>
                                                 {children.length > 0 && (
-                                                    <div style={{ paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderLeft: '2px solid rgba(255,255,255,0.1)' }}>
+                                                    <div style={{ paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderLeft: '2px solid var(--border)' }}>
                                                         {children.map(child => (
                                                             <div key={child.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                                                                 <span style={{ color: 'var(--accent-primary)' }}>↳ {child.name}</span>
@@ -767,7 +767,7 @@ export default function InventoryPage() {
 
             {activeTab === 'PRODUCTION' && (
                 <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
-                    <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <Calendar size={20} style={{ color: 'var(--accent-primary)' }} />
                             <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Friday</h2>
@@ -776,7 +776,7 @@ export default function InventoryPage() {
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('name')}</th>
                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('to_produce')}</th>
                             </tr>
@@ -814,7 +814,7 @@ export default function InventoryPage() {
                     <div className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
-                                <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                     <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Recipe Name</th>
                                     <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</th>
                                     <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Yield / Batch Size</th>
@@ -830,7 +830,7 @@ export default function InventoryPage() {
                                     </tr>
                                 ) : (
                                     filteredInventory.filter(i => i.type === 'PREP_RECIPE').map(item => (
-                                        <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                             <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{item.name}</td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{getOptName(item.category)}</td>
                                             <td style={{ padding: '1rem 1.5rem' }}>{item.portionWeightG || 1} {getOptName(item.metric)}</td>
@@ -853,7 +853,7 @@ export default function InventoryPage() {
                 <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                     {/* Filters for ALL_INGREDIENTS */}
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
                         <SearchableSelect
                             value={allIngredientsCategoryFilter}
                             onChange={(val) => {
@@ -919,12 +919,12 @@ export default function InventoryPage() {
 
                             return (
                                 <div key={category} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
-                                    <div style={{ padding: '1rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <div style={{ padding: '1rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{getOptName(category)}</h3>
                                     </div>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                         <thead>
-                                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                            <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>{t('total')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('name')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('type')}</th>
@@ -1022,7 +1022,7 @@ export default function InventoryPage() {
             {
                 activeTab === 'CATEGORIES' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                             <button onClick={() => setCategoryTab('CATEGORIES')} className={categoryTab === 'CATEGORIES' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: categoryTab === 'CATEGORIES' ? 'none' : '1px solid var(--glass-border)', color: categoryTab === 'CATEGORIES' ? 'white' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Categorías' : 'Categories'}</button>
                             <button onClick={() => setCategoryTab('PROVEEDORES')} className={categoryTab === 'PROVEEDORES' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: categoryTab === 'PROVEEDORES' ? 'none' : '1px solid var(--glass-border)', color: categoryTab === 'PROVEEDORES' ? 'white' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Proveedores' : 'Suppliers'}</button>
                         </div>
@@ -1044,7 +1044,7 @@ export default function InventoryPage() {
                                                 { bg: 'rgba(255, 255, 255, 0.1)', text: 'var(--text-primary)' };
                                     return (
                                         <div key={dept} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                                                 <h2 style={{ fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <span style={{
                                                         display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%',
@@ -1062,7 +1062,7 @@ export default function InventoryPage() {
                                                         <div key={category.id} style={{
                                                             display: 'flex', flexDirection: 'column',
                                                             background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
-                                                            border: '1px solid rgba(255,255,255,0.03)',
+                                                            border: '1px solid var(--border)',
                                                             overflow: 'hidden'
                                                         }}>
                                                             <div
@@ -1088,7 +1088,7 @@ export default function InventoryPage() {
                                                                 </div>
                                                             </div>
                                                             {isExpanded && (
-                                                                <div style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', padding: '1rem' }}>
+                                                                <div style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid var(--border)', padding: '1rem' }}>
                                                                     {categoryIngredients.length === 0 ? (
                                                                         <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem 0' }}>
                                                                             {locale === 'es' ? 'No hay ingredientes en esta categoría' : 'No ingredients in this category'}
@@ -1096,7 +1096,7 @@ export default function InventoryPage() {
                                                                     ) : (
                                                                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                                                                             <thead>
-                                                                                <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                                                                                <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                                                                     <th style={{ padding: '0.5rem', fontWeight: 500 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
                                                                                     <th style={{ padding: '0.5rem', fontWeight: 500, textAlign: 'right' }}>{locale === 'es' ? 'Stock' : 'Stock'}</th>
                                                                                     <th style={{ padding: '0.5rem', fontWeight: 500 }}>{locale === 'es' ? 'Unidad' : 'Metric'}</th>
@@ -1104,7 +1104,7 @@ export default function InventoryPage() {
                                                                             </thead>
                                                                             <tbody>
                                                                                 {categoryIngredients.sort((a, b) => a.name.localeCompare(b.name)).map(ing => (
-                                                                                    <tr key={ing.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                                                                    <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                                                         <td style={{ padding: '0.5rem' }}>
                                                                                             <button
                                                                                                 onClick={(e) => { e.stopPropagation(); setEditingIngredient(ing); setIsAddModalOpen(true); }}
@@ -1136,7 +1136,7 @@ export default function InventoryPage() {
                         {categoryTab === 'PROVEEDORES' && (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '2rem' }}>
                                 <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem', gridColumn: '1 / -1' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                                         <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{locale === 'es' ? 'Lista de Proveedores' : 'Supplier List'}</h2>
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{dbProviders.length} providers</span>
                                     </div>
@@ -1149,7 +1149,7 @@ export default function InventoryPage() {
                                                 <div key={prov.id} style={{
                                                     display: 'flex', flexDirection: 'column',
                                                     background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
-                                                    border: '1px solid rgba(255,255,255,0.03)',
+                                                    border: '1px solid var(--border)',
                                                     overflow: 'hidden'
                                                 }}>
                                                     <div
@@ -1176,7 +1176,7 @@ export default function InventoryPage() {
                                                     </div>
 
                                                     {isExpanded && (
-                                                        <div style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid rgba(255,255,255,0.05)', padding: '1rem' }}>
+                                                        <div style={{ background: 'rgba(255,255,255,0.02)', borderTop: '1px solid var(--border)', padding: '1rem' }}>
                                                             {providerIngredients.length === 0 ? (
                                                                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem 0' }}>
                                                                     {locale === 'es' ? 'No hay ingredientes asignados a este proveedor' : 'No ingredients assigned to this provider'}
@@ -1184,7 +1184,7 @@ export default function InventoryPage() {
                                                             ) : (
                                                                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
                                                                     <thead>
-                                                                        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)' }}>
+                                                                        <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                                                             <th style={{ padding: '0.5rem', fontWeight: 500 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
                                                                             <th style={{ padding: '0.5rem', fontWeight: 500, textAlign: 'right' }}>{locale === 'es' ? 'Stock' : 'Stock'}</th>
                                                                             <th style={{ padding: '0.5rem', fontWeight: 500 }}>{locale === 'es' ? 'Unidad' : 'Metric'}</th>
@@ -1192,7 +1192,7 @@ export default function InventoryPage() {
                                                                     </thead>
                                                                     <tbody>
                                                                         {providerIngredients.sort((a, b) => a.name.localeCompare(b.name)).map(ing => (
-                                                                            <tr key={ing.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                                                            <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                                                 <td style={{ padding: '0.5rem' }}>
                                                                                     <button
                                                                                         onClick={(e) => { e.stopPropagation(); setEditingIngredient(ing); setIsAddModalOpen(true); }}

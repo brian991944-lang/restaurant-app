@@ -90,7 +90,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
             transition: 'width 0.3s ease'
         }}>
             {/* Logo Area */}
-            <div style={{ padding: isCollapsed ? '2rem 0' : '2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between', borderBottom: '1px solid rgba(150, 150, 150, 0.1)' }}>
+            <div style={{ padding: isCollapsed ? '2rem 0' : '2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between', borderBottom: '1px solid var(--border)' }}>
                 {!isCollapsed && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <div style={{
@@ -162,7 +162,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
             </nav>
 
             {/* Bottom Controls */}
-            <div style={{ padding: isCollapsed ? '1.5rem 0' : '1.5rem', borderTop: '1px solid rgba(150, 150, 150, 0.1)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: isCollapsed ? 'center' : 'stretch' }}>
+            <div style={{ padding: isCollapsed ? '1.5rem 0' : '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: isCollapsed ? 'center' : 'stretch' }}>
 
                 {/* WORKSTATION TOGGLE HERE */}
                 {!isCollapsed && (
@@ -196,7 +196,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                             borderRadius: '12px',
                             background: 'var(--bg-secondary)',
                             color: 'var(--text-primary)',
-                            border: '1px solid rgba(150,150,150,0.1)',
+                            border: '1px solid var(--border)',
                             fontWeight: 500,
                             transition: 'all 0.2s',
                             flex: isCollapsed ? 'none' : 1,
@@ -219,7 +219,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                                 borderRadius: '12px',
                                 background: 'var(--bg-secondary)',
                                 color: 'var(--text-primary)',
-                                border: '1px solid rgba(150,150,150,0.1)',
+                                border: '1px solid var(--border)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',

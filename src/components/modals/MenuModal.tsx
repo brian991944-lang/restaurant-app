@@ -139,7 +139,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
             display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
         }}>
             <div className="glass-panel" style={{ width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                     <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
                     <button onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
                 </div>
@@ -167,7 +167,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <label style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>POS Item Link (Clover)</label>
                         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bind this menu dish permanently to a Clover POS item.</p>
                         <SearchableSelect
@@ -178,7 +178,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                         />
                     </div>
 
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Recipe Builder (Bill of Materials)</h3>
                             <button type="button" onClick={handleAddIngredient} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
@@ -193,7 +193,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                         ) : (
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead>
-                                    <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>Qty (e.g. 0.25)</th>
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Metric</th>
@@ -203,7 +203,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                 </thead>
                                 <tbody>
                                     {ingredients.map((ing) => (
-                                        <tr key={ing.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                             <td style={{ padding: '0.5rem' }}>
                                                 <SearchableSelect
                                                     value={ing.ingredientId}
@@ -279,7 +279,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                         )}
 
                         {ingredients.length > 0 && (
-                            <div style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
+                            <div style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Recipe Cost</span>
                                     <span style={{ fontSize: '1.2rem', fontWeight: 600 }}>${totalCalculatedCost.toFixed(2)}</span>
@@ -296,7 +296,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                         )}
                     </div>
 
-                    <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '1rem', fontWeight: 500 }}>
                             <input type="checkbox" checked={hasInventoryModifiers} onChange={e => setHasInventoryModifiers(e.target.checked)} style={{ width: '18px', height: '18px' }} />
                             Does this item have inventory-relevant modifiers?
@@ -311,7 +311,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                     }, 0);
 
                                     return (
-                                        <div key={mod.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div key={mod.id} style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                                 <div style={{ display: 'flex', flex: 1, paddingRight: '1rem' }}>
                                                     <div style={{ flex: 1 }}>
@@ -340,7 +340,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                 ) : (
                                                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginBottom: '1rem' }}>
                                                         <thead>
-                                                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                                            <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                                                                 <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
                                                                 <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Qty</th>
                                                                 <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '110px' }}>Metric</th>
@@ -350,7 +350,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                         </thead>
                                                         <tbody>
                                                             {mod.ingredients.map(ing => (
-                                                                <tr key={ing.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                                <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                                     <td style={{ padding: '0.4rem' }}>
                                                                         <SearchableSelect
                                                                             value={ing.ingredientId}
@@ -440,7 +440,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                     const currentModFoodCostPct = modSellingPrice > 0 ? ((totalCalculatedCost + modCost) / modSellingPrice) * 100 : 0;
 
                                                     return (
-                                                        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
+                                                        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                                                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Costo Modificador' : 'Modifier Cost'}</span>
                                                                 <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>${modCost.toFixed(2)}</span>

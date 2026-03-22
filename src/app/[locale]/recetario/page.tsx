@@ -275,7 +275,7 @@ export default function RecetarioPage() {
                                                     {recipe.overview || 'Sin descripción'}
                                                 </p>
                                                 {isAdmin && (
-                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
                                                         <button onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
                                                             <Pencil size={14} /> Editar
                                                         </button>
@@ -497,11 +497,11 @@ export default function RecetarioPage() {
                         return keys.map((groupName) => (
                             <div key={groupName} style={{ marginBottom: '2rem' }}>
                                 {(keys.length > 1 || groupName !== 'Main Components') && (
-                                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '0.8rem', paddingBottom: '0.3rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '0.8rem', paddingBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
                                         {groupName}
                                     </h4>
                                 )}
-                                <div className="glass-panel" style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <div className="glass-panel" style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -554,7 +554,7 @@ export default function RecetarioPage() {
                     })()}
 
                     {isEditing && !activeLinkedId && (
-                        <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
+                        <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
                             <Plus size={16} /> Agregar Ingrediente
                         </button>
                     )}
@@ -590,7 +590,7 @@ export default function RecetarioPage() {
                         ))}
                     </div>
                     {isEditing && (
-                        <button onClick={addProcedureRow} style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed rgba(255,255,255,0.2)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
+                        <button onClick={addProcedureRow} style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
                             + Agregar Paso
                         </button>
                     )}

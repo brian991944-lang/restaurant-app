@@ -264,7 +264,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
         }}>
             <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)', maxHeight: '90vh', overflowY: 'auto' }}>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                     <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? 'Edit Ingredient' : t('modal_add_title')}</h2>
                     <button type="button" onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
                 </div>
@@ -274,7 +274,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     {currentType === 'PREP_RECIPE' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Recipe Name / Nombre de la Receta</label>
-                            <div style={{ fontWeight: 'bold', border: '1px solid rgba(255,255,255,0.1)', padding: '12px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', fontSize: '1.1rem' }}>
+                            <div style={{ fontWeight: 'bold', border: '1px solid var(--border)', padding: '12px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', fontSize: '1.1rem' }}>
                                 {nameInput}
                             </div>
                         </div>
@@ -453,7 +453,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     )}
 
                     {currentType === 'PROCESSED' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                 <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
                                     <input
@@ -477,7 +477,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             </div>
 
                             {trackFreezerStatus && initialData && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '1rem' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                                     <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>Cantidad Descongelada / Unfrozen in Fridge</label>
                                     <input
                                         type="number"
@@ -495,7 +495,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     {/* MetricPriceSection handles Waste % */}
 
                     {currentType === 'PROCESSED' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: isPortioned ? '1fr 1fr 1fr' : '1fr', gap: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isPortioned ? '1fr 1fr 1fr' : '1fr', gap: '1rem', background: 'rgba(0,0,0,0.2)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             {isPortioned && (
                                 <>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -528,7 +528,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('modal_min_alert_helper')}</span>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Clover Item ID (Optional)</label>
                             <input value={cloverId} onChange={e => setCloverId(e.target.value)} type="text" className="input-field" placeholder="e.g. WVH7N66BZZ5WT" />

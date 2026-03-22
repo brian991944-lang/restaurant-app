@@ -44,7 +44,7 @@ export default function IntegrationsPage() {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5 }}>
                             Connect directly to your Clover merchant account to pull items, categories, and sales performance daily.
                         </p>
-                        <button className="btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }}>
+                        <button className="btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }}>
                             <LinkIcon size={18} />
                             Connect Clover
                         </button>
@@ -64,7 +64,7 @@ export default function IntegrationsPage() {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5 }}>
                             Connect directly to your Toast account to retrieve real-time sales, menus, and discount tracking.
                         </p>
-                        <button className="btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }}>
+                        <button className="btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)' }}>
                             <LinkIcon size={18} />
                             Connect Toast
                         </button>
@@ -88,7 +88,7 @@ export default function IntegrationsPage() {
                         </div>
                     </div>
 
-                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '12px', border: '1px dashed rgba(255,255,255,0.2)' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '12px', border: '1px dashed var(--border)' }}>
                         <p style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)' }}>
                             If you do not want to connect directly to the API, you can set up a daily reporting email from your POS to send "End of Day Sales" reports straight to your unique Drop Address. Our backend AI parser will automatically extract the invoice/sales data.
                         </p>

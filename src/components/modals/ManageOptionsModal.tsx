@@ -111,7 +111,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
             <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)', maxHeight: '90vh', overflowY: 'auto' }}>
 
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                     <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{t('manage_options_title')}</h2>
                     <button onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
                 </div>
@@ -138,7 +138,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                 </div>
 
                 {/* Current Options List View */}
-                <div style={{ border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', overflowY: 'auto', maxHeight: '40vh', minHeight: '150px' }}>
+                <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflowY: 'auto', maxHeight: '40vh', minHeight: '150px' }}>
                     {isLoading ? (
                         <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
                     ) : options.length === 0 ? (

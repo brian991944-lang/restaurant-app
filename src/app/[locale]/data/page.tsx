@@ -50,7 +50,7 @@ export default function RawDataPage() {
                     <p style={{ color: 'var(--text-secondary)' }}>View, verify, and export raw ingested data</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <button className="btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
                         <Download size={18} />
                         <span>Export CSV</span>
                     </button>
@@ -64,7 +64,7 @@ export default function RawDataPage() {
             {/* Controls Container */}
             <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px' }}>
-                    <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 500, fontSize: '0.9rem', color: '#fff', background: 'var(--bg-secondary)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                    <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 500, fontSize: '0.9rem', color: '#fff', background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                         All Data Logs
                     </button>
                     <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-secondary)', background: 'transparent', border: '1px solid transparent' }}>
@@ -94,7 +94,7 @@ export default function RawDataPage() {
             <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
-                        <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
                             <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Date Ingested</th>
                             <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Source</th>
                             <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Data Type</th>
@@ -105,7 +105,7 @@ export default function RawDataPage() {
                     </thead>
                     <tbody>
                         {filteredData.map((item) => (
-                            <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
+                            <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
                                 <td style={{ padding: '1rem 1.5rem', fontWeight: 500 }}>{item.date}</td>
                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{item.source}</td>
                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{item.type}</td>

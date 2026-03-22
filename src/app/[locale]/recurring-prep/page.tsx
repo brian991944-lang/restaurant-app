@@ -37,7 +37,7 @@ export default function RecurringPrepPage() {
                     const dayRules = rules.filter(r => r.dayOfWeek === idx);
                     return (
                         <div key={day} className="glass-panel" style={{ padding: '1.5rem' }}>
-                            <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', fontSize: '1.1rem' }}>
+                            <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', fontSize: '1.1rem' }}>
                                 <Calendar size={18} color={dayRules.length > 0 ? "var(--accent-primary)" : "var(--text-secondary)"} />
                                 {day}
                             </h3>
@@ -47,7 +47,7 @@ export default function RecurringPrepPage() {
                                 </div>
                             ) : (
                                 dayRules.map(rule => (
-                                    <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', padding: '0.8rem', borderRadius: '8px', marginBottom: '0.5rem' }}>
+                                    <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', padding: '0.8rem', borderRadius: '8px', marginBottom: '0.5rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <strong style={{ fontSize: '1rem' }}>{rule.ingredient.name}</strong>
                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{rule.ingredient.category.name}</span>

@@ -28,7 +28,7 @@ export function ComponentRow({ comp, dbIngredients, updateComponent, removeCompo
         : ALLOWED_METRICS.filter(m => m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }));
 
     return (
-        <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <tr style={{ borderBottom: '1px solid var(--border)' }}>
             <td style={{ padding: '0.5rem' }}>
                 <SearchableSelect
                     value={comp.ingredientId}

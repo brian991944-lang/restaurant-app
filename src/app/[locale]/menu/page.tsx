@@ -79,7 +79,7 @@ export default function MenuPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem', marginTop: '1rem' }}>
                 {Object.entries(groupedMenu).sort(([catA], [catB]) => catA.localeCompare(catB)).map(([category, items]: [string, any]) => (
                     <div key={category}>
-                        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', color: 'var(--text-secondary)' }}>
+                        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', color: 'var(--text-secondary)' }}>
                             {category}
                         </h2>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
@@ -118,7 +118,7 @@ export default function MenuPage() {
                                                     ${totalCost.toFixed(2)} <span style={{ fontSize: '0.7rem' }}>({currentFoodCostPct.toFixed(1)}%)</span>
                                                 </div>
                                             </div>
-                                            <div style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
+                                            <div style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
                                                 <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginBottom: '0.25rem' }}>Gross Margin</div>
                                                 <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--success)' }}>{margin.toFixed(1)}%</div>
                                             </div>

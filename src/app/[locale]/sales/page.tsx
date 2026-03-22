@@ -69,7 +69,7 @@ export default function SalesAuditPage() {
 
                     return (
                         <div key={dateStr} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem' }}>
-                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, borderBottom: '2px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', margin: 0, textAlign: 'center', color: idx === 2 ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                            <h2 style={{ fontSize: '1.25rem', fontWeight: 600, borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', margin: 0, textAlign: 'center', color: idx === 2 ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
                                 {dateStr} {idx === 2 && '(Today)'}
                             </h2>
 
@@ -94,7 +94,7 @@ export default function SalesAuditPage() {
                                                         const modifiers = Object.keys(itemData.modifiers || {}).sort((a, b) => a.localeCompare(b));
 
                                                         return (
-                                                            <div key={itemName} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.02)' }}>
+                                                            <div key={itemName} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
                                                                 {/* Item Row */}
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     <span style={{ fontWeight: 600 }}>{itemName}</span>
@@ -103,7 +103,7 @@ export default function SalesAuditPage() {
 
                                                                 {/* Modifier Rows */}
                                                                 {modifiers.length > 0 && (
-                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', paddingLeft: '1rem', borderLeft: '2px solid rgba(255,255,255,0.05)', marginLeft: '0.5rem', marginTop: '0.25rem' }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', paddingLeft: '1rem', borderLeft: '2px solid var(--border)', marginLeft: '0.5rem', marginTop: '0.25rem' }}>
                                                                         {modifiers.map(modName => (
                                                                             <div key={modName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                                                                 <span>+ {modName}</span>

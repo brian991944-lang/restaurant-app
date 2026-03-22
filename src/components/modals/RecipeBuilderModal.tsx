@@ -148,7 +148,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
     return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
             <div className="glass-panel" style={{ width: '100%', maxWidth: '900px', padding: '2rem', maxHeight: '90vh', overflowY: 'auto', background: 'var(--bg-primary)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                     <div>
                         <h2 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>{initialData ? 'Edit Prep Recipe' : 'Add Prep Recipe'}</h2>
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Dynamically calculate costs against raw ingredients</span>
@@ -184,7 +184,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                         </div>
                     </div>
 
-                    <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+                    <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                             <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>Components</h3>
                         </div>
@@ -194,12 +194,12 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                             const groupCost = groupComps.reduce((sum, comp) => sum + getComponentCost(comp), 0);
                             return (
                                 <div key={group.id} className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem', background: 'var(--bg-glass)', border: 'var(--glass-border)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(128,128,128,0.2)', paddingBottom: '1rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                                         <input
                                             value={group.name}
                                             onChange={e => updateGroupName(group.id, e.target.value)}
                                             placeholder="Group Name (e.g. Relleno) - REQUIRED"
-                                            style={{ background: 'rgba(128,128,128,0.08)', border: '1px solid rgba(128,128,128,0.2)', padding: '0.5rem 1rem', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600, outline: 'none', minWidth: '300px' }}
+                                            style={{ background: 'rgba(128,128,128,0.08)', border: '1px solid var(--border)', padding: '0.5rem 1rem', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600, outline: 'none', minWidth: '300px' }}
                                             required
                                         />
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -219,7 +219,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                     ) : (
                                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '0.5rem' }}>
                                             <thead>
-                                                <tr style={{ borderBottom: '1px solid rgba(128,128,128,0.2)' }}>
+                                                <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Qty</th>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>Unidad</th>
@@ -255,7 +255,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                             <Plus size={18} /> Agregar Otro Componente (Add Block)
                         </button>
 
-                        <div style={{ marginTop: '2rem', padding: '1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', textAlign: 'center' }}>
+                        <div style={{ marginTop: '2rem', padding: '1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Costo Total de la Receta (Total Batch Cost)</span>
                                 <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#007bff' }}>${totalCalculatedCost.toFixed(2)}</span>

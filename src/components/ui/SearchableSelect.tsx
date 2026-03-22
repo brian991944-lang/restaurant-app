@@ -72,7 +72,7 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                     backgroundColor: 'var(--bg-secondary)',
                     padding: '0.6rem 1rem',
                     borderRadius: '8px',
-                    border: '1px solid rgba(150, 150, 150, 0.3)',
+                    border: '1px solid var(--border)',
                     color: 'var(--text-primary)',
                 }}
                 onClick={toggleOpen}
@@ -99,7 +99,7 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                 <div style={{
                     position: 'absolute', top: '100%', left: 0, right: 0,
                     background: 'var(--bg-secondary, #2a2a2a)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    border: '1px solid var(--border)',
                     borderRadius: '0 0 8px 8px',
                     maxHeight: '200px', overflowY: 'auto',
                     zIndex: 100,
@@ -113,7 +113,7 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                         return (
                             <React.Fragment key={opt.value}>
                                 {showCategory && (
-                                    <div style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-primary)', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)', borderTop: '1px solid rgba(255,255,255,0.05)', marginTop: index === 0 ? 0 : '0.5rem' }}>
+                                    <div style={{ padding: '0.4rem 1rem', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--accent-primary)', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)', marginTop: index === 0 ? 0 : '0.5rem' }}>
                                         {opt.category}
                                     </div>
                                 )}

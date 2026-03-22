@@ -311,15 +311,15 @@ export default function PrepSchedulePage() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1000px' }}>
                         <thead>
                             <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', width: '60px' }}></th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_category')}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Base / {t('PrepSchedule.th_ingredient')}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_task')}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad a Preparar' : 'Target'}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center', minWidth: '120px' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad Preparada' : 'Actual'}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>Unidad de Medida</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', minWidth: '150px' }}>Preparador</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>Status</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', width: '60px' }}></th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Base / {t('PrepSchedule.th_ingredient')}</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')}</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad a Preparar' : 'Target'}</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center', minWidth: '120px' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad Preparada' : 'Actual'}</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Unidad de Medida</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>Preparador</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -336,7 +336,7 @@ export default function PrepSchedulePage() {
                                 if (!task.hasRecurring && !task.hasNightShift) recommendedTarget = task.assignedAmount || 0; // Manual tasks
 
                                 return (
-                                    <tr key={task.ingredientId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: isDone ? 'rgba(0,0,0,0.2)' : 'transparent', opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
+                                    <tr key={task.ingredientId} style={{ borderBottom: '1px solid var(--border)', background: isDone ? 'rgba(0,0,0,0.2)' : 'transparent', opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {task.hasNightShift ? (
                                                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -348,8 +348,8 @@ export default function PrepSchedulePage() {
                                                 </div>
                                             ) : null}
                                         </td>
-                                        <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>
-                                        <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
+                                        <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
+                                        <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid var(--border)' }}>{parentName}</td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 {task.digitalRecipeId && (
@@ -372,7 +372,7 @@ export default function PrepSchedulePage() {
                                             {isDone ? (
                                                 <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
                                             ) : (
-                                                <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                                <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid var(--border)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
                                             )}
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
@@ -385,7 +385,7 @@ export default function PrepSchedulePage() {
                                                         <select
                                                             disabled // Locked to target metric by default
                                                             value={task.metric}
-                                                            style={{ padding: '0.3rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'inherit', borderRadius: '4px' }}
+                                                            style={{ padding: '0.3rem', background: 'transparent', border: '1px solid var(--border)', color: 'inherit', borderRadius: '4px' }}
                                                         >
                                                             <option value={task.metric}>{task.metric}</option>
                                                         </select>
@@ -398,7 +398,7 @@ export default function PrepSchedulePage() {
                                             {isDone ? (
                                                 <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
                                             ) : (
-                                                <select value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                                                <select value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                                     <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
                                                     {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                 </select>
@@ -436,7 +436,7 @@ export default function PrepSchedulePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', gap: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '2rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -464,7 +464,7 @@ export default function PrepSchedulePage() {
                     </div>
                 </div>
 
-                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ flex: 2, minWidth: '200px', zIndex: 10 }}>
                         <SearchableSelect
                             value={manualTask}
@@ -480,9 +480,9 @@ export default function PrepSchedulePage() {
                             placeholder={t('PrepSchedule.add_manual_today')}
                         />
                     </div>
-                    <div style={{ flex: 1, minWidth: '160px', display: 'flex', alignItems: 'center', background: 'var(--bg-secondary)', border: '1px solid rgba(150,150,150,0.3)', borderRadius: '8px' }}>
+                    <div style={{ flex: 1, minWidth: '160px', display: 'flex', alignItems: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '8px' }}>
                         <input type="number" step="0.01" min="0" value={manualAmount} onChange={(e) => setManualAmount(e.target.value)} placeholder={t('Nav.sales') === 'Ventas' ? 'Cantidad' : 'Cantidad'} style={{ flex: 1, width: '80px', padding: '0.6rem', background: 'transparent', color: 'var(--text-primary)', border: 'none', outline: 'none' }} />
-                        <div style={{ borderLeft: '1px solid rgba(150,150,150,0.3)', alignSelf: 'stretch' }}></div>
+                        <div style={{ borderLeft: '1px solid var(--border)', alignSelf: 'stretch' }}></div>
                         <select
                             disabled
                             style={{ padding: '0.6rem', background: 'transparent', color: 'var(--text-secondary)', border: 'none', outline: 'none' }}
@@ -557,7 +557,7 @@ export default function PrepSchedulePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <p style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 'bold' }}>
                             {(() => {
@@ -571,7 +571,7 @@ export default function PrepSchedulePage() {
                                 return d.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
                             })()}
                         </p>
-                        <input type="date" value={targetAssignDate} onChange={(e) => setTargetAssignDate(e.target.value)} style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150, 150, 150, 0.3)' }} />
+                        <input type="date" value={targetAssignDate} onChange={(e) => setTargetAssignDate(e.target.value)} style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                     </div>
                     <button onClick={handleSaveNightShift} className="btn-primary" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                         <Check size={18} /> {t('PrepSchedule.save_and_assign')}
@@ -584,12 +584,12 @@ export default function PrepSchedulePage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_category')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_ingredient')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_task')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_quantity')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', minWidth: '150px' }}>{t('PrepSchedule.th_preparer')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>{t('PrepSchedule.th_urgent')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_ingredient')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_quantity')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>{t('PrepSchedule.th_preparer')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_urgent')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -605,9 +605,9 @@ export default function PrepSchedulePage() {
                                             const draft = nightDrafts[task.id] || { selected: false, qty: '', userId: '' };
 
                                             return (
-                                                <tr key={task.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: draft.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent', transition: 'background 0.2s' }}>
-                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>
-                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>
+                                                <tr key={task.id} style={{ borderBottom: '1px solid var(--border)', background: draft.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent', transition: 'background 0.2s' }}>
+                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
+                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid var(--border)' }}>{parentName}</td>
                                                     <td style={{ padding: '0.5rem 1rem' }}>
                                                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', margin: 0, padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}>
                                                             <input type="checkbox" checked={draft.selected} onChange={(e) => handleNightDraftToggle(task.id, e.target.checked)} style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }} />
@@ -616,12 +616,12 @@ export default function PrepSchedulePage() {
                                                     </td>
                                                     <td style={{ padding: '0.5rem 1rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <input type="number" step="0.01" min="0" placeholder="0" value={draft.qty} onChange={(e) => handleNightDraftChange(task.id, 'qty', e.target.value)} disabled={!draft.selected} style={{ width: '80px', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? 'white' : 'rgba(255,255,255,0.05)', color: draft.selected ? 'black' : 'white', border: '1px solid rgba(255,255,255,0.2)' }} />
+                                                            <input type="number" step="0.01" min="0" placeholder="0" value={draft.qty} onChange={(e) => handleNightDraftChange(task.id, 'qty', e.target.value)} disabled={!draft.selected} style={{ width: '80px', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? 'white' : 'rgba(255,255,255,0.05)', color: draft.selected ? 'black' : 'white', border: '1px solid var(--border)' }} />
                                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{task.metric}</span>
                                                         </div>
                                                     </td>
                                                     <td style={{ padding: '0.5rem 1rem' }}>
-                                                        <select value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
+                                                        <select value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid var(--border)' }}>
                                                             <option value="">{t('PrepSchedule.any_cook')}</option>
                                                             {teamMembers.map(m => (
                                                                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -703,7 +703,7 @@ export default function PrepSchedulePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border)', marginBottom: '1rem', paddingBottom: '0.5rem' }}>
                     <div style={{ display: 'flex' }}>
                         <button
                             onClick={() => setDefrostSubTab('cocinero1')}
@@ -736,11 +736,11 @@ export default function PrepSchedulePage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Tarea de Descongelado</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Sugerido</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Cantidad</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Preparador</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>Acción</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Tarea de Descongelado</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Sugerido</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Cantidad</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Preparador</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Acción</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -749,7 +749,7 @@ export default function PrepSchedulePage() {
 
                                     if (!ing) {
                                         return (
-                                            <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <tr key={taskName} style={{ borderBottom: '1px solid var(--border)' }}>
                                                 <td style={{ padding: '1rem', color: 'var(--danger)' }}>{taskName} (No encontrado en Base de Datos)</td>
                                                 <td colSpan={3}></td>
                                             </tr>
@@ -773,7 +773,7 @@ export default function PrepSchedulePage() {
                                         const totalQty = completedLogsToday.reduce((sum, log) => sum + log.actualAmount, 0);
                                         const preparers = Array.from(new Set(completedLogsToday.map(log => log.completedBy))).join(', ');
                                         return (
-                                            <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(16, 185, 129, 0.05)' }}>
+                                            <tr key={taskName} style={{ borderBottom: '1px solid var(--border)', background: 'rgba(16, 185, 129, 0.05)' }}>
                                                 <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{taskName}</td>
                                                 <td colSpan={3} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
                                                     ✅ Completado ({totalQty} {ing.metric}) - Por: {preparers}
@@ -786,13 +786,13 @@ export default function PrepSchedulePage() {
                                     }
 
                                     return (
-                                        <tr key={taskName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
+                                        <tr key={taskName} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
                                             <td style={{ padding: '1rem', fontWeight: 500 }}>{taskName}</td>
                                             <td style={{ padding: '1rem' }}>
                                                 <button
                                                     onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: suggested.toString() }))}
                                                     title="Click para autocompletar"
-                                                    style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>
+                                                    style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid var(--border)', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>
                                                     {suggested} {ing.metric}
                                                 </button>
                                             </td>
@@ -804,7 +804,7 @@ export default function PrepSchedulePage() {
                                                         step="0.1"
                                                         value={defrostQuantities[ing.id] || ''}
                                                         onChange={(e) => setDefrostQuantities(prev => ({ ...prev, [ing.id]: e.target.value }))}
-                                                        style={{ width: '80px', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.1)' }}
+                                                        style={{ width: '80px', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                                                     />
                                                     <span style={{ color: 'var(--text-secondary)' }}>{ing.metric}</span>
                                                 </div>
@@ -813,7 +813,7 @@ export default function PrepSchedulePage() {
                                                 <select
                                                     value={defrostCooks[ing.id] || ''}
                                                     onChange={(e) => setDefrostCooks(prev => ({ ...prev, [ing.id]: e.target.value }))}
-                                                    style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                                    style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                                     <option value="">Seleccionar...</option>
                                                     {teamMembers.map(m => (
                                                         <option key={m.id} value={m.id}>{m.name}</option>
@@ -856,7 +856,7 @@ export default function PrepSchedulePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                     <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{t('PrepSchedule.recurring_desc')}</p>
                     <button className="btn-primary" onClick={() => setShowRecurringForm(!showRecurringForm)} style={{ padding: '0.6rem 1.2rem', borderRadius: '12px' }}>
                         {showRecurringForm ? 'Cancel' : t('PrepSchedule.new_recurring')}
@@ -864,10 +864,10 @@ export default function PrepSchedulePage() {
                 </div>
 
                 {showRecurringForm && (
-                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                         <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Prep Task</label>
-                            <select value={newRecurringTask} onChange={(e) => setNewRecurringTask(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }}>
+                            <select value={newRecurringTask} onChange={(e) => setNewRecurringTask(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                 <option value="">Select Task...</option>
                                 {sortedCats.map(cat => (
                                     <optgroup key={cat} label={cat}>
@@ -880,7 +880,7 @@ export default function PrepSchedulePage() {
                         </div>
                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Día de la Semana' : 'Day of Week'}</label>
-                            <select value={newRecurringDay} onChange={(e) => setNewRecurringDay(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }}>
+                            <select value={newRecurringDay} onChange={(e) => setNewRecurringDay(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                 <option value="0">Sunday</option>
                                 <option value="1">Monday</option>
                                 <option value="2">Tuesday</option>
@@ -892,7 +892,7 @@ export default function PrepSchedulePage() {
                         </div>
                         <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Cantidad' : 'Amount'}</label>
-                            <input type="number" step="0.01" min="0" value={newRecurringAmount} onChange={(e) => setNewRecurringAmount(e.target.value)} placeholder="0.0" style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid rgba(150,150,150,0.3)' }} />
+                            <input type="number" step="0.01" min="0" value={newRecurringAmount} onChange={(e) => setNewRecurringAmount(e.target.value)} placeholder="0.0" style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                         </div>
                         <button className="btn-primary" onClick={handleCreateRecurringRule} style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', height: 'fit-content', background: 'linear-gradient(135deg, #a855f7, #6b21a8)' }}>
                             {locale === 'es' ? 'Guardar Regla' : 'Save Rule'}
@@ -911,7 +911,7 @@ export default function PrepSchedulePage() {
 
                             return (
                                 <div key={day} className="glass-panel" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.01)' }}>
-                                    <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem', fontSize: '1.1rem' }}>
+                                    <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', fontSize: '1.1rem' }}>
                                         <Calendar size={18} color={dayRules.length > 0 ? "var(--accent-primary)" : "var(--text-secondary)"} /> {displayDay}
                                     </h3>
                                     {dayRules.length === 0 ? (
@@ -963,7 +963,7 @@ export default function PrepSchedulePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                     <p style={{ color: 'var(--text-secondary)', margin: 0 }}>View a historical log of completed prep duties and assignments.</p>
                 </div>
                 {isLoading ? (
@@ -980,8 +980,8 @@ export default function PrepSchedulePage() {
                             const totalLogsInMonth = dayKeys.reduce((sum, day) => sum + days[day].length, 0);
 
                             return (
-                                <details key={monthYear} open={mIdx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
-                                    <summary style={{ padding: '1rem 1.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.2rem', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <details key={monthYear} open={mIdx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                                    <summary style={{ padding: '1rem 1.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.2rem', background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid var(--border)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
                                             <Calendar size={18} color="var(--accent-primary)" />
                                             <span>{monthYear}</span>
@@ -990,8 +990,8 @@ export default function PrepSchedulePage() {
                                     </summary>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
                                         {dayKeys.map((dayStr, dIdx) => (
-                                            <details key={dayStr} open={mIdx === 0 && dIdx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', marginLeft: '1rem', overflow: 'hidden' }}>
-                                                <summary style={{ padding: '0.8rem 1.2rem', cursor: 'pointer', fontWeight: 500, fontSize: '1rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.02)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <details key={dayStr} open={mIdx === 0 && dIdx === 0} style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border)', marginLeft: '1rem', overflow: 'hidden' }}>
+                                                <summary style={{ padding: '0.8rem 1.2rem', cursor: 'pointer', fontWeight: 500, fontSize: '1rem', background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid var(--border)', listStyle: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                         <span style={{ color: 'var(--text-primary)' }}>{dayStr}</span>
                                                     </div>
@@ -999,7 +999,7 @@ export default function PrepSchedulePage() {
                                                 </summary>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem' }}>
                                                     {days[dayStr].map((log: any) => (
-                                                        <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
                                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                 <strong style={{ fontSize: '1.1rem' }}>{log.ingredientName}</strong>
                                                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.category} • Prepped by {log.completedBy}</span>
@@ -1129,7 +1129,7 @@ export default function PrepSchedulePage() {
         return (
             <div style={{ display: 'flex', gap: '2rem' }}>
                 <div className="glass-panel" style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Users size={20} color="var(--accent-primary)" /> Kitchen Workers</h3>
                         <button onClick={handleAddTeamMember} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>+ Add Worker</button>
                     </div>
@@ -1142,7 +1142,7 @@ export default function PrepSchedulePage() {
                 </div>
 
                 <div className="glass-panel" style={{ flex: 2, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Layers size={20} color="#a855f7" /> {locale === 'es' ? 'Tareas de Prep Elegibles' : 'Eligible Prep Tasks'}</h3>
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             <button onClick={() => setIsManageOptionsOpen(true)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
@@ -1158,10 +1158,10 @@ export default function PrepSchedulePage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_category')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Base / {t('PrepSchedule.th_ingredient')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>{t('PrepSchedule.th_task')} / Metric</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', textAlign: 'center' }}>Actions</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Base / {t('PrepSchedule.th_ingredient')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')} / Metric</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1182,9 +1182,9 @@ export default function PrepSchedulePage() {
                                             isFirstParRow = false;
 
                                             return (
-                                                <tr key={t.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}>
-                                                    {renderCat && <td rowSpan={catRows} style={{ padding: '1rem', verticalAlign: 'top', fontWeight: 'bold', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{catName}</td>}
-                                                    {renderPar && <td rowSpan={parRows} style={{ padding: '1rem', verticalAlign: 'top', color: 'var(--text-secondary)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>{parentName}</td>}
+                                                <tr key={t.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
+                                                    {renderCat && <td rowSpan={catRows} style={{ padding: '1rem', verticalAlign: 'top', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>}
+                                                    {renderPar && <td rowSpan={parRows} style={{ padding: '1rem', verticalAlign: 'top', color: 'var(--text-secondary)', borderRight: '1px solid var(--border)' }}>{parentName}</td>}
                                                     <td style={{ padding: '0.8rem 1rem' }}>
                                                         <span style={{ fontSize: '0.95rem' }}>{t.name}</span>
                                                         <span style={{ marginLeft: '0.8rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>({t.metric})</span>
@@ -1231,7 +1231,7 @@ export default function PrepSchedulePage() {
             <div className="glass-panel" style={{ padding: '0' }}>
 
                 {/* Tab Controls */}
-                <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.1)' }}>
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'rgba(0,0,0,0.1)' }}>
                     <button
                         onClick={() => setActiveTab('morning')}
                         style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'morning' ? '2px solid var(--accent-primary)' : '2px solid transparent', color: activeTab === 'morning' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'morning' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
@@ -1288,7 +1288,7 @@ export default function PrepSchedulePage() {
                     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)',
                     zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
                 }}>
-                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '400px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '400px', maxWidth: '100%', border: '1px solid var(--border)' }}>
                         <h3 style={{ margin: '0 0 1rem 0' }}>{t('Nav.sales') === 'Ventas' ? 'Borrar Tarea' : 'Delete Task'}</h3>
                         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{deleteTaskCandidate.ingredientName}</p>
 
@@ -1334,7 +1334,7 @@ export default function PrepSchedulePage() {
             {/* ADD TASK MODAL */}
             {showAddTaskModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid var(--border)' }}>
                         <h3 style={{ margin: '0 0 1.5rem 0' }}>Add New Task</h3>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1428,7 +1428,7 @@ export default function PrepSchedulePage() {
             {/* EDIT TASK MODAL */}
             {showEditTaskModal && editingTask && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid var(--border)' }}>
                         <h3 style={{ margin: '0 0 1.5rem 0' }}>{locale === 'es' ? 'Editar Tarea' : 'Edit Task'}</h3>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1530,7 +1530,7 @@ export default function PrepSchedulePage() {
             {/* RECIPE VIEW MODAL */}
             {viewingRecipeId && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '800px', maxWidth: '100%', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '800px', maxWidth: '100%', border: '1px solid var(--border)', maxHeight: '90vh', overflowY: 'auto' }}>
                         {(() => {
                             const recipe = digitalRecipes.find(r => r.id === viewingRecipeId);
                             if (!recipe) return <div style={{ textAlign: 'center' }}>Cargando Receta...</div>;
@@ -1556,10 +1556,10 @@ export default function PrepSchedulePage() {
 
                                     <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{recipe.overview || 'Sin descripción general.'}</p>
 
-                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Ingredientes</h4>
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Ingredientes</h4>
                                     <table style={{ width: '100%', marginBottom: '2rem', borderCollapse: 'collapse' }}>
                                         <thead>
-                                            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                                            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', textAlign: 'left' }}>
                                                 <th style={{ padding: '0.5rem' }}>Ingrediente</th>
                                                 <th style={{ padding: '0.5rem' }}>Cantidad</th>
                                                 <th style={{ padding: '0.5rem' }}>Notas</th>
@@ -1567,7 +1567,7 @@ export default function PrepSchedulePage() {
                                         </thead>
                                         <tbody>
                                             {items.map((it: any, i: number) => (
-                                                <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <td style={{ padding: '0.5rem' }}>{it.name}</td>
                                                     <td style={{ padding: '0.5rem', color: 'var(--accent-primary)' }}>{it.qty} {it.unit}</td>
                                                     <td style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>{it.notes}</td>
@@ -1576,10 +1576,10 @@ export default function PrepSchedulePage() {
                                         </tbody>
                                     </table>
 
-                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Procedimiento</h4>
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Procedimiento</h4>
                                     <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                         {steps.map((st: any, i: number) => (
-                                            <div key={i} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <div key={i} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                                                 <div style={{ fontWeight: 'bold', color: 'var(--accent-primary)' }}>{i + 1}.</div>
                                                 <div style={{ lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{st.text}</div>
                                             </div>
@@ -1588,7 +1588,7 @@ export default function PrepSchedulePage() {
 
                                     {recipe.chefNotes && (
                                         <>
-                                            <h4 style={{ marginBottom: '1rem', color: 'var(--warning)', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>Notas del Chef</h4>
+                                            <h4 style={{ marginBottom: '1rem', color: 'var(--warning)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Notas del Chef</h4>
                                             <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                                                 {recipe.chefNotes}
                                             </div>

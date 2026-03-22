@@ -57,7 +57,7 @@ export default function NightShiftPage() {
                     </div>
                 ) : (
                     assignments.map((assignment: any) => (
-                        <div key={assignment.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div key={assignment.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <strong style={{ fontSize: '1.1rem' }}>{assignment.ingredient.name}</strong>
                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{assignment.ingredient.category.name}</span>

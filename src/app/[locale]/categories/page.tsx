@@ -57,7 +57,7 @@ export default function CategoriesPage() {
                     const deptColors = getDepartmentColor(dept);
                     return (
                         <div key={dept} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                                 <h2 style={{ fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                     <span style={{
                                         display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%',
@@ -73,7 +73,7 @@ export default function CategoriesPage() {
                                     <div key={category.id} style={{
                                         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                         padding: '0.75rem 1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px',
-                                        border: '1px solid rgba(255,255,255,0.03)'
+                                        border: '1px solid var(--border)'
                                     }}>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <span style={{ fontWeight: 500 }}>{category.name}</span>
