@@ -216,7 +216,17 @@ export async function editIngredient(id: string, data: any) {
             }
         });
 
-        if (data.unfrozenQuantity !== undefined) {
+        if (data.initialQty !== undefined) {
+            const initialQty = typeof data.initialQty === 'number' ? data.initialQty : parseFloat(data.initialQty);
+            const unfrozenQty = data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : initialQty;
+            const frozenQty = Math.max(0, initialQty - unfrozenQty);
+
+            await prisma.inventory.upsert({
+                where: { ingredientId: id },
+                create: { ingredientId: id, thawingQty: unfrozenQty, frozenQty: frozenQty },
+                update: { thawingQty: unfrozenQty, frozenQty: frozenQty }
+            });
+        } else if (data.unfrozenQuantity !== undefined) {
             await prisma.inventory.upsert({
                 where: { ingredientId: id },
                 create: { ingredientId: id, thawingQty: parseFloat(data.unfrozenQuantity), frozenQty: 0 },

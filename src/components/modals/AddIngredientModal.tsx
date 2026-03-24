@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { getCategories, getProviders, getInventory } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { useAdmin } from '@/components/AdminContext';
 import MetricPriceSection from './MetricPriceSection';
 
 const ALLOWED_METRICS = ['Kg', 'g', 'Lbs', 'Solid Oz', 'Fl Oz', 'ml', 'L', 'Units'];
@@ -47,6 +48,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const t = useTranslations('Inventory');
     const tOptions = useTranslations('Options');
     const locale = useLocale();
+    const { isAdmin } = useAdmin();
 
     const [categories, setCategories] = useState<any[]>([]);
     const [providers, setProviders] = useState<any[]>([]);
@@ -236,7 +238,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             providerName: formData.get('provider') as string,
             type: currentType,
             metric: currentType === 'PREP_RECIPE' ? (initialData?.metric || selectedMetric) : (currentType === 'PROCESSED' && isPortioned ? 'Units' : selectedMetric),
-            initialQty: parseFloat(formData.get('initialQty') as string) || 0,
+            initialQty: formData.get('initialQty') ? parseFloat(formData.get('initialQty') as string) : undefined,
             yieldPercent: parseFloat((100 - wastePercent).toFixed(2)),
             currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (currentType === 'PREP_RECIPE' ? (initialData?.currentPrice || currentPriceValue || 0) : (parseFloat(formData.get('currentPrice') as string) || 0)),
             parentId: selectedParentId || null,
@@ -430,27 +432,37 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         initialData={initialData}
                     />
 
-                    {!initialData && (
-                        <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
+                        {(!initialData || (isAdmin && currentType === 'PROCESSED')) && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_initial_qty')} (Total Stock)</label>
-                                <input name="initialQty" type="number" step="0.01" className="input-field" placeholder="0.00" required />
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    {!initialData ? `${t('modal_initial_qty')} (Total Stock)` : `Admin Override: Total Stock Count`}
+                                </label>
+                                <input
+                                    name="initialQty"
+                                    type="number"
+                                    step="0.01"
+                                    className="input-field"
+                                    defaultValue={initialData?.inventory ? Number((initialData.inventory.thawingQty + initialData.inventory.frozenQty).toFixed(4)) : undefined}
+                                    placeholder="0.00"
+                                    required={!initialData}
+                                />
                             </div>
-                            {currentType === 'PROCESSED' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
-                                    <input
-                                        name="unfrozenQuantity"
-                                        type="number"
-                                        step="0.01"
-                                        className="input-field"
-                                        value={unfrozenQuantity}
-                                        onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
+                        {!initialData && currentType === 'PROCESSED' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
+                                <input
+                                    name="unfrozenQuantity"
+                                    type="number"
+                                    step="0.01"
+                                    className="input-field"
+                                    value={unfrozenQuantity}
+                                    onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
+                                />
+                            </div>
+                        )}
+                    </div>
 
                     {currentType === 'PROCESSED' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
