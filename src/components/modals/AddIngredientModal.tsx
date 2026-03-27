@@ -433,7 +433,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     />
 
                     <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
-                        {(!initialData || (isAdmin && currentType === 'PROCESSED')) && (
+                        {(!initialData || (isAdmin && currentType !== 'PREP_RECIPE')) && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     {!initialData ? `${t('modal_initial_qty')} (Total Stock)` : `Admin Override: Total Stock Count`}
