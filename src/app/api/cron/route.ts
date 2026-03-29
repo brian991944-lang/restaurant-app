@@ -8,11 +8,11 @@ export async function GET(request: Request) {
         // In Vercel Cron, you configure providing a custom header. 
         // e.g. Authorization: Bearer CRON_SECRET_1234
         const authHeader = request.headers.get('authorization');
+        const isVercelCron = request.headers.get('user-agent')?.startsWith('vercel-cron');
 
-        // Use an environment variable, fallback to a hardcoded secret for now (should move to env)
         const expectedAuth = `Bearer ${process.env.CRON_SECRET || 'secret-clover-cron-key-123'}`;
 
-        if (authHeader !== expectedAuth) {
+        if (authHeader !== expectedAuth && !isVercelCron) {
             return new NextResponse('Unauthorized', { status: 401 });
         }
 
