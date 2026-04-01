@@ -20,6 +20,8 @@ export interface PrepTask {
     completedBy?: string;
     digitalRecipeId?: string | null;
     digitalRecipeName?: string | null;
+    suggestedBaseIngredientName?: string | null;
+    suggestedBaseAmount?: number | null;
 }
 
 /**
@@ -61,18 +63,19 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         const targetEstDate = new Date(`${estFormatted}T12:00:00-05:00`);
         const dayOfWeek = targetEstDate.getDay();
         const recurringRules = await prisma.recurringPrepRule.findMany({
-            where: { dayOfWeek }
+            where: { dayOfWeek },
+            include: { baseIngredient: true }
         });
 
-        const recurringMap = new Map<string, number>();
+        const recurringMap = new Map<string, any>();
         for (const rule of recurringRules) {
-            recurringMap.set(rule.ingredientId, rule.amount);
+            recurringMap.set(rule.ingredientId, rule);
         }
 
         // 3. Fetch all ingredients
         const rawIngredients = await prisma.ingredient.findMany({
             where: { type: { in: ['RAW', 'PREP', 'PROCESSED', 'TASK'] } },
-            include: { category: true, parent: true, digitalRecipe: true }
+            include: { category: true, parent: true, digitalRecipe: true, inventory: true }
         });
 
         const mergedTasks: PrepTask[] = [];
@@ -80,7 +83,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         for (let i = 0; i < rawIngredients.length; i++) {
             const ingredient = rawIngredients[i];
             const assignment = assignedTasksMap.get(ingredient.id);
-            const recurringAmount = recurringMap.get(ingredient.id) || 0;
+            const rule = recurringMap.get(ingredient.id);
+            const recurringAmount = rule?.amount || 0;
             const hasNightShift = !!assignment;
             const hasRecurring = recurringAmount > 0;
 
@@ -88,6 +92,20 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 
             // If no data points to prepping this ingredient today, skip
             if (!hasNightShift && !hasRecurring) continue;
+
+            let suggestedBaseAmount: number | null = null;
+            let suggestedBaseIngredientName: string | null = null;
+
+            if (hasRecurring && rule && rule.baseIngredient) {
+                suggestedBaseIngredientName = rule.baseIngredient.name;
+                const currentStock = (ingredient.inventory?.frozenQty || 0) + (ingredient.inventory?.thawingQty || 0);
+
+                // Reactive Math: ((Total Demand * 1.2) - Current Processed Stock) * 0.1kg / 0.95
+                const mathResult = ((recurringAmount * 1.2) - currentStock) * 0.1 / 0.95;
+                const roundedResult = Math.round(mathResult);
+
+                suggestedBaseAmount = Math.max(0, roundedResult);
+            }
 
             mergedTasks.push({
                 ingredientId: ingredient.id,
@@ -107,7 +125,9 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 // @ts-ignore
                 digitalRecipeId: ingredient.digitalRecipeId || null,
                 // @ts-ignore
-                digitalRecipeName: ingredient.digitalRecipe?.name || null
+                digitalRecipeName: ingredient.digitalRecipe?.name || null,
+                suggestedBaseIngredientName,
+                suggestedBaseAmount
             });
         }
 
@@ -209,23 +229,27 @@ export async function completePrepTask(
                 (taskIngredient.category && taskIngredient.category.name.toLowerCase().includes('descongelar'));
 
             if (isDescongelar) {
-                // "Descongelar" -> does NOT increment total stock (frozenQty). It only increments thawingQty/unfrozenQuantity.
+                // "Descongelar" -> NEVER increments or decrements total stock (frozenQty).
+                // It STRICTLY increments Unfrozen Stock. ZERO-SUM Logic.
                 frozenInc = 0;
-                thawingInc = actualAmount;
+                thawingInc = actualAmount; // Force addition to thawed balance
             } else if (taskName.includes('congelar')) {
                 // "Congelar" -> only increments FrozenQty (Total)
                 thawingInc = 0;
-            }
-
-            // Invert the increment logic if 'subtractFromInventory' is true
-            if ((taskIngredient as any).subtractFromInventory) {
-                frozenInc = -frozenInc;
-                thawingInc = -thawingInc;
+                if ((taskIngredient as any).subtractFromInventory) {
+                    frozenInc = -frozenInc;
+                }
+            } else {
+                // Standard Prep Processing Rule (e.g. Chopping)
+                if ((taskIngredient as any).subtractFromInventory) {
+                    frozenInc = -frozenInc;
+                    thawingInc = -thawingInc;
+                }
             }
 
             const newFrozenQty = Math.max(0, inventory.frozenQty + frozenInc);
-            // Cap the thawingQty (unfrozen stock) so it never exceeds the total available stock
-            const cappedThawingQty = Math.min(newFrozenQty, Math.max(0, inventory.thawingQty + thawingInc));
+            // Ignore Cap for Unfrozen stock mathematically if it goes temporarily out of sync, relying on Total physical limits
+            const cappedThawingQty = Math.max(0, inventory.thawingQty + thawingInc);
 
             await prisma.inventory.update({
                 where: { id: inventory.id },

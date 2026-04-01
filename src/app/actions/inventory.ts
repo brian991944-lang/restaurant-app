@@ -119,6 +119,9 @@ export async function addIngredient(data: any) {
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : false,
                 allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
+                isPacked: data.isPacked !== undefined ? data.isPacked : false,
+                unitsPerPack: data.unitsPerPack !== undefined ? parseFloat(data.unitsPerPack) : 1.0,
+                packUnit: data.packUnit || 'Units',
                 currentPrice: data.currentPrice || 0,
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
@@ -208,6 +211,9 @@ export async function editIngredient(id: string, data: any) {
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : undefined,
                 allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : undefined,
+                isPacked: data.isPacked !== undefined ? data.isPacked : undefined,
+                unitsPerPack: data.unitsPerPack !== undefined ? parseFloat(data.unitsPerPack) : undefined,
+                packUnit: data.packUnit !== undefined ? data.packUnit : undefined,
                 currentPrice: data.currentPrice !== undefined ? data.currentPrice : undefined,
                 parentId: data.parentId !== undefined ? data.parentId : undefined,
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
@@ -216,21 +222,23 @@ export async function editIngredient(id: string, data: any) {
             }
         });
 
-        if (data.initialQty !== undefined) {
-            const initialQty = typeof data.initialQty === 'number' ? data.initialQty : parseFloat(data.initialQty);
-            const unfrozenQty = data.unfrozenQuantity !== undefined ? parseFloat(data.unfrozenQuantity) : initialQty;
-            const frozenQty = Math.max(0, initialQty - unfrozenQty);
+        const hasInitialQty = data.initialQty !== undefined && data.initialQty !== null && data.initialQty !== '';
+        const hasUnfrozenQty = data.unfrozenQuantity !== undefined && data.unfrozenQuantity !== null && data.unfrozenQuantity !== '';
+
+        if (hasInitialQty || hasUnfrozenQty) {
+            const currentTotal = hasInitialQty ? parseFloat(data.initialQty) : undefined;
+            const currentThawing = hasUnfrozenQty ? parseFloat(data.unfrozenQuantity) : undefined;
+
+            const existingInv = await prisma.inventory.findUnique({ where: { ingredientId: id } });
+
+            let finalTotal = currentTotal !== undefined ? currentTotal : (existingInv ? (existingInv.thawingQty + existingInv.frozenQty) : 0);
+            let finalThawing = currentThawing !== undefined ? currentThawing : (existingInv ? existingInv.thawingQty : finalTotal);
+            let finalFrozen = Math.max(0, finalTotal - finalThawing);
 
             await prisma.inventory.upsert({
                 where: { ingredientId: id },
-                create: { ingredientId: id, thawingQty: unfrozenQty, frozenQty: frozenQty },
-                update: { thawingQty: unfrozenQty, frozenQty: frozenQty }
-            });
-        } else if (data.unfrozenQuantity !== undefined) {
-            await prisma.inventory.upsert({
-                where: { ingredientId: id },
-                create: { ingredientId: id, thawingQty: parseFloat(data.unfrozenQuantity), frozenQty: 0 },
-                update: { thawingQty: parseFloat(data.unfrozenQuantity) }
+                create: { ingredientId: id, thawingQty: finalThawing, frozenQty: finalFrozen },
+                update: { thawingQty: finalThawing, frozenQty: finalFrozen }
             });
         }
 
@@ -566,26 +574,36 @@ export async function depleteInventoryForMenuItem(menuItemId: string, qtySold: n
                 }
             }
 
-            await prisma.inventory.update({
-                where: { ingredientId: dbIng.id },
-                data: {
-                    frozenQty: { decrement: qtyToDeduct }
-                }
-            });
+            const currentUnfrozen = dbIng.unfrozenQuantity || 0;
+            let deductedUnfrozen = 0;
+            let deductedTotal = 0;
 
-            if ((dbIng.unfrozenQuantity || 0) > 0) {
+            if (currentUnfrozen >= qtyToDeduct) {
+                deductedUnfrozen = qtyToDeduct;
+            } else {
+                deductedUnfrozen = currentUnfrozen;
+                deductedTotal = qtyToDeduct - currentUnfrozen;
+            }
+
+            if (deductedUnfrozen > 0) {
                 await prisma.ingredient.update({
                     where: { id: dbIng.id },
-                    data: { unfrozenQuantity: Math.max(0, (dbIng.unfrozenQuantity || 0) - qtyToDeduct) }
+                    data: { unfrozenQuantity: Math.max(0, currentUnfrozen - deductedUnfrozen) }
                 });
             }
+
+            // Decrement Total Stock ALWAYS
+            await prisma.inventory.update({
+                where: { ingredientId: dbIng.id },
+                data: { frozenQty: { decrement: qtyToDeduct } }
+            });
 
             await prisma.inventoryTransaction.create({
                 data: {
                     ingredientId: dbIng.id,
                     type: 'SALES_DEDUCT',
                     qty: qtyToDeduct,
-                    note: `Sold ${qtySold} x ${menuItem.name}`
+                    note: `Sold ${qtySold} x ${menuItem.name} (FIFO -> Descongelado: -${deductedUnfrozen}, Congelado: -${deductedTotal})`
                 }
             });
         }

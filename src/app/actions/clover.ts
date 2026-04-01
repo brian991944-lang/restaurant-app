@@ -6,25 +6,39 @@ const CLOVER_MERCHANT_ID = '5EFY7JF0XERB1';
 const CLOVER_TOKEN = '80bb90a1-8598-71bb-606d-2d8eac4fe14e';
 
 async function depleteInventory(ingredientId: string, quantity: number, note: string) {
-    // 1. Deduct from total stock
+    const ing = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
+    if (!ing) return;
+
+    const currentUnfrozen = ing.unfrozenQuantity || 0;
+    let deductedUnfrozen = 0;
+    let deductedTotal = 0;
+
+    // 1. Calculate FIFO buckets
+    if (currentUnfrozen >= quantity) {
+        deductedUnfrozen = quantity;
+    } else {
+        deductedUnfrozen = currentUnfrozen;
+        deductedTotal = quantity - currentUnfrozen;
+    }
+
+    // 2. Perform DB deductions
+    if (deductedUnfrozen > 0) {
+        await prisma.ingredient.update({
+            where: { id: ingredientId },
+            data: { unfrozenQuantity: currentUnfrozen - deductedUnfrozen }
+        }).catch(() => null);
+    }
+
+    // Always deduct from Total Stock (frozenQty physically represents Total Stock)
     await prisma.inventory.update({
         where: { ingredientId: ingredientId },
         data: { frozenQty: { decrement: quantity } }
     }).catch(() => null);
 
-    // 2. Also check unfrozenQuantity on Ingredient
-    const ing = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
-    if (ing && (ing.unfrozenQuantity || 0) > 0) {
-        // Floor at 0 if we deplete more than what's unfrozen
-        await prisma.ingredient.update({
-            where: { id: ingredientId },
-            data: { unfrozenQuantity: Math.max(0, (ing.unfrozenQuantity || 0) - quantity) }
-        }).catch(() => null);
-    }
-
-    // 3. Log transaction
+    // 3. Log comprehensive transaction
+    const expandedNote = `${note} (FIFO -> Descongelado: -${deductedUnfrozen}, Congelado: -${deductedTotal})`;
     await prisma.inventoryTransaction.create({
-        data: { ingredientId: ingredientId, type: 'SALES_DEDUCT_CLOVER', qty: quantity, note }
+        data: { ingredientId: ingredientId, type: 'SALES_DEDUCT_CLOVER', qty: quantity, note: expandedNote }
     }).catch(() => null);
 }
 

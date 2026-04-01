@@ -105,7 +105,7 @@
     "focus_date": "Focus Date",
     "tab_morning": "Prep To Do",
     "tab_night": "Assign Tasks for Next Day",
-    "tab_recurring": "Scheduled Tasks",
+    "tab_recurring": "Recurring Rules",
     "tab_logs": "Completed Logs",
     "tab_team": "Team & Tasks",
     "pending": "Pending: {count}",

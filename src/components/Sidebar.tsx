@@ -48,7 +48,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
     const navItems = [
         { name: t('dashboard'), href: `/${locale}/dashboard`, icon: LayoutDashboard },
         { name: t('inventory'), href: `/${locale}/inventory`, icon: Package },
-        { name: t('purchases'), href: `/${locale}/purchases`, icon: ShoppingCart },
+        { name: locale === 'es' ? 'Compras' : 'Shopping List', href: `/${locale}/compras`, icon: ShoppingCart },
         { name: t('menu'), href: `/${locale}/menu`, icon: ChefHat },
         { name: t('recetario'), href: `/${locale}/recetario`, icon: BookOpen },
         { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar },
@@ -65,7 +65,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         : station === 'Cocina'
             ? navItems.filter(item => {
                 const h = item.href;
-                return (h.endsWith('/inventory') || h.includes('/prep-schedule') || h.includes('/recetario'));
+                return (h.endsWith('/inventory') || h.includes('/prep-schedule') || h.includes('/recetario') || h.includes('/compras'));
             })
             : station === 'Salon'
                 ? navItems.filter(item => {

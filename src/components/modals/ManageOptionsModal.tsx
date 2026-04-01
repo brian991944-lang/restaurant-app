@@ -67,7 +67,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
             }
         } else {
             if (selectedGroup === 'Category') {
-                res = await addCategory(newOptionName, 'FOOD', autoTranslate ? undefined : newOptionNameEs, categoryType); // default to FOOD department
+                res = await addCategory(newOptionName, 'FOOD', autoTranslate ? undefined : newOptionNameEs, categoryType as any); // default to FOOD department
             } else if (selectedGroup === 'Provider') {
                 res = await addProvider(newOptionName);
             } else {

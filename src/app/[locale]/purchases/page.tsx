@@ -2,8 +2,10 @@
 
 import { Upload, DollarSign, ChefHat, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
-import { saveVendorItem } from '@/app/actions/purchases';
+import { saveVendorItem, getVendorItems } from '@/app/actions/purchases';
 import { getInventory, getProviders, getCategories } from '@/app/actions/inventory';
+
+const processInvoiceImage = async (b: string): Promise<any[]> => [];
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { ALLOWED_METRICS } from '@/lib/conversion';

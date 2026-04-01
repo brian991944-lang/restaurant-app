@@ -38,7 +38,7 @@ export default function PrepSchedulePage() {
     const [defrostTasks, setDefrostTasks] = useState<any[]>([]);
     const [defrostSubTab, setDefrostSubTab] = useState<'cocinero1' | 'cocinero2'>('cocinero1');
     const [defrostQuantities, setDefrostQuantities] = useState<Record<string, string>>({});
-    const [defrostCooks, setDefrostCooks] = useState<Record<string, string>>({});
+    const [globalDefrostCook, setGlobalDefrostCook] = useState<string>('');
 
     // UI States
     const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +58,20 @@ export default function PrepSchedulePage() {
     const [baseIngredients, setBaseIngredients] = useState<any[]>([]);
 
     const [targetAssignDate, setTargetAssignDate] = useState<string>(() => {
+        const d = new Date();
+        d.setHours(d.getHours() - 5);
+        return d.toISOString().split('T')[0];
+    });
+
+    const displayMetric = (m: string | null | undefined) => {
+        if (!m) return '';
+        const low = m.toLowerCase();
+        if (low === 'units' || low === 'unit') return locale === 'es' ? 'Unidades' : 'Units';
+        if (low === 'pieces' || low === 'piece') return locale === 'es' ? 'Piezas' : 'Pieces';
+        return m;
+    };
+
+    const [tmwDateStr, setTmwDateStr] = useState<string>(() => {
         const d = new Date();
         d.setDate(d.getDate() + 1);
         return d.toISOString().split('T')[0];
@@ -80,16 +94,18 @@ export default function PrepSchedulePage() {
 
     const [showRecurringForm, setShowRecurringForm] = useState(false);
     const [newRecurringTask, setNewRecurringTask] = useState('');
+    const [newRecurringBase, setNewRecurringBase] = useState('');
     const [newRecurringDay, setNewRecurringDay] = useState('0');
     const [newRecurringAmount, setNewRecurringAmount] = useState('');
 
     const handleCreateRecurringRule = async () => {
-        if (!newRecurringTask || !newRecurringAmount) return;
+        if (!newRecurringTask || !newRecurringAmount || !newRecurringBase) return;
         setIsLoading(true);
-        await createRecurringRule(newRecurringTask, parseInt(newRecurringDay), parseFloat(newRecurringAmount));
+        await createRecurringRule(newRecurringTask, parseInt(newRecurringDay), parseFloat(newRecurringAmount), newRecurringBase);
         setRecurringRules(await getRecurringRules());
         setShowRecurringForm(false);
         setNewRecurringTask('');
+        setNewRecurringBase('');
         setNewRecurringAmount('');
         setIsLoading(false);
     };
@@ -157,9 +173,10 @@ export default function PrepSchedulePage() {
             setTeamMembers(members);
             setPrepItems(tasks);
         } else if (tab === 'recurring') {
-            const [data, tasks] = await Promise.all([getRecurringRules(), getPrepTaskItems()]);
+            const [data, tasks, bases] = await Promise.all([getRecurringRules(), getPrepTaskItems(), getBaseIngredients()]);
             setRecurringRules(data);
             setPrepItems(tasks);
+            setBaseIngredients(bases);
         } else if (tab === 'completed') {
             const data = await getCompletedPrepLogs();
             setCompletedLogs(data);
@@ -171,22 +188,27 @@ export default function PrepSchedulePage() {
             setBaseIngredients(bases);
             setDigitalRecipes(recipes);
         } else if (tab === 'defrosting') {
-            const [presets, members, logs, rules] = await Promise.all([
-                getDefrostingPresets([
-                    'Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido',
-                    'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho',
-                    'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion',
-                    'Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas',
-                    'Descongelar Chicharron Porciones', 'Bisteck - Porcionar', 'Lomo Chaufa - Cortar y Porcionar', 'Lomo - Cortar y Porcionar'
-                ]),
-                getTeamMembers(),
-                getCompletedPrepLogs(),
-                getRecurringRules()
-            ]);
-            setDefrostTasks(presets);
-            setTeamMembers(members);
-            setCompletedLogs(logs);
-            setRecurringRules(rules);
+            try {
+                const [presets, members, logs, rules] = await Promise.all([
+                    getDefrostingPresets([
+                        'Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido',
+                        'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho',
+                        'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion',
+                        'Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas',
+                        'Descongelar Chicharron Porciones', 'Bisteck - Porcionar', 'Lomo Chaufa - Cortar y Porcionar', 'Lomo - Cortar y Porcionar'
+                    ]),
+                    getTeamMembers(),
+                    getCompletedPrepLogs(),
+                    getRecurringRules()
+                ]);
+                setDefrostTasks(presets);
+                setTeamMembers(members);
+                setCompletedLogs(logs);
+                setRecurringRules(rules);
+            } catch (err) {
+                console.error("Tab data loading failed:", err);
+                alert("Could not load Defrosting Station data fully. Please try refreshing.");
+            }
         }
         setIsLoading(false);
     };
@@ -351,18 +373,25 @@ export default function PrepSchedulePage() {
                                         <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
                                         <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid var(--border)' }}>{parentName}</td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                {task.digitalRecipeId && (
-                                                    <button
-                                                        onClick={() => setViewingRecipeId(task.digitalRecipeId!)}
-                                                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
-                                                        title={task.digitalRecipeName || 'Ver Receta'}
-                                                    >
-                                                        <BookOpen size={16} color="var(--accent-primary)" />
-                                                    </button>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    {task.digitalRecipeId && (
+                                                        <button
+                                                            onClick={() => setViewingRecipeId(task.digitalRecipeId!)}
+                                                            style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                                                            title={task.digitalRecipeName || 'Ver Receta'}
+                                                        >
+                                                            <BookOpen size={16} color="var(--accent-primary)" />
+                                                        </button>
+                                                    )}
+                                                    <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit' }}>{task.ingredientName}</span>
+                                                    {task.isUrgent && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
+                                                </div>
+                                                {task.suggestedBaseIngredientName && task.suggestedBaseAmount !== null && (
+                                                    <div style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 500, background: 'rgba(59, 130, 246, 0.05)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                                                        Sugerencia: Procesar {task.suggestedBaseAmount} kg de {task.suggestedBaseIngredientName} para {task.ingredientName}
+                                                    </div>
                                                 )}
-                                                <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit' }}>{task.ingredientName}</span>
-                                                {task.isUrgent && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
                                             </div>
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
@@ -657,32 +686,40 @@ export default function PrepSchedulePage() {
 
         const handleCompleteDefrost = async (ing: any) => {
             const qtyStr = defrostQuantities[ing.id];
-            const userId = defrostCooks[ing.id];
-
-            if (!qtyStr || isNaN(parseFloat(qtyStr))) {
-                alert("Ingrese una cantidad válida a descongelar.");
-                return;
-            }
-            if (!userId) {
-                alert("Seleccione un preparador.");
+            const userId = globalDefrostCook;
+            if (!qtyStr || !userId) {
+                alert(t('Nav.sales') === 'Ventas' ? "Seleccione un preparador y cantidad." : "Select a preparer and quantity.");
                 return;
             }
 
             setCompleting(ing.id);
-            // We use completePrepTask since it has the "Descongelar" magic via its naming checks.
-            // We pass it as a manual ad-hoc completion (no assignmentId)
             const res = await completePrepTask(ing.id, parseFloat(qtyStr), userId);
 
             if (res.success) {
-                // Refresh logs so it shows as completed today
                 const logs = await getCompletedPrepLogs();
                 setCompletedLogs(logs);
-
-                // Clear input
                 setDefrostQuantities(prev => ({ ...prev, [ing.id]: '' }));
-                setDefrostCooks(prev => ({ ...prev, [ing.id]: '' }));
             } else {
                 alert("Error completando la tarea.");
+            }
+            setCompleting(null);
+        };
+
+        const handleUndoDefrost = async (ing: any, logs: any[]) => {
+            if (!confirm('¿Estás seguro de que deseas revertir esta tarea? El inventario se ajustará automáticamente.')) return;
+            setCompleting(ing.id);
+
+            let successCount = 0;
+            for (const log of logs) {
+                const res = await undoPrepTask(ing.id, log.actualAmount, log.id);
+                if (res?.success) successCount++;
+            }
+
+            if (successCount > 0) {
+                const freshLogs = await getCompletedPrepLogs();
+                setCompletedLogs(freshLogs);
+            } else {
+                alert('Error al deshacer la tarea.');
             }
             setCompleting(null);
         };
@@ -718,6 +755,15 @@ export default function PrepSchedulePage() {
                     </div>
 
                     <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', marginTop: '0.5rem' }}>
+                        <select
+                            value={globalDefrostCook}
+                            onChange={(e) => setGlobalDefrostCook(e.target.value)}
+                            style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                            <option value="">Seleccionar Preparador...</option>
+                            {teamMembers.map(m => (
+                                <option key={m.id} value={m.id}>{m.name}</option>
+                            ))}
+                        </select>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Clock size={18} color="var(--warning)" />
                             <span style={{ color: 'var(--text-secondary)' }}>{t('PrepSchedule.pending', { count: pendingCount })}</span>
@@ -739,7 +785,6 @@ export default function PrepSchedulePage() {
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Tarea de Descongelado</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Sugerido</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Cantidad</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Preparador</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Acción</th>
                                 </tr>
                             </thead>
@@ -775,11 +820,17 @@ export default function PrepSchedulePage() {
                                         return (
                                             <tr key={taskName} style={{ borderBottom: '1px solid var(--border)', background: 'rgba(16, 185, 129, 0.05)' }}>
                                                 <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{taskName}</td>
-                                                <td colSpan={3} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
-                                                    ✅ Completado ({totalQty} {ing.metric}) - Por: {preparers}
+                                                <td colSpan={2} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
+                                                    ✅ Completado ({totalQty} {displayMetric(ing.metric)}) - Por: {preparers}
                                                 </td>
                                                 <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Logueado</span>
+                                                    <button
+                                                        disabled={completing === ing.id}
+                                                        onClick={() => handleUndoDefrost(ing, completedLogsToday)}
+                                                        className="btn-secondary"
+                                                        style={{ padding: '0.4rem 0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
+                                                        {completing === ing.id ? 'Revertiendo...' : 'Deshacer'}
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );
@@ -793,7 +844,7 @@ export default function PrepSchedulePage() {
                                                     onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: suggested.toString() }))}
                                                     title="Click para autocompletar"
                                                     style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid var(--border)', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>
-                                                    {suggested} {ing.metric}
+                                                    {suggested} {displayMetric(ing.metric)}
                                                 </button>
                                             </td>
                                             <td style={{ padding: '1rem' }}>
@@ -806,26 +857,15 @@ export default function PrepSchedulePage() {
                                                         onChange={(e) => setDefrostQuantities(prev => ({ ...prev, [ing.id]: e.target.value }))}
                                                         style={{ width: '80px', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                                                     />
-                                                    <span style={{ color: 'var(--text-secondary)' }}>{ing.metric}</span>
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{displayMetric(ing.metric)}</span>
                                                 </div>
-                                            </td>
-                                            <td style={{ padding: '1rem' }}>
-                                                <select
-                                                    value={defrostCooks[ing.id] || ''}
-                                                    onChange={(e) => setDefrostCooks(prev => ({ ...prev, [ing.id]: e.target.value }))}
-                                                    style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                                    <option value="">Seleccionar...</option>
-                                                    {teamMembers.map(m => (
-                                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                                    ))}
-                                                </select>
                                             </td>
                                             <td style={{ padding: '1rem', textAlign: 'center' }}>
                                                 <button
                                                     disabled={completing === ing.id}
                                                     onClick={() => handleCompleteDefrost(ing)}
                                                     className="btn-primary"
-                                                    style={{ padding: '0.6rem 1rem', background: completing === ing.id ? 'var(--text-secondary)' : '#3b82f6', opacity: (!defrostCooks[ing.id] || !defrostQuantities[ing.id]) ? 0.5 : 1 }}>
+                                                    style={{ padding: '0.6rem 1rem', background: completing === ing.id ? 'var(--text-secondary)' : '#3b82f6', opacity: (!globalDefrostCook || !defrostQuantities[ing.id]) ? 0.5 : 1 }}>
                                                     {completing === ing.id ? 'Procesando...' : 'Completar'}
                                                 </button>
                                             </td>
@@ -878,6 +918,15 @@ export default function PrepSchedulePage() {
                                 ))}
                             </select>
                         </div>
+                        <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Insumo Base (Ingredient)</label>
+                            <select value={newRecurringBase} onChange={(e) => setNewRecurringBase(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                <option value="">Select Base...</option>
+                                {baseIngredients.map(item => (
+                                    <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                            </select>
+                        </div>
                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Día de la Semana' : 'Day of Week'}</label>
                             <select value={newRecurringDay} onChange={(e) => setNewRecurringDay(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
@@ -889,9 +938,11 @@ export default function PrepSchedulePage() {
                                 <option value="5">Friday</option>
                                 <option value="6">Saturday</option>
                             </select>
+                            {newRecurringDay === '1' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.2rem' }}>Cubre: Mar, Mié, Jue, Vie</span>}
+                            {newRecurringDay === '3' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.2rem' }}>Cubre: Sáb, Dom, Lun</span>}
                         </div>
                         <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Cantidad' : 'Amount'}</label>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Demanda Total (Porciones)' : 'Total Demand (Portions)'}</label>
                             <input type="number" step="0.01" min="0" value={newRecurringAmount} onChange={(e) => setNewRecurringAmount(e.target.value)} placeholder="0.0" style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                         </div>
                         <button className="btn-primary" onClick={handleCreateRecurringRule} style={{ padding: '0.8rem 1.5rem', borderRadius: '8px', height: 'fit-content', background: 'linear-gradient(135deg, #a855f7, #6b21a8)' }}>

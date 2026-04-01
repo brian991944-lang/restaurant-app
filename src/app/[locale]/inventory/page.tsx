@@ -9,6 +9,7 @@ import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import RecipeBuilderModal from '@/components/modals/RecipeBuilderModal';
+import AdjustStockModal from '@/components/modals/AdjustStockModal';
 import { getCategories, getInventory, addCategory, editCategory, deleteCategory, addIngredient, editIngredient, deleteIngredient, bulkAddIngredients, logWaste, logInventoryAdjustment, setUnfrozenQuantityAction, getProviders, addProvider, editProvider, deleteProvider } from '@/app/actions/inventory';
 import { getPrepUsers } from '@/app/actions/users';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
@@ -42,6 +43,9 @@ interface Ingredient {
     cloverSoldToday?: number;
     unfrozenQuantity?: number;
     trackFreezerStatus?: boolean;
+    isPacked?: boolean;
+    unitsPerPack?: number;
+    packUnit?: string;
 }
 
 const MOCK_INVENTORY: Ingredient[] = [
@@ -102,6 +106,7 @@ export default function InventoryPage() {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isRecipeModalOpen, setIsRecipeModalOpen] = useState(false);
     const [editingIngredient, setEditingIngredient] = useState<any>(null);
+    const [adjustingIngredient, setAdjustingIngredient] = useState<any>(null);
     const [isManageOptionsOpen, setIsManageOptionsOpen] = useState(false);
     const t = useTranslations('Inventory');
     const tOptions = useTranslations('Options');
@@ -225,6 +230,20 @@ export default function InventoryPage() {
             loadData();
         } else {
             alert(res.error || 'Failed to save ingredient');
+        }
+    };
+
+    const handleAdjustStock = async (data: { type: 'ADD' | 'REMOVE', amount: number, notes: string }) => {
+        if (!adjustingIngredient) return;
+        const multiplier = adjustingIngredient.isPacked ? (adjustingIngredient.unitsPerPack || 1) : 1;
+        const actualQty = data.type === 'ADD' ? (data.amount * multiplier) : -(data.amount * multiplier);
+
+        const res = await logInventoryAdjustment(adjustingIngredient.id, actualQty, "Admin_Override");
+        if (res.success) {
+            setAdjustingIngredient(null);
+            loadData();
+        } else {
+            alert(res.error || 'Failed to adjust stock');
         }
     };
 
@@ -361,21 +380,26 @@ export default function InventoryPage() {
         rawCategory: item.category?.name || 'Uncategorized',
         categoryNameEs: item.category?.nameEs,
         type: item.type as any,
-        total: item.inventory?.frozenQty || 0,
+        total: (item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0),
         metric: item.metric || 'units',
         yieldPercent: item.yieldPercent,
-        status: (item.inventory?.frozenQty || 0) > 5 ? 'GOOD' : ((item.inventory?.frozenQty || 0) > 0 ? 'LOW' : 'OUT'),
+        status: ((item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0)) > 5 ? 'GOOD' : (((item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0)) > 0 ? 'LOW' : 'OUT'),
         currentPrice: item.currentPrice || 0,
         parent: item.parent,
         parentId: item.parentId,
         provider: item.provider,
         providerName: item.provider?.name,
-        initialQty: item.inventory?.frozenQty || 0,
+        initialQty: (item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0),
         portionWeightG: item.portionWeightG,
         cloverId: item.cloverId,
         cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
-        unfrozenQuantity: item.unfrozenQuantity || 0,
+        inventory: item.inventory,
+        unfrozenQuantity: item.inventory?.thawingQty || 0,
         trackFreezerStatus: item.trackFreezerStatus || false,
+        allowNegativeStock: item.allowNegativeStock || false,
+        isPacked: item.isPacked || false,
+        unitsPerPack: item.unitsPerPack || 1,
+        packUnit: item.packUnit || 'Units',
         composedOf: item.composedOf || [],
         calculatedCost: resolveCost(item)
     }));
@@ -422,44 +446,32 @@ export default function InventoryPage() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {/* Add Adjustment UI for RAW ingredients */}
-                    {item.type === 'RAW' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <button onClick={() => handleAdjustChange(item, -1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'var(--accent-primary)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'opacity 0.2s', opacity: 0.85 }} onMouseOver={(e) => e.currentTarget.style.opacity = '1'} onMouseOut={(e) => e.currentTarget.style.opacity = '0.85'}>
-                                    <Minus size={16} />
-                                </button>
-                                <div style={{ width: '40px', textAlign: 'center', fontWeight: 'bold' }}>{adj > 0 ? `+${adj}` : adj}</div>
-                                <button onClick={() => handleAdjustChange(item, 1)} style={{ width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'var(--accent-primary)', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', transition: 'opacity 0.2s', opacity: 0.85 }} onMouseOver={(e) => e.currentTarget.style.opacity = '1'} onMouseOut={(e) => e.currentTarget.style.opacity = '0.85'}>
-                                    <Plus size={16} />
-                                </button>
-                            </div>
-
-                            {adj !== 0 && confirmingAdjust !== item.id && (
-                                <button onClick={() => setConfirmingAdjust(item.id)} className="btn-primary" style={{ padding: '0.2rem 0.6rem', fontSize: '0.8rem', borderRadius: '6px' }}>
-                                    Confirm
-                                </button>
-                            )}
-
-                            {confirmingAdjust === item.id && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '8px', zIndex: 10 }}>
-                                    <select value={adjustCook} onChange={(e) => setAdjustCook(e.target.value)} style={{ padding: '0.3rem', borderRadius: '4px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
-                                        <option value="">Select Cook...</option>
-                                        {prepUsers.map(user => (
-                                            <option key={user.id} value={user.id}>{user.name}</option>
-                                        ))}
-                                    </select>
-                                    <button onClick={() => handleConfirmAdjustSubmit(item)} className="btn-primary" style={{ padding: '0.3rem', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Submit Adjustment">
-                                        <Check size={16} />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setAdjustingIngredient(item); }}
+                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseOver={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+                        onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+                    >
+                        {locale === 'es' ? 'Ajustar' : 'Adjust'}
+                    </button>
+                    {/* Read-Only mode: manual adjustments disabled per strict DB policy */}
 
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.75rem' }}>
-                        <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>{adj !== 0 ? totalWithAdj : item.total}</div>
-                        <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>{getOptName(item.metric)}</div>
+                        {item.isPacked ? (
+                            <>
+                                <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>
+                                    {adj !== 0 ? (totalWithAdj / (item.unitsPerPack || 1)).toFixed(2).replace(/\.00$/, '') : (item.total / (item.unitsPerPack || 1)).toFixed(2).replace(/\.00$/, '')}
+                                </div>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>
+                                    {locale === 'es' ? 'Bolsas' : 'Bags'} <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>({locale === 'es' ? 'Total de' : 'Total of'} {adj !== 0 ? totalWithAdj : item.total} {getOptName(item.isPacked ? (item.packUnit || item.metric) : item.metric)})</span>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>{adj !== 0 ? totalWithAdj : item.total}</div>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>{getOptName(item.metric)}</div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -646,22 +658,7 @@ export default function InventoryPage() {
                                                                     <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', fontWeight: 600 }}>{totalStock} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 'normal' }}>{item.metric}</span></td>
                                                                     <td style={{ padding: '1rem', textAlign: 'center', fontSize: '1.1rem', color: '#60a5fa', fontWeight: 600 }}>{frozenAmt}</td>
                                                                     <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                                        <div style={{ display: 'inline-flex', gap: '1rem', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.5rem 1rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                                                                            <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: Math.max(0, displayUnfrozen - 1) }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--danger)', opacity: displayUnfrozen <= 0 ? 0.3 : 1, cursor: displayUnfrozen <= 0 ? 'not-allowed' : 'pointer' }} disabled={displayUnfrozen <= 0}>
-                                                                                <Minus size={16} />
-                                                                            </button>
-                                                                            <span style={{ fontWeight: 'bold', fontSize: '1.2rem', minWidth: '30px', textAlign: 'center', color: 'var(--warning)' }}>{displayUnfrozen}</span>
-                                                                            <button onClick={() => setDraftUnfrozen(prev => ({ ...prev, [item.id]: displayUnfrozen + 1 }))} className="btn-primary" style={{ width: '32px', height: '32px', borderRadius: '50%', padding: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', border: 'none', background: 'var(--success)', cursor: 'pointer' }}>
-                                                                                <Plus size={16} />
-                                                                            </button>
-
-                                                                            {hasDraft && (
-                                                                                <button onClick={() => handleConfirmUnfrozen(item)} className="btn-primary" style={{ marginLeft: '1rem', padding: '0.3rem 0.8rem', fontSize: '0.85rem', background: '#3b82f6', border: 'none', borderRadius: '6px', color: 'white', display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                                                                                    <Check size={14} />
-                                                                                    {locale === 'es' ? 'Confirmar' : 'Confirm'}
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
+                                                                        <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--warning)' }}>{baseUnfrozen}</span>
                                                                     </td>
                                                                 </tr>
                                                             );
@@ -837,6 +834,9 @@ export default function InventoryPage() {
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * ((item.portionWeightG || 1) * (item.yieldPercent || 100) / 100)).toFixed(2)}</td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}</td>
                                             <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                                <button onClick={(e) => { e.stopPropagation(); setAdjustingIngredient(item); }} style={{ color: 'var(--text-secondary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginRight: '1rem', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                                                    {locale === 'es' ? 'Ajustar' : 'Adjust'}
+                                                </button>
                                                 <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
                                                 <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>Delete</button>
                                             </td>
@@ -981,6 +981,20 @@ export default function InventoryPage() {
                                                         {item.yieldPercent ? `${parseFloat((100 - (item.yieldPercent as number)).toFixed(2))}%` : '0%'}
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setAdjustingIngredient(item); }}
+                                                            style={{
+                                                                color: 'var(--text-secondary)',
+                                                                padding: '0.25rem 0.5rem',
+                                                                fontSize: '0.9rem',
+                                                                fontWeight: 500,
+                                                                marginRight: '1rem',
+                                                                border: '1px solid var(--border)',
+                                                                borderRadius: '6px'
+                                                            }}
+                                                        >
+                                                            {locale === 'es' ? 'Ajustar' : 'Adjust'}
+                                                        </button>
                                                         {item.type === 'RAW' && !item.parent && (
                                                             <button
                                                                 onClick={(e) => {
@@ -1254,6 +1268,14 @@ export default function InventoryPage() {
                         loadData();
                     }}
                     dbIngredients={dbIngredients}
+                />
+            )}
+
+            {adjustingIngredient && (
+                <AdjustStockModal
+                    ingredient={adjustingIngredient}
+                    onClose={() => setAdjustingIngredient(null)}
+                    onSave={handleAdjustStock}
                 />
             )}
         </div >

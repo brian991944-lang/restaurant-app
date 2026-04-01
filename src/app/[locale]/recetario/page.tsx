@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
-import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft } from 'lucide-react';
+import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search } from 'lucide-react';
 import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -23,6 +23,9 @@ export default function RecetarioPage() {
     const [recipes, setRecipes] = useState<any[]>([]);
     const [activeTab, setActiveTab] = useState('RECETA'); // RECETA, EMPLATADO, GUIA
     const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [batchMultiplier, setBatchMultiplier] = useState<number | string>(1);
+    const activeMultiplier = typeof batchMultiplier === 'number' && batchMultiplier >= 1 ? batchMultiplier : 1;
 
     const tOptions = useTranslations('Options');
     const getOptName = (name: string) => {
@@ -78,6 +81,7 @@ export default function RecetarioPage() {
         setSelectedRecipe(null);
         setEditData(newData);
         setIsEditing(true);
+        setBatchMultiplier(1);
     };
 
     const handleEdit = (recipe: any) => {
@@ -85,12 +89,14 @@ export default function RecetarioPage() {
         setSelectedRecipe(recipe);
         setEditData({ ...recipe, linkedIngredientId: linked ? linked.id : '' });
         setIsEditing(true);
+        setBatchMultiplier(1);
     };
 
     const handleView = (recipe: any) => {
         setSelectedRecipe(recipe);
         setEditData(null);
         setIsEditing(false);
+        setBatchMultiplier(1);
     };
 
     const handleSave = async () => {
@@ -167,7 +173,14 @@ export default function RecetarioPage() {
     };
 
 
-    const filteredList = recipes.filter(r => r.type === activeTab);
+    const filteredList = recipes.filter(r => {
+        if (r.type !== activeTab) return false;
+        if (!searchQuery) return true;
+        const searchUpper = searchQuery.toUpperCase();
+        const n1 = (r.name || '').toUpperCase();
+        const n2 = (r.nameEs || '').toUpperCase();
+        return n1.includes(searchUpper) || n2.includes(searchUpper);
+    });
 
     // ============================================
     // MAIN LIST RENDER
@@ -197,30 +210,50 @@ export default function RecetarioPage() {
                     )}
                 </div>
 
-                <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', marginTop: '2rem', marginBottom: '1.5rem' }}>
-                    {[
-                        { id: 'RECETA', label: locale === 'es' ? 'Recetas' : 'Recipes' },
-                        { id: 'EMPLATADO', label: locale === 'es' ? 'Emplatados' : 'Platings' },
-                        { id: 'GUIA', label: locale === 'es' ? 'Guía de Tareas Básicas' : 'Basic Task Guides' }
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
+                <div className="glass-panel" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        {[
+                            { id: 'RECETA', label: locale === 'es' ? 'Recetas' : 'Recipes' },
+                            { id: 'EMPLATADO', label: locale === 'es' ? 'Emplatados' : 'Platings' },
+                            { id: 'GUIA', label: locale === 'es' ? 'Guía de Tareas Básicas' : 'Basic Task Guides' }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                style={{
+                                    padding: '0.6rem 1.2rem',
+                                    borderRadius: '8px',
+                                    fontWeight: 500,
+                                    fontSize: '0.95rem',
+                                    color: activeTab === tab.id ? 'white' : 'var(--text-secondary)',
+                                    background: activeTab === tab.id ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent',
+                                    border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    <div style={{ position: 'relative', width: '300px' }}>
+                        <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+                        <input
+                            type="text"
+                            placeholder={locale === 'es' ? 'Buscar receta...' : 'Search recipe...'}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             style={{
-                                padding: '0.6rem 1.2rem',
+                                width: '100%',
+                                padding: '0.6rem 1rem 0.6rem 2.5rem',
                                 borderRadius: '8px',
-                                fontWeight: 500,
-                                fontSize: '0.95rem',
-                                color: activeTab === tab.id ? 'white' : 'var(--text-secondary)',
-                                background: activeTab === tab.id ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent',
-                                border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
+                                border: '1px solid var(--border)',
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-primary)',
+                                outline: 'none'
                             }}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                        />
+                    </div>
                 </div>
 
                 {isLoading ? (
@@ -437,19 +470,51 @@ export default function RecetarioPage() {
                             </div>
                         )}
                     </div>
-                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'flex-end', marginLeft: '2rem' }}>
-                        <div>
-                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>{locale === 'es' ? 'Rendimiento' : 'Yield'}</span>
-                            {isEditing ? (
-                                <input
-                                    value={docData.yield || ''}
-                                    onChange={e => setEditData({ ...docData, yield: e.target.value })}
-                                    placeholder="e.g. Approx. 5 Litros"
-                                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
-                                />
-                            ) : (
-                                <span style={{ fontWeight: 600, fontSize: '14pt' }}>{docData.yield || '-'}</span>
+                    <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'flex-start', marginLeft: '2rem' }}>
+                        <div style={{ display: 'flex', gap: '2rem', justifyContent: 'flex-end', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                            {!isEditing && (
+                                <div style={{ textAlign: 'right' }}>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>
+                                        {locale === 'es' ? 'Multiplicador (Batches)' : 'Multiplier (Batches)'}
+                                    </span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={batchMultiplier}
+                                        onFocus={(e) => e.target.select()}
+                                        onChange={(e) => {
+                                            if (e.target.value === '') setBatchMultiplier('');
+                                            else setBatchMultiplier(Math.max(1, parseInt(e.target.value) || 1));
+                                        }}
+                                        onBlur={() => {
+                                            if (batchMultiplier === '' || (typeof batchMultiplier === 'number' && batchMultiplier < 1)) setBatchMultiplier(1);
+                                        }}
+                                        style={{ width: '80px', textAlign: 'right', background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--accent-primary)', fontWeight: 'bold' }}
+                                    />
+                                </div>
                             )}
+                            <div>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>{locale === 'es' ? 'Rendimiento' : 'Yield'}</span>
+                                {isEditing ? (
+                                    <input
+                                        value={docData.yield || ''}
+                                        onChange={e => setEditData({ ...docData, yield: e.target.value })}
+                                        placeholder="e.g. Approx. 5 Litros"
+                                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
+                                    />
+                                ) : (
+                                    <span style={{ fontWeight: 600, fontSize: '14pt', color: activeMultiplier > 1 ? 'var(--accent-secondary)' : 'inherit' }}>
+                                        {docData.yield ? (
+                                            (() => {
+                                                const match = docData.yield.match(/^([\d.]+)\s*(.*)$/);
+                                                if (match && activeMultiplier > 1) {
+                                                    return `${Math.round(parseFloat(match[1]) * activeMultiplier)} ${match[2]}`;
+                                                }
+                                                return docData.yield;
+                                            })()
+                                        ) : '-'}</span>
+                                )}
+                            </div>
                         </div>
                         <div>
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>{locale === 'es' ? 'Fecha de Revisión' : 'Revision Date'}</span>
@@ -538,7 +603,12 @@ export default function RecetarioPage() {
                                                         ) : (
                                                             <>
                                                                 <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
-                                                                <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
+                                                                <td style={{ padding: '0.8rem 0.5rem', fontWeight: activeMultiplier > 1 ? 'bold' : 'normal', color: activeMultiplier > 1 ? 'var(--accent-secondary)' : 'inherit' }}>
+                                                                    {(() => {
+                                                                        const qty = parseFloat(ingr.quantity);
+                                                                        return !isNaN(qty) ? Math.round(qty * activeMultiplier) : ingr.quantity;
+                                                                    })()}
+                                                                </td>
                                                                 <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
                                                                 <td style={{ padding: '0.8rem 0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{ingr.notes}</td>
                                                             </>

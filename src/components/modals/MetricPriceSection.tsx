@@ -61,7 +61,7 @@ export default function MetricPriceSection({
                         name="metric"
                         value={selectedMetric}
                         onChange={setSelectedMetric}
-                        options={ALLOWED_METRICS.filter(m => (currentType === 'PROCESSED' && isPortioned) ? m.toLowerCase() === 'units' : m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }))}
+                        options={ALLOWED_METRICS.filter(m => (currentType === 'PROCESSED' && isPortioned) ? m.toLowerCase() === 'units' : true).map(m => ({ value: m, label: m }))}
                         disabled={currentType === 'PROCESSED' && isPortioned}
                     />
                 )}

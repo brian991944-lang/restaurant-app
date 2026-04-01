@@ -65,7 +65,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
-    const [unfrozenQuantity, setUnfrozenQuantity] = useState<number>(0);
+    const [totalStock, setTotalStock] = useState<string>('');
+    const [unfrozenStock, setUnfrozenStock] = useState<string>('');
     const [recipeYield, setRecipeYield] = useState<number>(1);
     const [components, setComponents] = useState<{ id: string, ingredientId: string, quantity: string, unit: string }[]>([]);
     const [portionSize, setPortionSize] = useState<number>(1);
@@ -77,6 +78,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [cloverId, setCloverId] = useState<string>('');
     const [mappingMultiplier, setMappingMultiplier] = useState<number>(1);
 
+    // Packed Tracking States
+    const [isPacked, setIsPacked] = useState<boolean>(false);
+    const [unitsPerPack, setUnitsPerPack] = useState<number>(1);
+    const [packUnit, setPackUnit] = useState<string>('Units');
+
     useEffect(() => {
         if (!isOpen) {
             setNameInput('');
@@ -87,7 +93,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setMappingMultiplier(1);
             setTrackFreezerStatus(false);
             setAllowNegativeStock(false);
-            setUnfrozenQuantity(0);
+            setTotalStock('');
+            setUnfrozenStock('');
+            setIsPacked(false);
+            setUnitsPerPack(1);
+            setPackUnit('Units');
         }
     }, [isOpen]);
 
@@ -152,7 +162,18 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setSelectedParentId(initialData?.parentId || '');
             setSelectedCategory(initialData?.rawCategory || initialData?.category || '');
             setSelectedProvider(initialData?.provider?.name || initialData?.providerName || '');
-            setUnfrozenQuantity(initialData?.unfrozenQuantity || 0);
+
+            if (initialData?.inventory) {
+                const multiplier = initialData.isPacked ? (initialData.unitsPerPack || 1) : 1;
+                const tot = (initialData.inventory.thawingQty + initialData.inventory.frozenQty) / multiplier;
+                const unf = initialData.inventory.thawingQty / multiplier;
+                setTotalStock(tot.toString());
+                setUnfrozenStock(unf.toString());
+            } else {
+                setTotalStock('');
+                setUnfrozenStock('');
+            }
+
             setRecipeYield(initialData?.yieldPercent || 1);
             if (initialData?.composedOf) {
                 setComponents(initialData.composedOf.map((c: any) => ({
@@ -192,6 +213,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
             setAllowNegativeStock(initialData?.allowNegativeStock ?? false);
+            setIsPacked(initialData?.isPacked ?? false);
+            setUnitsPerPack(initialData?.unitsPerPack ?? 1.0);
+            setPackUnit(initialData?.packUnit ?? 'Units');
         }
     }, [isOpen, initialData]);
 
@@ -226,8 +250,16 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
         costPerPortionPreview = (initialData?.currentPrice || currentPriceValue || 0) / yieldDecimal;
     }
 
+    const isDescongeladoInvalid = trackFreezerStatus
+        && unfrozenStock !== ''
+        && totalStock !== ''
+        && parseFloat(unfrozenStock) > parseFloat(totalStock);
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+
+        if (isDescongeladoInvalid) return;
+
         const formData = new FormData(e.currentTarget);
 
         onSave({
@@ -238,7 +270,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             providerName: formData.get('provider') as string,
             type: currentType,
             metric: currentType === 'PREP_RECIPE' ? (initialData?.metric || selectedMetric) : (currentType === 'PROCESSED' && isPortioned ? 'Units' : selectedMetric),
-            initialQty: formData.get('initialQty') ? parseFloat(formData.get('initialQty') as string) : undefined,
+            initialQty: totalStock !== '' ? parseFloat(totalStock) * (isPacked ? unitsPerPack : 1) : undefined,
             yieldPercent: parseFloat((100 - wastePercent).toFixed(2)),
             currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (currentType === 'PREP_RECIPE' ? (initialData?.currentPrice || currentPriceValue || 0) : (parseFloat(formData.get('currentPrice') as string) || 0)),
             parentId: selectedParentId || null,
@@ -249,9 +281,12 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             portionUnit: currentType === 'PROCESSED' && isPortioned ? portionUnit : null,
             cloverId: cloverId || null,
             mappingMultiplier: mappingMultiplier,
-            unfrozenQuantity: currentType === 'PROCESSED' ? unfrozenQuantity : 0,
+            unfrozenQuantity: trackFreezerStatus && unfrozenStock !== '' ? parseFloat(unfrozenStock) * (isPacked ? unitsPerPack : 1) : undefined,
             trackFreezerStatus: trackFreezerStatus,
             allowNegativeStock: allowNegativeStock,
+            isPacked: isPacked,
+            unitsPerPack: isPacked ? unitsPerPack : 1.0,
+            packUnit: isPacked ? packUnit : 'Units',
         });
     };
 
@@ -432,18 +467,119 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         initialData={initialData}
                     />
 
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                        <label style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 600 }}>
+                            <input
+                                type="checkbox"
+                                checked={isPacked}
+                                onChange={e => setIsPacked(e.target.checked)}
+                                style={{ accentColor: 'var(--accent-primary)', width: '18px', height: '18px' }}
+                            />
+                            Is Packed/Bagged Item?
+                        </label>
+                        {isPacked && (
+                            <>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Weight/Units per Pack</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            className="input-field"
+                                            value={unitsPerPack}
+                                            onChange={(e) => setUnitsPerPack(parseFloat(e.target.value) || 0)}
+                                            required={isPacked}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Unit of Measurement</label>
+                                        <select
+                                            className="input-field"
+                                            value={packUnit}
+                                            onChange={(e) => setPackUnit(e.target.value)}
+                                            required={isPacked}
+                                        >
+                                            {ALLOWED_METRICS.map(m => {
+                                                let translated = m;
+                                                try {
+                                                    const tStr = tOptions(m as any);
+                                                    if (tStr && !tStr.includes('Options.')) translated = tStr;
+                                                } catch { }
+                                                return <option key={m} value={m}>{translated}</option>;
+                                            })}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Invoice Calculator (Optional)</label>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '-0.3rem' }}>Calculate unit price automatically from the supplier invoice.</span>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Packs/Bags in Box</label>
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                min="1"
+                                                id="calcPacksPerBox"
+                                                className="input-field"
+                                                placeholder="e.g. 6"
+                                                onChange={(e) => {
+                                                    const packs = parseFloat(e.target.value) || 0;
+                                                    const price = parseFloat((document.getElementById('calcBoxPrice') as HTMLInputElement)?.value) || 0;
+                                                    if (packs > 0 && price > 0 && unitsPerPack > 0) {
+                                                        setCurrentPriceValue(Number((price / (packs * unitsPerPack)).toFixed(4)));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total Box Price ($)</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                id="calcBoxPrice"
+                                                className="input-field"
+                                                placeholder="e.g. 120.00"
+                                                onChange={(e) => {
+                                                    const price = parseFloat(e.target.value) || 0;
+                                                    const packs = parseFloat((document.getElementById('calcPacksPerBox') as HTMLInputElement)?.value) || 0;
+                                                    if (packs > 0 && price > 0 && unitsPerPack > 0) {
+                                                        setCurrentPriceValue(Number((price / (packs * unitsPerPack)).toFixed(4)));
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                    {unitsPerPack > 0 && currentPriceValue > 0 && (
+                                        <div style={{ fontSize: '0.85rem', color: 'var(--success)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                            ✓ Base Price securely calculated to <strong>${currentPriceValue}</strong> per {packUnit}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
-                        {(!initialData || (isAdmin && currentType !== 'PREP_RECIPE')) && (
+                        {(!initialData || isAdmin) && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    {!initialData ? `${t('modal_initial_qty')} (Total Stock)` : `Admin Override: Total Stock Count`}
+                                    {!initialData ? (isPacked ? `Number of Packs/Bags` : `${t('modal_initial_qty')} (Total Stock)`) : (isPacked ? `Admin Override: Number of Packs/Bags` : `Admin Override: Total Stock Count`)}
+                                    {initialData?.inventory && (
+                                        <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--accent-primary)', marginTop: '0.2rem', fontWeight: 600 }}>
+                                            Current DB Total: {Number(((initialData.inventory.thawingQty + initialData.inventory.frozenQty) / (initialData.isPacked ? (initialData.unitsPerPack || 1) : 1)).toFixed(4))} {initialData.isPacked ? (initialData.packUnit || 'Packs') : (initialData.metric || 'Units')}
+                                        </span>
+                                    )}
                                 </label>
                                 <input
                                     name="initialQty"
                                     type="number"
                                     step="0.01"
                                     className="input-field"
-                                    defaultValue={initialData?.inventory ? Number((initialData.inventory.thawingQty + initialData.inventory.frozenQty).toFixed(4)) : undefined}
+                                    value={totalStock}
+                                    onChange={(e) => setTotalStock(e.target.value)}
                                     placeholder="0.00"
                                     required={!initialData}
                                 />
@@ -457,8 +593,14 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     type="number"
                                     step="0.01"
                                     className="input-field"
-                                    value={unfrozenQuantity}
-                                    onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
+                                    value={unfrozenStock}
+                                    onChange={(e) => {
+                                        setUnfrozenStock(e.target.value);
+                                        // Auto calculate total if new item
+                                        if (!initialData && e.target.value !== '' && totalStock === '') {
+                                            setTotalStock(e.target.value);
+                                        }
+                                    }}
                                 />
                             </div>
                         )}
@@ -490,14 +632,21 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                             {trackFreezerStatus && initialData && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                                    <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>Cantidad Descongelada / Unfrozen in Fridge</label>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>
+                                        Cantidad Descongelada / Unfrozen in Fridge
+                                        <span style={{ display: 'block', fontSize: '0.8rem', color: isDescongeladoInvalid ? 'var(--danger)' : 'var(--warning)', marginTop: '0.2rem', fontWeight: 600 }}>
+                                            {isDescongeladoInvalid ? 'Error: Descongelado cannot exceed Total Stock.' : `Current DB Unfrozen: ${initialData.inventory?.thawingQty !== undefined ? initialData.inventory.thawingQty : 0} ${initialData.metric || 'Units'}`}
+                                        </span>
+                                    </label>
                                     <input
                                         type="number"
                                         step="0.01"
                                         className="input-field"
-                                        value={unfrozenQuantity}
-                                        onChange={(e) => setUnfrozenQuantity(parseFloat(e.target.value) || 0)}
-                                        style={{ width: '150px' }}
+                                        value={unfrozenStock}
+                                        onChange={(e) => {
+                                            setUnfrozenStock(e.target.value);
+                                        }}
+                                        style={{ width: '150px', border: isDescongeladoInvalid ? '2px solid var(--danger)' : undefined, background: isDescongeladoInvalid ? 'rgba(239, 68, 68, 0.1)' : undefined }}
                                     />
                                 </div>
                             )}
@@ -555,12 +704,12 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         <button type="button" onClick={onClose} style={{ padding: '0.6rem 1rem', borderRadius: '8px', color: 'var(--text-secondary)', background: 'transparent' }}>
                             {t('modal_cancel')}
                         </button>
-                        <button type="submit" className="btn-primary" style={{ padding: '0.6rem 1.5rem', borderRadius: '8px' }}>
+                        <button type="submit" className="btn-primary" style={{ padding: '0.6rem 1.5rem', borderRadius: '8px', opacity: isDescongeladoInvalid ? 0.5 : 1 }} disabled={isDescongeladoInvalid}>
                             {t('modal_save')}
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }
