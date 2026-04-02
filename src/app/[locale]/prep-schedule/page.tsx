@@ -500,11 +500,13 @@ export default function PrepSchedulePage() {
                             onChange={(val) => setManualTask(val)}
                             options={[
                                 { value: '', label: t('PrepSchedule.add_manual_today') },
-                                ...prepItems.map(item => ({
-                                    value: item.id,
-                                    label: item.name,
-                                    category: item.category?.name || 'Uncategorized'
-                                }))
+                                ...prepItems
+                                    .filter(item => !(item.category?.name || '').toLowerCase().includes('descongelar'))
+                                    .map(item => ({
+                                        value: item.id,
+                                        label: item.name,
+                                        category: item.category?.name || 'Uncategorized'
+                                    }))
                             ]}
                             placeholder={t('PrepSchedule.add_manual_today')}
                         />
@@ -578,6 +580,7 @@ export default function PrepSchedulePage() {
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
             const cat = item.category?.name || 'Uncategorized';
+            if (cat.toLowerCase().includes('descongelar')) return;
             const parent = item.parent?.name || 'Base Tasks';
             if (!grouped[cat]) grouped[cat] = {};
             if (!grouped[cat][parent]) grouped[cat][parent] = [];
@@ -885,6 +888,7 @@ export default function PrepSchedulePage() {
         const groupedItems: Record<string, any[]> = {};
         prepItems.forEach(item => {
             const cat = item.category?.name || 'Uncategorized';
+            if (cat.toLowerCase().includes('descongelar')) return;
             if (!groupedItems[cat]) groupedItems[cat] = [];
             groupedItems[cat].push(item);
         });

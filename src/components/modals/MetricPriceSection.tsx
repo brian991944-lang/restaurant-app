@@ -8,6 +8,7 @@ interface MetricPriceSectionProps {
     setSelectedMetric: (val: string) => void;
     ALLOWED_METRICS: string[];
     isPortioned: boolean;
+    isPacked?: boolean;
     wastePercent: number;
     setWastePercent: (val: number) => void;
     locale: string;
@@ -24,6 +25,7 @@ export default function MetricPriceSection({
     setSelectedMetric,
     ALLOWED_METRICS,
     isPortioned,
+    isPacked,
     wastePercent,
     setWastePercent,
     locale,

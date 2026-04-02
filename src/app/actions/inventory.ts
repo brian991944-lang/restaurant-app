@@ -122,6 +122,8 @@ export async function addIngredient(data: any) {
                 isPacked: data.isPacked !== undefined ? data.isPacked : false,
                 unitsPerPack: data.unitsPerPack !== undefined ? parseFloat(data.unitsPerPack) : 1.0,
                 packUnit: data.packUnit || 'Units',
+                packsInBox: data.packsInBox !== undefined ? data.packsInBox : undefined,
+                totalBoxPrice: data.totalBoxPrice !== undefined ? data.totalBoxPrice : undefined,
                 currentPrice: data.currentPrice || 0,
                 parentId: data.parentId || null,
                 cloverId: data.cloverId || null,
@@ -214,6 +216,8 @@ export async function editIngredient(id: string, data: any) {
                 isPacked: data.isPacked !== undefined ? data.isPacked : undefined,
                 unitsPerPack: data.unitsPerPack !== undefined ? parseFloat(data.unitsPerPack) : undefined,
                 packUnit: data.packUnit !== undefined ? data.packUnit : undefined,
+                packsInBox: data.packsInBox !== undefined ? data.packsInBox : undefined,
+                totalBoxPrice: data.totalBoxPrice !== undefined ? data.totalBoxPrice : undefined,
                 currentPrice: data.currentPrice !== undefined ? data.currentPrice : undefined,
                 parentId: data.parentId !== undefined ? data.parentId : undefined,
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
@@ -459,6 +463,8 @@ export async function editCategory(id: string, name: string, nameEs?: string) {
             where: { id },
             data: { name, nameEs: nameEs || null }
         });
+        revalidatePath('/[locale]/inventory', 'page');
+        revalidatePath('/[locale]/compras', 'page');
         return { success: true, category };
     } catch (error) {
         console.error('Failed to edit category:', error);

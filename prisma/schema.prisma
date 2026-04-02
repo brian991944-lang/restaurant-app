@@ -62,6 +62,8 @@ model Ingredient {
   isPacked       Boolean @default(false)
   unitsPerPack   Float   @default(1.0)
   packUnit       String  @default("Units")
+  packsInBox     Float?
+  totalBoxPrice  Float?
   needsOrdering  Boolean @default(false)
   updatedAt      DateTime  @default(now()) @updatedAt
 

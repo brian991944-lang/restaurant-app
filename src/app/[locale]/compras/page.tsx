@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch } from 'lucide-react';
@@ -98,61 +98,105 @@ export default function ComprasPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
+                                    <th style={{ padding: '1rem', fontWeight: 600, width: '180px' }}>{locale === 'es' ? 'Categoría' : 'Category'}</th>
                                     <th style={{ padding: '1rem', fontWeight: 600, width: '60px' }}></th>
                                     <th style={{ padding: '1rem', fontWeight: 600 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
                                     {isAdmin && (
-                                        <th style={{ padding: '1rem', fontWeight: 600, width: '200px', textAlign: 'right' }}>{locale === 'es' ? 'Stock Actual' : 'Current Stock'}</th>
+                                        <>
+                                            <th style={{ padding: '1rem', fontWeight: 600, width: '150px', textAlign: 'right' }}>{locale === 'es' ? 'Stock Actual' : 'Current Stock'}</th>
+                                            <th style={{ padding: '1rem', fontWeight: 600, width: '200px', textAlign: 'right' }}>{locale === 'es' ? 'Proveedor' : 'Provider'}</th>
+                                        </>
                                     )}
                                 </tr>
                             </thead>
                             <tbody>
-                                {ingredients.map(ing => {
-                                    const qty = ing.inventory?.quantity ?? 0;
-                                    let displayStock = `${qty} ${ing.metric}`;
-                                    if (ing.isPacked && ing.unitsPerPack > 0 && qty > 0) {
-                                        const totalPacks = Math.floor(qty / ing.unitsPerPack);
-                                        const packLabel = (locale === 'es' && ing.packUnit.toLowerCase() === 'bags') ? 'Bolsas' :
-                                            (locale === 'es' && ing.packUnit.toLowerCase() === 'boxes') ? 'Cajas' : ing.packUnit;
-                                        displayStock = `${totalPacks} ${packLabel} (${qty} ${ing.metric})`;
-                                    }
+                                {(() => {
+                                    const groupedIngredients = Array.from<[string, any[]]>(
+                                        ingredients.reduce((acc, ing) => {
+                                            const cat = locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
+                                            if (!acc.has(cat)) acc.set(cat, []);
+                                            acc.get(cat).push(ing);
+                                            return acc;
+                                        }, new Map<string, any[]>())
+                                    ).sort((a, b) => a[0].localeCompare(b[0]));
 
-                                    return (
-                                        <tr
-                                            key={ing.id}
-                                            style={{
-                                                borderBottom: '1px solid var(--border)',
-                                                transition: 'background 0.2s',
-                                                background: ing.needsOrdering ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
-                                            }}
-                                            onMouseOver={(e) => e.currentTarget.style.background = ing.needsOrdering ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)'}
-                                            onMouseOut={(e) => e.currentTarget.style.background = ing.needsOrdering ? 'rgba(239, 68, 68, 0.05)' : 'transparent'}
-                                        >
-                                            <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                                <button
-                                                    onClick={() => handleToggle(ing.id, ing.needsOrdering)}
-                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
-                                                >
-                                                    {ing.needsOrdering ? (
-                                                        <CheckSquare size={24} color="var(--danger)" />
-                                                    ) : (
-                                                        <Square size={24} color="var(--text-secondary)" />
-                                                    )}
-                                                </button>
-                                            </td>
-                                            <td style={{ padding: '1rem', fontWeight: 500, color: ing.needsOrdering ? 'var(--danger)' : 'inherit' }}>
-                                                {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
-                                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 400, marginTop: '0.2rem' }}>
-                                                    {ing.provider?.name || 'Unknown'}
-                                                </span>
-                                            </td>
-                                            {isAdmin && (
-                                                <td style={{ padding: '1rem', textAlign: 'right', fontWeight: 500 }}>
-                                                    {displayStock}
-                                                </td>
-                                            )}
-                                        </tr>
-                                    );
-                                })}
+                                    return groupedIngredients.map(([category, items]) => {
+                                        items.sort((a: any, b: any) => a.name.localeCompare(b.name));
+
+                                        return (
+                                            <React.Fragment key={category}>
+                                                {items.map((ing: any, idx: number) => {
+                                                    const qty = (ing.inventory?.frozenQty || 0) + (ing.inventory?.thawingQty || 0);
+                                                    let displayStock = `${qty} ${ing.metric}`;
+                                                    if (ing.isPacked && ing.unitsPerPack > 0 && qty > 0) {
+                                                        const totalPacks = Math.floor(qty / ing.unitsPerPack);
+                                                        const packLabel = (locale === 'es' && ing.packUnit?.toLowerCase() === 'bags') ? 'Bolsas' :
+                                                            (locale === 'es' && ing.packUnit?.toLowerCase() === 'boxes') ? 'Cajas' : (ing.packUnit || 'Packs');
+                                                        displayStock = `${totalPacks} ${packLabel} (${qty} ${ing.metric})`;
+                                                    }
+
+                                                    const isEven = idx % 2 === 0;
+
+                                                    return (
+                                                        <tr
+                                                            key={ing.id}
+                                                            style={{
+                                                                borderBottom: '1px solid var(--border)',
+                                                                transition: 'background 0.2s',
+                                                                background: ing.needsOrdering ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = ing.needsOrdering ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = ing.needsOrdering ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')}
+                                                        >
+                                                            {idx === 0 && (
+                                                                <td
+                                                                    rowSpan={items.length}
+                                                                    style={{
+                                                                        padding: '1rem',
+                                                                        background: 'rgba(139, 92, 246, 0.05)',
+                                                                        borderRight: '2px solid var(--border)',
+                                                                        borderBottom: '1px solid var(--border)',
+                                                                        verticalAlign: 'middle',
+                                                                        fontWeight: 700,
+                                                                        fontSize: '1.05rem',
+                                                                        color: 'var(--text-primary)'
+                                                                    }}
+                                                                >
+                                                                    {category as string}
+                                                                </td>
+                                                            )}
+                                                            <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                <button
+                                                                    onClick={() => handleToggle(ing.id, ing.needsOrdering)}
+                                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
+                                                                >
+                                                                    {ing.needsOrdering ? (
+                                                                        <CheckSquare size={24} color="var(--danger)" />
+                                                                    ) : (
+                                                                        <Square size={24} color="var(--text-secondary)" />
+                                                                    )}
+                                                                </button>
+                                                            </td>
+                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: ing.needsOrdering ? 'var(--danger)' : 'inherit' }}>
+                                                                {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
+                                                            </td>
+                                                            {isAdmin && (
+                                                                <>
+                                                                    <td style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 500 }}>
+                                                                        {displayStock}
+                                                                    </td>
+                                                                    <td style={{ padding: '0.8rem 1rem', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                                        {ing.provider?.name || 'Unknown'}
+                                                                    </td>
+                                                                </>
+                                                            )}
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        );
+                                    });
+                                })()}
                             </tbody>
                         </table>
                     </div>

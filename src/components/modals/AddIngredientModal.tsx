@@ -82,6 +82,17 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [isPacked, setIsPacked] = useState<boolean>(false);
     const [unitsPerPack, setUnitsPerPack] = useState<number>(1);
     const [packUnit, setPackUnit] = useState<string>('Units');
+    const [calcPacks, setCalcPacks] = useState<number | ''>('');
+    const [calcBoxPrice, setCalcBoxPrice] = useState<number | ''>('');
+    const [overrideDisplayUnit, setOverrideDisplayUnit] = useState<string>('Packs');
+
+    const formatDisplayQty = (qty: number, unit: string) => {
+        if (!unit) return qty.toString();
+        if (unit === 'Packs' || unit.toLowerCase() === 'units') {
+            return Math.round(qty).toString();
+        }
+        return Number(qty.toFixed(2)).toString();
+    };
 
     useEffect(() => {
         if (!isOpen) {
@@ -98,8 +109,25 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setIsPacked(false);
             setUnitsPerPack(1);
             setPackUnit('Units');
+            setCalcPacks('');
+            setCalcBoxPrice('');
+            setOverrideDisplayUnit('Packs');
         }
     }, [isOpen]);
+
+    useEffect(() => {
+        if (isPacked && typeof calcBoxPrice === 'number' && typeof calcPacks === 'number' && calcBoxPrice > 0 && calcPacks > 0 && unitsPerPack > 0) {
+            const basePPU = calcBoxPrice / (calcPacks * unitsPerPack);
+            if (packUnit !== selectedMetric) {
+                const factor = getConversionFactor(packUnit, selectedMetric);
+                if (factor) {
+                    setCurrentPriceValue(Number((basePPU / factor).toFixed(5)));
+                    return;
+                }
+            }
+            setCurrentPriceValue(Number(basePPU.toFixed(5)));
+        }
+    }, [isPacked, calcBoxPrice, calcPacks, unitsPerPack, packUnit, selectedMetric]);
 
     useEffect(() => {
         if (!autoTranslate || !nameInput) {
@@ -164,11 +192,26 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setSelectedProvider(initialData?.provider?.name || initialData?.providerName || '');
 
             if (initialData?.inventory) {
-                const multiplier = initialData.isPacked ? (initialData.unitsPerPack || 1) : 1;
-                const tot = (initialData.inventory.thawingQty + initialData.inventory.frozenQty) / multiplier;
-                const unf = initialData.inventory.thawingQty / multiplier;
-                setTotalStock(tot.toString());
-                setUnfrozenStock(unf.toString());
+                let rawTot = initialData.inventory.thawingQty + initialData.inventory.frozenQty;
+                let rawUnf = initialData.inventory.thawingQty;
+                if (initialData.isPacked) {
+                    setOverrideDisplayUnit('Packs');
+                    const multiplier = initialData.unitsPerPack || 1;
+                    if (initialData.metric && initialData.packUnit && initialData.metric.toLowerCase() !== initialData.packUnit.toLowerCase()) {
+                        const factor = getConversionFactor(initialData.packUnit, initialData.metric);
+                        if (factor) {
+                            rawTot = rawTot / factor;
+                            rawUnf = rawUnf / factor;
+                        }
+                    }
+                    setTotalStock(formatDisplayQty(rawTot / multiplier, 'Packs'));
+                    setUnfrozenStock(formatDisplayQty(rawUnf / multiplier, 'Packs'));
+                } else {
+                    const tUnit = initialData.metric || 'Units';
+                    setOverrideDisplayUnit(tUnit);
+                    setTotalStock(formatDisplayQty(rawTot, tUnit));
+                    setUnfrozenStock(formatDisplayQty(rawUnf, tUnit));
+                }
             } else {
                 setTotalStock('');
                 setUnfrozenStock('');
@@ -216,6 +259,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setIsPacked(initialData?.isPacked ?? false);
             setUnitsPerPack(initialData?.unitsPerPack ?? 1.0);
             setPackUnit(initialData?.packUnit ?? 'Units');
+            setCalcPacks(initialData?.packsInBox || '');
+            setCalcBoxPrice(initialData?.totalBoxPrice || '');
         }
     }, [isOpen, initialData]);
 
@@ -255,12 +300,63 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
         && totalStock !== ''
         && parseFloat(unfrozenStock) > parseFloat(totalStock);
 
+    const handleOverrideDisplayUnitChange = (newUnit: string) => {
+        if (!isPacked) return; // Restricted logic to Packed configurations only
+        if (totalStock === '') {
+            setOverrideDisplayUnit(newUnit);
+            return;
+        }
+
+        let qty = parseFloat(totalStock);
+        let sourceMetric = overrideDisplayUnit === 'Packs' ? packUnit : overrideDisplayUnit;
+        let targetMetric = newUnit === 'Packs' ? packUnit : newUnit;
+
+        // Translate base stock
+        let qtyInSource = overrideDisplayUnit === 'Packs' ? qty * unitsPerPack : qty;
+        if (sourceMetric.toLowerCase() !== targetMetric.toLowerCase()) {
+            const factor = getConversionFactor(sourceMetric, targetMetric);
+            if (factor) qtyInSource = qtyInSource * factor;
+        }
+        let finalQty = newUnit === 'Packs' ? qtyInSource / unitsPerPack : qtyInSource;
+        setTotalStock(formatDisplayQty(finalQty, newUnit));
+
+        // Translate thawing stock
+        if (unfrozenStock !== '') {
+            let uQty = parseFloat(unfrozenStock);
+            let uInSource = overrideDisplayUnit === 'Packs' ? uQty * unitsPerPack : uQty;
+            if (sourceMetric.toLowerCase() !== targetMetric.toLowerCase()) {
+                const uFactor = getConversionFactor(sourceMetric, targetMetric);
+                if (uFactor) uInSource = uInSource * uFactor;
+            }
+            let uFinalQty = newUnit === 'Packs' ? uInSource / unitsPerPack : uInSource;
+            setUnfrozenStock(formatDisplayQty(uFinalQty, newUnit));
+        }
+
+        setOverrideDisplayUnit(newUnit);
+    };
+
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
         if (isDescongeladoInvalid) return;
 
         const formData = new FormData(e.currentTarget);
+
+        const getFinalQuantity = (rawQty: string) => {
+            if (rawQty === '') return undefined;
+            let qty = parseFloat(rawQty);
+            if (isPacked) {
+                let sourceUnit = overrideDisplayUnit === 'Packs' ? packUnit : overrideDisplayUnit;
+                let qtyInSource = overrideDisplayUnit === 'Packs' ? qty * unitsPerPack : qty;
+                if (sourceUnit.toLowerCase() !== selectedMetric.toLowerCase()) {
+                    const factor = getConversionFactor(sourceUnit, selectedMetric);
+                    if (factor) qtyInSource = qtyInSource * factor;
+                }
+                return qtyInSource;
+            } else {
+                return qty;
+            }
+        };
 
         onSave({
             name: nameInput,
@@ -270,9 +366,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             providerName: formData.get('provider') as string,
             type: currentType,
             metric: currentType === 'PREP_RECIPE' ? (initialData?.metric || selectedMetric) : (currentType === 'PROCESSED' && isPortioned ? 'Units' : selectedMetric),
-            initialQty: totalStock !== '' ? parseFloat(totalStock) * (isPacked ? unitsPerPack : 1) : undefined,
+            initialQty: getFinalQuantity(totalStock),
             yieldPercent: parseFloat((100 - wastePercent).toFixed(2)),
-            currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (currentType === 'PREP_RECIPE' ? (initialData?.currentPrice || currentPriceValue || 0) : (parseFloat(formData.get('currentPrice') as string) || 0)),
+            currentPrice: currentType === 'PROCESSED' ? costPerPortionPreview : (currentType === 'PREP_RECIPE' ? (initialData?.currentPrice || currentPriceValue || 0) : currentPriceValue),
             parentId: selectedParentId || null,
             activeMarketItemId: formData.get('activeMarketItemId') as string || null,
             autoTranslate,
@@ -281,12 +377,14 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             portionUnit: currentType === 'PROCESSED' && isPortioned ? portionUnit : null,
             cloverId: cloverId || null,
             mappingMultiplier: mappingMultiplier,
-            unfrozenQuantity: trackFreezerStatus && unfrozenStock !== '' ? parseFloat(unfrozenStock) * (isPacked ? unitsPerPack : 1) : undefined,
+            unfrozenQuantity: trackFreezerStatus ? getFinalQuantity(unfrozenStock) : undefined,
             trackFreezerStatus: trackFreezerStatus,
             allowNegativeStock: allowNegativeStock,
             isPacked: isPacked,
             unitsPerPack: isPacked ? unitsPerPack : 1.0,
             packUnit: isPacked ? packUnit : 'Units',
+            packsInBox: isPacked && typeof calcPacks === 'number' ? calcPacks : null,
+            totalBoxPrice: isPacked && typeof calcBoxPrice === 'number' ? calcBoxPrice : null,
         });
     };
 
@@ -446,6 +544,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     value={currentPriceValue}
                                     onChange={(e) => setCurrentPriceValue(parseFloat(e.target.value) || 0)}
                                     required
+                                    disabled={isPacked}
+                                    style={isPacked ? { opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.05)' } : {}}
                                 />
                             </div>
                         )}
@@ -458,6 +558,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         setSelectedMetric={setSelectedMetric}
                         ALLOWED_METRICS={ALLOWED_METRICS}
                         isPortioned={isPortioned}
+                        isPacked={isPacked}
                         wastePercent={wastePercent}
                         setWastePercent={setWastePercent}
                         locale={locale}
@@ -524,12 +625,10 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                                 id="calcPacksPerBox"
                                                 className="input-field"
                                                 placeholder="e.g. 6"
+                                                value={calcPacks === '' ? '' : calcPacks}
                                                 onChange={(e) => {
-                                                    const packs = parseFloat(e.target.value) || 0;
-                                                    const price = parseFloat((document.getElementById('calcBoxPrice') as HTMLInputElement)?.value) || 0;
-                                                    if (packs > 0 && price > 0 && unitsPerPack > 0) {
-                                                        setCurrentPriceValue(Number((price / (packs * unitsPerPack)).toFixed(4)));
-                                                    }
+                                                    const packs = e.target.value === '' ? '' : (parseFloat(e.target.value) || 0);
+                                                    setCalcPacks(packs);
                                                 }}
                                             />
                                         </div>
@@ -542,19 +641,17 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                                 id="calcBoxPrice"
                                                 className="input-field"
                                                 placeholder="e.g. 120.00"
+                                                value={calcBoxPrice === '' ? '' : calcBoxPrice}
                                                 onChange={(e) => {
-                                                    const price = parseFloat(e.target.value) || 0;
-                                                    const packs = parseFloat((document.getElementById('calcPacksPerBox') as HTMLInputElement)?.value) || 0;
-                                                    if (packs > 0 && price > 0 && unitsPerPack > 0) {
-                                                        setCurrentPriceValue(Number((price / (packs * unitsPerPack)).toFixed(4)));
-                                                    }
+                                                    const price = e.target.value === '' ? '' : (parseFloat(e.target.value) || 0);
+                                                    setCalcBoxPrice(price);
                                                 }}
                                             />
                                         </div>
                                     </div>
-                                    {unitsPerPack > 0 && currentPriceValue > 0 && (
+                                    {unitsPerPack > 0 && currentPriceValue > 0 && typeof calcBoxPrice === 'number' && calcBoxPrice > 0 && (
                                         <div style={{ fontSize: '0.85rem', color: 'var(--success)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                            ✓ Base Price securely calculated to <strong>${currentPriceValue}</strong> per {packUnit}
+                                            ✓ Base Price securely calculated to <strong>${currentPriceValue}</strong> per {selectedMetric}
                                         </div>
                                     )}
                                 </div>
@@ -565,18 +662,47 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
                         {(!initialData || isAdmin) && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '-0.2rem' }}>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                        {!initialData ? `Admin Override (Total Stock)` : `Admin Override (Total Stock)`}
+                                    </label>
+                                    {isPacked && (
+                                        <select
+                                            className="input-field"
+                                            style={{ width: 'auto', padding: '0.2rem 2rem 0.2rem 0.5rem', fontSize: '0.8rem', height: '28px', backgroundColor: 'var(--bg-tertiary)', border: 'none', color: 'var(--text-primary)', borderRadius: '4px' }}
+                                            value={overrideDisplayUnit}
+                                            onChange={(e) => handleOverrideDisplayUnitChange(e.target.value)}
+                                        >
+                                            <option value="Packs">Packs/Bags</option>
+                                            {ALLOWED_METRICS.map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </div>
                                 <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    {!initialData ? (isPacked ? `Number of Packs/Bags` : `${t('modal_initial_qty')} (Total Stock)`) : (isPacked ? `Admin Override: Number of Packs/Bags` : `Admin Override: Total Stock Count`)}
                                     {initialData?.inventory && (
                                         <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--accent-primary)', marginTop: '0.2rem', fontWeight: 600 }}>
-                                            Current DB Total: {Number(((initialData.inventory.thawingQty + initialData.inventory.frozenQty) / (initialData.isPacked ? (initialData.unitsPerPack || 1) : 1)).toFixed(4))} {initialData.isPacked ? (initialData.packUnit || 'Packs') : (initialData.metric || 'Units')}
+                                            Current DB Total: {(() => {
+                                                if (!initialData.isPacked) return Number((initialData.inventory.thawingQty + initialData.inventory.frozenQty).toFixed(4)) + " " + (initialData.metric || 'Units');
+                                                let amt = initialData.inventory.thawingQty + initialData.inventory.frozenQty; // amt is in Metric
+                                                let targetUnit = overrideDisplayUnit === 'Packs' ? (initialData.packUnit || 'Units') : overrideDisplayUnit;
+                                                if (initialData.metric && targetUnit && initialData.metric.toLowerCase() !== targetUnit.toLowerCase()) {
+                                                    const factor = getConversionFactor(initialData.metric, targetUnit);
+                                                    if (factor) amt = amt * factor;
+                                                }
+                                                if (overrideDisplayUnit === 'Packs') {
+                                                    amt = amt / (initialData.unitsPerPack || 1);
+                                                }
+                                                return formatDisplayQty(amt, overrideDisplayUnit) + " " + (overrideDisplayUnit === 'Packs' ? 'Packs' : overrideDisplayUnit);
+                                            })()}
                                         </span>
                                     )}
                                 </label>
                                 <input
                                     name="initialQty"
                                     type="number"
-                                    step="0.01"
+                                    step={overrideDisplayUnit === 'Packs' || overrideDisplayUnit.toLowerCase() === 'units' ? "1" : "0.01"}
                                     className="input-field"
                                     value={totalStock}
                                     onChange={(e) => setTotalStock(e.target.value)}
@@ -585,13 +711,13 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 />
                             </div>
                         )}
-                        {!initialData && currentType === 'PROCESSED' && (
+                        {!initialData && (currentType === 'PROCESSED' || currentType === 'PREP_RECIPE') && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
                                 <input
                                     name="unfrozenQuantity"
                                     type="number"
-                                    step="0.01"
+                                    step={overrideDisplayUnit === 'Packs' || overrideDisplayUnit.toLowerCase() === 'units' ? "1" : "0.01"}
                                     className="input-field"
                                     value={unfrozenStock}
                                     onChange={(e) => {
@@ -606,7 +732,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                     </div>
 
-                    {currentType === 'PROCESSED' && (
+                    {(currentType === 'PROCESSED' || currentType === 'PREP_RECIPE') && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                 <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)' }}>

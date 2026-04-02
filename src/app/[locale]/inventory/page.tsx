@@ -46,6 +46,8 @@ interface Ingredient {
     isPacked?: boolean;
     unitsPerPack?: number;
     packUnit?: string;
+    packsInBox?: number | null;
+    totalBoxPrice?: number | null;
 }
 
 const MOCK_INVENTORY: Ingredient[] = [
@@ -400,6 +402,8 @@ export default function InventoryPage() {
         isPacked: item.isPacked || false,
         unitsPerPack: item.unitsPerPack || 1,
         packUnit: item.packUnit || 'Units',
+        packsInBox: item.packsInBox,
+        totalBoxPrice: item.totalBoxPrice,
         composedOf: item.composedOf || [],
         calculatedCost: resolveCost(item)
     }));
@@ -425,6 +429,27 @@ export default function InventoryPage() {
             if (translated && translated.includes('Options.')) return name;
             return translated || name;
         } catch { return name; }
+    };
+
+    const formatDisplayQty = (item: any, rawTotal: number) => {
+        if (!rawTotal && rawTotal !== 0) return '';
+        if (item.isPacked) {
+            let qty = rawTotal;
+            if (item.metric && item.packUnit && item.metric.toLowerCase() !== item.packUnit.toLowerCase()) {
+                const factor = getConversionFactor(item.metric, item.packUnit);
+                if (factor) qty = qty * factor;
+            }
+            const packs = qty / (item.unitsPerPack || 1);
+            return Math.round(packs).toString();
+        } else {
+            return Number(rawTotal.toFixed(2)).toString();
+        }
+    };
+
+    const getDisplayMetric = (item: any) => {
+        if (item.isPacked) return locale === 'es' ? 'Bolsas' : 'Packs';
+        if (item.type === 'PROCESSED' && item.isPortioned) return locale === 'es' ? 'Porciones' : 'Portions';
+        return getOptName(item.metric);
     };
 
     const renderIngredientBox = (item: Ingredient) => {
@@ -460,16 +485,16 @@ export default function InventoryPage() {
                         {item.isPacked ? (
                             <>
                                 <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>
-                                    {adj !== 0 ? (totalWithAdj / (item.unitsPerPack || 1)).toFixed(2).replace(/\.00$/, '') : (item.total / (item.unitsPerPack || 1)).toFixed(2).replace(/\.00$/, '')}
+                                    {adj !== 0 ? formatDisplayQty(item, totalWithAdj) : formatDisplayQty(item, item.total)}
                                 </div>
                                 <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>
-                                    {locale === 'es' ? 'Bolsas' : 'Bags'} <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>({locale === 'es' ? 'Total de' : 'Total of'} {adj !== 0 ? totalWithAdj : item.total} {getOptName(item.isPacked ? (item.packUnit || item.metric) : item.metric)})</span>
+                                    {getDisplayMetric(item)} <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>({locale === 'es' ? 'Total de' : 'Total of'} {adj !== 0 ? Number(totalWithAdj.toFixed(2)) : Number(item.total.toFixed(2))} {getOptName(item.metric)})</span>
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>{adj !== 0 ? totalWithAdj : item.total}</div>
-                                <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>{getOptName(item.metric)}</div>
+                                <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: adj !== 0 ? 'var(--accent-primary)' : 'inherit' }}>{adj !== 0 ? formatDisplayQty(item, totalWithAdj) : formatDisplayQty(item, item.total)}</div>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', fontWeight: 500 }}>{getDisplayMetric(item)}</div>
                             </>
                         )}
                     </div>
@@ -585,10 +610,10 @@ export default function InventoryPage() {
                 <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-                        <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
-                        <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
-                        <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
-                        <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
+                        <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
+                        <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
+                        <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
+                        <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
 
                     {lastSyncTime && (
@@ -645,7 +670,7 @@ export default function InventoryPage() {
                                                             const frozenAmt = Math.max(0, totalStock - displayUnfrozen);
 
                                                             return (
-                                                                <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                                <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', background: index % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.03)' }}>
                                                                     {index === 0 && (
                                                                         <td rowSpan={catItems.length} style={{ padding: '1rem', fontWeight: 600, verticalAlign: 'middle', width: '200px', borderRight: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                                                             {cat}
@@ -926,9 +951,9 @@ export default function InventoryPage() {
                                         <thead>
                                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>{t('total')}</th>
+                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('metric')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('name')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('type')}</th>
-                                                <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('metric')}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('yield_percent') || 'Yield %'}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Merma %' : 'Waste %'}</th>
                                                 <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>{t('actions')}</th>
@@ -944,17 +969,22 @@ export default function InventoryPage() {
                                                     onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
                                                     <td style={{ padding: '1rem 1.5rem' }}>
                                                         <div style={{
-                                                            display: 'inline-block',
                                                             padding: '0.4rem 0.8rem',
                                                             borderRadius: '8px',
                                                             background: `color-mix(in srgb, ${getStatusColor(item.status)} 20%, transparent)`,
                                                             color: getStatusColor(item.status),
                                                             fontWeight: 700,
                                                             fontSize: '1.1rem',
-                                                            border: `1px solid color-mix(in srgb, ${getStatusColor(item.status)} 30%, transparent)`
+                                                            border: `1px solid color-mix(in srgb, ${getStatusColor(item.status)} 30%, transparent)`,
+                                                            display: 'inline-block'
                                                         }}>
-                                                            {item.total}
+                                                            {formatDisplayQty(item, item.total)}
                                                         </div>
+                                                    </td>
+                                                    <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>
+                                                        <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.85rem' }}>
+                                                            {getDisplayMetric(item)}
+                                                        </span>
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', paddingLeft: item.parent ? 'calc(1.5rem + 24px)' : '1.5rem', fontWeight: item.parent ? 400 : 700, color: item.parent ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
                                                         {item.parent && <span style={{ marginRight: '8px', opacity: 0.5 }}>└</span>}
@@ -967,11 +997,6 @@ export default function InventoryPage() {
                                                             color: item.type === 'RAW' ? 'var(--accent-primary)' : 'var(--accent-secondary)'
                                                         }}>
                                                             {getOptName(item.type)}
-                                                        </span>
-                                                    </td>
-                                                    <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>
-                                                        <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.6rem', borderRadius: '6px', fontSize: '0.85rem' }}>
-                                                            {getOptName(item.metric)}
                                                         </span>
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>

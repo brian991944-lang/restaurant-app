@@ -6,34 +6,38 @@ const CLOVER_MERCHANT_ID = '5EFY7JF0XERB1';
 const CLOVER_TOKEN = '80bb90a1-8598-71bb-606d-2d8eac4fe14e';
 
 async function depleteInventory(ingredientId: string, quantity: number, note: string) {
-    const ing = await prisma.ingredient.findUnique({ where: { id: ingredientId } });
-    if (!ing) return;
+    const inv = await prisma.inventory.findUnique({ where: { ingredientId: ingredientId } });
+    if (!inv) return;
 
-    const currentUnfrozen = ing.unfrozenQuantity || 0;
-    let deductedUnfrozen = 0;
-    let deductedTotal = 0;
+    let newThawing = inv.thawingQty;
+    let newFrozen = inv.frozenQty;
+    let remainingToDeduct = quantity;
 
-    // 1. Calculate FIFO buckets
-    if (currentUnfrozen >= quantity) {
-        deductedUnfrozen = quantity;
+    // 1. Calculate FIFO buckets from Descongelado first
+    if (newThawing >= remainingToDeduct) {
+        newThawing -= remainingToDeduct;
+        remainingToDeduct = 0;
     } else {
-        deductedUnfrozen = currentUnfrozen;
-        deductedTotal = quantity - currentUnfrozen;
+        remainingToDeduct -= newThawing;
+        newThawing = 0;
     }
 
-    // 2. Perform DB deductions
-    if (deductedUnfrozen > 0) {
-        await prisma.ingredient.update({
-            where: { id: ingredientId },
-            data: { unfrozenQuantity: currentUnfrozen - deductedUnfrozen }
-        }).catch(() => null);
+    // 2. Any leftover deduction comes out of Congelado
+    if (remainingToDeduct > 0) {
+        newFrozen -= remainingToDeduct;
     }
 
-    // Always deduct from Total Stock (frozenQty physically represents Total Stock)
+    // 3. Perform DB deductions onto the strict Inventory tracker
     await prisma.inventory.update({
         where: { ingredientId: ingredientId },
-        data: { frozenQty: { decrement: quantity } }
+        data: {
+            thawingQty: newThawing,
+            frozenQty: newFrozen
+        }
     }).catch(() => null);
+
+    const deductedUnfrozen = inv.thawingQty - newThawing;
+    const deductedTotal = inv.frozenQty - newFrozen;
 
     // 3. Log comprehensive transaction
     const expandedNote = `${note} (FIFO -> Descongelado: -${deductedUnfrozen}, Congelado: -${deductedTotal})`;
