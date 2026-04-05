@@ -4,7 +4,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
-import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets } from '@/app/actions/prepSchedule';
+import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
 import { getRecurringRules, createRecurringRule, deleteRecurringRule } from '@/app/actions/recurringPrep';
 import { getPrepUsers } from '@/app/actions/users';
@@ -13,13 +13,27 @@ import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addP
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+
+class MatrixErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+    constructor(props: { children: ReactNode }) {
+        super(props);
+        this.state = { hasError: false };
+    }
+    static getDerivedStateFromError() { return { hasError: true }; }
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error("Matrix crash:", error, errorInfo); }
+    render() {
+        if (this.state.hasError) return <div style={{ color: 'red', padding: '1rem', background: '#ffe4e6', borderRadius: '8px', border: '1px solid #fecdd3' }}>Fallo en la Carga de Matriz. Data Incompleta. {this.props.children}</div>;
+        return this.props.children;
+    }
+}
 
 export default function PrepSchedulePage() {
     const t = useTranslations();
     const locale = useLocale();
 
     // Tab State
-    const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'completed' | 'team' | 'defrosting'>('morning');
+    const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'airtight' | 'completed' | 'team' | 'defrosting'>('morning');
     const [morningDate, setMorningDate] = useState<Date>(new Date());
 
     // Data States
@@ -27,12 +41,22 @@ export default function PrepSchedulePage() {
     const [tomorrowTasks, setTomorrowTasks] = useState<PrepTask[]>([]);
     const [nightAssignments, setNightAssignments] = useState<any[]>([]);
     const [recurringRules, setRecurringRules] = useState<any[]>([]);
+    const [airTightRules, setAirTightRules] = useState<any[]>([]);
     const [completedLogs, setCompletedLogs] = useState<any[]>([]);
     const [prepUsers, setPrepUsers] = useState<any[]>([]);
     const [teamMembers, setTeamMembers] = useState<any[]>([]);
     const [prepItems, setPrepItems] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [digitalRecipes, setDigitalRecipes] = useState<any[]>([]);
+
+    // Air-Tight Creation State
+    const [showAirTightForm, setShowAirTightForm] = useState(false);
+    const [newAirTightTask, setNewAirTightTask] = useState('');
+    const [newAirTightType, setNewAirTightType] = useState('REGULAR');
+    const [newAirTightProdDay, setNewAirTightProdDay] = useState('0');
+    const [newAirTightCoverageDays, setNewAirTightCoverageDays] = useState<string[]>([]);
+    const [newAirTightEmergencyDays, setNewAirTightEmergencyDays] = useState('3');
+    const [newAirTightEmergencyThreshold, setNewAirTightEmergencyThreshold] = useState('1.5');
 
     // Defrosting State
     const [defrostTasks, setDefrostTasks] = useState<any[]>([]);
@@ -173,9 +197,8 @@ export default function PrepSchedulePage() {
             setTeamMembers(members);
             setPrepItems(tasks);
         } else if (tab === 'recurring') {
-            const [data, tasks, bases] = await Promise.all([getRecurringRules(), getPrepTaskItems(), getBaseIngredients()]);
-            setRecurringRules(data);
-            setPrepItems(tasks);
+            const [rules, bases] = await Promise.all([getAirTightRules(), getBaseIngredients()]);
+            setAirTightRules(rules);
             setBaseIngredients(bases);
         } else if (tab === 'completed') {
             const data = await getCompletedPrepLogs();
@@ -209,6 +232,10 @@ export default function PrepSchedulePage() {
                 console.error("Tab data loading failed:", err);
                 alert("Could not load Defrosting Station data fully. Please try refreshing.");
             }
+        } else if (tab === 'airtight') {
+            const [rules, tasks] = await Promise.all([getAirTightRules(), getPrepTaskItems()]);
+            setAirTightRules(rules);
+            setPrepItems(tasks);
         }
         setIsLoading(false);
     };
@@ -353,12 +380,22 @@ export default function PrepSchedulePage() {
                                 const isProcessing = completing === task.ingredientId;
 
                                 let recommendedTarget = 0;
-                                if (task.hasRecurring) recommendedTarget = task.recurringAmount;
-                                if (task.hasNightShift) recommendedTarget = task.assignedAmount;
-                                if (!task.hasRecurring && !task.hasNightShift) recommendedTarget = task.assignedAmount || 0; // Manual tasks
+                                if (task.airTightSuggestedAmount !== undefined && task.airTightSuggestedAmount > 0) {
+                                    recommendedTarget = task.airTightSuggestedAmount;
+                                } else if (task.hasRecurring) {
+                                    recommendedTarget = task.recurringAmount;
+                                } else if (task.hasNightShift) {
+                                    recommendedTarget = task.assignedAmount;
+                                } else {
+                                    recommendedTarget = task.assignedAmount || 0; // Manual tasks
+                                }
+
+                                const rowBackground = isDone ? 'rgba(0,0,0,0.2)' : (
+                                    task.isEmergency ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.05)'
+                                );
 
                                 return (
-                                    <tr key={task.ingredientId} style={{ borderBottom: '1px solid var(--border)', background: isDone ? 'rgba(0,0,0,0.2)' : 'transparent', opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
+                                    <tr key={task.ingredientId} style={{ borderBottom: '1px solid var(--border)', background: rowBackground, opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {task.hasNightShift ? (
                                                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -384,10 +421,15 @@ export default function PrepSchedulePage() {
                                                             <BookOpen size={16} color="var(--accent-primary)" />
                                                         </button>
                                                     )}
-                                                    <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit' }}>{task.ingredientName}</span>
-                                                    {task.isUrgent && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
+                                                    <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit', fontWeight: 500 }}>{task.ingredientName}</span>
+                                                    {task.isUrgent && !task.isEmergency && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
                                                 </div>
-                                                {task.suggestedBaseIngredientName && task.suggestedBaseAmount !== null && (
+                                                {task.isEmergency && (
+                                                    <div style={{ fontSize: '0.85rem', color: '#ff4d4f', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start' }}>
+                                                        <span style={{ fontSize: '1rem' }}>🚨</span> EMERGENCIA: Stock Crítico
+                                                    </div>
+                                                )}
+                                                {task.suggestedBaseIngredientName && task.suggestedBaseAmount !== null && !task.isEmergency && (
                                                     <div style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 500, background: 'rgba(59, 130, 246, 0.05)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
                                                         Sugerencia: Procesar {task.suggestedBaseAmount} kg de {task.suggestedBaseIngredientName} para {task.ingredientName}
                                                     </div>
@@ -395,7 +437,7 @@ export default function PrepSchedulePage() {
                                             </div>
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                            <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>{recommendedTarget}</span>
+                                            <span style={{ fontSize: '1rem', fontWeight: 'bold', color: task.isEmergency ? '#ff4d4f' : 'var(--accent-primary)' }}>{recommendedTarget}</span>
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {isDone ? (
@@ -1263,6 +1305,192 @@ export default function PrepSchedulePage() {
         );
     };
 
+    const PrepRuleRow = ({ item, rules, level }: { item: any, rules: any[], level: number }) => {
+        const rule = rules.find((r: any) => r.ingredientId === item.id && r.ruleType === 'REGULAR');
+        const [activeDays, setActiveDays] = useState<number[]>(rule ? rule.activeDays || [] : []);
+        const [calcMode, setCalcMode] = useState(rule ? rule.calculationMode || 'ALGORITHM' : 'ALGORITHM');
+        const [fixedAmount, setFixedAmount] = useState<string>(rule && rule.fixedAmount !== null ? rule.fixedAmount.toString() : '');
+        const daysShort = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+
+        const hasChanges = () => {
+            if (!rule && activeDays.length === 0) return false;
+            // Simplified check to show save button (you could make it deeper if needed)
+            return true;
+        };
+
+        const handleSave = async () => {
+            const parsedAmount = parseFloat(fixedAmount);
+            await createOrUpdatePrepRule({
+                ingredientId: item.id,
+                ruleType: 'REGULAR',
+                activeDays: activeDays,
+                calculationMode: calcMode,
+                fixedAmount: isNaN(parsedAmount) ? null : parsedAmount,
+                coverageDays: [1], // Default 1 for alg mode backwards compatibility
+                emergencyDays: 3,
+                emergencyThreshold: 1.5
+            });
+            loadDataForTab('airtight');
+        };
+
+        const currentStock = (item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0);
+
+        return (
+            <tr style={{ background: level === 0 ? 'var(--bg-secondary)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '0.8rem 1rem', paddingLeft: level === 0 ? '1rem' : '3rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontWeight: level === 0 ? '600' : 'normal', color: 'var(--text-primary)' }}>{item.name}</span>
+                        {level > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>← {item.parent?.name}</span>}
+                    </div>
+                </td>
+                <td style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    {currentStock} {item.metric}
+                </td>
+                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '0.2rem', justifyContent: 'center' }}>
+                        {daysShort.map((d, i) => (
+                            <button
+                                key={d}
+                                onClick={() => setActiveDays(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])}
+                                style={{
+                                    width: '28px', height: '28px', borderRadius: '50%', border: 'none', cursor: 'pointer',
+                                    background: activeDays.includes(i) ? 'var(--accent-primary)' : 'var(--border)',
+                                    color: activeDays.includes(i) ? 'white' : 'var(--text-secondary)',
+                                    fontSize: '0.8rem', fontWeight: 'bold'
+                                }}
+                            >
+                                {d}
+                            </button>
+                        ))}
+                    </div>
+                </td>
+                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            <input
+                                type="checkbox"
+                                checked={calcMode === 'ALGORITHM'}
+                                onChange={(e) => setCalcMode(e.target.checked ? 'ALGORITHM' : 'MANUAL')}
+                            /> Algoritmo
+                        </label>
+                        <input
+                            type="number"
+                            placeholder="Monto"
+                            value={fixedAmount}
+                            onChange={(e) => setFixedAmount(e.target.value)}
+                            disabled={calcMode === 'ALGORITHM'}
+                            style={{
+                                width: '60px', padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border)',
+                                background: calcMode === 'ALGORITHM' ? 'rgba(0,0,0,0.05)' : 'var(--bg-primary)'
+                            }}
+                        />
+                    </div>
+                </td>
+                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                    <button onClick={handleSave} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', opacity: hasChanges() ? 1 : 0.5 }}>
+                        Guardar
+                    </button>
+                </td>
+            </tr>
+        );
+    };
+
+    const renderAirTightRules = () => {
+        // Group by Categoría
+        const grouped: Record<string, Record<string, any[]>> = {};
+        prepItems.forEach(item => {
+            const catName = item.category?.name || 'Comunes';
+            const parentName = item.parent?.name || 'Top Level';
+            if (!grouped[catName]) grouped[catName] = {};
+            if (!grouped[catName][parentName]) grouped[catName][parentName] = [];
+            grouped[catName][parentName].push(item);
+        });
+
+        // Helper to quickly apply rule setting to all inside category
+        const handleCategoryApplyAll = async (catName: string, categoryId: string) => {
+            if (!confirm(`Apply [Mo, Tu, We, Th, Fr, Sa, Su] Algoritmo rules to all under ${catName}?`)) return;
+            const res = await applyRulesToCategory(categoryId, {
+                activeDays: [0, 1, 2, 3, 4, 5, 6],
+                calculationMode: 'ALGORITHM',
+                fixedAmount: null,
+                coverageDays: [1]
+            });
+            if (res.success) {
+                loadDataForTab('airtight');
+            }
+        };
+
+        return (
+            <MatrixErrorBoundary>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                        <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Matriz de Reglas - Configuración Avanzada</p>
+                    </div>
+
+                    {isLoading ? (
+                        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading')}</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            {Object.keys(grouped).sort().map(catName => {
+                                const parents = grouped[catName];
+                                // Get category ID roughly from first item to pass to mass action
+                                const sampleItem = Object.values(parents)[0][0];
+                                const categoryId = sampleItem?.categoryId;
+
+                                return (
+                                    <div key={catName} className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                            <h3 style={{ margin: 0, fontWeight: 600 }}>{catName}</h3>
+                                            {categoryId && (
+                                                <button onClick={() => handleCategoryApplyAll(catName, categoryId)} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>
+                                                    Aplicar Diario/Algoritmo a Todo
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                <thead>
+                                                    <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                        <th style={{ padding: '0.8rem 1rem' }}>Insumo</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Stock Total</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Días de Prep</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Cálculo</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Acción</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {Object.keys(parents).sort().map(parentName => {
+                                                        const items = parents[parentName] || [];
+                                                        if (!items || items.length === 0) return null;
+
+                                                        // Map top level if present
+                                                        const topLevel = items.find(i => i?.parentId === null || i?.name === parentName) || items[0];
+                                                        if (!topLevel) return null;
+
+                                                        const children = items.filter(i => i?.id !== topLevel?.id);
+
+                                                        return (
+                                                            <React.Fragment key={`group-${parentName}`}>
+                                                                {topLevel && <PrepRuleRow item={topLevel} rules={airTightRules || []} level={0} />}
+                                                                {children?.map(child => (
+                                                                    child && <PrepRuleRow key={child.id} item={child} rules={airTightRules || []} level={1} />
+                                                                ))}
+                                                            </React.Fragment>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </MatrixErrorBoundary>
+        );
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
             {/* Header */}
@@ -1329,7 +1557,7 @@ export default function PrepSchedulePage() {
                 <div style={{ padding: '2rem' }}>
                     {activeTab === 'morning' && renderMorningPrep()}
                     {activeTab === 'night' && renderNightShift()}
-                    {activeTab === 'recurring' && renderRecurringPrep()}
+                    {activeTab === 'recurring' && renderAirTightRules()}
                     {activeTab === 'completed' && renderCompletedLogs()}
                     {activeTab === 'team' && renderTeamAndTasks()}
                     {activeTab === 'defrosting' && renderDefrostingStation()}

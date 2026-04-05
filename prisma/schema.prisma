@@ -80,6 +80,7 @@ model Ingredient {
   // Rules
   isRuleTarget    RecurringPrepRule[] @relation("RuleTarget")
   isRuleBase      RecurringPrepRule[] @relation("RuleBase")
+  prepRules       PrepRule[]
 
   composedOf  PrepRecipeIngredient[] @relation("RecipeComposedOf")
   usedInPreps PrepRecipeIngredient[] @relation("UsedInPreps")
@@ -263,6 +264,19 @@ model RecurringPrepRule {
 
   ingredient     Ingredient @relation("RuleTarget", fields: [ingredientId], references: [id])
   baseIngredient Ingredient? @relation("RuleBase", fields: [baseIngredientId], references: [id])
+}
+
+model PrepRule {
+  id                 String     @id @default(cuid())
+  ingredientId       String
+  ingredient         Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  ruleType           String     @default("REGULAR") // REGULAR, EMERGENCY
+  activeDays         Int[]      // Days of the week task appears (0-6)
+  calculationMode    String     @default("ALGORITHM") // ALGORITHM, MANUAL
+  fixedAmount        Float?
+  coverageDays       Int[]      // Array of days it covers (0-6)
+  emergencyDays      Int        @default(3)
+  emergencyThreshold Float      @default(1.5)
 }
 
 model DigitalRecipe {

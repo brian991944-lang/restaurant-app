@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { unstable_noStore as noStore } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 
 export interface PrepTask {
     ingredientId: string;
@@ -22,6 +23,8 @@ export interface PrepTask {
     digitalRecipeName?: string | null;
     suggestedBaseIngredientName?: string | null;
     suggestedBaseAmount?: number | null;
+    isEmergency?: boolean;
+    airTightSuggestedAmount?: number;
 }
 
 /**
@@ -75,8 +78,26 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         // 3. Fetch all ingredients
         const rawIngredients = await prisma.ingredient.findMany({
             where: { type: { in: ['RAW', 'PREP', 'PROCESSED', 'TASK'] } },
-            include: { category: true, parent: true, digitalRecipe: true, inventory: true }
+            include: { category: true, parent: true, digitalRecipe: true, inventory: true, prepRules: true }
         });
+
+        // 4. Calculate Average Daily Demand from last 14 days of inventory deductions
+        const fourteenDaysAgo = new Date(targetDate);
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+        const transactions = await prisma.inventoryTransaction.findMany({
+            where: {
+                createdAt: { gte: fourteenDaysAgo },
+                type: { in: ['SALES_DEDUCT', 'PULL_PREP', 'PREP_COMPLETE'] }
+            }
+        });
+        const demandMap = new Map<string, number>();
+        for (const tx of transactions) {
+            // we only care about negative shifts roughly mapping consumption
+            if (tx.qty < 0 || tx.type === 'SALES_DEDUCT' || tx.type === 'PULL_PREP') {
+                const current = demandMap.get(tx.ingredientId) || 0;
+                demandMap.set(tx.ingredientId, current + Math.abs(tx.qty));
+            }
+        }
 
         const mergedTasks: PrepTask[] = [];
 
@@ -90,44 +111,77 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 
             const isUrgent = assignment ? assignment.isUrgent : false;
 
-            // If no data points to prepping this ingredient today, skip
-            if (!hasNightShift && !hasRecurring) continue;
+            let isEmergency = false;
+            let airTightSuggestedAmount = 0;
+            const currentStock = ((ingredient as any).inventory?.frozenQty || 0) + ((ingredient as any).inventory?.thawingQty || 0);
+            const avgDemand = (demandMap.get(ingredient.id) || 0) / 14;
+            let hasAirTightRuleToday = false;
+
+            const rules: any[] = (ingredient as any).prepRules || [];
+
+            // Plan A (Regular / Manual)
+            for (const rule of rules) {
+                if (rule.ruleType === 'REGULAR' && (rule.activeDays && rule.activeDays.includes(dayOfWeek))) {
+                    hasAirTightRuleToday = true;
+                    if (rule.calculationMode === 'MANUAL') {
+                        airTightSuggestedAmount = Math.max(airTightSuggestedAmount, rule.fixedAmount || 0);
+                    } else {
+                        const totalDaysCovered = rule.coverageDays.length > 0 ? rule.coverageDays.length : 1;
+                        const needed = (avgDemand * totalDaysCovered * 1.2) - currentStock;
+                        airTightSuggestedAmount = Math.max(airTightSuggestedAmount, Math.round(Math.max(0, needed)));
+                    }
+                }
+            }
+
+            // Plan B (Emergency) - Check if stock < (Avg Daily * Threshold)
+            if (!hasAirTightRuleToday) {
+                const emergRule = rules.find((r: any) => r.ruleType === 'EMERGENCY') || { emergencyDays: 3, emergencyThreshold: 1.5 };
+                if (currentStock < (avgDemand * emergRule.emergencyThreshold) && avgDemand > 0) {
+                    const tomorrowDOW = (dayOfWeek + 1) % 7;
+                    const regularTomorrow = rules.some((r: any) => r.ruleType === 'REGULAR' && (r.activeDays && r.activeDays.includes(tomorrowDOW)));
+                    if (!regularTomorrow) {
+                        isEmergency = true;
+                        hasAirTightRuleToday = true;
+                        const needed = (avgDemand * (emergRule.emergencyDays || 3) * 1.2) - currentStock;
+                        airTightSuggestedAmount = Math.round(Math.max(0, needed));
+                    }
+                }
+            }
+
+            // If no data points to prepping this ingredient today, skip (including airtight triggers)
+            if (!hasNightShift && !hasRecurring && !hasAirTightRuleToday) continue;
 
             let suggestedBaseAmount: number | null = null;
             let suggestedBaseIngredientName: string | null = null;
 
             if (hasRecurring && rule && rule.baseIngredient) {
                 suggestedBaseIngredientName = rule.baseIngredient.name;
-                const currentStock = (ingredient.inventory?.frozenQty || 0) + (ingredient.inventory?.thawingQty || 0);
-
-                // Reactive Math: ((Total Demand * 1.2) - Current Processed Stock) * 0.1kg / 0.95
                 const mathResult = ((recurringAmount * 1.2) - currentStock) * 0.1 / 0.95;
                 const roundedResult = Math.round(mathResult);
-
                 suggestedBaseAmount = Math.max(0, roundedResult);
             }
 
             mergedTasks.push({
                 ingredientId: ingredient.id,
                 ingredientName: ingredient.name,
-                parentName: ingredient.parent?.name || null,
+                parentName: (ingredient as any).parent?.name || null,
                 metric: ingredient.metric || 'units',
-                category: ingredient.category.name,
+                category: (ingredient as any).category.name,
                 assignedAmount: assignment ? assignment.portionsAssigned : 0,
                 recurringAmount: recurringAmount,
                 actualAmount: assignment ? assignment.portionsActual : null,
                 completed: assignment ? assignment.completed : false,
                 assignmentId: assignment?.id,
                 hasNightShift,
-                hasRecurring,
-                isUrgent,
+                hasRecurring: hasRecurring || hasAirTightRuleToday,
+                isUrgent: isUrgent || isEmergency,
                 completedBy: assignment?.user?.name || undefined,
-                // @ts-ignore
-                digitalRecipeId: ingredient.digitalRecipeId || null,
-                // @ts-ignore
-                digitalRecipeName: ingredient.digitalRecipe?.name || null,
+                digitalRecipeId: (ingredient as any).digitalRecipeId || null,
+                digitalRecipeName: (ingredient as any).digitalRecipe?.name || null,
                 suggestedBaseIngredientName,
-                suggestedBaseAmount
+                suggestedBaseAmount,
+                isEmergency,
+                airTightSuggestedAmount
             });
         }
 
@@ -229,10 +283,9 @@ export async function completePrepTask(
                 (taskIngredient.category && taskIngredient.category.name.toLowerCase().includes('descongelar'));
 
             if (isDescongelar) {
-                // "Descongelar" -> NEVER increments or decrements total stock (frozenQty).
-                // It STRICTLY increments Unfrozen Stock. ZERO-SUM Logic.
-                frozenInc = 0;
-                thawingInc = actualAmount; // Force addition to thawed balance
+                // "Descongelar" -> Shifts from Frozen to Thawing. Total Stock (Frozen+Thawing) remains strictly identical.
+                frozenInc = -actualAmount;
+                thawingInc = actualAmount;
             } else if (taskName.includes('congelar')) {
                 // "Congelar" -> only increments FrozenQty (Total)
                 thawingInc = 0;
@@ -326,19 +379,19 @@ export async function undoPrepTask(
                     (taskIngredient.category && taskIngredient.category.name.toLowerCase().includes('descongelar'));
 
                 if (isDescongelar) {
-                    // Do not decrement total stock when undoing a 'Descongelar' task
-                    frozenDec = 0;
-                    thawingDec = actualAmount;
+                    // Reversing "Descongelar": adding back to frozen, subtracting from thawed perfectly
+                    frozenDec = -actualAmount; // Math: inventory.frozenQty - (-actualAmount) = adds to frozen
+                    thawingDec = actualAmount; // Math: inventory.thawingQty - actualAmount = subtracts from thawed
                 }
 
                 // Invert the decrement logic if 'subtractFromInventory' is true
-                if ((taskIngredient as any).subtractFromInventory) {
+                if ((taskIngredient as any).subtractFromInventory && !isDescongelar) {
                     frozenDec = -frozenDec;
                     thawingDec = -thawingDec;
                 }
 
                 const newFrozenQty = Math.max(0, inventory.frozenQty - frozenDec);
-                const newThawingQty = Math.min(newFrozenQty, Math.max(0, inventory.thawingQty - thawingDec));
+                const newThawingQty = Math.max(0, inventory.thawingQty - thawingDec);
 
                 await prisma.inventory.update({
                     where: { id: inventory.id },
@@ -498,5 +551,118 @@ export async function getDefrostingPresets(names: string[]) {
     } catch (error) {
         console.error('Failed to fetch defrosting presets:', error);
         return [];
+    }
+}
+
+// ----------------------------------------------------
+// AIR-TIGHT PREP RULES CRUD
+// ----------------------------------------------------
+
+export async function getAirTightRules() {
+    try {
+        const rules = await (prisma as any).prepRule.findMany({
+            include: { ingredient: { include: { category: true } } }
+        });
+        return rules;
+    } catch (error) {
+        console.error('getAirTightRules error:', error);
+        return [];
+    }
+}
+
+export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleType: string, activeDays: number[], calculationMode: string, fixedAmount: number | null, coverageDays: number[], emergencyDays: number, emergencyThreshold: number }) {
+    try {
+        const existing = await (prisma as any).prepRule.findFirst({
+            where: { ingredientId: data.ingredientId, ruleType: data.ruleType }
+        });
+
+        if (existing) {
+            await (prisma as any).prepRule.update({
+                where: { id: existing.id },
+                data: {
+                    activeDays: data.activeDays,
+                    calculationMode: data.calculationMode,
+                    fixedAmount: data.fixedAmount,
+                    coverageDays: data.coverageDays,
+                    emergencyDays: data.emergencyDays,
+                    emergencyThreshold: data.emergencyThreshold || 1.5
+                }
+            });
+        } else {
+            await (prisma as any).prepRule.create({
+                data: {
+                    ingredientId: data.ingredientId,
+                    ruleType: data.ruleType,
+                    activeDays: data.activeDays,
+                    calculationMode: data.calculationMode,
+                    fixedAmount: data.fixedAmount,
+                    coverageDays: data.coverageDays,
+                    emergencyDays: data.emergencyDays,
+                    emergencyThreshold: data.emergencyThreshold || 1.5
+                }
+            });
+        }
+        revalidatePath('/[locale]/prep-schedule');
+        return { success: true };
+    } catch (error) {
+        console.error('createOrUpdatePrepRule error:', error);
+        return { success: false, error: 'Failed to create or update Prep Rule' };
+    }
+}
+
+export async function applyRulesToCategory(categoryId: string, data: { activeDays: number[], calculationMode: string, fixedAmount: number | null, coverageDays: number[] }) {
+    try {
+        // Enforce cascading the rule application to all RAW/PREP/PROCESSED components within this category
+        const ingredients = await prisma.ingredient.findMany({
+            where: { categoryId: categoryId, type: { in: ['RAW', 'PREP', 'PROCESSED'] } }
+        });
+
+        for (const ing of ingredients) {
+            const existing = await (prisma as any).prepRule.findFirst({
+                where: { ingredientId: ing.id, ruleType: 'REGULAR' }
+            });
+
+            if (existing) {
+                await (prisma as any).prepRule.update({
+                    where: { id: existing.id },
+                    data: {
+                        activeDays: data.activeDays,
+                        calculationMode: data.calculationMode,
+                        fixedAmount: data.fixedAmount,
+                        coverageDays: data.coverageDays
+                    }
+                });
+            } else {
+                await (prisma as any).prepRule.create({
+                    data: {
+                        ingredientId: ing.id,
+                        ruleType: 'REGULAR',
+                        activeDays: data.activeDays,
+                        calculationMode: data.calculationMode,
+                        fixedAmount: data.fixedAmount,
+                        coverageDays: data.coverageDays,
+                        emergencyDays: 3,
+                        emergencyThreshold: 1.5
+                    }
+                });
+            }
+        }
+
+        revalidatePath('/[locale]/prep-schedule');
+        return { success: true };
+    } catch (error) {
+        console.error('applyRulesToCategory error:', error);
+        return { success: false, error: 'Failed to apply rules to category' };
+    }
+}
+
+export async function deleteAirTightRule(ruleId: string) {
+    try {
+        await (prisma as any).prepRule.delete({ where: { id: ruleId } });
+        revalidatePath('/[locale]/prep-schedule');
+        return { success: true };
+    } catch (error) {
+        console.error('deleteAirTightRule error:', error);
+        return { success: false, error: 'Failed to delete Air-Tight rule' };
     }
 }
