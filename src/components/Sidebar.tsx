@@ -75,7 +75,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                 : [];
 
     return (
-        <aside style={{
+        <aside className="sidebar-container" style={{
             width: isCollapsed ? '80px' : '280px',
             height: '100vh',
             background: 'var(--bg-glass)',
@@ -90,9 +90,9 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
             transition: 'width 0.3s ease'
         }}>
             {/* Logo Area */}
-            <div style={{ padding: isCollapsed ? '2rem 0' : '2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between', borderBottom: '1px solid var(--border)' }}>
+            <div className="sidebar-toggle-tablet" style={{ padding: isCollapsed ? '2rem 0' : '2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between', borderBottom: '1px solid var(--border)' }}>
                 {!isCollapsed && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div className="sidebar-hide-tablet" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <div style={{
                             background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))',
                             borderRadius: '12px',
@@ -117,7 +117,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
             </div>
 
             {/* Navigation Links */}
-            <nav style={{ flex: 1, padding: isCollapsed ? '1.5rem 0' : '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', alignItems: isCollapsed ? 'center' : 'stretch' }}>
+            <nav className="sidebar-nav-tablet" style={{ flex: 1, padding: isCollapsed ? '1.5rem 0' : '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', overflowY: 'auto', alignItems: isCollapsed ? 'center' : 'stretch' }}>
                 {filteredNavItems.map((item) => {
                     const isActive = pathname.startsWith(item.href);
                     const Icon = item.icon;
@@ -125,6 +125,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                         <Link
                             key={item.href}
                             href={item.href}
+                            className="sidebar-link-tablet"
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -155,18 +156,18 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                             title={isCollapsed ? item.name : undefined}
                         >
                             <Icon size={20} />
-                            {!isCollapsed && <span>{item.name}</span>}
+                            {!isCollapsed && <span className="sidebar-hide-tablet">{item.name}</span>}
                         </Link>
                     )
                 })}
             </nav>
 
             {/* Bottom Controls */}
-            <div style={{ padding: isCollapsed ? '1.5rem 0' : '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: isCollapsed ? 'center' : 'stretch' }}>
+            <div className="sidebar-bottom-tablet" style={{ padding: isCollapsed ? '1.5rem 0' : '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: isCollapsed ? 'center' : 'stretch' }}>
 
                 {/* WORKSTATION TOGGLE HERE */}
                 {!isCollapsed && (
-                    <div style={{ display: 'flex', background: 'var(--bg-primary)', borderRadius: '12px', padding: '0.25rem', border: '1px solid var(--glass-border)' }}>
+                    <div className="sidebar-hide-tablet" style={{ display: 'flex', background: 'var(--bg-primary)', borderRadius: '12px', padding: '0.25rem', border: '1px solid var(--glass-border)' }}>
                         <button
                             onClick={() => switchStation('Cocina')}
                             style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', background: station === 'Cocina' ? 'rgba(168, 85, 247, 0.1)' : 'transparent', color: station === 'Cocina' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: station === 'Cocina' ? 600 : 400, transition: 'all 0.2s', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
@@ -207,7 +208,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                         title={isCollapsed ? (locale === 'en' ? 'EN / ES' : 'ES / EN') : undefined}
                     >
                         <Globe size={16} />
-                        {!isCollapsed && <span>{locale === 'en' ? 'EN / ES' : 'ES / EN'}</span>}
+                        {!isCollapsed && <span className="sidebar-hide-tablet">{locale === 'en' ? 'EN / ES' : 'ES / EN'}</span>}
                     </button>
 
                     {/* Theme Toggle */}
@@ -245,7 +246,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                                 setPasswordInput('');
                             }
                         }}
-                        className={isAdmin ? "btn-secondary" : "btn-primary"}
+                        className={`sidebar-hide-tablet ${isAdmin ? "btn-secondary" : "btn-primary"}`}
                         style={{ width: '100%', padding: '0.8rem', borderRadius: '12px', textAlign: 'center' }}
                     >
                         {isAdmin ? 'Exit Admin' : 'Admin View'}

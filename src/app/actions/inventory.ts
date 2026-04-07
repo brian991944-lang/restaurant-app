@@ -150,6 +150,7 @@ export async function addIngredient(data: any) {
         }
 
         revalidatePath('/[locale]/inventory');
+        revalidatePath('/[locale]/prep-schedule');
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to add ingredient:', e);
@@ -273,6 +274,7 @@ export async function editIngredient(id: string, data: any) {
         }
 
         revalidatePath('/[locale]/inventory');
+        revalidatePath('/[locale]/prep-schedule');
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to edit ingredient:', e);
@@ -635,6 +637,8 @@ export async function logWaste(ingredientId: string, qty: number, note?: string)
                 note: note || 'Waste correction'
             }
         });
+        revalidatePath('/[locale]/inventory');
+        revalidatePath('/[locale]/prep-schedule');
         return { success: true };
     } catch (e) {
         console.error("Failed to log waste:", e);
@@ -660,6 +664,8 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
                 note: `Manual adjustment by ${userName}`
             }
         });
+        revalidatePath('/[locale]/inventory');
+        revalidatePath('/[locale]/prep-schedule');
         return { success: true };
     } catch (e) {
         console.error("Failed to log inventory adjustment:", e);

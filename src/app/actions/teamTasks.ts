@@ -46,7 +46,17 @@ export async function removeTeamMember(id: string) {
 export async function getPrepTaskItems() {
     return prisma.ingredient.findMany({
         where: { type: { in: ['PREP', 'TASK'] } }, // Include both PREP and system TASK (Descongelar)
-        include: { category: true, parent: true, digitalRecipe: true, _count: { select: { usedInPreps: true } } },
+        include: { 
+            category: true, 
+            parent: {
+                include: {
+                    inventory: true
+                }
+            }, 
+            inventory: true,
+            digitalRecipe: true, 
+            _count: { select: { usedInPreps: true } } 
+        },
         orderBy: [
             { category: { name: 'asc' } },
             { parent: { name: 'asc' } },

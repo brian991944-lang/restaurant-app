@@ -122,13 +122,23 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
             // Plan A (Regular / Manual)
             for (const rule of rules) {
                 if (rule.ruleType === 'REGULAR' && (rule.activeDays && rule.activeDays.includes(dayOfWeek))) {
-                    hasAirTightRuleToday = true;
-                    if (rule.calculationMode === 'MANUAL') {
-                        airTightSuggestedAmount = Math.max(airTightSuggestedAmount, rule.fixedAmount || 0);
-                    } else {
-                        const totalDaysCovered = rule.coverageDays.length > 0 ? rule.coverageDays.length : 1;
-                        const needed = (avgDemand * totalDaysCovered * 1.2) - currentStock;
-                        airTightSuggestedAmount = Math.max(airTightSuggestedAmount, Math.round(Math.max(0, needed)));
+                    
+                    let shouldTrigger = true;
+                    if (rule.triggerThreshold !== null && rule.triggerThreshold !== undefined) {
+                        if (currentStock > rule.triggerThreshold) {
+                            shouldTrigger = false;
+                        }
+                    }
+
+                    if (shouldTrigger) {
+                        hasAirTightRuleToday = true;
+                        if (rule.calculationMode === 'MANUAL') {
+                            airTightSuggestedAmount = Math.max(airTightSuggestedAmount, rule.fixedAmount || 0);
+                        } else {
+                            const totalDaysCovered = rule.coverageDays.length > 0 ? rule.coverageDays.length : 1;
+                            const needed = (avgDemand * totalDaysCovered * 1.2) - currentStock;
+                            airTightSuggestedAmount = Math.max(airTightSuggestedAmount, Math.round(Math.max(0, needed)));
+                        }
                     }
                 }
             }
@@ -570,7 +580,7 @@ export async function getAirTightRules() {
     }
 }
 
-export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleType: string, activeDays: number[], calculationMode: string, fixedAmount: number | null, coverageDays: number[], emergencyDays: number, emergencyThreshold: number }) {
+export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleType: string, activeDays: number[], calculationMode: string, fixedAmount: number | null, coverageDays: number[], emergencyDays: number, emergencyThreshold: number, triggerThreshold?: number | null }) {
     try {
         const existing = await (prisma as any).prepRule.findFirst({
             where: { ingredientId: data.ingredientId, ruleType: data.ruleType }
@@ -585,7 +595,8 @@ export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleT
                     fixedAmount: data.fixedAmount,
                     coverageDays: data.coverageDays,
                     emergencyDays: data.emergencyDays,
-                    emergencyThreshold: data.emergencyThreshold || 1.5
+                    emergencyThreshold: data.emergencyThreshold || 1.5,
+                    triggerThreshold: data.triggerThreshold !== undefined ? data.triggerThreshold : null
                 }
             });
         } else {
@@ -598,7 +609,8 @@ export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleT
                     fixedAmount: data.fixedAmount,
                     coverageDays: data.coverageDays,
                     emergencyDays: data.emergencyDays,
-                    emergencyThreshold: data.emergencyThreshold || 1.5
+                    emergencyThreshold: data.emergencyThreshold || 1.5,
+                    triggerThreshold: data.triggerThreshold !== undefined ? data.triggerThreshold : null
                 }
             });
         }
@@ -610,7 +622,7 @@ export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleT
     }
 }
 
-export async function applyRulesToCategory(categoryId: string, data: { activeDays: number[], calculationMode: string, fixedAmount: number | null, coverageDays: number[] }) {
+export async function applyRulesToCategory(categoryId: string, data: { activeDays: number[], calculationMode: string, fixedAmount: number | null, coverageDays: number[], triggerThreshold?: number | null }) {
     try {
         // Enforce cascading the rule application to all RAW/PREP/PROCESSED components within this category
         const ingredients = await prisma.ingredient.findMany({
@@ -629,7 +641,8 @@ export async function applyRulesToCategory(categoryId: string, data: { activeDay
                         activeDays: data.activeDays,
                         calculationMode: data.calculationMode,
                         fixedAmount: data.fixedAmount,
-                        coverageDays: data.coverageDays
+                        coverageDays: data.coverageDays,
+                        triggerThreshold: data.triggerThreshold !== undefined ? data.triggerThreshold : null
                     }
                 });
             } else {
@@ -642,7 +655,8 @@ export async function applyRulesToCategory(categoryId: string, data: { activeDay
                         fixedAmount: data.fixedAmount,
                         coverageDays: data.coverageDays,
                         emergencyDays: 3,
-                        emergencyThreshold: 1.5
+                        emergencyThreshold: 1.5,
+                        triggerThreshold: data.triggerThreshold !== undefined ? data.triggerThreshold : null
                     }
                 });
             }

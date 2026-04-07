@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen } from 'lucide-react';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen, Search, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
@@ -13,6 +13,7 @@ import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addP
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
+import { useAdmin } from '@/components/AdminContext';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 class MatrixErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -31,6 +32,7 @@ class MatrixErrorBoundary extends Component<{ children: ReactNode }, { hasError:
 export default function PrepSchedulePage() {
     const t = useTranslations();
     const locale = useLocale();
+    const { isAdmin } = useAdmin();
 
     // Tab State
     const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'airtight' | 'completed' | 'team' | 'defrosting'>('morning');
@@ -92,6 +94,9 @@ export default function PrepSchedulePage() {
         const low = m.toLowerCase();
         if (low === 'units' || low === 'unit') return locale === 'es' ? 'Unidades' : 'Units';
         if (low === 'pieces' || low === 'piece') return locale === 'es' ? 'Piezas' : 'Pieces';
+        if (low === 'pounds' || low === 'lb' || low === 'lbs') return locale === 'es' ? 'Lbs' : m;
+        if (low === 'liters' || low === 'liter' || low === 'l') return locale === 'es' ? 'L' : m;
+        if (low === 'grams' || low === 'gram' || low === 'g') return locale === 'es' ? 'g' : m;
         return m;
     };
 
@@ -356,19 +361,18 @@ export default function PrepSchedulePage() {
         return (
             <div style={{ marginBottom: '2rem' }}>
                 <h3 style={{ margin: '0 0 1rem 0', fontWeight: 'bold' }}>{title}</h3>
-                <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1000px' }}>
+                <div className="glass-panel table-wrapper-responsive" style={{ overflowX: 'auto', padding: 0 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '100%' }}>
                         <thead>
                             <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', width: '60px' }}></th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Base / {t('PrepSchedule.th_ingredient')}</th>
+                                <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', width: '60px' }}></th>
+                                <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')}</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad a Preparar' : 'Target'}</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center', minWidth: '120px' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad Preparada' : 'Actual'}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Unidad de Medida</th>
+                                <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Unidad de Medida</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>Preparador</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Status</th>
+                                <th className="status-column-responsive" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -396,7 +400,7 @@ export default function PrepSchedulePage() {
 
                                 return (
                                     <tr key={task.ingredientId} style={{ borderBottom: '1px solid var(--border)', background: rowBackground, opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
-                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                        <td className="hide-on-tablet" style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {task.hasNightShift ? (
                                                 <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
                                                     <MoonStar size={18} color="var(--warning)" />
@@ -407,8 +411,7 @@ export default function PrepSchedulePage() {
                                                 </div>
                                             ) : null}
                                         </td>
-                                        <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
-                                        <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid var(--border)' }}>{parentName}</td>
+                                        <td className="hide-on-tablet" style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -438,61 +441,56 @@ export default function PrepSchedulePage() {
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             <span style={{ fontSize: '1rem', fontWeight: 'bold', color: task.isEmergency ? '#ff4d4f' : 'var(--accent-primary)' }}>{recommendedTarget}</span>
+                                            <span className="show-on-tablet" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.4rem', fontWeight: 'normal' }}>{displayMetric(task.metric)}</span>
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {isDone ? (
                                                 <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
                                             ) : (
-                                                <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid var(--border)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid var(--border)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                                    <span className="show-on-tablet" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{displayMetric(task.metric)}</span>
+                                                </div>
                                             )}
                                         </td>
-                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                            {(() => {
-                                                const itemData = prepItems.find(p => p.id === task.ingredientId);
-                                                const isEditable = itemData && (!itemData.parent && itemData.type === 'PREP'); // Not associated with a child ingredient logically
-
-                                                if (!isDone && isEditable && !task.parentName) {
-                                                    return (
-                                                        <select
-                                                            disabled // Locked to target metric by default
-                                                            value={task.metric}
-                                                            style={{ padding: '0.3rem', background: 'transparent', border: '1px solid var(--border)', color: 'inherit', borderRadius: '4px' }}
-                                                        >
-                                                            <option value={task.metric}>{task.metric}</option>
-                                                        </select>
-                                                    );
-                                                }
-                                                return task.metric;
-                                            })()}
+                                        <td className="hide-on-tablet" style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 500 }}>
+                                            {displayMetric(task.metric)}
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
                                             {isDone ? (
                                                 <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
                                             ) : (
-                                                <select value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                                <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                                     <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
                                                     {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                 </select>
                                             )}
                                         </td>
-                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                        <td className="status-column-responsive" style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {isProcessing ? (
                                                 <div className="spinner" style={{ width: '20px', height: '20px', margin: '0 auto', borderTopColor: 'var(--accent-primary)' }} />
                                             ) : isDone ? (
-                                                <button onClick={() => handleUndoTask(task)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.85rem' }}>Undo</button>
+                                                <button onClick={() => handleUndoTask(task)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                                                    <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Deshacer' : 'Undo'}</span>
+                                                    <span className="show-on-tablet"><X size={16} /></span>
+                                                </button>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                                    <button onClick={() => handleCompleteTask(task)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>Complete</button>
+                                                    <button onClick={() => handleCompleteTask(task)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Completar' : 'Complete'}</span>
+                                                        <span className="show-on-tablet"><Check size={16} /></span>
+                                                    </button>
                                                     <button onClick={() => {
                                                         setIsTodayTasks(isTodayList);
                                                         setDeleteTaskCandidate(task);
-                                                    }} className="btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', color: 'white', background: 'var(--danger)', border: 'none' }}>
-                                                        {t('Nav.sales') === 'Ventas' ? 'Borrar' : 'Delete'}
+                                                    }} className="btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', color: 'white', background: 'var(--danger)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Borrar' : 'Delete'}</span>
+                                                        <span className="show-on-tablet"><Trash2 size={16} /></span>
                                                     </button>
                                                 </div>
                                             )}
                                         </td>
-                                    </tr>
+                                        </tr>
                                 );
                             })}
                         </tbody>
@@ -578,8 +576,8 @@ export default function PrepSchedulePage() {
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading')}</div>
                 ) : (
                     <>
-                        {renderTaskTable(sortedMorningTasks, "Today (Today's Assigned Tasks)", t('PrepSchedule.no_tasks_today'), true)}
-                        {renderTaskTable(sortedTomorrowTasks, `Tomorrow - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)}
+                        {renderTaskTable(sortedMorningTasks, t('Nav.sales') === 'Ventas' ? "Hoy (Tareas Asignadas para Hoy)" : "Today (Today's Assigned Tasks)", t('PrepSchedule.no_tasks_today'), true)}
+                        {renderTaskTable(sortedTomorrowTasks, `${t('Nav.sales') === 'Ventas' ? 'Mañana' : 'Tomorrow'} - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)}
                     </>
                 )}
             </div>
@@ -588,16 +586,31 @@ export default function PrepSchedulePage() {
 
     const handleSaveNightShift = async () => {
         setIsLoading(true);
+        const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
+        const calculatedTasks = await getDailyPrepTasks(tzDate);
+
         const tasksPayload = Object.keys(nightDrafts)
             .filter(id => nightDrafts[id].selected)
-            .map(id => ({
-                ingredientId: id,
-                qty: parseFloat(nightDrafts[id].qty) || 0,
-                userId: nightDrafts[id].userId || undefined,
-                urgent: nightDrafts[id].urgent
-            }));
+            .map(id => {
+                const cal = calculatedTasks.find(t => t.ingredientId === id);
+                let qty = 0;
+                if (cal) {
+                    if (cal.airTightSuggestedAmount !== undefined && cal.airTightSuggestedAmount > 0) {
+                        qty = cal.airTightSuggestedAmount;
+                    } else if (cal.hasRecurring && cal.recurringAmount !== undefined) {
+                        qty = cal.recurringAmount;
+                    }
+                }
 
-        const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
+                return {
+                    ingredientId: id,
+                    qty: qty,
+                    userId: nightDrafts[id].userId || undefined,
+                    urgent: nightDrafts[id].urgent
+                };
+            });
+
+
 
         const res = await assignNightShiftTasks(tasksPayload, tzDate);
         if (res.success) {
@@ -654,14 +667,12 @@ export default function PrepSchedulePage() {
                 {isLoading ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading Tasks...</div>
                 ) : (
-                    <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+                    <div className="glass-panel table-wrapper-responsive" style={{ overflowX: 'auto', padding: 0 }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '100%' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_ingredient')}</th>
+                                    <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_quantity')}</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>{t('PrepSchedule.th_preparer')}</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_urgent')}</th>
                                 </tr>
@@ -680,22 +691,16 @@ export default function PrepSchedulePage() {
 
                                             return (
                                                 <tr key={task.id} style={{ borderBottom: '1px solid var(--border)', background: draft.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent', transition: 'background 0.2s' }}>
-                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
-                                                    <td style={{ padding: '1rem', verticalAlign: 'middle', color: 'var(--text-secondary)', borderRight: '1px solid var(--border)' }}>{parentName}</td>
+                                                    <td className="hide-on-tablet" style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
                                                     <td style={{ padding: '0.5rem 1rem' }}>
                                                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', margin: 0, padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}>
                                                             <input type="checkbox" checked={draft.selected} onChange={(e) => handleNightDraftToggle(task.id, e.target.checked)} style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }} />
                                                             <span style={{ fontSize: '0.95rem' }}>{task.name}</span>
                                                         </label>
                                                     </td>
+
                                                     <td style={{ padding: '0.5rem 1rem' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <input type="number" step="0.01" min="0" placeholder="0" value={draft.qty} onChange={(e) => handleNightDraftChange(task.id, 'qty', e.target.value)} disabled={!draft.selected} style={{ width: '80px', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? 'white' : 'rgba(255,255,255,0.05)', color: draft.selected ? 'black' : 'white', border: '1px solid var(--border)' }} />
-                                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{task.metric}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ padding: '0.5rem 1rem' }}>
-                                                        <select value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid var(--border)' }}>
+                                                        <select className="prep-dropdown-responsive" value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid var(--border)' }}>
                                                             <option value="">{t('PrepSchedule.any_cook')}</option>
                                                             {teamMembers.map(m => (
                                                                 <option key={m.id} value={m.id}>{m.name}</option>
@@ -1152,6 +1157,7 @@ export default function PrepSchedulePage() {
     const [newTaskRecipeId, setNewTaskRecipeId] = useState('');
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
     const [isManageOptionsOpen, setIsManageOptionsOpen] = useState(false);
+    const [taskSearchQuery, setTaskSearchQuery] = useState('');
 
     const [showEditTaskModal, setShowEditTaskModal] = useState(false);
     const [editingTask, setEditingTask] = useState<any>(null);
@@ -1210,6 +1216,7 @@ export default function PrepSchedulePage() {
     };
 
     const renderTeamAndTasks = () => {
+        const query = taskSearchQuery.toLowerCase().trim();
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
             const cat = item.category?.name || 'Uncategorized';
@@ -1218,6 +1225,13 @@ export default function PrepSchedulePage() {
             if (cat === 'Descongelar' && !item.parentId) {
                 parent = 'Descongelar Tasks';
             }
+
+            if (query) {
+                const matchesItem = item.name.toLowerCase().includes(query);
+                const matchesParent = parent.toLowerCase().includes(query);
+                if (!matchesItem && !matchesParent) return;
+            }
+
             if (!grouped[cat]) grouped[cat] = {};
             if (!grouped[cat][parent]) grouped[cat][parent] = [];
             grouped[cat][parent].push(item);
@@ -1239,13 +1253,29 @@ export default function PrepSchedulePage() {
                 </div>
 
                 <div className="glass-panel" style={{ flex: 2, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
                         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Layers size={20} color="#a855f7" /> {locale === 'es' ? 'Tareas de Prep Elegibles' : 'Eligible Prep Tasks'}</h3>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button onClick={() => setIsManageOptionsOpen(true)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
+                        
+                        <div style={{ display: 'flex', gap: '1rem', flex: 1, justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
+                                <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search base or task..." 
+                                    value={taskSearchQuery}
+                                    onChange={(e) => setTaskSearchQuery(e.target.value)}
+                                    style={{ width: '100%', padding: '0.5rem 2rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', height: '36px' }}
+                                />
+                                {taskSearchQuery && (
+                                    <button onClick={() => setTaskSearchQuery('')} style={{ background: 'transparent', border: 'none', position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
+                            <button onClick={() => setIsManageOptionsOpen(true)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px', height: '36px', whiteSpace: 'nowrap' }}>
                                 <Settings size={16} /> Manage Categories
                             </button>
-                            <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px' }}>
+                            <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px', height: '36px', whiteSpace: 'nowrap' }}>
                                 <Plus size={16} /> Add Task
                             </button>
                         </div>
@@ -1310,6 +1340,7 @@ export default function PrepSchedulePage() {
         const [activeDays, setActiveDays] = useState<number[]>(rule ? rule.activeDays || [] : []);
         const [calcMode, setCalcMode] = useState(rule ? rule.calculationMode || 'ALGORITHM' : 'ALGORITHM');
         const [fixedAmount, setFixedAmount] = useState<string>(rule && rule.fixedAmount !== null ? rule.fixedAmount.toString() : '');
+        const [triggerThreshold, setTriggerThreshold] = useState<string>(rule && rule.triggerThreshold !== null ? rule.triggerThreshold.toString() : '');
         const daysShort = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
         const hasChanges = () => {
@@ -1320,6 +1351,7 @@ export default function PrepSchedulePage() {
 
         const handleSave = async () => {
             const parsedAmount = parseFloat(fixedAmount);
+            const parsedTrigger = parseFloat(triggerThreshold);
             await createOrUpdatePrepRule({
                 ingredientId: item.id,
                 ruleType: 'REGULAR',
@@ -1328,12 +1360,16 @@ export default function PrepSchedulePage() {
                 fixedAmount: isNaN(parsedAmount) ? null : parsedAmount,
                 coverageDays: [1], // Default 1 for alg mode backwards compatibility
                 emergencyDays: 3,
-                emergencyThreshold: 1.5
+                emergencyThreshold: 1.5,
+                triggerThreshold: isNaN(parsedTrigger) ? null : parsedTrigger
             });
             loadDataForTab('airtight');
         };
 
-        const currentStock = (item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0);
+        // If item has a parent, use the parent's inventory total stock. Otherwise, use the item's total stock if it's a base ingredient itself.
+        const activeInventory = item.parent ? item.parent.inventory : item.inventory;
+        const currentStock = activeInventory ? (activeInventory.frozenQty + activeInventory.thawingQty) : 0;
+        const displayMetric = item.parent ? item.parent.metric : item.metric;
 
         return (
             <tr style={{ background: level === 0 ? 'var(--bg-secondary)' : 'transparent', borderBottom: '1px solid var(--border)' }}>
@@ -1344,7 +1380,19 @@ export default function PrepSchedulePage() {
                     </div>
                 </td>
                 <td style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                    {currentStock} {item.metric}
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{currentStock}</span> {displayMetric}
+                </td>
+                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                    <input
+                        type="number"
+                        placeholder="Umbral"
+                        value={triggerThreshold}
+                        onChange={(e) => setTriggerThreshold(e.target.value)}
+                        style={{
+                            width: '70px', padding: '0.4rem', borderRadius: '4px', border: '1px solid var(--border)',
+                            background: 'var(--bg-primary)', color: 'var(--text-primary)', textAlign: 'center'
+                        }}
+                    />
                 </td>
                 <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '0.2rem', justifyContent: 'center' }}>
@@ -1453,7 +1501,8 @@ export default function PrepSchedulePage() {
                                                     <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                                         <th style={{ padding: '0.8rem 1rem' }}>Insumo</th>
                                                         <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Stock Total</th>
-                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Días de Prep</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Umbral (Min Stock)</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Ventana de Producción' : 'Production Window'}</th>
                                                         <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Cálculo</th>
                                                         <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Acción</th>
                                                     </tr>
@@ -1533,24 +1582,28 @@ export default function PrepSchedulePage() {
                         <Snowflake size={20} color={activeTab === 'defrosting' ? '#3b82f6' : 'inherit'} />
                         Estación de Descongelado
                     </button>
-                    <button
-                        onClick={() => setActiveTab('recurring')}
-                        style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'recurring' ? '2px solid #a855f7' : '2px solid transparent', color: activeTab === 'recurring' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'recurring' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
-                        <Repeat size={20} color={activeTab === 'recurring' ? '#a855f7' : 'inherit'} />
-                        {t('PrepSchedule.tab_recurring')}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('completed')}
-                        style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'completed' ? '2px solid var(--success)' : '2px solid transparent', color: activeTab === 'completed' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'completed' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
-                        <Check size={20} color={activeTab === 'completed' ? 'var(--success)' : 'inherit'} />
-                        {t('PrepSchedule.tab_logs')}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('team')}
-                        style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'team' ? '2px solid var(--accent-secondary)' : '2px solid transparent', color: activeTab === 'team' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'team' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
-                        <Users size={20} color={activeTab === 'team' ? 'var(--accent-secondary)' : 'inherit'} />
-                        {t('PrepSchedule.tab_team')}
-                    </button>
+                    {isAdmin && (
+                        <>
+                            <button
+                                onClick={() => setActiveTab('recurring')}
+                                style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'recurring' ? '2px solid #a855f7' : '2px solid transparent', color: activeTab === 'recurring' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'recurring' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                <Repeat size={20} color={activeTab === 'recurring' ? '#a855f7' : 'inherit'} />
+                                {t('PrepSchedule.tab_recurring')}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('completed')}
+                                style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'completed' ? '2px solid var(--success)' : '2px solid transparent', color: activeTab === 'completed' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'completed' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                <Check size={20} color={activeTab === 'completed' ? 'var(--success)' : 'inherit'} />
+                                {t('PrepSchedule.tab_logs')}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('team')}
+                                style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'team' ? '2px solid var(--accent-secondary)' : '2px solid transparent', color: activeTab === 'team' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'team' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                <Users size={20} color={activeTab === 'team' ? 'var(--accent-secondary)' : 'inherit'} />
+                                {t('PrepSchedule.tab_team')}
+                            </button>
+                        </>
+                    )}
                 </div>
 
                 {/* Tab Output Section */}

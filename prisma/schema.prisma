@@ -277,6 +277,7 @@ model PrepRule {
   coverageDays       Int[]      // Array of days it covers (0-6)
   emergencyDays      Int        @default(3)
   emergencyThreshold Float      @default(1.5)
+  triggerThreshold   Float?
 }
 
 model DigitalRecipe {

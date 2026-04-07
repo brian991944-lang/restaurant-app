@@ -171,3 +171,61 @@ button {
     padding: 1.5rem;
   }
 }
+
+/* Tablet / Mobile Prep Schedule Optimizations */
+@media (max-width: 1024px) {
+  .hide-on-tablet {
+    display: none !important;
+  }
+  .show-on-tablet {
+    display: inline-block !important;
+  }
+  .prep-dropdown-responsive {
+    padding: 0.3rem !important;
+    font-size: 0.85rem !important;
+    min-width: unset !important;
+    max-width: 120px !important;
+  }
+  .table-wrapper-responsive {
+    overflow-x: hidden !important;
+    width: 100% !important;
+  }
+  .status-column-responsive {
+    min-width: 180px !important;
+  }
+  .status-column-responsive button {
+    font-size: 0.75rem !important;
+    padding: 0.3rem 0.5rem !important;
+  }
+
+  /* Force sidebar collapse on tablet via CSS without React lag */
+  .sidebar-container {
+    width: 80px !important;
+  }
+  .sidebar-hide-tablet {
+    display: none !important; /* Hides labels and logo containers */
+  }
+  .sidebar-nav-tablet {
+    padding: 1.5rem 0 !important;
+    align-items: center !important;
+  }
+  .sidebar-link-tablet {
+    justify-content: center !important;
+    gap: 0 !important;
+    padding: 1rem !important;
+    width: 50px !important;
+  }
+  .sidebar-toggle-tablet {
+    justify-content: center !important;
+  }
+  .sidebar-bottom-tablet {
+    padding: 1.5rem 0 !important;
+    align-items: center !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .show-on-tablet {
+    display: none !important;
+  }
+}
