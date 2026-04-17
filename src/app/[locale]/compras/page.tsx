@@ -118,10 +118,14 @@ export default function ComprasPage() {
                                             acc.get(cat).push(ing);
                                             return acc;
                                         }, new Map<string, any[]>())
-                                    ).sort((a, b) => a[0].localeCompare(b[0]));
+                                    ).sort((a, b) => a[0].localeCompare(b[0], locale));
 
                                     return groupedIngredients.map(([category, items]) => {
-                                        items.sort((a: any, b: any) => a.name.localeCompare(b.name));
+                                        items.sort((a: any, b: any) => {
+                                            const nameA = locale === 'es' && a.nameEs ? a.nameEs : a.name;
+                                            const nameB = locale === 'es' && b.nameEs ? b.nameEs : b.name;
+                                            return nameA.localeCompare(nameB, locale);
+                                        });
 
                                         return (
                                             <React.Fragment key={category}>
