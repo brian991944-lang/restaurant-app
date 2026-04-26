@@ -400,7 +400,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             <div className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)', maxHeight: '90vh', overflowY: 'auto' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? 'Edit Ingredient' : t('modal_add_title')}</h2>
+                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? (locale === 'es' ? 'Editar Ingrediente' : 'Edit Ingredient') : t('modal_add_title')}</h2>
                     <button type="button" onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
                 </div>
 
@@ -438,7 +438,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 autoFocus
                             />
 
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Spanish Name</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{locale === 'es' ? 'Nombre en Español' : 'Spanish Name'}</label>
                             <input
                                 name="nameEs"
                                 type="text"
@@ -454,21 +454,21 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Product Hierarchy Level</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nivel de Jerarquía del Producto' : 'Product Hierarchy Level'}</label>
                             <select
                                 className="input-field"
                                 value={currentType === 'PROCESSED' ? 'Child' : (currentType === 'PREP_RECIPE' ? 'Recipe' : 'Parent')}
                                 onChange={(e) => setCurrentType(e.target.value === 'Child' ? 'PROCESSED' : 'RAW')}
                                 disabled={currentType === 'PREP_RECIPE'}
                             >
-                                <option value="Parent">Parent Product (Standalone)</option>
-                                <option value="Child">Child Product (Prepared from Parent)</option>
-                                {currentType === 'PREP_RECIPE' && <option value="Recipe">Prep Recipe (Locked)</option>}
+                                <option value="Parent">{locale === 'es' ? 'Producto Padre (Independiente)' : 'Parent Product (Standalone)'}</option>
+                                <option value="Child">{locale === 'es' ? 'Producto Hijo (Preparado del Padre)' : 'Child Product (Prepared from Parent)'}</option>
+                                {currentType === 'PREP_RECIPE' && <option value="Recipe">{locale === 'es' ? 'Receta de Prep. (Bloqueada)' : 'Prep Recipe (Locked)'}</option>}
                             </select>
                         </div>
                         {currentType === 'PROCESSED' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Select Parent Ingredient</label>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Seleccionar Ingrediente Padre' : 'Select Parent Ingredient'}</label>
                                 <SearchableSelect
                                     name="parentId"
                                     value={selectedParentId}
@@ -482,8 +482,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                             setSelectedMetric(parentIng.metric || 'Units');
                                         }
                                     }}
-                                    options={[...ingredients].filter(i => i.type === 'RAW' || i.type === 'PREP_RECIPE').map(ing => ({ value: ing.id, label: ing.name }))}
-                                    placeholder="Select Parent Ingredient..."
+                                    options={[...ingredients].filter(i => i.type === 'RAW' || i.type === 'PREP_RECIPE').map(ing => ({ value: ing.id, label: locale === 'es' && ing.nameEs ? ing.nameEs : ing.name }))}
+                                    placeholder={locale === 'es' ? 'Seleccionar Ingrediente Padre...' : 'Select Parent Ingredient...'}
                                     required
                                 />
 
@@ -494,7 +494,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                         onChange={e => setIsPortioned(e.target.checked)}
                                         style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
                                     />
-                                    This is a Portioned/Bagged Item
+                                    {locale === 'es' ? 'Este es un Artículo en Porciones/Empacado' : 'This is a Portioned/Bagged Item'}
                                 </label>
                             </div>
                         )}
@@ -507,8 +507,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 name="category"
                                 value={selectedCategory}
                                 onChange={setSelectedCategory}
-                                options={categories.map(c => ({ value: c.name, label: c.name }))}
-                                placeholder="Select Category..."
+                                options={categories.map(c => ({ value: c.name, label: locale === 'es' && c.nameEs ? c.nameEs : c.name }))}
+                                placeholder={locale === 'es' ? 'Seleccionar Categoría...' : 'Select Category...'}
                                 required
                             />
                         </div>
@@ -518,8 +518,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 name="provider"
                                 value={selectedProvider}
                                 onChange={setSelectedProvider}
-                                options={[{ value: '', label: 'Select Provider (Optional)...' }, ...providers.map(p => ({ value: p.name, label: p.name }))]}
-                                placeholder="Select Provider (Optional)..."
+                                options={[{ value: '', label: locale === 'es' ? 'Seleccionar Proveedor (Opcional)...' : 'Select Provider (Optional)...' }, ...providers.map(p => ({ value: p.name, label: p.name }))]}
+                                placeholder={locale === 'es' ? 'Seleccionar Proveedor (Opcional)...' : 'Select Provider (Optional)...'}
                             />
                         </div>
                     </div>
@@ -673,9 +673,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                             value={overrideDisplayUnit}
                                             onChange={(e) => handleOverrideDisplayUnitChange(e.target.value)}
                                         >
-                                            <option value="Packs">Packs/Bags</option>
+                                            <option value="Packs">{locale === 'es' ? 'Empaques/Bolsas' : 'Packs/Bags'}</option>
                                             {ALLOWED_METRICS.map(m => (
-                                                <option key={m} value={m}>{m}</option>
+                                                <option key={m} value={m}>{locale === 'es' && m === 'Units' ? 'Unidades' : m}</option>
                                             ))}
                                         </select>
                                     )}
