@@ -5,7 +5,11 @@ import { Trash2 } from 'lucide-react';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { ALLOWED_METRICS, getConversionFactor } from '@/lib/conversion';
 
+import { useLocale } from 'next-intl';
+
 export function ComponentRow({ comp, dbIngredients, updateComponent, removeComponent, resolveCost }: any) {
+    const locale = useLocale();
+
     const dbIng = dbIngredients.find((i: any) => i.id === comp.ingredientId);
     const baseUnit = dbIng ? (dbIng.metric || 'Units') : 'Units';
 
@@ -24,7 +28,7 @@ export function ComponentRow({ comp, dbIngredients, updateComponent, removeCompo
     }
 
     const metricOptions = baseUnit.toLowerCase() === 'units'
-        ? [{ value: 'Units', label: 'Units' }]
+        ? [{ value: 'Units', label: locale === 'es' ? 'Unidades' : 'Units' }]
         : ALLOWED_METRICS.filter(m => m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }));
 
     return (
@@ -33,8 +37,8 @@ export function ComponentRow({ comp, dbIngredients, updateComponent, removeCompo
                 <SearchableSelect
                     value={comp.ingredientId}
                     onChange={(val) => updateComponent(comp.id, 'ingredientId', val)}
-                    options={dbIngredients.map((item: any) => ({ value: item.id, label: item.name }))}
-                    placeholder="Select Ingredient..."
+                    options={dbIngredients.map((item: any) => ({ value: item.id, label: locale === 'es' && item.nameEs ? item.nameEs : item.name }))}
+                    placeholder={locale === 'es' ? 'Seleccionar Insumo...' : 'Select Ingredient...'}
                 />
             </td>
             <td style={{ padding: '0.5rem' }}>
