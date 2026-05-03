@@ -285,6 +285,7 @@ model DigitalRecipe {
   type            String   // RECIPE, PLATING, GUIDE
   recipeCode      String   @unique
   name            String
+  nameEs          String?
   yield           String?
   overview        String?
   ingredientsJson String?  // JSON text: [{ id, ingredient, quantity, metric, notes }]
@@ -308,6 +309,7 @@ model DigitalRecipeHistory {
   type            String
   recipeCode      String
   name            String
+  nameEs          String?
   yield           String?
   overview        String?
   ingredientsJson String?
