@@ -753,144 +753,191 @@ export default function RecetarioPage() {
                                 {locale === 'es' ? 'Agrega una pista (e.g. Proteína) para comenzar.' : 'Add a track to start.'}
                             </div>
                         ) : (
-                            <div style={{ overflowX: 'auto', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
-                                    
-                                    {/* Header Row */}
-                                    {platingData.tracks.map((track: any) => (
-                                        <div key={track.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '6px' }}>
-                                            {isEditing ? (
-                                                <input value={track.name} onChange={e => updatePlatingTrack(track.id, e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', outline: 'none', width: '100%' }} placeholder="Nombre de Pista" />
-                                            ) : (
-                                                <span style={{ fontWeight: 'bold', color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{track.name}</span>
-                                            )}
-                                            {isEditing && (
-                                                <button type="button" onClick={() => removePlatingTrack(track.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16}/></button>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {isEditing && <div></div>}
+                            <div style={{ overflowX: 'auto', background: 'transparent' }}>
+                                {(() => {
+                                    const rowGroups: any[] = [];
+                                    let currentGroup: any = null;
+                                    platingData.rows.forEach((row: any, rIdx: number) => {
+                                        if (row.isMerged) {
+                                            if (currentGroup) rowGroups.push(currentGroup);
+                                            currentGroup = null;
+                                            rowGroups.push({ type: 'merged', rows: [{ ...row, originalIndex: rIdx }] });
+                                        } else {
+                                            if (!currentGroup) currentGroup = { type: 'simultaneous', rows: [] };
+                                            currentGroup.rows.push({ ...row, originalIndex: rIdx });
+                                        }
+                                    });
+                                    if (currentGroup) rowGroups.push(currentGroup);
 
-                                    {/* Rows mapped */}
-                                    {platingData.rows.map((row: any, rIdx: number) => (
-                                        <React.Fragment key={row.id}>
-
-                                            {row.isMerged ? (
-                                                <div style={{ 
-                                                    gridColumn: `span ${platingData.tracks.length}`,
-                                                    padding: '1.5rem',
-                                                    background: isEditing ? 'rgba(0,0,0,0.15)' : 'var(--bg-secondary)',
-                                                    border: isEditing ? '1px dashed var(--border)' : '1px solid var(--border)',
-                                                    borderRadius: '8px',
-                                                    display: 'flex', flexDirection: 'column', gap: '1rem',
-                                                    boxShadow: !isEditing ? '0 0 15px rgba(251, 191, 36, 0.1)' : 'none',
-                                                    height: '100%',
-                                                    alignItems: 'flex-start'
-                                                }}>
-                                                    {/* Merged Step Badge */}
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                        <div style={{ background: '#fbbf24', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold' }}>
-                                                            {rIdx + 1}
-                                                        </div>
-                                                        <span style={{ fontWeight: 'bold', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.85rem' }}>
-                                                            {locale === 'es' ? 'Paso Unificado' : 'Merged Step'}
-                                                        </span>
-                                                    </div>
-
-                                                    {isEditing ? (
-                                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                            <textarea placeholder="Descripción del paso final unificado..." value={row.cells['merged']?.text || ''} onChange={e => updatePlatingCell(row.id, 'merged', e.target.value, row.cells['merged']?.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '1rem', textAlign: 'left' }} />
-                                                            <ImageUpload 
-                                                                currentUrl={row.cells['merged']?.imageUrl}
-                                                                onUploadComplete={(url) => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', url)}
-                                                                onRemove={() => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', '')}
-                                                                placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
-                                                            <span style={{ fontSize: '1.05rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(row.cells['merged']?.text || '')}</span>
-                                                            {row.cells['merged']?.imageUrl && (
-                                                                <img src={row.cells['merged']?.imageUrl} alt="Referencia" style={{ maxWidth: '600px', width: '100%', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '350px', objectFit: 'cover' }} />
+                                    return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            {/* Header Row */}
+                                            <div style={{ padding: '0 1.5rem' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
+                                                    {platingData.tracks.map((track: any) => (
+                                                        <div key={track.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                                                            {isEditing ? (
+                                                                <input value={track.name} onChange={e => updatePlatingTrack(track.id, e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', outline: 'none', width: '100%' }} placeholder="Nombre de Pista" />
+                                                            ) : (
+                                                                <span style={{ fontWeight: 'bold', color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{track.name}</span>
+                                                            )}
+                                                            {isEditing && (
+                                                                <button type="button" onClick={() => removePlatingTrack(track.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16}/></button>
                                                             )}
                                                         </div>
-                                                    )}
+                                                    ))}
+                                                    {isEditing && <div></div>}
                                                 </div>
-                                            ) : (
-                                                platingData.tracks.map((track: any, tIdx: number) => {
-                                                    const cellData = row.cells[track.id] || { text: '', imageUrl: '' };
-                                                    const isActive = !!(cellData.text || cellData.imageUrl);
+                                            </div>
+
+                                            {/* Map over grouped rows */}
+                                            {rowGroups.map((group, gIdx) => {
+                                                if (group.type === 'merged') {
+                                                    const row = group.rows[0];
+                                                    const rIdx = row.originalIndex;
                                                     return (
-                                                        <div key={track.id} style={{ 
-                                                            padding: '1rem',
-                                                            background: isEditing ? 'rgba(0,0,0,0.15)' : (isActive ? 'var(--bg-secondary)' : 'transparent'),
-                                                            border: isEditing ? '1px dashed var(--border)' : (isActive ? (row.isSimultaneous ? '2px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border)') : '1px dashed rgba(255,255,255,0.05)'),
-                                                            borderRadius: '8px',
-                                                            display: 'flex', flexDirection: 'column', gap: '0.8rem',
-                                                            boxShadow: (!isEditing && row.isSimultaneous && isActive) ? '0 0 10px rgba(59, 130, 246, 0.1)' : 'none',
-                                                            height: '100%'
-                                                        }}>
-                                                            {/* Step Badge inside block */}
-                                                            {isActive || isEditing ? (
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: isEditing ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                        <div style={{ background: row.isSimultaneous ? 'var(--accent-primary)' : 'var(--border)', color: 'white', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                                        <div key={row.id} style={{ padding: '0 1.5rem' }}>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
+                                                                <div style={{ 
+                                                                    gridColumn: `span ${platingData.tracks.length}`,
+                                                                    padding: '1.5rem',
+                                                                    background: isEditing ? 'rgba(0,0,0,0.15)' : 'var(--bg-secondary)',
+                                                                    border: isEditing ? '1px dashed var(--border)' : '1px solid var(--border)',
+                                                                    borderRadius: '8px',
+                                                                    display: 'flex', flexDirection: 'column', gap: '1rem',
+                                                                    boxShadow: !isEditing ? '0 0 15px rgba(251, 191, 36, 0.1)' : 'none',
+                                                                    alignItems: 'flex-start'
+                                                                }}>
+                                                                    {/* Merged Step Badge */}
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                                                        <div style={{ background: '#fbbf24', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold' }}>
                                                                             {rIdx + 1}
                                                                         </div>
-                                                                        {!isEditing && row.isSimultaneous && (
-                                                                            <span style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', fontWeight: 'bold', letterSpacing: '1px' }}>SIMULT.</span>
-                                                                        )}
+                                                                        <span style={{ fontWeight: 'bold', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.85rem' }}>
+                                                                            {locale === 'es' ? 'Paso Unificado' : 'Merged Step'}
+                                                                        </span>
                                                                     </div>
-                                                                    
-                                                                    {isEditing && tIdx === 0 && (
-                                                                        <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', background: row.isSimultaneous?'rgba(59,130,246,0.1)':'transparent', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                                                            <input type="checkbox" checked={row.isSimultaneous} onChange={e => updatePlatingRow(row.id, e.target.checked)} />
-                                                                            Simult.
-                                                                        </label>
-                                                                    )}
-                                                                </div>
-                                                            ) : null}
 
-                                                            {isEditing ? (
-                                                                <>
-                                                                    <textarea placeholder="Descripción del paso..." value={cellData.text} onChange={e => updatePlatingCell(row.id, track.id, e.target.value, cellData.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '0.9rem' }} />
-                                                                    <ImageUpload 
-                                                                        currentUrl={cellData.imageUrl}
-                                                                        onUploadComplete={(url) => updatePlatingCell(row.id, track.id, cellData.text, url)}
-                                                                        onRemove={() => updatePlatingCell(row.id, track.id, cellData.text, '')}
-                                                                        placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
-                                                                    />
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    {isActive ? (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                                                            <span style={{ fontSize: '0.95rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{renderBoldText(cellData.text)}</span>
-                                                                            {cellData.imageUrl && (
-                                                                                <img src={cellData.imageUrl} alt="Referencia" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--border)', maxHeight: '200px', objectFit: 'cover' }} />
-                                                                            )}
+                                                                    {isEditing ? (
+                                                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                            <textarea placeholder="Descripción del paso final unificado..." value={row.cells['merged']?.text || ''} onChange={e => updatePlatingCell(row.id, 'merged', e.target.value, row.cells['merged']?.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '1rem', textAlign: 'left' }} />
+                                                                            <ImageUpload 
+                                                                                currentUrl={row.cells['merged']?.imageUrl}
+                                                                                onUploadComplete={(url) => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', url)}
+                                                                                onRemove={() => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', '')}
+                                                                                placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
+                                                                            />
                                                                         </div>
                                                                     ) : (
-                                                                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                                            <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.2)' }}>-</span>
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
+                                                                            <span style={{ fontSize: '1.05rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(row.cells['merged']?.text || '')}</span>
+                                                                            {row.cells['merged']?.imageUrl && (
+                                                                                <img src={row.cells['merged']?.imageUrl} alt="Referencia" style={{ maxWidth: '600px', width: '100%', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '350px', objectFit: 'cover' }} />
+                                                                            )}
                                                                         </div>
                                                                     )}
-                                                                </>
-                                                            )}
+                                                                </div>
+                                                                {isEditing && (
+                                                                    <button type="button" onClick={() => removePlatingRow(row.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash2 size={18}/></button>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    )
-                                                })
-                                            )}
+                                                    );
+                                                } else {
+                                                    // Simultaneous Track Wrapper
+                                                    return (
+                                                        <div key={gIdx} style={{ 
+                                                            background: 'rgba(59, 130, 246, 0.05)', 
+                                                            borderRadius: '12px', 
+                                                            padding: '1.5rem', 
+                                                            border: '1px dashed rgba(59, 130, 246, 0.3)',
+                                                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
+                                                        }}>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                {group.rows.map((row: any) => {
+                                                                    const rIdx = row.originalIndex;
+                                                                    return (
+                                                                        <div key={row.id} style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
+                                                                            {platingData.tracks.map((track: any, tIdx: number) => {
+                                                                                const cellData = row.cells[track.id] || { text: '', imageUrl: '' };
+                                                                                const isActive = !!(cellData.text || cellData.imageUrl);
+                                                                                return (
+                                                                                    <div key={track.id} style={{ 
+                                                                                        padding: '1rem',
+                                                                                        background: isEditing ? 'rgba(0,0,0,0.15)' : (isActive ? 'var(--bg-secondary)' : 'transparent'),
+                                                                                        border: isEditing ? '1px dashed var(--border)' : (isActive ? (row.isSimultaneous ? '2px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border)') : '1px dashed rgba(255,255,255,0.05)'),
+                                                                                        borderRadius: '8px',
+                                                                                        display: 'flex', flexDirection: 'column', gap: '0.8rem',
+                                                                                        boxShadow: (!isEditing && row.isSimultaneous && isActive) ? '0 0 10px rgba(59, 130, 246, 0.1)' : 'none',
+                                                                                        height: '100%'
+                                                                                    }}>
+                                                                                        {/* Step Badge inside block */}
+                                                                                        {isActive || isEditing ? (
+                                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: isEditing ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+                                                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                                    <div style={{ background: row.isSimultaneous ? 'var(--accent-primary)' : 'var(--border)', color: 'white', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                                                                                                        {rIdx + 1}
+                                                                                                    </div>
+                                                                                                    {!isEditing && row.isSimultaneous && (
+                                                                                                        <span style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', fontWeight: 'bold', letterSpacing: '1px' }}>SIMULT.</span>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                                
+                                                                                                {isEditing && tIdx === 0 && (
+                                                                                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', background: row.isSimultaneous?'rgba(59,130,246,0.1)':'transparent', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                                                                                        <input type="checkbox" checked={row.isSimultaneous} onChange={e => updatePlatingRow(row.id, e.target.checked)} />
+                                                                                                        Simult.
+                                                                                                    </label>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ) : null}
 
-                                            {/* Delete Row Button */}
-                                            {isEditing && (
-                                                <div style={{ paddingTop: '0.8rem', textAlign: 'center' }}>
-                                                    <button type="button" onClick={() => removePlatingRow(row.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash2 size={18}/></button>
-                                                </div>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
-                                </div>
+                                                                                        {isEditing ? (
+                                                                                            <>
+                                                                                                <textarea placeholder="Descripción del paso..." value={cellData.text} onChange={e => updatePlatingCell(row.id, track.id, e.target.value, cellData.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '0.9rem' }} />
+                                                                                                <ImageUpload 
+                                                                                                    currentUrl={cellData.imageUrl}
+                                                                                                    onUploadComplete={(url) => updatePlatingCell(row.id, track.id, cellData.text, url)}
+                                                                                                    onRemove={() => updatePlatingCell(row.id, track.id, cellData.text, '')}
+                                                                                                    placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
+                                                                                                />
+                                                                                            </>
+                                                                                        ) : (
+                                                                                            <>
+                                                                                                {isActive ? (
+                                                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                                                                                        <span style={{ fontSize: '0.95rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{renderBoldText(cellData.text)}</span>
+                                                                                                        {cellData.imageUrl && (
+                                                                                                            <img src={cellData.imageUrl} alt="Referencia" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--border)', maxHeight: '200px', objectFit: 'cover' }} />
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                ) : (
+                                                                                                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                                                        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.2)' }}>-</span>
+                                                                                                    </div>
+                                                                                                )}
+                                                                                            </>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )
+                                                                            })}
+                                                                            {/* Delete Row Button */}
+                                                                            {isEditing && (
+                                                                                <div style={{ paddingTop: '0.8rem', textAlign: 'center' }}>
+                                                                                    <button type="button" onClick={() => removePlatingRow(row.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash2 size={18}/></button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                }
+                                            })}
+                                        </div>
+                                    );
+                                })()}
 
                                 {isEditing && (
                                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
