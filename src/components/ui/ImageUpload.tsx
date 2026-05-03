@@ -3,16 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Loader2 } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-// Create a singleton so it doesn't crash if keys are missing (just warns when attempting upload)
-const supabase = supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : null;
+import { supabase } from '@/lib/supabase';
 
 interface ImageUploadProps {
     onUploadComplete: (url: string) => void;
@@ -27,7 +18,7 @@ export default function ImageUpload({
     currentUrl,
     onRemove,
     placeholder = 'Subir Imagen',
-    bucketName = 'dishes'
+    bucketName = 'restaurant-assets'
 }: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
