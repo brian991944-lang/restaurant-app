@@ -50,65 +50,7 @@ export default function RecetarioPage() {
 
     // Editor state
     const [editData, setEditData] = useState<any>(null);
-    const [isUploadingImage, setIsUploadingImage] = useState(false);
-    const [uploadError, setUploadError] = useState<string | null>(null);
 
-    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        if (file.size > 5 * 1024 * 1024) {
-            setUploadError(locale === 'es' ? 'La imagen excede el límite de 5MB.' : 'Image exceeds the 5MB limit.');
-            return;
-        }
-
-        try {
-            setIsUploadingImage(true);
-            setUploadError(null);
-
-            const compressedBase64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.src = event.target?.result as string;
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 800;
-                        const MAX_HEIGHT = 800;
-                        let width = img.width;
-                        let height = img.height;
-
-                        if (width > height) {
-                            if (width > MAX_WIDTH) {
-                                height *= MAX_WIDTH / width;
-                                width = MAX_WIDTH;
-                            }
-                        } else {
-                            if (height > MAX_HEIGHT) {
-                                width *= MAX_HEIGHT / height;
-                                height = MAX_HEIGHT;
-                            }
-                        }
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext('2d');
-                        ctx?.drawImage(img, 0, 0, width, height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.7));
-                    };
-                    img.onerror = (error) => reject(error);
-                };
-                reader.onerror = (error) => reject(error);
-            });
-
-            setEditData((prev: any) => ({ ...prev, imageUrl: compressedBase64 }));
-        } catch (error: any) {
-            console.error('Error uploading image:', error);
-            setUploadError(locale === 'es' ? 'Error al procesar la imagen' : 'Failed to process image');
-        } finally {
-            setIsUploadingImage(false);
-        }
-    };
 
     useEffect(() => {
         loadData();
@@ -651,72 +593,7 @@ export default function RecetarioPage() {
                     </div>
                 </div>
 
-                {/* FINAL PLATED PHOTO */}
-                <div style={{ marginBottom: '2.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'FOTO FINAL DEL EMPLATADO' : 'FINAL PLATED PHOTO'}</h3>
-                    {uploadError && (
-                        <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.5rem 1rem', borderRadius: '4px', marginBottom: '1rem', fontSize: '0.9rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                            {uploadError}
-                        </div>
-                    )}
-                    {isEditing ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {docData.imageUrl && (
-                                <div style={{ position: 'relative', width: 'fit-content' }}>
-                                    <img src={docData.imageUrl} alt="Plated view" style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: '8px', border: '1px solid var(--border)' }} />
-                                    <button 
-                                        onClick={() => setEditData({ ...docData, imageUrl: '' })}
-                                        style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', padding: '0.5rem', cursor: 'pointer' }}
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            )}
-                            <label 
-                                onClick={() => setUploadError(null)}
-                                style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '2rem',
-                                border: '2px dashed var(--border)',
-                                borderRadius: '8px',
-                                background: 'var(--bg-secondary)',
-                                cursor: isUploadingImage ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s',
-                                opacity: isUploadingImage ? 0.6 : 1
-                            }}>
-                                <Upload size={24} style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }} />
-                                <span style={{ fontWeight: 600 }}>{isUploadingImage ? (locale === 'es' ? 'Subiendo...' : 'Uploading...') : (locale === 'es' ? 'Upload Main Plated Photo' : 'Upload Main Plated Photo')}</span>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{locale === 'es' ? 'Haz clic o arrastra una imagen. Max 5MB' : 'Click or drag an image. Max 5MB'}</span>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? '(se comprimirá a ~200KB).' : '(will be compressed to ~200KB).'}</span>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    style={{ display: 'none' }}
-                                    onChange={handleImageUpload}
-                                    onClick={(e) => {
-                                        (e.target as HTMLInputElement).value = '';
-                                        setUploadError(null);
-                                    }}
-                                    disabled={isUploadingImage}
-                                />
-                            </label>
-                        </div>
-                    ) : (
-                        <div>
-                            {docData.imageUrl ? (
-                                <img src={docData.imageUrl} alt="Plated view" style={{ maxWidth: '100%', maxHeight: '500px', borderRadius: '12px', border: '1px solid var(--border)', objectFit: 'contain' }} />
-                            ) : (
-                                <div style={{ background: 'var(--bg-secondary)', padding: '3rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', border: '1px dashed var(--border)' }}>
-                                    <ImageIcon size={48} style={{ opacity: 0.5, marginBottom: '1rem' }} />
-                                    <span>{locale === 'es' ? 'Sin foto disponible' : 'No photo available'}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
+
 
                 {/* Overview */}
                 <div style={{ marginBottom: '2.5rem' }}>
