@@ -846,14 +846,20 @@ export default function RecetarioPage() {
                                                 } else {
                                                     // Simultaneous Track Wrapper
                                                     return (
-                                                        <div key={gIdx} style={{ 
-                                                            background: 'rgba(59, 130, 246, 0.05)', 
-                                                            borderRadius: '12px', 
-                                                            padding: '1.5rem', 
-                                                            border: '1px dashed rgba(59, 130, 246, 0.3)',
-                                                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)'
-                                                        }}>
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                        <div key={gIdx} style={{ position: 'relative', padding: '1.5rem 1.5rem 0 1.5rem', marginBottom: '1rem' }}>
+                                                            {/* Background Columns */}
+                                                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', position: 'absolute', top: 0, left: '1.5rem', right: '1.5rem', bottom: 0, pointerEvents: 'none' }}>
+                                                                {platingData.tracks.map((track: any, tIdx: number) => (
+                                                                    <div key={track.id} style={{ 
+                                                                        background: tIdx % 2 === 0 ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-secondary)', 
+                                                                        borderRadius: '12px', 
+                                                                        border: tIdx % 2 === 0 ? '1px solid rgba(59, 130, 246, 0.1)' : '1px solid var(--border)' 
+                                                                    }} />
+                                                                ))}
+                                                                {isEditing && <div></div>}
+                                                            </div>
+
+                                                            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '1.5rem' }}>
                                                                 {group.rows.map((row: any) => {
                                                                     const rIdx = row.originalIndex;
                                                                     return (
@@ -864,16 +870,16 @@ export default function RecetarioPage() {
                                                                                 return (
                                                                                     <div key={track.id} style={{ 
                                                                                         padding: '1rem',
-                                                                                        background: isEditing ? 'rgba(0,0,0,0.15)' : (isActive ? 'var(--bg-secondary)' : 'transparent'),
-                                                                                        border: isEditing ? '1px dashed var(--border)' : (isActive ? (row.isSimultaneous ? '2px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border)') : '1px dashed rgba(255,255,255,0.05)'),
+                                                                                        background: isEditing ? 'rgba(0,0,0,0.15)' : (isActive ? 'var(--bg-primary)' : 'transparent'),
+                                                                                        border: isEditing ? '1px dashed var(--border)' : (isActive ? '1px solid var(--border)' : '1px dashed rgba(255,255,255,0.05)'),
                                                                                         borderRadius: '8px',
-                                                                                        display: 'flex', flexDirection: 'column', gap: '0.8rem',
-                                                                                        boxShadow: (!isEditing && row.isSimultaneous && isActive) ? '0 0 10px rgba(59, 130, 246, 0.1)' : 'none',
+                                                                                        display: 'flex', flexDirection: 'column',
+                                                                                        boxShadow: (!isEditing && row.isSimultaneous && isActive) ? '0 0 10px rgba(0, 0, 0, 0.05)' : 'none',
                                                                                         height: '100%'
                                                                                     }}>
                                                                                         {/* Step Badge inside block */}
                                                                                         {isActive || isEditing ? (
-                                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', paddingBottom: '0.5rem', borderBottom: isEditing ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
+                                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                                                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                                                                     <div style={{ background: row.isSimultaneous ? 'var(--accent-primary)' : 'var(--border)', color: 'white', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
                                                                                                         {rIdx + 1}
@@ -893,7 +899,7 @@ export default function RecetarioPage() {
                                                                                         ) : null}
 
                                                                                         {isEditing ? (
-                                                                                            <>
+                                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                                                                 <textarea placeholder="Descripción del paso..." value={cellData.text} onChange={e => updatePlatingCell(row.id, track.id, e.target.value, cellData.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '0.9rem' }} />
                                                                                                 <ImageUpload 
                                                                                                     currentUrl={cellData.imageUrl}
@@ -901,11 +907,11 @@ export default function RecetarioPage() {
                                                                                                     onRemove={() => updatePlatingCell(row.id, track.id, cellData.text, '')}
                                                                                                     placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
                                                                                                 />
-                                                                                            </>
+                                                                                            </div>
                                                                                         ) : (
                                                                                             <>
                                                                                                 {isActive ? (
-                                                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                                                                         <span style={{ fontSize: '0.95rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{renderBoldText(cellData.text)}</span>
                                                                                                         {cellData.imageUrl && (
                                                                                                             <img src={cellData.imageUrl} alt="Referencia" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--border)', maxHeight: '200px', objectFit: 'cover' }} />
