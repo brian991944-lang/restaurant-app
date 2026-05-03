@@ -759,11 +759,16 @@ export default function RecetarioPage() {
                                     let currentGroup: any = null;
                                     platingData.rows.forEach((row: any, rIdx: number) => {
                                         if (row.isMerged) {
-                                            if (currentGroup) rowGroups.push(currentGroup);
-                                            currentGroup = null;
-                                            rowGroups.push({ type: 'merged', rows: [{ ...row, originalIndex: rIdx }] });
+                                            if (!currentGroup || currentGroup.type !== 'merged') {
+                                                if (currentGroup) rowGroups.push(currentGroup);
+                                                currentGroup = { type: 'merged', rows: [] };
+                                            }
+                                            currentGroup.rows.push({ ...row, originalIndex: rIdx });
                                         } else {
-                                            if (!currentGroup) currentGroup = { type: 'simultaneous', rows: [] };
+                                            if (!currentGroup || currentGroup.type !== 'simultaneous') {
+                                                if (currentGroup) rowGroups.push(currentGroup);
+                                                currentGroup = { type: 'simultaneous', rows: [] };
+                                            }
                                             currentGroup.rows.push({ ...row, originalIndex: rIdx });
                                         }
                                     });
@@ -793,53 +798,65 @@ export default function RecetarioPage() {
                                             {/* Map over grouped rows */}
                                             {rowGroups.map((group, gIdx) => {
                                                 if (group.type === 'merged') {
-                                                    const row = group.rows[0];
-                                                    const rIdx = row.originalIndex;
                                                     return (
-                                                        <div key={row.id} style={{ padding: '0 1.5rem' }}>
-                                                            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
-                                                                <div style={{ 
-                                                                    gridColumn: `span ${platingData.tracks.length}`,
-                                                                    padding: '1.5rem',
-                                                                    background: isEditing ? 'rgba(0,0,0,0.15)' : 'var(--bg-secondary)',
-                                                                    border: isEditing ? '1px dashed var(--border)' : '1px solid var(--border)',
-                                                                    borderRadius: '8px',
-                                                                    display: 'flex', flexDirection: 'column', gap: '1rem',
-                                                                    boxShadow: !isEditing ? '0 0 15px rgba(251, 191, 36, 0.1)' : 'none',
-                                                                    alignItems: 'flex-start'
-                                                                }}>
-                                                                    {/* Merged Step Badge */}
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                                        <div style={{ background: '#fbbf24', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold' }}>
-                                                                            {rIdx + 1}
-                                                                        </div>
-                                                                        <span style={{ fontWeight: 'bold', color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.85rem' }}>
-                                                                            {locale === 'es' ? 'Paso Unificado' : 'Merged Step'}
-                                                                        </span>
-                                                                    </div>
-
-                                                                    {isEditing ? (
-                                                                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                                            <textarea placeholder="Descripción del paso final unificado..." value={row.cells['merged']?.text || ''} onChange={e => updatePlatingCell(row.id, 'merged', e.target.value, row.cells['merged']?.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '1rem', textAlign: 'left' }} />
-                                                                            <ImageUpload 
-                                                                                currentUrl={row.cells['merged']?.imageUrl}
-                                                                                onUploadComplete={(url) => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', url)}
-                                                                                onRemove={() => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', '')}
-                                                                                placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
-                                                                            />
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
-                                                                            <span style={{ fontSize: '1.05rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(row.cells['merged']?.text || '')}</span>
-                                                                            {row.cells['merged']?.imageUrl && (
-                                                                                <img src={row.cells['merged']?.imageUrl} alt="Referencia" style={{ maxWidth: '600px', width: '100%', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '350px', objectFit: 'cover' }} />
+                                                        <div key={gIdx} style={{ padding: '0 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                                                            <h4 style={{ margin: 0, fontSize: '1.05rem', color: '#d97706', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid rgba(251, 191, 36, 0.2)', paddingBottom: '0.8rem' }}>
+                                                                {locale === 'es' ? 'Pasos Finales / Unificación' : 'Final Steps / Unification'}
+                                                            </h4>
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                {group.rows.map((row: any) => {
+                                                                    const rIdx = row.originalIndex;
+                                                                    return (
+                                                                        <div key={row.id} style={{ display: 'grid', gridTemplateColumns: `repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
+                                                                            <div style={{ 
+                                                                                gridColumn: `span ${platingData.tracks.length}`,
+                                                                                padding: '1rem 1.5rem',
+                                                                                background: isEditing ? 'rgba(0,0,0,0.05)' : 'var(--bg-secondary)',
+                                                                                border: isEditing ? '1px dashed var(--border)' : '1px solid var(--border)',
+                                                                                borderRadius: '8px',
+                                                                                display: 'flex', flexDirection: 'column', gap: '1rem',
+                                                                                boxShadow: !isEditing ? '0 0 10px rgba(0,0,0,0.02)' : 'none',
+                                                                                alignItems: 'flex-start'
+                                                                            }}>
+                                                                                {isEditing ? (
+                                                                                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', width: '100%' }}>
+                                                                                            <div style={{ background: '#fbbf24', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold', flexShrink: 0, marginTop: '4px' }}>
+                                                                                                {rIdx + 1}
+                                                                                            </div>
+                                                                                            <textarea placeholder="Descripción del paso final unificado..." value={row.cells['merged']?.text || ''} onChange={e => updatePlatingCell(row.id, 'merged', e.target.value, row.cells['merged']?.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '1rem', textAlign: 'left' }} />
+                                                                                        </div>
+                                                                                        <div style={{ paddingLeft: '3.5rem' }}>
+                                                                                            <ImageUpload 
+                                                                                                currentUrl={row.cells['merged']?.imageUrl}
+                                                                                                onUploadComplete={(url) => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', url)}
+                                                                                                onRemove={() => updatePlatingCell(row.id, 'merged', row.cells['merged']?.text || '', '')}
+                                                                                                placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
+                                                                                            />
+                                                                                        </div>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
+                                                                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                                                                                            <div style={{ background: '#fbbf24', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold', flexShrink: 0, marginTop: '2px' }}>
+                                                                                                {rIdx + 1}
+                                                                                            </div>
+                                                                                            <span style={{ fontSize: '1.05rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', flex: 1 }}>{renderBoldText(row.cells['merged']?.text || '')}</span>
+                                                                                        </div>
+                                                                                        {row.cells['merged']?.imageUrl && (
+                                                                                            <div style={{ paddingLeft: '3.5rem', width: '100%' }}>
+                                                                                                <img src={row.cells['merged']?.imageUrl} alt="Referencia" style={{ maxWidth: '600px', width: '100%', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '350px', objectFit: 'cover' }} />
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                            {isEditing && (
+                                                                                <button type="button" onClick={() => removePlatingRow(row.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash2 size={18}/></button>
                                                                             )}
                                                                         </div>
-                                                                    )}
-                                                                </div>
-                                                                {isEditing && (
-                                                                    <button type="button" onClick={() => removePlatingRow(row.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash2 size={18}/></button>
-                                                                )}
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </div>
                                                     );
