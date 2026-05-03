@@ -290,6 +290,8 @@ model DigitalRecipe {
   overview        String?
   ingredientsJson String?  // JSON text: [{ id, ingredient, quantity, metric, notes }]
   procedureJson   String?  // JSON text: array of steps/strings
+  platingTracksJson String? // JSON text: { tracks: [], rows: [] }
+  mediaJson       String?  // JSON text: final plated photo url
   chefNotes       String?
   revisionDate    DateTime @default(now())
   createdAt       DateTime @default(now())
@@ -314,6 +316,8 @@ model DigitalRecipeHistory {
   overview        String?
   ingredientsJson String?
   procedureJson   String?
+  platingTracksJson String?
+  mediaJson       String?
   chefNotes       String?
   revisionDate    DateTime
   savedAt         DateTime @default(now())

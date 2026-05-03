@@ -89,6 +89,8 @@ export async function createDigitalRecipe(data: any) {
                 overview: data.overview,
                 ingredientsJson: data.ingredientsJson,
                 procedureJson: data.procedureJson,
+                platingTracksJson: data.platingTracksJson,
+                mediaJson: data.mediaJson,
                 chefNotes: data.chefNotes,
                 categoryId: data.categoryId || null,
                 revisionDate: new Date()
@@ -105,6 +107,8 @@ export async function createDigitalRecipe(data: any) {
                 overview: newRec.overview,
                 ingredientsJson: newRec.ingredientsJson,
                 procedureJson: newRec.procedureJson,
+                platingTracksJson: newRec.platingTracksJson,
+                mediaJson: newRec.mediaJson,
                 chefNotes: newRec.chefNotes,
                 revisionDate: newRec.revisionDate,
                 savedBy: 'Initial Creation'
@@ -141,6 +145,8 @@ export async function updateDigitalRecipe(id: string, data: any) {
                 overview: oldRec.overview,
                 ingredientsJson: oldRec.ingredientsJson,
                 procedureJson: oldRec.procedureJson,
+                platingTracksJson: oldRec.platingTracksJson,
+                mediaJson: oldRec.mediaJson,
                 chefNotes: oldRec.chefNotes,
                 revisionDate: oldRec.revisionDate,
                 savedBy: 'Admin Edit'
@@ -156,6 +162,8 @@ export async function updateDigitalRecipe(id: string, data: any) {
                 overview: data.overview,
                 ingredientsJson: data.ingredientsJson,
                 procedureJson: data.procedureJson,
+                platingTracksJson: data.platingTracksJson,
+                mediaJson: data.mediaJson,
                 chefNotes: data.chefNotes,
                 categoryId: data.categoryId || null,
                 revisionDate: new Date()

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search, Upload, Image as ImageIcon } from 'lucide-react';
@@ -9,6 +9,7 @@ import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import { supabase } from '@/lib/supabase';
+import ImageUpload from '@/components/ui/ImageUpload';
 
 interface RecipeIngredient {
     ingredient: string;
@@ -134,6 +135,8 @@ export default function RecetarioPage() {
             overview: '',
             ingredientsJson: JSON.stringify([{ ingredient: '', quantity: '', metric: '', notes: '' }]),
             procedureJson: JSON.stringify(['']),
+            platingTracksJson: JSON.stringify({ tracks: [], rows: [] }),
+            mediaJson: JSON.stringify({ finalPhotoUrl: '' }),
             chefNotes: '• Vida Útil:\n• ',
             imageUrl: '',
             linkedIngredientId: '',
@@ -165,7 +168,7 @@ export default function RecetarioPage() {
             alert(locale === 'es' ? 'El nombre es obligatorio' : 'Name is mandatory');
             return;
         }
-        if (!editData.categoryId) {
+        if (editData.type === 'RECETA' && !editData.categoryId) {
             alert(locale === 'es' ? 'La Categoría es obligatoria' : 'Category is mandatory');
             return;
         }
@@ -263,10 +266,6 @@ export default function RecetarioPage() {
                                 <BookOpen size={18} />
                                 {locale === 'es' ? 'Gestionar Categorías' : 'Manage Categories'}
                             </button>
-                            <button className="btn-primary" onClick={handleCreateNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', borderRadius: '8px' }}>
-                                <Plus size={18} />
-                                {locale === 'es' ? 'Nueva Entrada' : 'New Entry'}
-                            </button>
                         </div>
                     )}
                 </div>
@@ -316,6 +315,17 @@ export default function RecetarioPage() {
                         />
                     </div>
                 </div>
+
+                {isAdmin && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '2rem' }}>
+                        <button className="btn-primary" onClick={handleCreateNew} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.5rem', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 600 }}>
+                            <Plus size={20} />
+                            {locale === 'es' 
+                                ? (activeTab === 'RECETA' ? 'Nueva Receta' : activeTab === 'EMPLATADO' ? 'Nuevo Emplatado' : 'Nueva Guía')
+                                : (activeTab === 'RECETA' ? 'New Recipe' : activeTab === 'EMPLATADO' ? 'New Plating' : 'New Guide')}
+                        </button>
+                    </div>
+                )}
 
                 {isLoading ? (
                     <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
@@ -406,6 +416,59 @@ export default function RecetarioPage() {
     let procList: string[] = [];
     try { procList = JSON.parse(docData.procedureJson || '[]'); } catch { }
 
+    let platingData: any = { tracks: [], rows: [] };
+    try { platingData = JSON.parse(docData.platingTracksJson || '{"tracks":[],"rows":[]}'); } catch { }
+    let mediaData: any = { finalPhotoUrl: '' };
+    try { mediaData = JSON.parse(docData.mediaJson || '{"finalPhotoUrl":""}'); } catch { }
+
+    const updatePlatingState = (newData: any) => {
+        setEditData({ ...editData, platingTracksJson: JSON.stringify(newData) });
+    };
+
+    const addPlatingTrack = () => {
+        const newData = { ...platingData };
+        newData.tracks.push({ id: Math.random().toString(36).substring(7), name: 'Nuevo Track' });
+        updatePlatingState(newData);
+    };
+    const updatePlatingTrack = (id: string, name: string) => {
+        const newData = { ...platingData };
+        const track = newData.tracks.find((t: any) => t.id === id);
+        if (track) track.name = name;
+        updatePlatingState(newData);
+    };
+    const removePlatingTrack = (id: string) => {
+        const newData = { ...platingData };
+        newData.tracks = newData.tracks.filter((t: any) => t.id !== id);
+        newData.rows.forEach((row: any) => { if (row.cells[id]) delete row.cells[id]; });
+        updatePlatingState(newData);
+    };
+    const addPlatingRow = () => {
+        const newData = { ...platingData };
+        newData.rows.push({ id: Math.random().toString(36).substring(7), isSimultaneous: false, cells: {} });
+        updatePlatingState(newData);
+    };
+    const updatePlatingRow = (id: string, isSimultaneous: boolean) => {
+        const newData = { ...platingData };
+        const row = newData.rows.find((r: any) => r.id === id);
+        if (row) row.isSimultaneous = isSimultaneous;
+        updatePlatingState(newData);
+    };
+    const updatePlatingCell = (rowId: string, trackId: string, text: string, imageUrl?: string) => {
+        const newData = { ...platingData };
+        const row = newData.rows.find((r: any) => r.id === rowId);
+        if (row) {
+            if (!row.cells[trackId]) row.cells[trackId] = { text: '', imageUrl: '' };
+            if (text !== undefined) row.cells[trackId].text = text;
+            if (imageUrl !== undefined) row.cells[trackId].imageUrl = imageUrl;
+        }
+        updatePlatingState(newData);
+    };
+    const removePlatingRow = (id: string) => {
+        const newData = { ...platingData };
+        newData.rows = newData.rows.filter((r: any) => r.id !== id);
+        updatePlatingState(newData);
+    };
+
     const activeLinkedId = docData?.linkedIngredientId || availablePreps.find(p => p.digitalRecipeId === docData?.id)?.id;
 
     const renderBoldText = (text: string) => {
@@ -473,42 +536,44 @@ export default function RecetarioPage() {
                                 <input
                                     value={docData.name}
                                     onChange={e => setEditData({ ...docData, name: e.target.value })}
-                                    placeholder={locale === 'es' ? 'Título de la Receta' : 'Recipe Title'}
+                                    placeholder={locale === 'es' ? (docData.type === 'RECETA' ? 'Título de la Receta' : docData.type === 'EMPLATADO' ? 'Título del Emplatado' : 'Título de la Guía') : (docData.type === 'RECETA' ? 'Recipe Title' : docData.type === 'EMPLATADO' ? 'Plating Title' : 'Guide Title')}
                                     style={{ fontSize: '2.5rem', fontWeight: 800, background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', width: '100%', color: 'var(--text-primary)', padding: '0.5rem 0' }}
                                 />
-                                <div>
-                                    <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Enlace a Receta del Inventario (Opcional)</label>
-                                    <SearchableSelect
-                                        name="linkedIngredientId"
-                                        value={docData.linkedIngredientId || ''}
-                                        onChange={(val) => {
-                                            const newEditData = { ...docData, linkedIngredientId: val };
-                                            if (val) {
-                                                const match = availablePreps.find(p => p.id === val);
-                                                if (match) {
-                                                    if (!docData.name) newEditData.name = match.name;
+                                {docData.type === 'RECETA' && (
+                                    <div>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Enlace a Receta del Inventario (Opcional)</label>
+                                        <SearchableSelect
+                                            name="linkedIngredientId"
+                                            value={docData.linkedIngredientId || ''}
+                                            onChange={(val) => {
+                                                const newEditData = { ...docData, linkedIngredientId: val };
+                                                if (val) {
+                                                    const match = availablePreps.find(p => p.id === val);
+                                                    if (match) {
+                                                        if (!docData.name) newEditData.name = match.name;
 
-                                                    const yieldStr = `${match.portionWeightG || 1} ${match.metric === 'L' ? 'Litros' : match.metric === 'Kg' ? 'Kilos' : match.metric || ''}`.trim();
-                                                    newEditData.yield = yieldStr;
+                                                        const yieldStr = `${match.portionWeightG || 1} ${match.metric === 'L' ? 'Litros' : match.metric === 'Kg' ? 'Kilos' : match.metric || ''}`.trim();
+                                                        newEditData.yield = yieldStr;
 
-                                                    if (match.composedOf && match.composedOf.length > 0) {
-                                                        const newIngr = match.composedOf.map((comp: any) => ({
-                                                            ingredient: (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || ''),
-                                                            quantity: comp.quantity?.toString() || '',
-                                                            metric: comp.unit || '',
-                                                            notes: '',
-                                                            groupName: comp.groupName || 'Main Components'
-                                                        }));
-                                                        newEditData.ingredientsJson = JSON.stringify(newIngr);
+                                                        if (match.composedOf && match.composedOf.length > 0) {
+                                                            const newIngr = match.composedOf.map((comp: any) => ({
+                                                                ingredient: (locale === 'es' && comp.ingredient?.nameEs) ? comp.ingredient.nameEs : (comp.ingredient?.name || ''),
+                                                                quantity: comp.quantity?.toString() || '',
+                                                                metric: comp.unit || '',
+                                                                notes: '',
+                                                                groupName: comp.groupName || 'Main Components'
+                                                            }));
+                                                            newEditData.ingredientsJson = JSON.stringify(newIngr);
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            setEditData(newEditData);
-                                        }}
-                                        options={[{ value: '', label: 'Ninguno' }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
-                                        placeholder="Vincular con Receta de Inventario..."
-                                    />
-                                </div>
+                                                setEditData(newEditData);
+                                            }}
+                                            options={[{ value: '', label: 'Ninguno' }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
+                                            placeholder="Vincular con Receta de Inventario..."
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>{locale === 'es' ? 'Categoría' : 'Category'}</label>
                                     <SearchableSelect
@@ -533,7 +598,7 @@ export default function RecetarioPage() {
                     </div>
                     <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'flex-start', marginLeft: '2rem' }}>
                         <div style={{ display: 'flex', gap: '2rem', justifyContent: 'flex-end', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                            {!isEditing && (
+                            {!isEditing && docData.type === 'RECETA' && (
                                 <div style={{ textAlign: 'right' }}>
                                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>
                                         {locale === 'es' ? 'Multiplicador (Batches)' : 'Multiplier (Batches)'}
@@ -554,28 +619,30 @@ export default function RecetarioPage() {
                                     />
                                 </div>
                             )}
-                            <div>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>{locale === 'es' ? 'Rendimiento' : 'Yield'}</span>
-                                {isEditing ? (
-                                    <input
-                                        value={docData.yield || ''}
-                                        onChange={e => setEditData({ ...docData, yield: e.target.value })}
-                                        placeholder="e.g. Approx. 5 Litros"
-                                        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
-                                    />
-                                ) : (
-                                    <span style={{ fontWeight: 600, fontSize: '14pt', color: activeMultiplier > 1 ? 'var(--accent-secondary)' : 'inherit' }}>
-                                        {docData.yield ? (
-                                            (() => {
-                                                const match = docData.yield.match(/^([\d.]+)\s*(.*)$/);
-                                                if (match && activeMultiplier > 1) {
-                                                    return `${Math.round(parseFloat(match[1]) * activeMultiplier)} ${match[2]}`;
-                                                }
-                                                return docData.yield;
-                                            })()
-                                        ) : '-'}</span>
-                                )}
-                            </div>
+                            {docData.type === 'RECETA' && (
+                                <div>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block', marginBottom: '0.25rem' }}>{locale === 'es' ? 'Rendimiento' : 'Yield'}</span>
+                                    {isEditing ? (
+                                        <input
+                                            value={docData.yield || ''}
+                                            onChange={e => setEditData({ ...docData, yield: e.target.value })}
+                                            placeholder="e.g. Approx. 5 Litros"
+                                            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
+                                        />
+                                    ) : (
+                                        <span style={{ fontWeight: 600, fontSize: '14pt', color: activeMultiplier > 1 ? 'var(--accent-secondary)' : 'inherit' }}>
+                                            {docData.yield ? (
+                                                (() => {
+                                                    const match = docData.yield.match(/^([\d.]+)\s*(.*)$/);
+                                                    if (match && activeMultiplier > 1) {
+                                                        return `${Math.round(parseFloat(match[1]) * activeMultiplier)} ${match[2]}`;
+                                                    }
+                                                    return docData.yield;
+                                                })()
+                                            ) : '-'}</span>
+                                    )}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>{locale === 'es' ? 'Fecha de Revisión' : 'Revision Date'}</span>
@@ -653,6 +720,27 @@ export default function RecetarioPage() {
 
                 {/* Overview */}
                 <div style={{ marginBottom: '2.5rem' }}>
+                    {docData.type === 'EMPLATADO' && (
+                        <div style={{ marginBottom: '1.5rem' }}>
+                           <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Foto Plato Final' : 'Final Plated Photo'}</h3>
+                           {isEditing ? (
+                               <ImageUpload 
+                                   currentUrl={mediaData.finalPhotoUrl}
+                                   onUploadComplete={(url) => setEditData({...docData, mediaJson: JSON.stringify({ ...mediaData, finalPhotoUrl: url })})}
+                                   onRemove={() => setEditData({...docData, mediaJson: JSON.stringify({ ...mediaData, finalPhotoUrl: '' })})}
+                                   placeholder={locale === 'es' ? 'Subir Foto Principal del Plato' : 'Upload Main Plated Photo'}
+                               />
+                           ) : (
+                               mediaData.finalPhotoUrl ? (
+                                   <div style={{ maxWidth: '400px', cursor: 'pointer' }} onClick={() => window.open(mediaData.finalPhotoUrl, '_blank')}>
+                                       <img src={mediaData.finalPhotoUrl} alt="Plato Final" style={{ width: '100%', borderRadius: '8px', border: '2px solid var(--border)' }} />
+                                   </div>
+                               ) : (
+                                   <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin imagen final.</span>
+                               )
+                           )}
+                        </div>
+                    )}
                     <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Visión General' : 'Overview'}</h3>
                     {isEditing ? (
                         <textarea
@@ -758,41 +846,159 @@ export default function RecetarioPage() {
                     )}
                 </div>
 
-                {/* Procedure List */}
-                <div style={{ marginBottom: '2.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                        <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Procedimiento' : 'Procedure'}</h3>
-                        {isEditing && (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                {locale === 'es' ? 'Use **texto** para negrita' : 'Use **text** for bold'}
-                            </span>
+                {/* Procedure List or Plating Tracks */}
+                {docData.type === 'EMPLATADO' ? (
+                    <div style={{ marginBottom: '2.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ fontSize: '1.2rem', color: 'var(--text-primary)', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                {locale === 'es' ? 'Flujo de Emplatado Simultáneo' : 'Simultaneous Plating Workflow'}
+                            </h3>
+                            {isEditing && (
+                                <button type="button" onClick={addPlatingTrack} className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                    <Plus size={14} /> {locale === 'es' ? 'Agregar Pista (Track)' : 'Add Track'}
+                                </button>
+                            )}
+                        </div>
+
+                        {platingData.tracks.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)', border: '1px dashed var(--border)', borderRadius: '8px' }}>
+                                {locale === 'es' ? 'Agrega una pista (e.g. Proteína) para comenzar.' : 'Add a track to start.'}
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: `auto repeat(${platingData.tracks.length}, minmax(280px, 1fr)) ${isEditing ? '40px' : ''}`, gap: '1rem', alignItems: 'start' }}>
+                                    
+                                    {/* Header Row */}
+                                    <div style={{ fontWeight: 'bold', color: 'var(--text-secondary)' }}></div>
+                                    {platingData.tracks.map((track: any) => (
+                                        <div key={track.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                                            {isEditing ? (
+                                                <input value={track.name} onChange={e => updatePlatingTrack(track.id, e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', outline: 'none', width: '100%' }} placeholder="Nombre de Pista" />
+                                            ) : (
+                                                <span style={{ fontWeight: 'bold', color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{track.name}</span>
+                                            )}
+                                            {isEditing && (
+                                                <button type="button" onClick={() => removePlatingTrack(track.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16}/></button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {isEditing && <div></div>}
+
+                                    {/* Rows mapped */}
+                                    {platingData.rows.map((row: any, rIdx: number) => (
+                                        <React.Fragment key={row.id}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem', paddingTop: '0.8rem' }}>
+                                                <div style={{ background: row.isSimultaneous ? 'var(--accent-primary)' : 'var(--border)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                                    {rIdx + 1}
+                                                </div>
+                                                {isEditing && (
+                                                    <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', background: row.isSimultaneous?'rgba(59,130,246,0.1)':'transparent', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                                        <input type="checkbox" checked={row.isSimultaneous} onChange={e => updatePlatingRow(row.id, e.target.checked)} />
+                                                        Simult.
+                                                    </label>
+                                                )}
+                                                {!isEditing && row.isSimultaneous && (
+                                                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-primary)', fontWeight: 'bold', letterSpacing: '1px' }}>SIMULT.</span>
+                                                )}
+                                            </div>
+
+                                            {platingData.tracks.map((track: any) => {
+                                                const cellData = row.cells[track.id] || { text: '', imageUrl: '' };
+                                                const isActive = !!(cellData.text || cellData.imageUrl);
+                                                return (
+                                                    <div key={track.id} style={{ 
+                                                        padding: '0.8rem',
+                                                        background: isEditing ? 'rgba(0,0,0,0.15)' : (isActive ? 'var(--bg-secondary)' : 'transparent'),
+                                                        border: isEditing ? '1px dashed var(--border)' : (isActive ? (row.isSimultaneous ? '2px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border)') : '1px dashed rgba(255,255,255,0.05)'),
+                                                        borderRadius: '8px',
+                                                        display: 'flex', flexDirection: 'column', gap: '0.8rem',
+                                                        boxShadow: (!isEditing && row.isSimultaneous && isActive) ? '0 0 10px rgba(59, 130, 246, 0.1)' : 'none',
+                                                        height: '100%'
+                                                    }}>
+                                                        {isEditing ? (
+                                                            <>
+                                                                <textarea placeholder="Descripción del paso..." value={cellData.text} onChange={e => updatePlatingCell(row.id, track.id, e.target.value, cellData.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '0.9rem' }} />
+                                                                <ImageUpload 
+                                                                    currentUrl={cellData.imageUrl}
+                                                                    onUploadComplete={(url) => updatePlatingCell(row.id, track.id, cellData.text, url)}
+                                                                    onRemove={() => updatePlatingCell(row.id, track.id, cellData.text, '')}
+                                                                    placeholder={locale === 'es' ? 'Foto Ref (Opcional)' : 'Ref Photo (Optional)'}
+                                                                />
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                {isActive ? (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                                                        <span style={{ fontSize: '0.95rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{renderBoldText(cellData.text)}</span>
+                                                                        {cellData.imageUrl && (
+                                                                            <img src={cellData.imageUrl} alt="Referencia" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--border)', maxHeight: '200px', objectFit: 'cover' }} />
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        <span style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.2)' }}>-</span>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+
+                                            {/* Delete Row Button */}
+                                            {isEditing && (
+                                                <div style={{ paddingTop: '0.8rem', textAlign: 'center' }}>
+                                                    <button type="button" onClick={() => removePlatingRow(row.id)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><Trash2 size={18}/></button>
+                                                </div>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+
+                                {isEditing && (
+                                <button type="button" onClick={addPlatingRow} style={{ marginTop: '1.5rem', background: 'transparent', border: '2px dashed var(--accent-primary)', padding: '0.8rem', width: '100%', color: 'var(--text-primary)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600 }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
+                                    <Plus size={18} /> Agregar Pasos (Time Block)
+                                </button>
+                                )}
+                            </div>
                         )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', counterReset: 'step-counter' }}>
-                        {procList.map((step: string, idx: number) => (
-                            <div key={idx} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                                <div style={{ background: 'var(--accent-primary)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>
-                                    {idx + 1}
+                ) : (
+                    <div style={{ marginBottom: '2.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>{locale === 'es' ? 'Procedimiento' : 'Procedure'}</h3>
+                            {isEditing && (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                    {locale === 'es' ? 'Use **texto** para negrita' : 'Use **text** for bold'}
+                                </span>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', counterReset: 'step-counter' }}>
+                            {procList.map((step: string, idx: number) => (
+                                <div key={idx} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                                    <div style={{ background: 'var(--accent-primary)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>
+                                        {idx + 1}
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        {isEditing ? (
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
+                                                <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
+                                            </div>
+                                        ) : (
+                                            <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(step)}</p>
+                                        )}
+                                    </div>
                                 </div>
-                                <div style={{ flex: 1 }}>
-                                    {isEditing ? (
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
-                                            <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
-                                        </div>
-                                    ) : (
-                                        <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(step)}</p>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
+                        {isEditing && (
+                            <button onClick={addProcedureRow} style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
+                                + Agregar Paso
+                            </button>
+                        )}
                     </div>
-                    {isEditing && (
-                        <button onClick={addProcedureRow} style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
-                            + Agregar Paso
-                        </button>
-                    )}
-                </div>
+                )}
 
                 {/* Chef Notes */}
                 <div>
