@@ -10,8 +10,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Create a singleton so it doesn't crash if keys are missing (just warns when attempting upload)
-const supabase = supabaseUrl && supabaseAnonKey 
-    ? createClient(supabaseUrl, supabaseAnonKey) 
+const supabase = supabaseUrl && supabaseAnonKey
+    ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
 interface ImageUploadProps {
@@ -22,9 +22,9 @@ interface ImageUploadProps {
     bucketName?: string;
 }
 
-export default function ImageUpload({ 
-    onUploadComplete, 
-    currentUrl, 
+export default function ImageUpload({
+    onUploadComplete,
+    currentUrl,
     onRemove,
     placeholder = 'Subir Imagen',
     bucketName = 'dishes'
@@ -53,7 +53,7 @@ export default function ImageUpload({
                 useWebWorker: true,
                 fileType: 'image/webp' as any // Convert to highly efficient webp
             };
-            
+
             let compressedFile = file;
             try {
                 // browser-image-compression types can be finicky with image/webp string, but it's supported
@@ -62,7 +62,7 @@ export default function ImageUpload({
                 console.warn("Compression failed, using original file", err);
                 compressedFile = file;
             }
-            
+
             // Generate a unique filename
             const fileExt = 'webp';
             const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
@@ -106,18 +106,18 @@ export default function ImageUpload({
                     {error}
                 </div>
             )}
-            
+
             {currentUrl ? (
-                <div style={{ 
-                    position: 'relative', 
-                    width: '100%', 
-                    borderRadius: '8px', 
+                <div style={{
+                    position: 'relative',
+                    width: '100%',
+                    borderRadius: '8px',
                     overflow: 'hidden',
                     border: '1px solid var(--border)',
                     background: 'var(--bg-secondary)'
                 }}>
                     <img src={currentUrl} alt="Uploaded" style={{ width: '100%', display: 'block', objectFit: 'contain', maxHeight: '300px' }} />
-                    <button 
+                    <button
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemove && onRemove(); }}
                         style={{
                             position: 'absolute',
@@ -141,7 +141,7 @@ export default function ImageUpload({
                     </button>
                 </div>
             ) : (
-                <div 
+                <div
                     onClick={() => !isUploading && fileInputRef.current?.click()}
                     style={{
                         width: '100%',
@@ -170,14 +170,14 @@ export default function ImageUpload({
                         }
                     }}
                 >
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        accept="image/jpeg, image/png, image/webp, image/heic" 
-                        style={{ display: 'none' }} 
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="image/jpeg, image/png, image/webp, image/heic"
+                        style={{ display: 'none' }}
                     />
-                    
+
                     {isUploading ? (
                         <>
                             <Loader2 size={24} color="var(--accent-primary)" style={{ animation: 'spin 1s linear infinite', marginBottom: '0.5rem' }} />
@@ -190,7 +190,7 @@ export default function ImageUpload({
                         <>
                             <Upload size={24} color="var(--text-secondary)" style={{ marginBottom: '0.5rem' }} />
                             <span style={{ fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>{placeholder}</span>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Haz clic o arrastra una imagen. Max 5MB<br/>(se comprimirá a ~200KB).</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>Haz clic o arrastra una imagen. Max 5MB<br />(se comprimirá a ~200KB).</span>
                         </>
                     )}
                 </div>
