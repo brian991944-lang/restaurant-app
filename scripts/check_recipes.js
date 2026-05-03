@@ -1,3 +1,3 @@
 const { PrismaClient } = require('@prisma/client');
-const p = new PrismaClient();
-p.digitalRecipe.findMany().then(r => console.log(JSON.stringify(r, null, 2))).finally(() => p.$disconnect());
+const prisma = new PrismaClient();
+prisma.digitalRecipe.count().then(console.log).catch(console.error).finally(() => prisma.$disconnect());
