@@ -99,7 +99,7 @@ export default function ComprasPage() {
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                                     <th style={{ padding: '1rem', fontWeight: 600, width: '180px' }}>{locale === 'es' ? 'Categoría' : 'Category'}</th>
-                                    <th style={{ padding: '1rem', fontWeight: 600, width: '60px' }}></th>
+                                    {isAdmin && <th style={{ padding: '1rem', fontWeight: 600, width: '60px' }}></th>}
                                     <th style={{ padding: '1rem', fontWeight: 600 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
                                     {isAdmin && (
                                         <>
@@ -111,8 +111,20 @@ export default function ComprasPage() {
                             </thead>
                             <tbody>
                                 {(() => {
+                                    const filteredIngredients = isAdmin ? ingredients : ingredients.filter(ing => ing.needsOrdering);
+                                    
+                                    if (!isAdmin && filteredIngredients.length === 0) {
+                                        return (
+                                            <tr>
+                                                <td colSpan={2} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                    {locale === 'es' ? 'No hay productos en la lista de compras.' : 'No items on the shopping list.'}
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+
                                     const groupedIngredients = Array.from<[string, any[]]>(
-                                        ingredients.reduce((acc, ing) => {
+                                        filteredIngredients.reduce((acc, ing) => {
                                             const cat = locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
                                             if (!acc.has(cat)) acc.set(cat, []);
                                             acc.get(cat).push(ing);
@@ -147,10 +159,10 @@ export default function ComprasPage() {
                                                             style={{
                                                                 borderBottom: '1px solid var(--border)',
                                                                 transition: 'background 0.2s',
-                                                                background: ing.needsOrdering ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')
+                                                                background: (isAdmin && ing.needsOrdering) ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')
                                                             }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = ing.needsOrdering ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = ing.needsOrdering ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = (isAdmin && ing.needsOrdering) ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = (isAdmin && ing.needsOrdering) ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')}
                                                         >
                                                             {idx === 0 && (
                                                                 <td
@@ -169,19 +181,21 @@ export default function ComprasPage() {
                                                                     {category as string}
                                                                 </td>
                                                             )}
-                                                            <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                                <button
-                                                                    onClick={() => handleToggle(ing.id, ing.needsOrdering)}
-                                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
-                                                                >
-                                                                    {ing.needsOrdering ? (
-                                                                        <CheckSquare size={24} color="var(--danger)" />
-                                                                    ) : (
-                                                                        <Square size={24} color="var(--text-secondary)" />
-                                                                    )}
-                                                                </button>
-                                                            </td>
-                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: ing.needsOrdering ? 'var(--danger)' : 'inherit' }}>
+                                                            {isAdmin && (
+                                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                    <button
+                                                                        onClick={() => handleToggle(ing.id, ing.needsOrdering)}
+                                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
+                                                                    >
+                                                                        {ing.needsOrdering ? (
+                                                                            <CheckSquare size={24} color="var(--danger)" />
+                                                                        ) : (
+                                                                            <Square size={24} color="var(--text-secondary)" />
+                                                                        )}
+                                                                    </button>
+                                                                </td>
+                                                            )}
+                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: (isAdmin && ing.needsOrdering) ? 'var(--danger)' : 'inherit' }}>
                                                                 {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
                                                             </td>
                                                             {isAdmin && (
