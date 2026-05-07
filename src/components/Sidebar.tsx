@@ -75,20 +75,37 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                 : [];
 
     return (
-        <aside className="sidebar-container" style={{
-            width: isCollapsed ? '80px' : '280px',
-            height: '100vh',
-            background: 'var(--bg-glass)',
-            backdropFilter: 'blur(16px)',
-            borderRight: '1px solid var(--glass-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'sticky',
-            top: 0,
-            left: 0,
-            zIndex: 50,
-            transition: 'width 0.3s ease'
-        }}>
+        <>
+            {isOpen && (
+                <div 
+                    className="mobile-overlay" 
+                    onClick={onClose}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(0,0,0,0.5)',
+                        zIndex: 998,
+                        display: 'block'
+                    }} 
+                />
+            )}
+            <aside className={`sidebar-container ${isOpen ? 'sidebar-mobile-open' : ''}`} style={{
+                width: isCollapsed ? '80px' : '280px',
+                height: '100vh',
+                background: 'var(--bg-glass)',
+                backdropFilter: 'blur(16px)',
+                borderRight: '1px solid var(--glass-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                position: 'sticky',
+                top: 0,
+                left: 0,
+                zIndex: 999,
+                transition: 'width 0.3s ease, transform 0.3s ease'
+            }}>
             {/* Logo Area */}
             <div className="sidebar-toggle-tablet" style={{ padding: isCollapsed ? '2rem 0' : '2rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'space-between', borderBottom: '1px solid var(--border)' }}>
                 {!isCollapsed && (
@@ -111,8 +128,14 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                         </div>
                     </div>
                 )}
-                <button onClick={() => setIsCollapsed(!isCollapsed)} style={{ color: 'var(--text-secondary)', padding: isCollapsed ? '0' : '0.5rem', background: 'transparent', border: 'none', cursor: 'pointer' }}>
-                    {isCollapsed ? <Menu size={24} /> : <ChevronLeft size={24} />}
+                <button onClick={() => {
+                    if (isOpen && onClose) {
+                        onClose();
+                    } else {
+                        setIsCollapsed(!isCollapsed);
+                    }
+                }} style={{ color: 'var(--text-secondary)', padding: isCollapsed ? '0' : '0.5rem', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                    {(isCollapsed && !isOpen) ? <Menu size={24} /> : <ChevronLeft size={24} />}
                 </button>
             </div>
 
@@ -300,5 +323,6 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                 </div>
             )}
         </aside>
+        </>
     );
 }

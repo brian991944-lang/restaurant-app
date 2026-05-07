@@ -199,26 +199,32 @@ button {
   }
 
   /* Force sidebar collapse on tablet via CSS without React lag */
-  .sidebar-container {
+  .sidebar-container:not(.sidebar-mobile-open) {
     width: 80px !important;
   }
-  .sidebar-hide-tablet {
+  .sidebar-container.sidebar-mobile-open {
+    position: fixed !important;
+    z-index: 1000 !important;
+    width: 280px !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.2) !important;
+  }
+  .sidebar-container:not(.sidebar-mobile-open) .sidebar-hide-tablet {
     display: none !important; /* Hides labels and logo containers */
   }
-  .sidebar-nav-tablet {
+  .sidebar-container:not(.sidebar-mobile-open) .sidebar-nav-tablet {
     padding: 1.5rem 0 !important;
     align-items: center !important;
   }
-  .sidebar-link-tablet {
+  .sidebar-container:not(.sidebar-mobile-open) .sidebar-link-tablet {
     justify-content: center !important;
     gap: 0 !important;
     padding: 1rem !important;
     width: 50px !important;
   }
-  .sidebar-toggle-tablet {
+  .sidebar-container:not(.sidebar-mobile-open) .sidebar-toggle-tablet {
     justify-content: center !important;
   }
-  .sidebar-bottom-tablet {
+  .sidebar-container:not(.sidebar-mobile-open) .sidebar-bottom-tablet {
     padding: 1.5rem 0 !important;
     align-items: center !important;
   }
