@@ -19,6 +19,9 @@ export default function ComprasPage() {
         { id: 'PERUANOS', label: 'Productos Peruanos', providers: ['Productos Peruanos', 'JCC Ganoza'] },
         { id: 'MONARCH', label: 'Monarch Seafood', providers: ['Monarch Seafood'] }
     ];
+    if (isAdmin) {
+        tabs.push({ id: 'SUBMITTED_LIST', label: locale === 'es' ? 'Lista Enviada' : 'Submitted List', providers: ['Restaurant Depot', 'Sysco', 'Productos Peruanos', 'JCC Ganoza', 'Monarch Seafood'] });
+    }
 
     useEffect(() => {
         loadData();
@@ -63,26 +66,70 @@ export default function ComprasPage() {
                 </div>
             </div>
 
-            <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', marginTop: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        style={{
-                            padding: '0.6rem 1.2rem',
-                            borderRadius: '8px',
-                            fontWeight: 500,
-                            fontSize: '0.95rem',
-                            color: activeTab === tab.id ? 'white' : 'var(--text-secondary)',
-                            background: activeTab === tab.id ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent',
-                            border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
+            <div className="glass-panel" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    {tabs.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            style={{
+                                padding: '0.6rem 1.2rem',
+                                borderRadius: '8px',
+                                fontWeight: 500,
+                                fontSize: '0.95rem',
+                                color: activeTab === tab.id ? 'white' : 'var(--text-secondary)',
+                                background: activeTab === tab.id ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent',
+                                border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+                
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                    {!isAdmin && (
+                        <button 
+                            onClick={async () => {
+                                const activeTabInfo = tabs.find(t => t.id === activeTab);
+                                if (activeTabInfo) {
+                                    const { submitShoppingList } = await import('@/app/actions/compras');
+                                    await submitShoppingList(activeTabInfo.providers);
+                                    alert(locale === 'es' ? '¡Lista enviada al administrador!' : 'List submitted to admin!');
+                                    loadData();
+                                }
+                            }}
+                            style={{ padding: '0.6rem 1.2rem', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            {locale === 'es' ? 'Enviar Lista' : 'Submit List'}
+                        </button>
+                    )}
+
+                    {isAdmin && activeTab === 'SUBMITTED_LIST' && (
+                        <button 
+                            onClick={async () => {
+                                const { completeShoppingList } = await import('@/app/actions/compras');
+                                await completeShoppingList(tabs.find(t => t.id === 'SUBMITTED_LIST')!.providers);
+                                alert(locale === 'es' ? '¡Compras marcadas como finalizadas!' : 'Shopping marked as completed!');
+                                loadData();
+                            }}
+                            style={{ padding: '0.6rem 1.2rem', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            {locale === 'es' ? 'Finalizar Compras' : 'Complete Shopping'}
+                        </button>
+                    )}
+
+                    {isAdmin && activeTab !== 'SUBMITTED_LIST' && (
+                        <button 
+                            onClick={() => alert(locale === 'es' ? 'Función Crear Producto en desarrollo...' : 'Create Item functionality in development...')}
+                            style={{ padding: '0.6rem 1.2rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                        >
+                            {locale === 'es' ? '+ Crear Producto' : '+ Create Item'}
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="glass-panel" style={{ flex: 1, padding: 0, overflow: 'hidden' }}>
@@ -99,7 +146,7 @@ export default function ComprasPage() {
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
                                     <th style={{ padding: '1rem', fontWeight: 600, width: '180px' }}>{locale === 'es' ? 'Categoría' : 'Category'}</th>
-                                    {isAdmin && <th style={{ padding: '1rem', fontWeight: 600, width: '60px' }}></th>}
+                                    <th style={{ padding: '1rem', fontWeight: 600, width: '60px' }}></th>
                                     <th style={{ padding: '1rem', fontWeight: 600 }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
                                     {isAdmin && (
                                         <>
@@ -111,13 +158,18 @@ export default function ComprasPage() {
                             </thead>
                             <tbody>
                                 {(() => {
-                                    const filteredIngredients = isAdmin ? ingredients : ingredients.filter(ing => ing.needsOrdering);
+                                    let filteredIngredients = ingredients;
+                                    if (activeTab === 'SUBMITTED_LIST') {
+                                        filteredIngredients = ingredients.filter(ing => ing.isSubmittedForOrdering);
+                                    }
                                     
-                                    if (!isAdmin && filteredIngredients.length === 0) {
+                                    if (filteredIngredients.length === 0) {
                                         return (
                                             <tr>
-                                                <td colSpan={2} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                                    {locale === 'es' ? 'No hay productos en la lista de compras.' : 'No items on the shopping list.'}
+                                                <td colSpan={isAdmin ? 5 : 3} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                    {activeTab === 'SUBMITTED_LIST' 
+                                                        ? (locale === 'es' ? 'No hay productos enviados para comprar.' : 'No items submitted for shopping.')
+                                                        : (locale === 'es' ? 'No se encontraron productos.' : 'No items found.')}
                                                 </td>
                                             </tr>
                                         );
@@ -159,10 +211,10 @@ export default function ComprasPage() {
                                                             style={{
                                                                 borderBottom: '1px solid var(--border)',
                                                                 transition: 'background 0.2s',
-                                                                background: (isAdmin && ing.needsOrdering) ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')
+                                                                background: ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')
                                                             }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = (isAdmin && ing.needsOrdering) ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-secondary)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = (isAdmin && ing.needsOrdering) ? 'rgba(239, 68, 68, 0.05)' : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)') : 'var(--bg-secondary)'}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')}
                                                         >
                                                             {idx === 0 && (
                                                                 <td
@@ -181,22 +233,27 @@ export default function ComprasPage() {
                                                                     {category as string}
                                                                 </td>
                                                             )}
-                                                            {isAdmin && (
-                                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                                    <button
-                                                                        onClick={() => handleToggle(ing.id, ing.needsOrdering)}
-                                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
-                                                                    >
-                                                                        {ing.needsOrdering ? (
-                                                                            <CheckSquare size={24} color="var(--danger)" />
-                                                                        ) : (
-                                                                            <Square size={24} color="var(--text-secondary)" />
-                                                                        )}
-                                                                    </button>
-                                                                </td>
-                                                            )}
-                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: (isAdmin && ing.needsOrdering) ? 'var(--danger)' : 'inherit' }}>
-                                                                {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
+                                                            <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                <button
+                                                                    onClick={() => handleToggle(ing.id, ing.needsOrdering)}
+                                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
+                                                                >
+                                                                    {ing.needsOrdering ? (
+                                                                        <CheckSquare size={24} color={ing.isSubmittedForOrdering ? "var(--success)" : "var(--danger)"} />
+                                                                    ) : (
+                                                                        <Square size={24} color="var(--text-secondary)" />
+                                                                    )}
+                                                                </button>
+                                                            </td>
+                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'var(--success)' : 'var(--danger)') : 'inherit' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
+                                                                    {ing.isSubmittedForOrdering && (
+                                                                        <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                                                            {locale === 'es' ? 'Enviado' : 'Submitted'}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             {isAdmin && (
                                                                 <>

@@ -44,3 +44,39 @@ export async function toggleNeedsOrdering(ingredientId: string, needsOrdering: b
         return { success: false, error: e.message };
     }
 }
+export async function submitShoppingList(providerNames: string[]) {
+    try {
+        await prisma.ingredient.updateMany({
+            where: {
+                provider: { name: { in: providerNames } },
+                needsOrdering: true
+            },
+            data: { isSubmittedForOrdering: true }
+        });
+        revalidatePath('/[locale]/compras', 'page');
+        return { success: true };
+    } catch (e: any) {
+        console.error('Error submitting shopping list:', e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function completeShoppingList(providerNames: string[]) {
+    try {
+        await prisma.ingredient.updateMany({
+            where: {
+                provider: { name: { in: providerNames } },
+                isSubmittedForOrdering: true
+            },
+            data: { 
+                needsOrdering: false,
+                isSubmittedForOrdering: false
+            }
+        });
+        revalidatePath('/[locale]/compras', 'page');
+        return { success: true };
+    } catch (e: any) {
+        console.error('Error completing shopping list:', e);
+        return { success: false, error: e.message };
+    }
+}

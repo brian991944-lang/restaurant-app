@@ -65,6 +65,7 @@ model Ingredient {
   packsInBox     Float?
   totalBoxPrice  Float?
   needsOrdering  Boolean @default(false)
+  isSubmittedForOrdering Boolean @default(false)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?
