@@ -151,6 +151,7 @@ export async function addIngredient(data: any) {
 
         revalidatePath('/[locale]/inventory');
         revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/compras');
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to add ingredient:', e);

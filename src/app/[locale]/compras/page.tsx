@@ -5,7 +5,8 @@ import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch } from 'lucide-react';
 import { getComprasIngredients, toggleNeedsOrdering } from '@/app/actions/compras';
-import CreateProductComprasModal from '@/components/modals/CreateProductComprasModal';
+import { addIngredient } from '@/app/actions/inventory';
+import AddIngredientModal from '@/components/modals/AddIngredientModal';
 
 
 export default function ComprasPage() {
@@ -41,6 +42,21 @@ export default function ComprasPage() {
             }
         }
         setIsLoading(false);
+    };
+
+    const activeTabProviders = () => {
+        const tab = tabs.find(t => t.id === activeTab);
+        return tab ? tab.providers[0] : '';
+    };
+
+    const handleSaveIngredient = async (data: any) => {
+        setIsCreateModalOpen(false);
+        const res = await addIngredient(data);
+        if (res.success) {
+            loadData();
+        } else {
+            alert((res as any).error || 'Failed to save product');
+        }
     };
 
     const handleToggle = async (id: string, currentVal: boolean) => {
@@ -282,15 +298,11 @@ export default function ComprasPage() {
                 )}
             </div>
 
-            <CreateProductComprasModal
+            <AddIngredientModal
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
-                onSave={loadData}
-                defaultProvider={(() => {
-                    const activeTabInfo = tabs.find(t => t.id === activeTab);
-                    return activeTabInfo ? activeTabInfo.providers[0] : '';
-                })()}
-                locale={locale}
+                onSave={handleSaveIngredient}
+                initialData={{ providerName: activeTabProviders() }}
             />
         </div>
     );
