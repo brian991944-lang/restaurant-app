@@ -5,6 +5,8 @@ import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch } from 'lucide-react';
 import { getComprasIngredients, toggleNeedsOrdering } from '@/app/actions/compras';
+import CreateProductComprasModal from '@/components/modals/CreateProductComprasModal';
+
 
 export default function ComprasPage() {
     const locale = useLocale();
@@ -13,6 +15,8 @@ export default function ComprasPage() {
     const [activeTab, setActiveTab] = useState('RD_SYSCO');
     const [ingredients, setIngredients] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
 
     const tabs = [
         { id: 'RD_SYSCO', label: 'RD & Sysco', providers: ['Restaurant Depot', 'Sysco'] },
@@ -123,7 +127,7 @@ export default function ComprasPage() {
 
                     {isAdmin && activeTab !== 'SUBMITTED_LIST' && (
                         <button 
-                            onClick={() => alert(locale === 'es' ? 'Función Crear Producto en desarrollo...' : 'Create Item functionality in development...')}
+                            onClick={() => setIsCreateModalOpen(true)}
                             style={{ padding: '0.6rem 1.2rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
                         >
                             {locale === 'es' ? '+ Crear Producto' : '+ Create Item'}
@@ -277,6 +281,17 @@ export default function ComprasPage() {
                     </div>
                 )}
             </div>
+
+            <CreateProductComprasModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSave={loadData}
+                defaultProvider={(() => {
+                    const activeTabInfo = tabs.find(t => t.id === activeTab);
+                    return activeTabInfo ? activeTabInfo.providers[0] : '';
+                })()}
+                locale={locale}
+            />
         </div>
     );
 }
