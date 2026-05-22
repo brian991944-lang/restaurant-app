@@ -420,7 +420,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 color: itemType === 'ingredient' ? '#fff' : 'var(--text-secondary)'
                             }}
                         >
-                            Food Ingredient
+                            {locale === 'es' ? 'Ingrediente' : 'Food Ingredient'}
                         </button>
                         <button
                             type="button"
@@ -432,7 +432,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 color: itemType === 'supply' ? '#fff' : 'var(--text-secondary)'
                             }}
                         >
-                            Supply
+                            {locale === 'es' ? 'Suministro' : 'Supply'}
                         </button>
                     </div>
 
@@ -447,6 +447,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>English Name</label>
+                                {itemType === 'ingredient' && (
                                 <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', color: 'var(--accent-primary)' }}>
                                     <input
                                         type="checkbox"
@@ -456,6 +457,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     />
                                     Auto-Translate Info
                                 </label>
+                                )}
                             </div>
                             <input
                                 name="name"
@@ -468,6 +470,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 autoFocus
                             />
 
+                            {itemType === 'ingredient' && (<>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{locale === 'es' ? 'Nombre en Español' : 'Spanish Name'}</label>
                             <input
                                 name="nameEs"
@@ -479,9 +482,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 disabled={autoTranslate}
                                 required={!autoTranslate}
                             />
+                            </>)}
                         </div>
                     )}
 
+                    {itemType === 'ingredient' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nivel de Jerarquía del Producto' : 'Product Hierarchy Level'}</label>
@@ -529,6 +534,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             </div>
                         )}
                     </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -554,6 +560,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         </div>
                     </div>
 
+                    {itemType === 'ingredient' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('type')}</label>
@@ -580,6 +587,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             </div>
                         )}
                     </div>
+                    )}
 
                     <MetricPriceSection
                         currentType={currentType}
@@ -598,6 +606,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         initialData={initialData}
                     />
 
+                    {itemType === 'ingredient' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid var(--border)' }}>
                         <label style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-primary)', fontWeight: 600 }}>
                             <input
@@ -688,6 +697,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             </>
                         )}
                     </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: currentType === 'PROCESSED' ? '1fr 1fr' : '1fr', gap: '1rem', flex: 1 }}>
                         {(!initialData || isAdmin) && (
