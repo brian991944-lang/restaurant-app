@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { X, Plus, Trash2 } from 'lucide-react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -77,6 +77,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [selectedProvider, setSelectedProvider] = useState<string>('');
     const [cloverId, setCloverId] = useState<string>('');
     const [mappingMultiplier, setMappingMultiplier] = useState<number>(1);
+    const [itemType, setItemType] = useState<'ingredient' | 'supply'>('ingredient');
 
     // Packed Tracking States
     const [isPacked, setIsPacked] = useState<boolean>(false);
@@ -112,6 +113,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCalcPacks('');
             setCalcBoxPrice('');
             setOverrideDisplayUnit('Packs');
+            setItemType('ingredient');
         }
     }, [isOpen]);
 
@@ -385,6 +387,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             packUnit: isPacked ? packUnit : 'Units',
             packsInBox: isPacked && typeof calcPacks === 'number' ? calcPacks : null,
             totalBoxPrice: isPacked && typeof calcBoxPrice === 'number' ? calcBoxPrice : null,
+            itemType,
         });
     };
 
@@ -406,6 +409,33 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
 
+                    <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '4px', border: '1px solid var(--border)', gap: '4px' }}>
+                        <button
+                            type="button"
+                            onClick={() => setItemType('ingredient')}
+                            style={{
+                                flex: 1, padding: '0.5rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer',
+                                fontWeight: 600, fontSize: '0.9rem', transition: 'all 0.15s',
+                                background: itemType === 'ingredient' ? 'var(--accent-primary)' : 'transparent',
+                                color: itemType === 'ingredient' ? '#fff' : 'var(--text-secondary)'
+                            }}
+                        >
+                            Food Ingredient
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setItemType('supply')}
+                            style={{
+                                flex: 1, padding: '0.5rem 1rem', borderRadius: '7px', border: 'none', cursor: 'pointer',
+                                fontWeight: 600, fontSize: '0.9rem', transition: 'all 0.15s',
+                                background: itemType === 'supply' ? 'var(--accent-primary)' : 'transparent',
+                                color: itemType === 'supply' ? '#fff' : 'var(--text-secondary)'
+                            }}
+                        >
+                            Supply
+                        </button>
+                    </div>
+
                     {currentType === 'PREP_RECIPE' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Recipe Name / Nombre de la Receta</label>
@@ -416,7 +446,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nombre en Inglés' : 'English Name'}</label>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>English Name</label>
                                 <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', color: 'var(--accent-primary)' }}>
                                     <input
                                         type="checkbox"
