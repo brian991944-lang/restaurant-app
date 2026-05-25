@@ -265,6 +265,8 @@ model RecurringPrepRule {
 
   ingredient     Ingredient @relation("RuleTarget", fields: [ingredientId], references: [id])
   baseIngredient Ingredient? @relation("RuleBase", fields: [baseIngredientId], references: [id])
+
+  @@unique([ingredientId, dayOfWeek])
 }
 
 model PrepRule {

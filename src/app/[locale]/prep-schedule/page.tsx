@@ -1,7 +1,8 @@
 'use client';
 
 import { useTranslations, useLocale } from 'next-intl';
-import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen, Search, X } from 'lucide-react';
+import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen, Search, X, CalendarDays } from 'lucide-react';
+import WeeklyThawScheduleGrid from '@/components/preparaciones/WeeklyThawScheduleGrid';
 import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
@@ -35,7 +36,7 @@ export default function PrepSchedulePage() {
     const { isAdmin } = useAdmin();
 
     // Tab State
-    const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'airtight' | 'completed' | 'team' | 'defrosting'>('morning');
+    const [activeTab, setActiveTab] = useState<'morning' | 'night' | 'recurring' | 'airtight' | 'completed' | 'team' | 'defrosting' | 'thawschedule'>('morning');
     const [morningDate, setMorningDate] = useState<Date>(new Date());
 
     // Data States
@@ -169,8 +170,13 @@ export default function PrepSchedulePage() {
         }
     }, [targetAssignDate]);
 
-    const loadDataForTab = async (tab: 'morning' | 'night' | 'recurring' | 'completed' | 'team' | 'defrosting') => {
+    const loadDataForTab = async (tab: 'morning' | 'night' | 'recurring' | 'airtight' | 'completed' | 'team' | 'defrosting' | 'thawschedule') => {
         setIsLoading(true);
+        if (tab === 'thawschedule') {
+            // WeeklyThawScheduleGrid loads its own data on mount.
+            setIsLoading(false);
+            return;
+        }
         if (prepUsers.length === 0) {
             const users = await getPrepUsers();
             if (users.length === 0) {
@@ -1585,6 +1591,12 @@ export default function PrepSchedulePage() {
                     {isAdmin && (
                         <>
                             <button
+                                onClick={() => setActiveTab('thawschedule')}
+                                style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'thawschedule' ? '2px solid #06b6d4' : '2px solid transparent', color: activeTab === 'thawschedule' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'thawschedule' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
+                                <CalendarDays size={20} color={activeTab === 'thawschedule' ? '#06b6d4' : 'inherit'} />
+                                Programación Semanal de Descongelado
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('recurring')}
                                 style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'recurring' ? '2px solid #a855f7' : '2px solid transparent', color: activeTab === 'recurring' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'recurring' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
                                 <Repeat size={20} color={activeTab === 'recurring' ? '#a855f7' : 'inherit'} />
@@ -1614,6 +1626,7 @@ export default function PrepSchedulePage() {
                     {activeTab === 'completed' && renderCompletedLogs()}
                     {activeTab === 'team' && renderTeamAndTasks()}
                     {activeTab === 'defrosting' && renderDefrostingStation()}
+                    {activeTab === 'thawschedule' && <WeeklyThawScheduleGrid />}
                 </div>
 
             </div>
