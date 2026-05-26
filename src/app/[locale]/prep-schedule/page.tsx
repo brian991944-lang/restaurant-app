@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
-import { getRecurringRules, createRecurringRule, deleteRecurringRule } from '@/app/actions/recurringPrep';
+import { getRecurringRules, createRecurringRule, deleteRecurringRule, getThawableIngredients } from '@/app/actions/recurringPrep';
 import { getPrepUsers } from '@/app/actions/users';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addPrepTaskItem, removePrepTaskItem, getBaseIngredients, editPrepTaskItem } from '@/app/actions/teamTasks';
@@ -223,19 +223,13 @@ export default function PrepSchedulePage() {
             setDigitalRecipes(recipes);
         } else if (tab === 'defrosting') {
             try {
-                const [presets, members, logs, rules] = await Promise.all([
-                    getDefrostingPresets([
-                        'Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido',
-                        'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho',
-                        'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion',
-                        'Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas',
-                        'Descongelar Chicharron Porciones', 'Bisteck - Porcionar', 'Lomo Chaufa - Cortar y Porcionar', 'Lomo - Cortar y Porcionar'
-                    ]),
+                const [thawable, members, logs, rules] = await Promise.all([
+                    getThawableIngredients(),
                     getTeamMembers(),
                     getCompletedPrepLogs(),
                     getRecurringRules()
                 ]);
-                setDefrostTasks(presets);
+                setDefrostTasks(thawable);
                 setTeamMembers(members);
                 setCompletedLogs(logs);
                 setRecurringRules(rules);
@@ -732,10 +726,11 @@ export default function PrepSchedulePage() {
     };
 
     const renderDefrostingStation = () => {
-        const cocinero1Tasks = ['Descongelar Calamar Porcion', 'Descongelar Camaron Porcion', 'Descongelar Camaron Hervido', 'Descongelar Pescado Jalea', 'Descongelar Pescado Ceviche', 'Descongelar Pescado Macho', 'Descongelar Patas de Pulpo Anticuchadas', 'Descongelar Salmon Filete', 'Descongelar Seafood Mix Porcion'];
-        const cocinero2Tasks = ['Descongelar Pollo Para Causa', 'Descongelar Pollo Para Chaufa', 'Descongelar Croquetas', 'Descongelar Chicharron Porciones', 'Bisteck - Porcionar', 'Lomo Chaufa - Cortar y Porcionar', 'Lomo - Cortar y Porcionar'];
-
-        const activePresetNames = defrostSubTab === 'cocinero1' ? cocinero1Tasks : cocinero2Tasks;
+        const activeCookNumber = defrostSubTab === 'cocinero1' ? 1 : 2;
+        const activeIngredients = defrostTasks.filter((ing: any) => {
+            const effectiveCook = ing.cookAssignmentOverride ?? ing.category?.cookAssignment ?? 1;
+            return effectiveCook === activeCookNumber;
+        });
 
         // Filter out completed tasks from today
         const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -783,12 +778,10 @@ export default function PrepSchedulePage() {
         let pendingCount = 0;
         let completedCount = 0;
 
-        activePresetNames.forEach(taskName => {
-            const ing = defrostTasks.find(t => t.name === taskName);
-            if (!ing) return;
-            const isCompletedToday = completedLogs.some(log => {
+        activeIngredients.forEach((ing: any) => {
+            const isCompletedToday = completedLogs.some((log: any) => {
                 const logEstStr = new Date(log.completedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-                return log.ingredientName === taskName && logEstStr === todayStr;
+                return log.ingredientName === ing.name && logEstStr === todayStr;
             });
             if (isCompletedToday) completedCount++;
             else pendingCount++;
@@ -845,20 +838,17 @@ export default function PrepSchedulePage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {activePresetNames.map(taskName => {
-                                    const ing = defrostTasks.find(t => t.name === taskName);
-
-                                    if (!ing) {
-                                        return (
-                                            <tr key={taskName} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                <td style={{ padding: '1rem', color: 'var(--danger)' }}>{taskName} (No encontrado en Base de Datos)</td>
-                                                <td colSpan={3}></td>
-                                            </tr>
-                                        );
-                                    }
+                                {activeIngredients.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                            No hay ingredientes asignados a Cocinero {activeCookNumber}. Configura la asignación en Programación Semanal.
+                                        </td>
+                                    </tr>
+                                ) : activeIngredients.map((ing: any) => {
+                                    const taskName = ing.name;
 
                                     // Check if completed today by inspecting logs
-                                    const completedLogsToday = completedLogs.filter(log => {
+                                    const completedLogsToday = completedLogs.filter((log: any) => {
                                         const logEstStr = new Date(log.completedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
                                         return log.ingredientName === taskName && logEstStr === todayStr;
                                     });
@@ -866,16 +856,15 @@ export default function PrepSchedulePage() {
                                     const isCompletedToday = completedLogsToday.length > 0;
 
                                     const todayIndex = new Date().getDay();
-                                    // Retrieve the suggestion directly from the DB recurring rule for today
-                                    const ruleForToday = recurringRules.find(r => r.ingredientId === ing.id && r.dayOfWeek === todayIndex);
+                                    const ruleForToday = recurringRules.find((r: any) => r.ingredientId === ing.id && r.dayOfWeek === todayIndex);
                                     const suggested = ruleForToday ? ruleForToday.amount : 0;
 
                                     if (isCompletedToday) {
-                                        const totalQty = completedLogsToday.reduce((sum, log) => sum + log.actualAmount, 0);
-                                        const preparers = Array.from(new Set(completedLogsToday.map(log => log.completedBy))).join(', ');
+                                        const totalQty = completedLogsToday.reduce((sum: number, log: any) => sum + log.actualAmount, 0);
+                                        const preparers = Array.from(new Set(completedLogsToday.map((log: any) => log.completedBy))).join(', ');
                                         return (
-                                            <tr key={taskName} style={{ borderBottom: '1px solid var(--border)', background: 'rgba(16, 185, 129, 0.05)' }}>
-                                                <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{taskName}</td>
+                                            <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)', background: 'rgba(16, 185, 129, 0.05)' }}>
+                                                <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{ing.nameEs || taskName}</td>
                                                 <td colSpan={2} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
                                                     ✅ Completado ({totalQty} {displayMetric(ing.metric)}) - Por: {preparers}
                                                 </td>
@@ -893,8 +882,8 @@ export default function PrepSchedulePage() {
                                     }
 
                                     return (
-                                        <tr key={taskName} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
-                                            <td style={{ padding: '1rem', fontWeight: 500 }}>{taskName}</td>
+                                        <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}>
+                                            <td style={{ padding: '1rem', fontWeight: 500 }}>{ing.nameEs || taskName}</td>
                                             <td style={{ padding: '1rem' }}>
                                                 <button
                                                     onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: suggested.toString() }))}
