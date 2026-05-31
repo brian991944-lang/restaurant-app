@@ -83,8 +83,6 @@ button {
 
 .glass-panel {
   background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border-radius: var(--border-radius);
   border: var(--glass-border);
   box-shadow: var(--glass-shadow);
@@ -93,7 +91,6 @@ button {
 }
 
 .glass-panel:hover {
-  transform: translateY(-2px);
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
 }
 
