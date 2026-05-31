@@ -30,7 +30,7 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
     removeProcedureRow: (index: number) => void;
     renderBoldText: (text: string) => React.ReactNode;
 }) {
-    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
     const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
         transition,
@@ -38,11 +38,12 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
         display: 'flex',
         gap: '1rem',
         alignItems: 'flex-start',
+        cursor: isEditing ? 'grab' : 'default',
     };
     return (
-        <div ref={setNodeRef} {...attributes} style={style}>
+        <div ref={setNodeRef} style={style} {...attributes} {...(isEditing ? listeners : {})}>
             {isEditing && (
-                <div ref={setActivatorNodeRef} {...listeners} style={{ cursor: 'grab', color: 'var(--text-secondary)', flexShrink: 0, marginTop: '6px', touchAction: 'none' }}>
+                <div style={{ color: 'var(--text-secondary)', flexShrink: 0, marginTop: '6px' }}>
                     <GripVertical size={18} />
                 </div>
             )}
@@ -51,7 +52,7 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
             </div>
             <div style={{ flex: 1 }}>
                 {isEditing ? (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem' }} onPointerDown={(e) => e.stopPropagation()}>
                         <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
                         <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
                     </div>
@@ -59,38 +60,6 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
                     <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(step)}</p>
                 )}
             </div>
-        </div>
-    );
-}
-
-function MinimalSortableItem({ id }: { id: string }) {
-    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
-    return (
-        <div ref={setNodeRef} {...attributes} {...listeners} style={{ transform: CSS.Transform.toString(transform), transition, padding: '20px', border: '1px solid black', margin: '4px', background: 'white', color: 'black', cursor: 'grab' }}>
-            {id}
-        </div>
-    );
-}
-
-function MinimalSortableTest() {
-    const [items, setItems] = useState(['A', 'B', 'C', 'D', 'E']);
-    const sensors = useSensors(useSensor(PointerSensor));
-    return (
-        <div style={{ padding: '1rem', border: '2px dashed red', marginBottom: '1rem' }}>
-            <p style={{ color: 'red', fontWeight: 'bold', margin: '0 0 0.5rem' }}>DnD Test (drag to reorder):</p>
-            <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={({ active, over }) => {
-                    if (over && active.id !== over.id) {
-                        setItems(prev => arrayMove(prev, prev.indexOf(active.id as string), prev.indexOf(over.id as string)));
-                    }
-                }}
-            >
-                <SortableContext items={items} strategy={verticalListSortingStrategy}>
-                    {items.map(id => <MinimalSortableItem key={id} id={id} />)}
-                </SortableContext>
-            </DndContext>
         </div>
     );
 }
@@ -294,7 +263,6 @@ export default function RecetarioPage() {
     if (!selectedRecipe && !isEditing) {
         return (
             <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-                <MinimalSortableTest />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
