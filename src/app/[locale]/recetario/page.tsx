@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search, Upload, Image as ImageIcon, GripVertical } from 'lucide-react';
@@ -108,7 +108,25 @@ export default function RecetarioPage() {
     );
 
     const [activeDragStep, setActiveDragStep] = useState<{ id: string; step: string; idx: number } | null>(null);
-    const procStepIdsRef = useRef<string[]>([]);
+    const [procStepIds, setProcStepIds] = useState<string[]>([]);
+
+    // Derive procList length from current data before the conditional return so the
+    // useEffect below can run unconditionally (Rules of Hooks).
+    const _procLen = (() => {
+        const data = isEditing ? editData : selectedRecipe;
+        if (!data) return 0;
+        try { return (JSON.parse(data.procedureJson || '[]') as string[]).length; } catch { return 0; }
+    })();
+
+    useEffect(() => {
+        setProcStepIds(prev => {
+            if (prev.length === _procLen) return prev;
+            if (prev.length < _procLen) {
+                return [...prev, ...Array.from({ length: _procLen - prev.length }, () => `step-${crypto.randomUUID()}`)];
+            }
+            return prev.slice(0, _procLen);
+        });
+    }, [_procLen]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -224,13 +242,13 @@ export default function RecetarioPage() {
     const addProcedureRow = () => {
         const arr = JSON.parse(editData.procedureJson || '[]');
         arr.push('');
-        procStepIdsRef.current.push(`step-${crypto.randomUUID()}`);
+        setProcStepIds(prev => [...prev, `step-${crypto.randomUUID()}`]);
         setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
     };
     const removeProcedureRow = (index: number) => {
         const arr = JSON.parse(editData.procedureJson || '[]');
         arr.splice(index, 1);
-        procStepIdsRef.current.splice(index, 1);
+        setProcStepIds(prev => prev.filter((_, i) => i !== index));
         setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
     };
 
@@ -413,15 +431,6 @@ export default function RecetarioPage() {
 
     let procList: string[] = [];
     try { procList = JSON.parse(docData.procedureJson || '[]'); } catch { }
-
-    // Sync stable IDs to match procList length (IDs travel with items during drag)
-    while (procStepIdsRef.current.length < procList.length) {
-        procStepIdsRef.current.push(`step-${crypto.randomUUID()}`);
-    }
-    if (procStepIdsRef.current.length > procList.length) {
-        procStepIdsRef.current = procStepIdsRef.current.slice(0, procList.length);
-    }
-    const procStepIds = procStepIdsRef.current;
 
     let platingData: any = { tracks: [], rows: [] };
     try { platingData = JSON.parse(docData.platingTracksJson || '{"tracks":[],"rows":[]}'); } catch { }
@@ -1059,28 +1068,13 @@ export default function RecetarioPage() {
                                     const idx = procList.findIndex((_, i) => `step-${i}` === id);
                                     if (idx !== -1) setActiveDragStep({ id, step: procList[idx], idx });
                                 }}
-                                onDragOver={({ active, over }) => {
-                                    console.log('[DRAG OVER]', {
-                                        activeId: active.id,
-                                        overId: over?.id ?? null,
-                                        overRect: over?.rect ? { top: over.rect.top, height: over.rect.height } : null,
-                                    });
-                                }}
                                 onDragEnd={({ active, over }) => {
                                     setActiveDragStep(null);
                                     if (!over || active.id === over.id) return;
                                     const oldIdx = procStepIds.indexOf(active.id as string);
                                     const newIdx = procStepIds.indexOf(over.id as string);
                                     if (oldIdx === -1 || newIdx === -1) return;
-                                    console.log('[DRAG END]', {
-                                        activeId: active.id,
-                                        overId: over?.id,
-                                        oldIdx,
-                                        newIdx,
-                                        procStepIds: [...procStepIds],
-                                        procListLength: procList.length,
-                                    });
-                                    procStepIdsRef.current = arrayMove(procStepIds, oldIdx, newIdx);
+                                    setProcStepIds(arrayMove(procStepIds, oldIdx, newIdx));
                                     setEditData((prev: any) => ({
                                         ...prev,
                                         procedureJson: JSON.stringify(arrayMove(procList, oldIdx, newIdx)),
