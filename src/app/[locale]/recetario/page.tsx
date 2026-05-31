@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search, Upload, Image as ImageIcon, GripVertical } from 'lucide-react';
@@ -108,6 +108,7 @@ export default function RecetarioPage() {
     );
 
     const [activeDragStep, setActiveDragStep] = useState<{ id: string; step: string; idx: number } | null>(null);
+    const procStepIdsRef = useRef<string[]>([]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -223,11 +224,13 @@ export default function RecetarioPage() {
     const addProcedureRow = () => {
         const arr = JSON.parse(editData.procedureJson || '[]');
         arr.push('');
+        procStepIdsRef.current.push(`step-${crypto.randomUUID()}`);
         setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
     };
     const removeProcedureRow = (index: number) => {
         const arr = JSON.parse(editData.procedureJson || '[]');
         arr.splice(index, 1);
+        procStepIdsRef.current.splice(index, 1);
         setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
     };
 
@@ -410,6 +413,15 @@ export default function RecetarioPage() {
 
     let procList: string[] = [];
     try { procList = JSON.parse(docData.procedureJson || '[]'); } catch { }
+
+    // Sync stable IDs to match procList length (IDs travel with items during drag)
+    while (procStepIdsRef.current.length < procList.length) {
+        procStepIdsRef.current.push(`step-${crypto.randomUUID()}`);
+    }
+    if (procStepIdsRef.current.length > procList.length) {
+        procStepIdsRef.current = procStepIdsRef.current.slice(0, procList.length);
+    }
+    const procStepIds = procStepIdsRef.current;
 
     let platingData: any = { tracks: [], rows: [] };
     try { platingData = JSON.parse(docData.platingTracksJson || '{"tracks":[],"rows":[]}'); } catch { }
@@ -1050,9 +1062,10 @@ export default function RecetarioPage() {
                                 onDragEnd={({ active, over }) => {
                                     setActiveDragStep(null);
                                     if (!over || active.id === over.id) return;
-                                    const oldIdx = procList.findIndex((_, i) => `step-${i}` === active.id);
-                                    const newIdx = procList.findIndex((_, i) => `step-${i}` === over.id);
+                                    const oldIdx = procStepIds.indexOf(active.id as string);
+                                    const newIdx = procStepIds.indexOf(over.id as string);
                                     if (oldIdx === -1 || newIdx === -1) return;
+                                    procStepIdsRef.current = arrayMove(procStepIds, oldIdx, newIdx);
                                     setEditData((prev: any) => ({
                                         ...prev,
                                         procedureJson: JSON.stringify(arrayMove(procList, oldIdx, newIdx)),
@@ -1061,14 +1074,14 @@ export default function RecetarioPage() {
                                 onDragCancel={() => setActiveDragStep(null)}
                             >
                                 <SortableContext
-                                    items={procList.map((_, i) => `step-${i}`)}
+                                    items={procStepIds}
                                     strategy={verticalListSortingStrategy}
                                 >
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                         {procList.map((step: string, idx: number) => (
                                             <SortableProcedureStep
-                                                key={`step-${idx}`}
-                                                id={`step-${idx}`}
+                                                key={procStepIds[idx]}
+                                                id={procStepIds[idx]}
                                                 idx={idx}
                                                 step={step}
                                                 isEditing={isEditing}
