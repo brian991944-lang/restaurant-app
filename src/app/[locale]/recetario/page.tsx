@@ -63,6 +63,38 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
     );
 }
 
+function MinimalSortableItem({ id }: { id: string }) {
+    const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+    return (
+        <div ref={setNodeRef} {...attributes} {...listeners} style={{ transform: CSS.Transform.toString(transform), transition, padding: '20px', border: '1px solid black', margin: '4px', background: 'white', color: 'black', cursor: 'grab' }}>
+            {id}
+        </div>
+    );
+}
+
+function MinimalSortableTest() {
+    const [items, setItems] = useState(['A', 'B', 'C', 'D', 'E']);
+    const sensors = useSensors(useSensor(PointerSensor));
+    return (
+        <div style={{ padding: '1rem', border: '2px dashed red', marginBottom: '1rem' }}>
+            <p style={{ color: 'red', fontWeight: 'bold', margin: '0 0 0.5rem' }}>DnD Test (drag to reorder):</p>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={({ active, over }) => {
+                    if (over && active.id !== over.id) {
+                        setItems(prev => arrayMove(prev, prev.indexOf(active.id as string), prev.indexOf(over.id as string)));
+                    }
+                }}
+            >
+                <SortableContext items={items} strategy={verticalListSortingStrategy}>
+                    {items.map(id => <MinimalSortableItem key={id} id={id} />)}
+                </SortableContext>
+            </DndContext>
+        </div>
+    );
+}
+
 export default function RecetarioPage() {
     const locale = useLocale();
     const { isAdmin } = useAdmin();
@@ -262,6 +294,7 @@ export default function RecetarioPage() {
     if (!selectedRecipe && !isEditing) {
         return (
             <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+                <MinimalSortableTest />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
