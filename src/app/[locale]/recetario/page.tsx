@@ -64,6 +64,87 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
     );
 }
 
+function SortableIngredientModule({ id, groupName, items, showHeader, activeLinkedId, activeMultiplier, locale, getOptName, updateIngredient, updateLinkedIngredientNote, removeIngredientRow, ingrList }: {
+    id: string;
+    groupName: string;
+    items: any[];
+    showHeader: boolean;
+    activeLinkedId?: string;
+    activeMultiplier: number;
+    locale: string;
+    getOptName: (name: string) => string;
+    updateIngredient: (index: number, field: string, val: string) => void;
+    updateLinkedIngredientNote: (ingredientName: string, val: string, currentList: any[]) => void;
+    removeIngredientRow: (index: number) => void;
+    ingrList: any[];
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        marginBottom: '2rem',
+        cursor: 'grab',
+    };
+    return (
+        <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+            {showHeader && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.8rem', paddingBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>
+                        <GripVertical size={18} />
+                    </div>
+                    <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--accent-primary)', margin: 0 }}>
+                        {groupName}
+                    </h4>
+                </div>
+            )}
+            <div
+                className="glass-panel"
+                style={{ padding: '0.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}
+                onPointerDown={(e) => e.stopPropagation()}
+            >
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Ingrediente' : 'Ingredient'}</th>
+                            <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Cantidad' : 'Quantity'}</th>
+                            <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'U. de Medida' : 'Metric'}</th>
+                            <th style={{ padding: '0.5rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Notas' : 'Notes'}</th>
+                            <th style={{ padding: '0.5rem', width: '40px' }}></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {items.map((ingr: any, localIdx: number) => {
+                            const idx = ingr.originalIndex;
+                            return (
+                                <tr key={idx} style={{ borderBottom: '1px solid var(--border)', background: localIdx % 2 === 0 ? 'rgba(0,0,0,0.15)' : 'transparent' }}>
+                                    {activeLinkedId ? (
+                                        <>
+                                            <td style={{ padding: '0.8rem 0.5rem', fontWeight: 500 }}>{ingr.ingredient}</td>
+                                            <td style={{ padding: '0.8rem 0.5rem' }}>{ingr.quantity}</td>
+                                            <td style={{ padding: '0.8rem 0.5rem' }}>{getOptName(ingr.metric)}</td>
+                                            <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateLinkedIngredientNote(ingr.ingredient, e.target.value, ingrList)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                            <td style={{ padding: '0.4rem', textAlign: 'center' }}></td>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <td style={{ padding: '0.4rem' }}><textarea value={ingr.ingredient} onChange={e => updateIngredient(idx, 'ingredient', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.quantity} onChange={e => updateIngredient(idx, 'quantity', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><input value={ingr.metric} onChange={e => updateIngredient(idx, 'metric', e.target.value)} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)' }} /></td>
+                                            <td style={{ padding: '0.4rem' }}><textarea value={ingr.notes} onChange={e => updateIngredient(idx, 'notes', e.target.value)} rows={2} style={{ width: '100%', padding: '0.4rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', resize: 'vertical' }} /></td>
+                                            <td style={{ padding: '0.4rem', textAlign: 'center' }}><button onClick={() => removeIngredientRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}><X size={16} /></button></td>
+                                        </>
+                                    )}
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
 export default function RecetarioPage() {
     const locale = useLocale();
     const { isAdmin } = useAdmin();
@@ -126,6 +207,34 @@ export default function RecetarioPage() {
         } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedRecipe?.id]);
+
+    const [moduleOrder, setModuleOrder] = useState<Array<{ id: string; groupName: string }>>(() => {
+        try {
+            const items = JSON.parse((editData ?? (selectedRecipe as any))?.ingredientsJson || '[]') as any[];
+            const seen = new Set<string>();
+            const groups: Array<{ id: string; groupName: string }> = [];
+            for (const item of items) {
+                const g = item.groupName || 'Main Components';
+                if (!seen.has(g)) { seen.add(g); groups.push({ id: crypto.randomUUID(), groupName: g }); }
+            }
+            return groups;
+        } catch { return []; }
+    });
+
+    useEffect(() => {
+        try {
+            const json = (editData ?? (selectedRecipe as any))?.ingredientsJson;
+            const items = JSON.parse(json || '[]') as any[];
+            const seen = new Set<string>();
+            const groups: string[] = [];
+            for (const item of items) {
+                const g = item.groupName || 'Main Components';
+                if (!seen.has(g)) { seen.add(g); groups.push(g); }
+            }
+            setModuleOrder(prev => groups.map(g => prev.find(p => p.groupName === g) ?? { id: crypto.randomUUID(), groupName: g }));
+        } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedRecipe?.id, isEditing]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -728,6 +837,52 @@ export default function RecetarioPage() {
                                 <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic', border: '1px dashed var(--border)', borderRadius: '8px' }}>
                                     {locale === 'es' ? 'No hay ingredientes definidos.' : 'No ingredients defined.'}
                                 </div>
+                            );
+                        }
+
+                        if (isEditing) {
+                            return (
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={({ active, over }) => {
+                                        if (!over || active.id === over.id) return;
+                                        const oldIdx = moduleOrder.findIndex(m => m.id === (active.id as string));
+                                        const newIdx = moduleOrder.findIndex(m => m.id === (over.id as string));
+                                        if (oldIdx === -1 || newIdx === -1) return;
+                                        const newOrder = arrayMove(moduleOrder, oldIdx, newIdx);
+                                        setModuleOrder(newOrder);
+                                        const items = JSON.parse(editData.ingredientsJson || '[]') as any[];
+                                        const grouped: Record<string, any[]> = {};
+                                        for (const item of items) {
+                                            const g = item.groupName || 'Main Components';
+                                            if (!grouped[g]) grouped[g] = [];
+                                            grouped[g].push(item);
+                                        }
+                                        const rebuilt = newOrder.flatMap(m => grouped[m.groupName] ?? []);
+                                        setEditData((prev: any) => ({ ...prev, ingredientsJson: JSON.stringify(rebuilt) }));
+                                    }}
+                                >
+                                    <SortableContext items={moduleOrder.map(m => m.id)} strategy={verticalListSortingStrategy}>
+                                        {moduleOrder.map(({ id, groupName }) => (
+                                            <SortableIngredientModule
+                                                key={id}
+                                                id={id}
+                                                groupName={groupName}
+                                                items={groupedIngrs[groupName] ?? []}
+                                                showHeader={moduleOrder.length > 1 || groupName !== 'Main Components'}
+                                                activeLinkedId={activeLinkedId}
+                                                activeMultiplier={activeMultiplier}
+                                                locale={locale}
+                                                getOptName={getOptName}
+                                                updateIngredient={updateIngredient}
+                                                updateLinkedIngredientNote={updateLinkedIngredientNote}
+                                                removeIngredientRow={removeIngredientRow}
+                                                ingrList={ingrList}
+                                            />
+                                        ))}
+                                    </SortableContext>
+                                </DndContext>
                             );
                         }
 
