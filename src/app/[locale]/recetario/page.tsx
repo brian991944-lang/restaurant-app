@@ -30,7 +30,7 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
     removeProcedureRow: (index: number) => void;
     renderBoldText: (text: string) => React.ReactNode;
 }) {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
     const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
         transition,
@@ -40,9 +40,9 @@ function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, remo
         alignItems: 'flex-start',
     };
     return (
-        <div ref={setNodeRef} style={style}>
+        <div ref={setNodeRef} {...attributes} style={style}>
             {isEditing && (
-                <div {...attributes} {...listeners} style={{ cursor: 'grab', color: 'var(--text-secondary)', flexShrink: 0, marginTop: '6px', touchAction: 'none' }}>
+                <div ref={setActivatorNodeRef} {...listeners} style={{ cursor: 'grab', color: 'var(--text-secondary)', flexShrink: 0, marginTop: '6px', touchAction: 'none' }}>
                     <GripVertical size={18} />
                 </div>
             )}
