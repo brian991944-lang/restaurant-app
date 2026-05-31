@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search, Upload, Image as ImageIcon, GripVertical } from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, DragOverlay, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { DndContext, closestCenter, PointerSensor, DragOverlay, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
 import { getCategories } from '@/app/actions/inventory';
@@ -102,31 +102,29 @@ export default function RecetarioPage() {
     }, []);
 
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-        useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
-        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
     );
 
     const [activeDragStep, setActiveDragStep] = useState<{ id: string; step: string; idx: number } | null>(null);
-    const [procStepIds, setProcStepIds] = useState<string[]>([]);
+    const [procSteps, setProcSteps] = useState<Array<{ id: string; text: string }>>(() => {
+        try {
+            const parsed = JSON.parse(editData?.procedureJson || '[]') as string[];
+            return parsed.map(text => ({ id: crypto.randomUUID(), text }));
+        } catch {
+            return [];
+        }
+    });
 
-    // Derive procList length from current data before the conditional return so the
-    // useEffect below can run unconditionally (Rules of Hooks).
-    const _procLen = (() => {
-        const data = isEditing ? editData : selectedRecipe;
-        if (!data) return 0;
-        try { return (JSON.parse(data.procedureJson || '[]') as string[]).length; } catch { return 0; }
-    })();
-
+    // Reseed procSteps when the user switches to a different recipe.
     useEffect(() => {
-        setProcStepIds(prev => {
-            if (prev.length === _procLen) return prev;
-            if (prev.length < _procLen) {
-                return [...prev, ...Array.from({ length: _procLen - prev.length }, () => `step-${crypto.randomUUID()}`)];
-            }
-            return prev.slice(0, _procLen);
-        });
-    }, [_procLen]);
+        try {
+            const parsed = JSON.parse(editData?.procedureJson || '[]') as string[];
+            setProcSteps(prev =>
+                parsed.map((text, i) => prev[i] && prev[i].text === text ? prev[i] : { id: crypto.randomUUID(), text })
+            );
+        } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedRecipe?.id]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -234,22 +232,18 @@ export default function RecetarioPage() {
         setEditData({ ...editData, ingredientsJson: JSON.stringify(updatedList) });
     };
 
+    const updateProcSteps = (next: Array<{ id: string; text: string }>) => {
+        setProcSteps(next);
+        setEditData((prev: any) => ({ ...prev, procedureJson: JSON.stringify(next.map(s => s.text)) }));
+    };
     const updateProcedure = (index: number, val: string) => {
-        const arr = JSON.parse(editData.procedureJson || '[]');
-        arr[index] = val;
-        setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
+        updateProcSteps(procSteps.map((s, i) => i === index ? { ...s, text: val } : s));
     };
     const addProcedureRow = () => {
-        const arr = JSON.parse(editData.procedureJson || '[]');
-        arr.push('');
-        setProcStepIds(prev => [...prev, `step-${crypto.randomUUID()}`]);
-        setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
+        updateProcSteps([...procSteps, { id: crypto.randomUUID(), text: '' }]);
     };
     const removeProcedureRow = (index: number) => {
-        const arr = JSON.parse(editData.procedureJson || '[]');
-        arr.splice(index, 1);
-        setProcStepIds(prev => prev.filter((_, i) => i !== index));
-        setEditData({ ...editData, procedureJson: JSON.stringify(arr) });
+        updateProcSteps(procSteps.filter((_, i) => i !== index));
     };
 
 
@@ -1065,34 +1059,30 @@ export default function RecetarioPage() {
                                 collisionDetection={closestCenter}
                                 onDragStart={({ active }) => {
                                     const id = active.id as string;
-                                    const idx = procList.findIndex((_, i) => `step-${i}` === id);
-                                    if (idx !== -1) setActiveDragStep({ id, step: procList[idx], idx });
+                                    const idx = procSteps.findIndex(s => s.id === id);
+                                    if (idx !== -1) setActiveDragStep({ id, step: procSteps[idx].text, idx });
                                 }}
                                 onDragEnd={({ active, over }) => {
                                     setActiveDragStep(null);
                                     if (!over || active.id === over.id) return;
-                                    const oldIdx = procStepIds.indexOf(active.id as string);
-                                    const newIdx = procStepIds.indexOf(over.id as string);
+                                    const oldIdx = procSteps.findIndex(s => s.id === (active.id as string));
+                                    const newIdx = procSteps.findIndex(s => s.id === (over.id as string));
                                     if (oldIdx === -1 || newIdx === -1) return;
-                                    setProcStepIds(arrayMove(procStepIds, oldIdx, newIdx));
-                                    setEditData((prev: any) => ({
-                                        ...prev,
-                                        procedureJson: JSON.stringify(arrayMove(procList, oldIdx, newIdx)),
-                                    }));
+                                    updateProcSteps(arrayMove(procSteps, oldIdx, newIdx));
                                 }}
                                 onDragCancel={() => setActiveDragStep(null)}
                             >
                                 <SortableContext
-                                    items={procStepIds}
+                                    items={procSteps.map(s => s.id)}
                                     strategy={verticalListSortingStrategy}
                                 >
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        {procList.map((step: string, idx: number) => (
+                                        {procSteps.map((step, idx) => (
                                             <SortableProcedureStep
-                                                key={procStepIds[idx]}
-                                                id={procStepIds[idx]}
+                                                key={step.id}
+                                                id={step.id}
                                                 idx={idx}
-                                                step={step}
+                                                step={step.text}
                                                 isEditing={isEditing}
                                                 updateProcedure={updateProcedure}
                                                 removeProcedureRow={removeProcedureRow}
