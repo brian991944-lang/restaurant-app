@@ -3,7 +3,10 @@
 import React, { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
-import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search, Upload, Image as ImageIcon } from 'lucide-react';
+import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, ArrowLeft, Search, Upload, Image as ImageIcon, GripVertical } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, TouchSensor, DragOverlay, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -16,6 +19,48 @@ interface RecipeIngredient {
     quantity: string;
     metric: string;
     notes: string;
+}
+
+function SortableProcedureStep({ id, idx, step, isEditing, updateProcedure, removeProcedureRow, renderBoldText }: {
+    id: string;
+    idx: number;
+    step: string;
+    isEditing: boolean;
+    updateProcedure: (index: number, val: string) => void;
+    removeProcedureRow: (index: number) => void;
+    renderBoldText: (text: string) => React.ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+        display: 'flex',
+        gap: '1rem',
+        alignItems: 'flex-start',
+    };
+    return (
+        <div ref={setNodeRef} style={style}>
+            {isEditing && (
+                <div {...attributes} {...listeners} style={{ cursor: 'grab', color: 'var(--text-secondary)', flexShrink: 0, marginTop: '6px', touchAction: 'none' }}>
+                    <GripVertical size={18} />
+                </div>
+            )}
+            <div style={{ background: 'var(--accent-primary)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>
+                {idx + 1}
+            </div>
+            <div style={{ flex: 1 }}>
+                {isEditing ? (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
+                        <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
+                    </div>
+                ) : (
+                    <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(step)}</p>
+                )}
+            </div>
+        </div>
+    );
 }
 
 export default function RecetarioPage() {
@@ -55,6 +100,14 @@ export default function RecetarioPage() {
     useEffect(() => {
         loadData();
     }, []);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const [activeDragStep, setActiveDragStep] = useState<{ id: string; step: string; idx: number } | null>(null);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -985,25 +1038,75 @@ export default function RecetarioPage() {
                                 </span>
                             )}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', counterReset: 'step-counter' }}>
-                            {procList.map((step: string, idx: number) => (
-                                <div key={idx} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
-                                    <div style={{ background: 'var(--accent-primary)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>
-                                        {idx + 1}
+                        {isEditing ? (
+                            <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragStart={({ active }) => {
+                                    const id = active.id as string;
+                                    const idx = procList.findIndex((_, i) => `step-${i}` === id);
+                                    if (idx !== -1) setActiveDragStep({ id, step: procList[idx], idx });
+                                }}
+                                onDragEnd={({ active, over }) => {
+                                    setActiveDragStep(null);
+                                    if (!over || active.id === over.id) return;
+                                    const oldIdx = procList.findIndex((_, i) => `step-${i}` === active.id);
+                                    const newIdx = procList.findIndex((_, i) => `step-${i}` === over.id);
+                                    if (oldIdx === -1 || newIdx === -1) return;
+                                    setEditData((prev: any) => ({
+                                        ...prev,
+                                        procedureJson: JSON.stringify(arrayMove(procList, oldIdx, newIdx)),
+                                    }));
+                                }}
+                                onDragCancel={() => setActiveDragStep(null)}
+                            >
+                                <SortableContext
+                                    items={procList.map((_, i) => `step-${i}`)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {procList.map((step: string, idx: number) => (
+                                            <SortableProcedureStep
+                                                key={`step-${idx}`}
+                                                id={`step-${idx}`}
+                                                idx={idx}
+                                                step={step}
+                                                isEditing={isEditing}
+                                                updateProcedure={updateProcedure}
+                                                removeProcedureRow={removeProcedureRow}
+                                                renderBoldText={renderBoldText}
+                                            />
+                                        ))}
                                     </div>
-                                    <div style={{ flex: 1 }}>
-                                        {isEditing ? (
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <textarea value={step} onChange={e => updateProcedure(idx, e.target.value)} rows={2} style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', padding: '0.5rem', color: 'var(--text-primary)', resize: 'vertical' }} />
-                                                <button onClick={() => removeProcedureRow(idx)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '0.5rem' }}><X size={16} /></button>
+                                </SortableContext>
+                                <DragOverlay>
+                                    {activeDragStep && (
+                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', opacity: 0.9, background: 'var(--bg-secondary)', border: '1px solid var(--accent-primary)', borderRadius: '6px', padding: '0.5rem' }}>
+                                            <GripVertical size={18} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginTop: '6px' }} />
+                                            <div style={{ background: 'var(--accent-primary)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>
+                                                {activeDragStep.idx + 1}
                                             </div>
-                                        ) : (
+                                            <div style={{ flex: 1 }}>
+                                                <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{activeDragStep.step || '(empty step)'}</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </DragOverlay>
+                            </DndContext>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', counterReset: 'step-counter' }}>
+                                {procList.map((step: string, idx: number) => (
+                                    <div key={idx} style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                                        <div style={{ background: 'var(--accent-primary)', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', flexShrink: 0, marginTop: '2px' }}>
+                                            {idx + 1}
+                                        </div>
+                                        <div style={{ flex: 1 }}>
                                             <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{renderBoldText(step)}</p>
-                                        )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
+                                ))}
+                            </div>
+                        )}
                         {isEditing && (
                             <button onClick={addProcedureRow} style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
                                 + Agregar Paso
