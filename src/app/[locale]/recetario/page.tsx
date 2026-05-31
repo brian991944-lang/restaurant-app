@@ -1059,12 +1059,27 @@ export default function RecetarioPage() {
                                     const idx = procList.findIndex((_, i) => `step-${i}` === id);
                                     if (idx !== -1) setActiveDragStep({ id, step: procList[idx], idx });
                                 }}
+                                onDragOver={({ active, over }) => {
+                                    console.log('[DRAG OVER]', {
+                                        activeId: active.id,
+                                        overId: over?.id ?? null,
+                                        overRect: over?.rect ? { top: over.rect.top, height: over.rect.height } : null,
+                                    });
+                                }}
                                 onDragEnd={({ active, over }) => {
                                     setActiveDragStep(null);
                                     if (!over || active.id === over.id) return;
                                     const oldIdx = procStepIds.indexOf(active.id as string);
                                     const newIdx = procStepIds.indexOf(over.id as string);
                                     if (oldIdx === -1 || newIdx === -1) return;
+                                    console.log('[DRAG END]', {
+                                        activeId: active.id,
+                                        overId: over?.id,
+                                        oldIdx,
+                                        newIdx,
+                                        procStepIds: [...procStepIds],
+                                        procListLength: procList.length,
+                                    });
                                     procStepIdsRef.current = arrayMove(procStepIds, oldIdx, newIdx);
                                     setEditData((prev: any) => ({
                                         ...prev,
