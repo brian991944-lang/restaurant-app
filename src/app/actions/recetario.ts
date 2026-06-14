@@ -60,25 +60,37 @@ export async function getRecipeHistory(recipeId: string) {
 
 export async function createDigitalRecipe(data: any) {
     try {
-        let prefix = "LBX";
-        if (data.categoryId) {
-            const cat = await prisma.category.findUnique({ where: { id: data.categoryId } });
-            if (cat) {
-                const nameToUse = cat.nameEs || cat.name || '';
-                prefix = nameToUse.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase().padEnd(3, 'X');
-            }
+        if (data.recipeCode) {
+            if (data.type === 'EMPLATADO' && !data.recipeCode.startsWith('E-'))
+                return { success: false, error: 'Los c\u00f3digos de emplatado deben empezar con E-' };
+            if (data.type !== 'EMPLATADO' && data.recipeCode.startsWith('E-'))
+                return { success: false, error: 'Solo los emplatados deben empezar con E-' };
+            const collision = await prisma.digitalRecipe.findFirst({ where: { recipeCode: data.recipeCode } });
+            if (collision) return { success: false, error: `El c\u00f3digo '${data.recipeCode}' ya est\u00e1 en uso por otra receta` };
         }
 
-        const all = await prisma.digitalRecipe.findMany({
-            where: { recipeCode: { startsWith: `${prefix}-` } }
-        });
-
-        let max = 0;
-        all.forEach(r => {
-            const num = parseInt(r.recipeCode.split('-')[1]);
-            if (!isNaN(num) && num > max) max = num;
-        });
-        const nextCode = `${prefix}-${String(max + 1).padStart(3, '0')}`;
+        let nextCode: string = data.recipeCode || '';
+        if (!nextCode) {
+            let catPrefix = 'LBX';
+            if (data.categoryId) {
+                const cat = await prisma.category.findUnique({ where: { id: data.categoryId } });
+                if (cat) {
+                    const nameToUse = cat.nameEs || cat.name || '';
+                    catPrefix = nameToUse.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z]/g, '').substring(0, 3).toUpperCase().padEnd(3, 'X');
+                }
+            }
+            const prefix = data.type === 'EMPLATADO' ? `E-${catPrefix}` : catPrefix;
+            const all = await prisma.digitalRecipe.findMany({
+                where: { recipeCode: { startsWith: `${prefix}-` } }
+            });
+            let max = 0;
+            all.forEach(r => {
+                const parts = r.recipeCode.split('-');
+                const num = parseInt(parts[parts.length - 1]);
+                if (!isNaN(num) && num > max) max = num;
+            });
+            nextCode = `${prefix}-${String(max + 1).padStart(3, '0')}`;
+        }
 
         const newRec = await prisma.digitalRecipe.create({
             data: {
@@ -135,6 +147,15 @@ export async function updateDigitalRecipe(id: string, data: any) {
         const oldRec = await prisma.digitalRecipe.findUnique({ where: { id } });
         if (!oldRec) return { success: false, error: 'Not found' };
 
+        if (data.recipeCode && data.recipeCode !== oldRec.recipeCode) {
+            if (data.type === 'EMPLATADO' && !data.recipeCode.startsWith('E-'))
+                return { success: false, error: 'Los códigos de emplatado deben empezar con E-' };
+            if (data.type !== 'EMPLATADO' && data.recipeCode.startsWith('E-'))
+                return { success: false, error: 'Solo los emplatados deben empezar con E-' };
+            const collision = await prisma.digitalRecipe.findFirst({ where: { recipeCode: data.recipeCode, id: { not: id } } });
+            if (collision) return { success: false, error: `El código '${data.recipeCode}' ya está en uso por otra receta` };
+        }
+
         await prisma.digitalRecipeHistory.create({
             data: {
                 recipeId: oldRec.id,
@@ -156,6 +177,7 @@ export async function updateDigitalRecipe(id: string, data: any) {
         const updated = await prisma.digitalRecipe.update({
             where: { id },
             data: {
+                recipeCode: data.recipeCode || oldRec.recipeCode,
                 name: data.name,
                 type: data.type,
                 yield: data.yield,
@@ -187,6 +209,19 @@ export async function updateDigitalRecipe(id: string, data: any) {
     } catch (e) {
         console.error(e);
         return { success: false, error: 'Failed to update' };
+    }
+}
+
+export async function isRecipeCodeAvailable(code: string, excludeId?: string) {
+    try {
+        const existing = await prisma.digitalRecipe.findFirst({
+            where: { recipeCode: code, ...(excludeId ? { id: { not: excludeId } } : {}) },
+            select: { id: true }
+        });
+        return { available: !existing };
+    } catch (e) {
+        console.error(e);
+        return { available: false };
     }
 }
 

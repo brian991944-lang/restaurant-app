@@ -7,7 +7,7 @@ import { BookOpen, Plus, FileText, Check, Pencil, Trash2, History, X, Save, Arro
 import { DndContext, closestCenter, PointerSensor, DragOverlay, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes } from '@/app/actions/recetario';
+import { getDigitalRecipes, createDigitalRecipe, updateDigitalRecipe, getRecipeHistory, deleteDigitalRecipe, getAvailablePrepRecipes, suggestNextRecipeCode, isRecipeCodeAvailable } from '@/app/actions/recetario';
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
@@ -302,6 +302,24 @@ export default function RecetarioPage() {
             alert(locale === 'es' ? 'La Categoría es obligatoria' : 'Category is mandatory');
             return;
         }
+        const codeToSave = (editData.recipeCode || '').trim();
+        if (!codeToSave) {
+            alert('El código es requerido');
+            return;
+        }
+        if (editData.type === 'EMPLATADO' && !codeToSave.startsWith('E-')) {
+            alert('Los códigos de emplatado deben empezar con E-');
+            return;
+        }
+        if (editData.type !== 'EMPLATADO' && codeToSave.startsWith('E-')) {
+            alert('Solo los emplatados deben empezar con E-');
+            return;
+        }
+        const availRes = await isRecipeCodeAvailable(codeToSave, selectedRecipe?.id);
+        if (!availRes.available) {
+            alert(`El código '${codeToSave}' ya está en uso por otra receta`);
+            return;
+        }
         setIsLoading(true);
         let res;
         if (selectedRecipe && selectedRecipe.id) {
@@ -314,7 +332,7 @@ export default function RecetarioPage() {
             setSelectedRecipe(res.recipe);
             setIsEditing(false);
         } else {
-            alert('Error saving recipe');
+            alert((res as any).error || 'Error saving recipe');
         }
         setIsLoading(false);
     };
@@ -338,6 +356,15 @@ export default function RecetarioPage() {
             alert(locale === 'es' ? 'Error al eliminar el documento' : 'Error deleting document');
         }
         setIsLoading(false);
+    };
+
+    const handleSuggestCode = async () => {
+        if (!editData?.categoryId) {
+            alert(locale === 'es' ? 'Selecciona una categoría primero' : 'Select a category first');
+            return;
+        }
+        const res = await suggestNextRecipeCode(editData.type, editData.categoryId);
+        if (res.success) setEditData((prev: any) => ({ ...prev, recipeCode: res.suggestedCode }));
     };
 
     const updateIngredient = (index: number, field: string, val: string) => {
@@ -553,6 +580,15 @@ export default function RecetarioPage() {
     // ============================================
     const docData = isEditing ? editData : selectedRecipe;
 
+    const codeValidationError = (() => {
+        if (!isEditing || !editData) return '';
+        const code = (editData.recipeCode || '').trim();
+        if (!code) return 'El código es requerido';
+        if (editData.type === 'EMPLATADO' && !code.startsWith('E-')) return 'Los códigos de emplatado deben empezar con E-';
+        if (editData.type !== 'EMPLATADO' && code.startsWith('E-')) return 'Solo los emplatados deben empezar con E-';
+        return '';
+    })();
+
     let ingrList: any[] = [];
     try { ingrList = JSON.parse(docData.ingredientsJson || '[]'); } catch { }
 
@@ -681,11 +717,30 @@ export default function RecetarioPage() {
                 {/* Header Section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--border)', paddingBottom: '1.5rem', marginBottom: '2rem' }}>
                     <div style={{ flex: 1 }}>
-                        <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-                            {docData.recipeCode || 'NEW'}
-                        </div>
+                        {!isEditing && (
+                            <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                                {docData.recipeCode || 'NEW'}
+                            </div>
+                        )}
                         {isEditing ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Código</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <input
+                                            value={editData.recipeCode || ''}
+                                            onChange={e => setEditData({ ...editData, recipeCode: e.target.value.toUpperCase() })}
+                                            placeholder={editData.type === 'EMPLATADO' ? 'E-APP-001' : 'APP-001'}
+                                            style={{ width: '130px', fontFamily: 'monospace', fontWeight: 700, background: 'transparent', border: `1px solid ${codeValidationError ? 'var(--danger)' : 'var(--border)'}`, borderRadius: '4px', padding: '0.4rem 0.6rem', color: '#60a5fa', fontSize: '1rem' }}
+                                        />
+                                        <button type="button" onClick={handleSuggestCode} className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                                            Sugerir código
+                                        </button>
+                                    </div>
+                                    {codeValidationError && (
+                                        <span style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '0.25rem', display: 'block' }}>{codeValidationError}</span>
+                                    )}
+                                </div>
                                 <input
                                     value={docData.name}
                                     onChange={e => setEditData({ ...docData, name: e.target.value })}
@@ -732,7 +787,13 @@ export default function RecetarioPage() {
                                     <SearchableSelect
                                         name="categoryId"
                                         value={docData.categoryId || ''}
-                                        onChange={(val) => setEditData({ ...docData, categoryId: val })}
+                                        onChange={async (val) => {
+                                            setEditData({ ...editData, categoryId: val });
+                                            if (!selectedRecipe && val && !editData.recipeCode) {
+                                                const res = await suggestNextRecipeCode(editData.type, val);
+                                                if (res.success) setEditData((prev: any) => ({ ...prev, categoryId: val, recipeCode: res.suggestedCode }));
+                                            }
+                                        }}
                                         options={[{ value: '', label: 'Sin Categoría' }, ...categories.map(c => ({ value: c.id, label: (locale === 'es' && c.nameEs) ? c.nameEs : c.name }))]}
                                         placeholder="Seleccionar Categoría..."
                                     />
