@@ -1,4 +1,4 @@
-'use server';
+﻿'use server';
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
@@ -187,6 +187,42 @@ export async function updateDigitalRecipe(id: string, data: any) {
     } catch (e) {
         console.error(e);
         return { success: false, error: 'Failed to update' };
+    }
+}
+
+export async function suggestNextRecipeCode(type: string, categoryId: string) {
+    try {
+        const cat = await prisma.category.findUnique({ where: { id: categoryId } });
+        if (!cat) return { success: false as const, error: 'Category not found' };
+
+        const nameToUse = cat.nameEs || cat.name || '';
+        const catPrefix = nameToUse
+            .normalize("NFD")
+            .replace(/[̀-ͯ]/g, "")
+            .replace(/[^A-Za-z]/g, '')
+            .substring(0, 3)
+            .toUpperCase()
+            .padEnd(3, 'X');
+
+        const codePrefix = type === 'EMPLATADO' ? `E-${catPrefix}-` : `${catPrefix}-`;
+
+        const existing = await prisma.digitalRecipe.findMany({
+            where: { recipeCode: { startsWith: codePrefix } },
+            select: { recipeCode: true }
+        });
+
+        let max = 0;
+        for (const r of existing) {
+            const parts = r.recipeCode.split('-');
+            const num = parseInt(parts[parts.length - 1]);
+            if (!isNaN(num) && num > max) max = num;
+        }
+
+        const suggestedCode = `${codePrefix}${String(max + 1).padStart(3, '0')}`;
+        return { success: true as const, suggestedCode };
+    } catch (e) {
+        console.error(e);
+        return { success: false as const, error: 'Failed to suggest code' };
     }
 }
 
