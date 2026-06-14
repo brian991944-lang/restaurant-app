@@ -788,11 +788,12 @@ export default function RecetarioPage() {
                                         name="categoryId"
                                         value={docData.categoryId || ''}
                                         onChange={async (val) => {
-                                            setEditData({ ...editData, categoryId: val });
-                                            if (!selectedRecipe && val && !editData.recipeCode) {
+                                            const newEditData = { ...editData, categoryId: val };
+                                            if (val) {
                                                 const res = await suggestNextRecipeCode(editData.type, val);
-                                                if (res.success) setEditData((prev: any) => ({ ...prev, categoryId: val, recipeCode: res.suggestedCode }));
+                                                if (res.success) newEditData.recipeCode = res.suggestedCode;
                                             }
+                                            setEditData(newEditData);
                                         }}
                                         options={[{ value: '', label: 'Sin Categoría' }, ...categories.map(c => ({ value: c.id, label: (locale === 'es' && c.nameEs) ? c.nameEs : c.name }))]}
                                         placeholder="Seleccionar Categoría..."
