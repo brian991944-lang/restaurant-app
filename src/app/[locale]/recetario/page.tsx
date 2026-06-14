@@ -174,6 +174,7 @@ export default function RecetarioPage() {
     const [availablePreps, setAvailablePreps] = useState<any[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [isManageCategoriesOpen, setIsManageCategoriesOpen] = useState(false);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
     // Editor state
     const [editData, setEditData] = useState<any>(null);
@@ -235,6 +236,13 @@ export default function RecetarioPage() {
         } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedRecipe?.id, isEditing]);
+
+    useEffect(() => {
+        if (!deleteConfirmOpen) return;
+        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setDeleteConfirmOpen(false); };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [deleteConfirmOpen]);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -315,6 +323,21 @@ export default function RecetarioPage() {
         const h = await getRecipeHistory(id);
         setHistoryLogs(h);
         setShowHistory(true);
+    };
+
+    const handleDelete = async () => {
+        if (!selectedRecipe) return;
+        setIsLoading(true);
+        const res = await deleteDigitalRecipe(selectedRecipe.id);
+        if (res.success) {
+            setDeleteConfirmOpen(false);
+            await loadData();
+            setSelectedRecipe(null);
+            setIsEditing(false);
+        } else {
+            alert(locale === 'es' ? 'Error al eliminar el documento' : 'Error deleting document');
+        }
+        setIsLoading(false);
     };
 
     const updateIngredient = (index: number, field: string, val: string) => {
@@ -634,6 +657,11 @@ export default function RecetarioPage() {
                     {selectedRecipe && !isEditing && (
                         <button onClick={() => handleViewHistory(selectedRecipe.id)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <History size={16} /> {locale === 'es' ? 'Ver Historial' : 'View History'}
+                        </button>
+                    )}
+                    {!isEditing && isAdmin && selectedRecipe && (
+                        <button onClick={() => setDeleteConfirmOpen(true)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--danger)', border: '1px solid var(--danger)' }}>
+                            <Trash2 size={16} /> {locale === 'es' ? 'Eliminar' : 'Delete'}
                         </button>
                     )}
                     {!isEditing && isAdmin && (
@@ -1304,6 +1332,41 @@ export default function RecetarioPage() {
                     </div>
                 )}
             </div>
+
+            {deleteConfirmOpen && selectedRecipe && (
+                <div
+                    onClick={() => setDeleteConfirmOpen(false)}
+                    style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '12px', padding: '2rem', width: '420px', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+                    >
+                        <h2 style={{ margin: 0, fontSize: '1.4rem' }}>
+                            ¿Eliminar {selectedRecipe.type === 'RECETA' ? 'receta' : selectedRecipe.type === 'EMPLATADO' ? 'emplatado' : 'guía'}?
+                        </h2>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                            Estás a punto de eliminar <strong>"{selectedRecipe.name}"</strong>. Esta acción no se puede deshacer.
+                        </p>
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setDeleteConfirmOpen(false)}
+                                className="btn-secondary"
+                                style={{ padding: '0.6rem 1.2rem' }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={isLoading}
+                                style={{ padding: '0.6rem 1.2rem', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isLoading ? 0.7 : 1 }}
+                            >
+                                {isLoading ? 'Eliminando...' : 'Eliminar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {showHistory && (
                 <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
