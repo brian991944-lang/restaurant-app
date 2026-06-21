@@ -1136,8 +1136,8 @@ export default function PrepSchedulePage() {
         setIsLoading(false);
     };
 
-    const handleRemoveTeamMember = async (id: string) => {
-        if (!confirm("Remove this kitchen worker?")) return;
+    const handleRemoveTeamMember = async (id: string, name: string) => {
+        if (!confirm(locale === 'es' ? `¿Eliminar cocinero "${name}"?` : `Delete cook "${name}"?`)) return;
         setIsLoading(true);
         await removeTeamMember(id);
         setTeamMembers(await getTeamMembers());
@@ -1236,13 +1236,13 @@ export default function PrepSchedulePage() {
             <div style={{ display: 'flex', gap: '2rem' }}>
                 <div className="glass-panel" style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Users size={20} color="var(--accent-primary)" /> Kitchen Workers</h3>
-                        <button onClick={handleAddTeamMember} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>+ Add Worker</button>
+                        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.8rem' }}><Users size={20} color="var(--accent-primary)" /> {locale === 'es' ? 'Cocineros' : 'Kitchen Workers'}</h3>
+                        <button onClick={handleAddTeamMember} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>{locale === 'es' ? '+ Agregar Cocinero' : '+ Add Worker'}</button>
                     </div>
                     {teamMembers.map(m => (
                         <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '0.8rem 1rem', borderRadius: '8px' }}>
                             <span>{m.name}</span>
-                            <button onClick={() => handleRemoveTeamMember(m.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                            <button onClick={() => handleRemoveTeamMember(m.id, m.name)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--danger)' }}><Trash2 size={16} /></button>
                         </div>
                     ))}
                 </div>
@@ -1268,10 +1268,10 @@ export default function PrepSchedulePage() {
                                 )}
                             </div>
                             <button onClick={() => setIsManageOptionsOpen(true)} className="btn-secondary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px', height: '36px', whiteSpace: 'nowrap' }}>
-                                <Settings size={16} /> Manage Categories
+                                <Settings size={16} /> {locale === 'es' ? 'Gestionar Categorías' : 'Manage Categories'}
                             </button>
                             <button onClick={() => setShowAddTaskModal(true)} className="btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', borderRadius: '8px', height: '36px', whiteSpace: 'nowrap' }}>
-                                <Plus size={16} /> Add Task
+                                <Plus size={16} /> {locale === 'es' ? 'Agregar Tarea' : 'Add Task'}
                             </button>
                         </div>
                     </div>
