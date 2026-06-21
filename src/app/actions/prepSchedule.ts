@@ -465,7 +465,7 @@ export async function createManualPrepAssignment(
             });
         }
 
-        let defaultUser = await prisma.user.findFirst({ where: { role: 'KITCHEN' } });
+        let defaultUser = await prisma.user.findFirst({ where: { role: 'KITCHEN', isActive: true } });
         if (!defaultUser) defaultUser = await prisma.user.findFirst();
 
         if (!defaultUser) {

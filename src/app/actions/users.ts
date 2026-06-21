@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 
 export async function getPrepUsers() {
     return prisma.user.findMany({
-        where: { role: 'KITCHEN' },
+        where: { role: 'KITCHEN', isActive: true },
         select: { id: true, name: true }
     });
 }
