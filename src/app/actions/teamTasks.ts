@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 
 export async function getTeamMembers() {
     return prisma.user.findMany({
-        where: { role: 'KITCHEN' },
+        where: { role: 'KITCHEN', isActive: true },
         orderBy: { name: 'asc' }
     });
 }
@@ -35,7 +35,7 @@ export async function addTeamMember(name: string) {
 
 export async function removeTeamMember(id: string) {
     try {
-        await prisma.user.delete({ where: { id } });
+        await prisma.user.update({ where: { id }, data: { isActive: false } });
         return { success: true };
     } catch (e: any) {
         console.error(e);

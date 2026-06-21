@@ -1137,10 +1137,17 @@ export default function PrepSchedulePage() {
     };
 
     const handleRemoveTeamMember = async (id: string, name: string) => {
-        if (!confirm(locale === 'es' ? `¿Eliminar cocinero "${name}"?` : `Delete cook "${name}"?`)) return;
+        if (!confirm(locale === 'es'
+            ? `¿Archivar al cocinero "${name}"? Ya no aparecerá en listas activas pero su historial se conservará.`
+            : `Archive cook "${name}"? They will no longer appear in active lists but their history will be preserved.`
+        )) return;
         setIsLoading(true);
-        await removeTeamMember(id);
-        setTeamMembers(await getTeamMembers());
+        const res = await removeTeamMember(id);
+        if (!res.success) {
+            alert(res.error || (locale === 'es' ? 'Error al archivar' : 'Failed to archive'));
+        } else {
+            setTeamMembers(await getTeamMembers());
+        }
         setIsLoading(false);
     };
 
