@@ -645,16 +645,29 @@ export default function PrepSchedulePage() {
     };
 
     const renderNightShift = () => {
-        // Group by Category -> Parent Ingredient
-        const grouped: Record<string, Record<string, any[]>> = {};
-        prepItems.forEach(item => {
-            const cat = item.category?.name || 'Uncategorized';
-            if (cat.toLowerCase().includes('descongelar')) return;
-            const parent = item.parent?.name || 'Base Tasks';
-            if (!grouped[cat]) grouped[cat] = {};
-            if (!grouped[cat][parent]) grouped[cat][parent] = [];
-            grouped[cat][parent].push(item);
-        });
+        const nightCatKey = (cat: string) => cat.trim().toLowerCase();
+        const nightFlatRows = (() => {
+            const filtered = prepItems
+                .filter(item => !(item.category?.name || 'Uncategorized').toLowerCase().includes('descongelar'))
+                .map(item => ({ item, catName: (item.category?.name || 'Uncategorized').trim() }));
+            filtered.sort((a, b) => {
+                const catCmp = nightCatKey(a.catName).localeCompare(nightCatKey(b.catName));
+                if (catCmp !== 0) return catCmp;
+                return (a.item.name || '').localeCompare(b.item.name || '');
+            });
+            const groups: Array<{ catName: string; items: typeof filtered }> = [];
+            for (const row of filtered) {
+                const last = groups[groups.length - 1];
+                if (!last || nightCatKey(last.catName) !== nightCatKey(row.catName)) {
+                    groups.push({ catName: row.catName, items: [row] });
+                } else {
+                    last.items.push(row);
+                }
+            }
+            return groups.flatMap(({ catName, items: grp }) =>
+                grp.map(({ item }, idx) => ({ item, catName, idx, groupSize: grp.length }))
+            );
+        })();
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -692,44 +705,34 @@ export default function PrepSchedulePage() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {Object.keys(grouped).sort().map(catName => {
-                                    const parents = grouped[catName];
-                                    const catRows = Object.keys(parents).reduce((sum, p) => sum + parents[p].length, 0);
-                                    let isFirstCatRow = true;
-
-                                    return Object.keys(parents).sort().map(parentName => {
-                                        const tasks = parents[parentName];
-                                        const parRows = tasks.length;
-                                        return tasks.map(task => {
-                                            const draft = nightDrafts[task.id] || { selected: false, qty: '', userId: '' };
-
-                                            return (
-                                                <tr key={task.id} style={{ borderBottom: '1px solid var(--border)', background: draft.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent', transition: 'background 0.2s' }}>
-                                                    <td className="hide-on-tablet" style={{ padding: '1rem', verticalAlign: 'middle', fontWeight: 'bold', borderRight: '1px solid var(--border)' }}>{catName}</td>
-                                                    <td style={{ padding: '0.5rem 1rem' }}>
-                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', margin: 0, padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}>
-                                                            <input type="checkbox" checked={draft.selected} onChange={(e) => handleNightDraftToggle(task.id, e.target.checked)} style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }} />
-                                                            <span style={{ fontSize: '0.95rem' }}>{task.name}</span>
-                                                        </label>
-                                                    </td>
-
-                                                    <td style={{ padding: '0.5rem 1rem' }}>
-                                                        <select className="prep-dropdown-responsive" value={draft.userId} onChange={(e) => handleNightDraftChange(task.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid var(--border)' }}>
-                                                            <option value="">{t('PrepSchedule.any_cook')}</option>
-                                                            {teamMembers.map(m => (
-                                                                <option key={m.id} value={m.id}>{m.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                    <td style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>
-                                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: draft.selected ? 'pointer' : 'not-allowed', color: draft.urgent ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                                                            <input type="checkbox" checked={draft.urgent} onChange={(e) => handleNightDraftChange(task.id, 'urgent', e.target.checked)} disabled={!draft.selected} style={{ width: '1.2rem', height: '1.2rem' }} />
-                                                        </label>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        });
-                                    });
+                                {nightFlatRows.map(({ item, catName, idx, groupSize }) => {
+                                    const draft = nightDrafts[item.id] || { selected: false, qty: '', userId: '' };
+                                    return (
+                                        <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', background: draft.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent', transition: 'background 0.2s' }}>
+                                            {idx === 0 && (
+                                                <td className="hide-on-tablet" rowSpan={groupSize} style={{ background: 'var(--surface-2, rgba(0,0,0,0.03))', verticalAlign: 'middle', fontWeight: 700, fontSize: '0.95rem', borderRight: '2px solid var(--border)', textAlign: 'center', padding: '1rem' }}>{catName}</td>
+                                            )}
+                                            <td style={{ padding: '0.5rem 1rem' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', margin: 0, padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}>
+                                                    <input type="checkbox" checked={draft.selected} onChange={(e) => handleNightDraftToggle(item.id, e.target.checked)} style={{ width: '1.2rem', height: '1.2rem', cursor: 'pointer' }} />
+                                                    <span style={{ fontSize: '0.95rem' }}>{item.name}</span>
+                                                </label>
+                                            </td>
+                                            <td style={{ padding: '0.5rem 1rem' }}>
+                                                <select className="prep-dropdown-responsive" value={draft.userId} onChange={(e) => handleNightDraftChange(item.id, 'userId', e.target.value)} disabled={!draft.selected} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: draft.selected ? '#e6f2ff' : 'rgba(255,255,255,0.05)', color: draft.selected ? '#000080' : 'white', border: '1px solid var(--border)' }}>
+                                                    <option value="">{t('PrepSchedule.any_cook')}</option>
+                                                    {teamMembers.map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </select>
+                                            </td>
+                                            <td style={{ padding: '0.5rem 1rem', textAlign: 'center' }}>
+                                                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: draft.selected ? 'pointer' : 'not-allowed', color: draft.urgent ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                                    <input type="checkbox" checked={draft.urgent} onChange={(e) => handleNightDraftChange(item.id, 'urgent', e.target.checked)} disabled={!draft.selected} style={{ width: '1.2rem', height: '1.2rem' }} />
+                                                </label>
+                                            </td>
+                                        </tr>
+                                    );
                                 })}
                             </tbody>
                         </table>
