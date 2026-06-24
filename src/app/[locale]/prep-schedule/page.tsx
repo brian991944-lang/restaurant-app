@@ -351,19 +351,21 @@ export default function PrepSchedulePage() {
             </div>
         );
 
+        const catKey = (t: PrepTask) => (t.category || 'Uncategorized').trim().toLowerCase();
+
         const groupedTasks = [...tasksObj].sort((a, b) => {
-            const catA = a.category || 'Uncategorized';
-            const catB = b.category || 'Uncategorized';
-            const catCmp = catA.localeCompare(catB);
+            const catCmp = catKey(a).localeCompare(catKey(b));
             if (catCmp !== 0) return catCmp;
             return a.ingredientName.localeCompare(b.ingredientName);
         });
 
         const groups = groupedTasks.reduce<Array<{ catName: string; tasks: typeof groupedTasks }>>((acc, task) => {
-            const catName = task.category || 'Uncategorized';
             const last = acc[acc.length - 1];
-            if (!last || last.catName !== catName) acc.push({ catName, tasks: [task] });
-            else last.tasks.push(task);
+            if (!last || catKey(last.tasks[0]) !== catKey(task)) {
+                acc.push({ catName: (task.category || 'Uncategorized').trim(), tasks: [task] });
+            } else {
+                last.tasks.push(task);
+            }
             return acc;
         }, []);
 
