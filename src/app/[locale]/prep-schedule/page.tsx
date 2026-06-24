@@ -577,7 +577,178 @@ export default function PrepSchedulePage() {
                 ) : (
                     <>
                         {renderTaskTable(sortedMorningTasks, t('Nav.sales') === 'Ventas' ? "Hoy (Tareas Asignadas para Hoy)" : "Today (Today's Assigned Tasks)", t('PrepSchedule.no_tasks_today'), true)}
-                        {renderTaskTable(sortedTomorrowTasks, `${t('Nav.sales') === 'Ventas' ? 'Mañana' : 'Tomorrow'} - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)}
+                        {(() => {
+                            const tmwTitle = `${t('Nav.sales') === 'Ventas' ? 'Mañana' : 'Tomorrow'} - ${tmwDateStr}`;
+                            const tmwEmpty = `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`;
+
+                            if (sortedTomorrowTasks.length === 0) return (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '12px' }}>
+                                    <Layers size={30} style={{ opacity: 0.3, margin: '0 auto 1rem auto' }} />
+                                    <p>{tmwEmpty}</p>
+                                </div>
+                            );
+
+                            const mañanaTasks = [...sortedTomorrowTasks].sort((a, b) => {
+                                const catA = a.category || 'Uncategorized';
+                                const catB = b.category || 'Uncategorized';
+                                const catCmp = catA.localeCompare(catB);
+                                if (catCmp !== 0) return catCmp;
+                                return a.ingredientName.localeCompare(b.ingredientName);
+                            });
+
+                            const groups = mañanaTasks.reduce<Array<{ catName: string; tasks: typeof mañanaTasks }>>((acc, task) => {
+                                const catName = task.category || 'Uncategorized';
+                                const last = acc[acc.length - 1];
+                                if (!last || last.catName !== catName) {
+                                    acc.push({ catName, tasks: [task] });
+                                } else {
+                                    last.tasks.push(task);
+                                }
+                                return acc;
+                            }, []);
+
+                            return (
+                                <div style={{ marginBottom: '2rem' }}>
+                                    <h3 style={{ margin: '0 0 1rem 0', fontWeight: 'bold' }}>{tmwTitle}</h3>
+                                    <div className="glass-panel table-wrapper-responsive" style={{ overflowX: 'auto', padding: 0 }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '100%' }}>
+                                            <thead>
+                                                <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                    <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', width: '60px' }}></th>
+                                                    <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
+                                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')}</th>
+                                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad a Preparar' : 'Target'}</th>
+                                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center', minWidth: '120px' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad Preparada' : 'Actual'}</th>
+                                                    <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Unidad de Medida</th>
+                                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>Preparador</th>
+                                                    <th className="status-column-responsive" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {groups.map(({ catName, tasks: groupTasks }) =>
+                                                    groupTasks.map((task, idx) => {
+                                                        const isDone = task.completed;
+                                                        const isProcessing = completing === task.ingredientId;
+
+                                                        let recommendedTarget = 0;
+                                                        if (task.airTightSuggestedAmount !== undefined && task.airTightSuggestedAmount > 0) {
+                                                            recommendedTarget = task.airTightSuggestedAmount;
+                                                        } else if (task.hasRecurring) {
+                                                            recommendedTarget = task.recurringAmount;
+                                                        } else if (task.hasNightShift) {
+                                                            recommendedTarget = task.assignedAmount;
+                                                        } else {
+                                                            recommendedTarget = task.assignedAmount || 0;
+                                                        }
+
+                                                        const rowBackground = isDone ? 'rgba(0,0,0,0.2)' : (
+                                                            task.isEmergency ? 'rgba(239, 68, 68, 0.1)' : 'rgba(59, 130, 246, 0.05)'
+                                                        );
+
+                                                        return (
+                                                            <tr key={task.ingredientId} style={{ borderBottom: '1px solid var(--border)', background: rowBackground, opacity: isDone ? 0.6 : 1, transition: 'background 0.2s' }}>
+                                                                <td className="hide-on-tablet" style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                    {task.hasNightShift ? (
+                                                                        <div style={{ background: 'rgba(245, 158, 11, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                                            <MoonStar size={18} color="var(--warning)" />
+                                                                        </div>
+                                                                    ) : task.hasRecurring ? (
+                                                                        <div style={{ background: 'rgba(168, 85, 247, 0.1)', padding: '0.6rem', borderRadius: '8px', display: 'inline-flex', justifyContent: 'center', alignItems: 'center' }}>
+                                                                            <Calendar size={18} color="#a855f7" />
+                                                                        </div>
+                                                                    ) : null}
+                                                                </td>
+                                                                {idx === 0 && (
+                                                                    <td className="hide-on-tablet" rowSpan={groupTasks.length} style={{ fontWeight: 'bold', verticalAlign: 'top', borderRight: '1px solid var(--border)', padding: '1rem' }}>{catName}</td>
+                                                                )}
+                                                                <td style={{ padding: '0.8rem 1rem' }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                            {task.digitalRecipeId && (
+                                                                                <button
+                                                                                    onClick={() => setViewingRecipeId(task.digitalRecipeId!)}
+                                                                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+                                                                                    title={task.digitalRecipeName || 'Ver Receta'}
+                                                                                >
+                                                                                    <BookOpen size={16} color="var(--accent-primary)" />
+                                                                                </button>
+                                                                            )}
+                                                                            <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit', fontWeight: 500 }}>{task.ingredientName}</span>
+                                                                            {task.isUrgent && !task.isEmergency && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
+                                                                        </div>
+                                                                        {task.isEmergency && (
+                                                                            <div style={{ fontSize: '0.85rem', color: '#ff4d4f', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start' }}>
+                                                                                <span style={{ fontSize: '1rem' }}>🚨</span> EMERGENCIA: Stock Crítico
+                                                                            </div>
+                                                                        )}
+                                                                        {task.suggestedBaseIngredientName && task.suggestedBaseAmount !== null && !task.isEmergency && (
+                                                                            <div style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 500, background: 'rgba(59, 130, 246, 0.05)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                                                                                Sugerencia: Procesar {task.suggestedBaseAmount} kg de {task.suggestedBaseIngredientName} para {task.ingredientName}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: task.isEmergency ? '#ff4d4f' : 'var(--accent-primary)' }}>{recommendedTarget}</span>
+                                                                    <span className="show-on-tablet" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginLeft: '0.4rem', fontWeight: 'normal' }}>{displayMetric(task.metric)}</span>
+                                                                </td>
+                                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                    {isDone ? (
+                                                                        <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
+                                                                    ) : (
+                                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                                            <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid var(--border)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                                                            <span className="show-on-tablet" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{displayMetric(task.metric)}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="hide-on-tablet" style={{ padding: '0.8rem 1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.95rem', fontWeight: 500 }}>
+                                                                    {displayMetric(task.metric)}
+                                                                </td>
+                                                                <td style={{ padding: '0.8rem 1rem' }}>
+                                                                    {isDone ? (
+                                                                        <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
+                                                                    ) : (
+                                                                        <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                                                            <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
+                                                                            {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                                                        </select>
+                                                                    )}
+                                                                </td>
+                                                                <td className="status-column-responsive" style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
+                                                                    {isProcessing ? (
+                                                                        <div className="spinner" style={{ width: '20px', height: '20px', margin: '0 auto', borderTopColor: 'var(--accent-primary)' }} />
+                                                                    ) : isDone ? (
+                                                                        <button onClick={() => handleUndoTask(task)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                                                                            <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Deshacer' : 'Undo'}</span>
+                                                                            <span className="show-on-tablet"><X size={16} /></span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                                                                            <button onClick={() => handleCompleteTask(task)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                                <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Completar' : 'Complete'}</span>
+                                                                                <span className="show-on-tablet"><Check size={16} /></span>
+                                                                            </button>
+                                                                            <button onClick={() => {
+                                                                                setIsTodayTasks(false);
+                                                                                setDeleteTaskCandidate(task);
+                                                                            }} className="btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', color: 'white', background: 'var(--danger)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                                <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Borrar' : 'Delete'}</span>
+                                                                                <span className="show-on-tablet"><Trash2 size={16} /></span>
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </>
                 )}
             </div>
