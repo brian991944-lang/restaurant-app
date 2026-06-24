@@ -659,7 +659,7 @@ export default function PrepSchedulePage() {
                                                                     ) : null}
                                                                 </td>
                                                                 {idx === 0 && (
-                                                                    <td className="hide-on-tablet" rowSpan={groupTasks.length} style={{ fontWeight: 'bold', verticalAlign: 'top', borderRight: '1px solid var(--border)', padding: '1rem' }}>{catName}</td>
+                                                                    <td className="hide-on-tablet" rowSpan={groupTasks.length} style={{ background: 'var(--surface-2, rgba(0,0,0,0.03))', verticalAlign: 'middle', fontWeight: 700, fontSize: '0.95rem', borderRight: '2px solid var(--border)', textAlign: 'center', padding: '1rem' }}>{catName}</td>
                                                                 )}
                                                                 <td style={{ padding: '0.8rem 1rem' }}>
                                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
