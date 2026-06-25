@@ -140,7 +140,7 @@
         "th_quantity": "Cantidad",
         "th_preparer": "Preparador (Opcional)",
         "th_urgent": "Urgente",
-        "any_cook": "Cualquier Cocinero",
+        "any_cook": "Cualquiera",
         "no_tasks_today": "No hay tareas programadas para Hoy (Tareas asignadas de hoy).",
         "no_tasks_tomorrow": "No hay tareas programadas para Mañana - ",
         "add_manual_today": "-- Agregar Tarea para Hoy --",

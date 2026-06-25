@@ -95,9 +95,11 @@ export default function PrepSchedulePage() {
         const low = m.toLowerCase();
         if (low === 'units' || low === 'unit') return locale === 'es' ? 'Unidades' : 'Units';
         if (low === 'pieces' || low === 'piece') return locale === 'es' ? 'Piezas' : 'Pieces';
-        if (low === 'pounds' || low === 'lb' || low === 'lbs') return locale === 'es' ? 'Lbs' : m;
-        if (low === 'liters' || low === 'liter' || low === 'l') return locale === 'es' ? 'L' : m;
-        if (low === 'grams' || low === 'gram' || low === 'g') return locale === 'es' ? 'g' : m;
+        if (low === 'pounds' || low === 'pound' || low === 'lb' || low === 'lbs') return locale === 'es' ? 'Libras' : m;
+        if (low === 'liters' || low === 'liter' || low === 'l') return locale === 'es' ? 'Litros' : m;
+        if (low === 'grams' || low === 'gram' || low === 'g') return locale === 'es' ? 'Gramos' : m;
+        if (low === 'kg' || low === 'kilograms' || low === 'kilogram') return locale === 'es' ? 'Kilogramos' : m;
+        if (low === 'oz' || low === 'ounce' || low === 'ounces' || low === 'solid oz') return locale === 'es' ? 'Onzas' : m;
         return m;
     };
 
@@ -474,8 +476,8 @@ export default function PrepSchedulePage() {
                                             {isDone ? (
                                                 <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
                                             ) : (
-                                                <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] || ''} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                                    <option value="">{t('PrepSchedule.select_user') || 'Select...'}</option>
+                                                <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] ?? (task.assignedCookName && task.assignedCookName !== 'Any Cook' ? task.assignedCookId : '')} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                                    <option value="">{t('PrepSchedule.any_cook')}</option>
                                                     {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                 </select>
                                             )}

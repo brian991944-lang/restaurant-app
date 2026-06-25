@@ -19,6 +19,8 @@ export interface PrepTask {
     hasRecurring: boolean;
     isUrgent: boolean;
     completedBy?: string;
+    assignedCookId?: string;
+    assignedCookName?: string;
     digitalRecipeId?: string | null;
     digitalRecipeName?: string | null;
     suggestedBaseIngredientName?: string | null;
@@ -186,6 +188,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 hasRecurring: hasRecurring || hasAirTightRuleToday,
                 isUrgent: isUrgent || isEmergency,
                 completedBy: assignment?.user?.name || undefined,
+                assignedCookId: assignment?.userId || undefined,
+                assignedCookName: assignment?.user?.name || undefined,
                 digitalRecipeId: (ingredient as any).digitalRecipeId || null,
                 digitalRecipeName: (ingredient as any).digitalRecipe?.name || null,
                 suggestedBaseIngredientName,
