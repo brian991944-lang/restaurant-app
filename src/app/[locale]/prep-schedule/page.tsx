@@ -253,12 +253,6 @@ export default function PrepSchedulePage() {
         loadDataForTab(activeTab);
     }, [activeTab, morningDate]);
 
-    useEffect(() => {
-        if (prepUsers.length > 0 && cookFilter === '') {
-            setCookFilter(prepUsers[0].id);
-        }
-    }, [prepUsers]);
-
     const handleActualChange = (ingredientId: string, value: string) => {
         setActuals(prev => ({ ...prev, [ingredientId]: value }));
     };
@@ -604,7 +598,7 @@ export default function PrepSchedulePage() {
                     <button className="btn-primary" onClick={handleAddManualTask} style={{ padding: '0.6rem 1.2rem', borderRadius: '8px' }}>{t('PrepSchedule.add_btn')}</button>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)' }}>
                         <button
                             onClick={() => setDayView('hoy')}
@@ -617,12 +611,16 @@ export default function PrepSchedulePage() {
                             Mañana
                         </button>
                     </div>
-                    <select
-                        value={cookFilter}
-                        onChange={(e) => setCookFilter(e.target.value)}
-                        style={{ minWidth: '200px', padding: '0.5rem 0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '0.95rem' }}>
-                        {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Filtrar por Cocinero</span>
+                        <select
+                            value={cookFilter}
+                            onChange={(e) => setCookFilter(e.target.value)}
+                            style={{ minWidth: '200px', padding: '0.5rem 0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '0.95rem' }}>
+                            <option value="">Todos los Cocineros</option>
+                            {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                    </div>
                 </div>
 
                 {isLoading ? (
