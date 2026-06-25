@@ -176,7 +176,7 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 ingredientName: ingredient.name,
                 parentName: (ingredient as any).parent?.name || null,
                 metric: ingredient.metric || 'units',
-                category: (ingredient as any).category.name,
+                category: (ingredient as any).category.nameEs || (ingredient as any).category.name,
                 assignedAmount: assignment ? assignment.portionsAssigned : 0,
                 recurringAmount: recurringAmount,
                 actualAmount: assignment ? assignment.portionsActual : null,

@@ -559,7 +559,7 @@ export default function PrepSchedulePage() {
                                     .map(item => ({
                                         value: item.id,
                                         label: item.name,
-                                        category: item.category?.name || 'Uncategorized'
+                                        category: item.category?.nameEs || item.category?.name || 'Uncategorized'
                                     }))
                             ]}
                             placeholder={t('PrepSchedule.add_manual_today')}
@@ -649,7 +649,7 @@ export default function PrepSchedulePage() {
         const nightFlatRows = (() => {
             const filtered = prepItems
                 .filter(item => !(item.category?.name || 'Uncategorized').toLowerCase().includes('descongelar'))
-                .map(item => ({ item, catName: (item.category?.name || 'Uncategorized').trim() }));
+                .map(item => ({ item, catName: (item.category?.nameEs || item.category?.name || 'Uncategorized').trim() }));
             filtered.sort((a, b) => {
                 const catCmp = nightCatKey(a.catName).localeCompare(nightCatKey(b.catName));
                 if (catCmp !== 0) return catCmp;
@@ -946,7 +946,7 @@ export default function PrepSchedulePage() {
         // Group and sort prep items for dropdown
         const groupedItems: Record<string, any[]> = {};
         prepItems.forEach(item => {
-            const cat = item.category?.name || 'Uncategorized';
+            const cat = item.category?.nameEs || item.category?.name || 'Uncategorized';
             if (cat.toLowerCase().includes('descongelar')) return;
             if (!groupedItems[cat]) groupedItems[cat] = [];
             groupedItems[cat].push(item);
@@ -1035,7 +1035,7 @@ export default function PrepSchedulePage() {
                                             <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.8rem', borderRadius: '8px', marginBottom: '0.5rem' }}>
                                                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                     <strong style={{ fontSize: '1rem' }}>{rule.ingredient.name}</strong>
-                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{rule.ingredient.category.name}</span>
+                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{rule.ingredient.category.nameEs || rule.ingredient.category.name}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                                                     <div style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7', padding: '0.3rem 0.6rem', borderRadius: '8px', fontWeight: 'bold' }}>
@@ -1238,7 +1238,7 @@ export default function PrepSchedulePage() {
         const query = taskSearchQuery.toLowerCase().trim();
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
-            const cat = item.category?.name || 'Uncategorized';
+            const cat = item.category?.nameEs || item.category?.name || 'Uncategorized';
             let parent = item.parent?.name || 'Base Tasks';
             // Explicitly classify 'Descongelar' without parent as belonging directly to the 'Descongelar Tasks' group to stand out
             if (cat === 'Descongelar' && !item.parentId) {
@@ -1466,7 +1466,7 @@ export default function PrepSchedulePage() {
         // Group by Categoría
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
-            const catName = item.category?.name || 'Comunes';
+            const catName = item.category?.nameEs || item.category?.name || 'Comunes';
             const parentName = item.parent?.name || 'Top Level';
             if (!grouped[catName]) grouped[catName] = {};
             if (!grouped[catName][parentName]) grouped[catName][parentName] = [];
