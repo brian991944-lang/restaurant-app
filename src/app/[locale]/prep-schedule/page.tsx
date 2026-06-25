@@ -13,6 +13,7 @@ import { getDropdownOptions } from '@/app/actions/dropdownOptions';
 import { getTeamMembers, addTeamMember, removeTeamMember, getPrepTaskItems, addPrepTaskItem, removePrepTaskItem, getBaseIngredients, editPrepTaskItem } from '@/app/actions/teamTasks';
 import { getCategories } from '@/app/actions/inventory';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { DatePicker } from '@/components/ui/DatePicker';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import { useAdmin } from '@/components/AdminContext';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
@@ -689,7 +690,7 @@ export default function PrepSchedulePage() {
                             </button>
                         </div>
                         {assignDateMode === 'otra' && (
-                            <input type="date" value={targetAssignDate} onChange={(e) => setTargetAssignDate(e.target.value)} style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                            <DatePicker value={targetAssignDate} onChange={setTargetAssignDate} locale={locale as 'es' | 'en'} />
                         )}
                     </div>
                     <button onClick={handleSaveNightShift} className="btn-primary" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
