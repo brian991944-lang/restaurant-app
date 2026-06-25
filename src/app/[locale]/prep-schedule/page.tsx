@@ -72,6 +72,8 @@ export default function PrepSchedulePage() {
     const [actuals, setActuals] = useState<Record<string, string>>({});
     const [assignedCooks, setAssignedCooks] = useState<Record<string, string>>({});
     const [completing, setCompleting] = useState<string | null>(null);
+    const [dayView, setDayView] = useState<'hoy' | 'manana'>('hoy');
+    const [cookFilter, setCookFilter] = useState<string>('');
 
     // Delete Modal State
     const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<PrepTask | null>(null);
@@ -251,6 +253,12 @@ export default function PrepSchedulePage() {
         loadDataForTab(activeTab);
     }, [activeTab, morningDate]);
 
+    useEffect(() => {
+        if (prepUsers.length > 0 && cookFilter === '') {
+            setCookFilter(prepUsers[0].id);
+        }
+    }, [prepUsers]);
+
     const handleActualChange = (ingredientId: string, value: string) => {
         setActuals(prev => ({ ...prev, [ingredientId]: value }));
     };
@@ -344,6 +352,14 @@ export default function PrepSchedulePage() {
 
     const sortedMorningTasks = [...filteredMorningTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
     const sortedTomorrowTasks = [...filteredTomorrowTasks].sort((a, b) => Number(a.completed) - Number(b.completed));
+
+    const filterByCook = (tasks: PrepTask[]) =>
+        !cookFilter ? tasks : tasks.filter(task => {
+            const resolved = assignedCooks[task.ingredientId] ??
+                (task.assignedCookName && task.assignedCookName !== 'Any Cook'
+                    ? task.assignedCookId : '');
+            return resolved === '' || resolved === cookFilter;
+        });
 
     const renderTaskTable = (tasksObj: PrepTask[], title: string, emptyMessage: string, isTodayList: boolean) => {
         if (tasksObj.length === 0) return (
@@ -588,13 +604,33 @@ export default function PrepSchedulePage() {
                     <button className="btn-primary" onClick={handleAddManualTask} style={{ padding: '0.6rem 1.2rem', borderRadius: '8px' }}>{t('PrepSchedule.add_btn')}</button>
                 </div>
 
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)' }}>
+                        <button
+                            onClick={() => setDayView('hoy')}
+                            style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dayView === 'hoy' ? 600 : 400, background: dayView === 'hoy' ? 'var(--accent-primary)' : 'transparent', color: dayView === 'hoy' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                            Hoy
+                        </button>
+                        <button
+                            onClick={() => setDayView('manana')}
+                            style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dayView === 'manana' ? 600 : 400, background: dayView === 'manana' ? 'var(--accent-primary)' : 'transparent', color: dayView === 'manana' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                            Mañana
+                        </button>
+                    </div>
+                    <select
+                        value={cookFilter}
+                        onChange={(e) => setCookFilter(e.target.value)}
+                        style={{ minWidth: '200px', padding: '0.5rem 0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '0.95rem' }}>
+                        {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                </div>
+
                 {isLoading ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading')}</div>
+                ) : dayView === 'hoy' ? (
+                    renderTaskTable(filterByCook(sortedMorningTasks), t('Nav.sales') === 'Ventas' ? "Hoy (Tareas Asignadas para Hoy)" : "Today (Today's Assigned Tasks)", t('PrepSchedule.no_tasks_today'), true)
                 ) : (
-                    <>
-                        {renderTaskTable(sortedMorningTasks, t('Nav.sales') === 'Ventas' ? "Hoy (Tareas Asignadas para Hoy)" : "Today (Today's Assigned Tasks)", t('PrepSchedule.no_tasks_today'), true)}
-                        {renderTaskTable(sortedTomorrowTasks, `${t('Nav.sales') === 'Ventas' ? 'Mañana' : 'Tomorrow'} - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)}
-                    </>
+                    renderTaskTable(filterByCook(sortedTomorrowTasks), `${t('Nav.sales') === 'Ventas' ? 'Mañana' : 'Tomorrow'} - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)
                 )}
             </div>
         );
