@@ -74,6 +74,7 @@ export default function PrepSchedulePage() {
     const [completing, setCompleting] = useState<string | null>(null);
     const [dayView, setDayView] = useState<'hoy' | 'manana'>('hoy');
     const [cookFilter, setCookFilter] = useState<string>('');
+    const [assignDateMode, setAssignDateMode] = useState<'hoy' | 'manana' | 'otra'>('hoy');
 
     // Delete Modal State
     const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<PrepTask | null>(null);
@@ -559,45 +560,6 @@ export default function PrepSchedulePage() {
                     </div>
                 </div>
 
-                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 2, minWidth: '200px', zIndex: 10 }}>
-                        <SearchableSelect
-                            value={manualTask}
-                            onChange={(val) => setManualTask(val)}
-                            options={[
-                                { value: '', label: t('PrepSchedule.add_manual_today') },
-                                ...prepItems
-                                    .filter(item => !(item.category?.name || '').toLowerCase().includes('descongelar'))
-                                    .map(item => ({
-                                        value: item.id,
-                                        label: item.name,
-                                        category: item.category?.nameEs || item.category?.name || 'Uncategorized'
-                                    }))
-                            ]}
-                            placeholder={t('PrepSchedule.add_manual_today')}
-                        />
-                    </div>
-                    <div style={{ flex: 1, minWidth: '160px', display: 'flex', alignItems: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                        <input type="number" step="0.01" min="0" value={manualAmount} onChange={(e) => setManualAmount(e.target.value)} placeholder={t('Nav.sales') === 'Ventas' ? 'Cantidad' : 'Cantidad'} style={{ flex: 1, width: '80px', padding: '0.6rem', background: 'transparent', color: 'var(--text-primary)', border: 'none', outline: 'none' }} />
-                        <div style={{ borderLeft: '1px solid var(--border)', alignSelf: 'stretch' }}></div>
-                        <select
-                            disabled
-                            style={{ padding: '0.6rem', background: 'transparent', color: 'var(--text-secondary)', border: 'none', outline: 'none' }}
-                        >
-                            {(() => {
-                                const itemData = prepItems.find(p => p.id === manualTask);
-                                const metricVal = itemData ? itemData.metric : 'units';
-                                return <option value={metricVal}>{metricVal}</option>;
-                            })()}
-                        </select>
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: manualUrgent ? 'var(--danger)' : 'var(--text-secondary)', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={manualUrgent} onChange={(e) => setManualUrgent(e.target.checked)} style={{ width: '1.2rem', height: '1.2rem' }} />
-                        {t('PrepSchedule.urgent_q')}
-                    </label>
-                    <button className="btn-primary" onClick={handleAddManualTask} style={{ padding: '0.6rem 1.2rem', borderRadius: '8px' }}>{t('PrepSchedule.add_btn')}</button>
-                </div>
-
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)' }}>
                         <button
@@ -708,20 +670,27 @@ export default function PrepSchedulePage() {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <p style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 'bold' }}>
-                            {(() => {
-                                const isEs = t('Nav.sales') === 'Ventas';
-                                const d = new Date(`${targetAssignDate}T12:00:00-05:00`);
-                                const estNowStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-                                const todayDate = new Date(`${estNowStr}T12:00:00-05:00`);
-                                const diffDays = Math.round((d.getTime() - todayDate.getTime()) / (1000 * 3600 * 24));
-                                if (diffDays === 0) return isEs ? 'Hoy' : 'Today';
-                                if (diffDays === 1) return isEs ? 'Mañana' : 'Tomorrow';
-                                return d.toLocaleDateString(isEs ? 'es-ES' : 'en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-                            })()}
-                        </p>
-                        <input type="date" value={targetAssignDate} onChange={(e) => setTargetAssignDate(e.target.value)} style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)', width: 'fit-content' }}>
+                            <button
+                                onClick={() => { setAssignDateMode('hoy'); const d = new Date(); d.setHours(d.getHours() - 5); setTargetAssignDate(d.toISOString().split('T')[0]); }}
+                                style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'hoy' ? 600 : 400, background: assignDateMode === 'hoy' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'hoy' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                                Hoy
+                            </button>
+                            <button
+                                onClick={() => { setAssignDateMode('manana'); const d = new Date(); d.setHours(d.getHours() - 5); d.setDate(d.getDate() + 1); setTargetAssignDate(d.toISOString().split('T')[0]); }}
+                                style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'manana' ? 600 : 400, background: assignDateMode === 'manana' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'manana' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                                Mañana
+                            </button>
+                            <button
+                                onClick={() => setAssignDateMode('otra')}
+                                style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'otra' ? 600 : 400, background: assignDateMode === 'otra' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'otra' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                                Otra Fecha
+                            </button>
+                        </div>
+                        {assignDateMode === 'otra' && (
+                            <input type="date" value={targetAssignDate} onChange={(e) => setTargetAssignDate(e.target.value)} style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                        )}
                     </div>
                     <button onClick={handleSaveNightShift} className="btn-primary" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                         <Check size={18} /> {t('PrepSchedule.save_and_assign')}
