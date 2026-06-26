@@ -1941,7 +1941,6 @@ export default function PrepSchedulePage() {
                                     <option value="oz">Onzas</option>
                                     <option value="kilogramos (kg)">Kilogramos</option>
                                     <option value="Grams">Gramos</option>
-                                    <option value="Pound">Libra</option>
                                     <option value="liters">Litros</option>
                                     <option value="gallons">Galones</option>
                                 </select>
