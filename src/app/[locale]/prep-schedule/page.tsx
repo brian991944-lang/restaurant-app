@@ -82,6 +82,11 @@ export default function PrepSchedulePage() {
     const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<PrepTask | null>(null);
     const [deleteTaskReason, setDeleteTaskReason] = useState<'NOT_NECESSARY' | 'MISTAKE' | null>(null);
     const [deleteTaskCook, setDeleteTaskCook] = useState<string>('');
+
+    // Complete Modal State
+    const [completeCandidate, setCompleteCandidate] = useState<PrepTask | null>(null);
+    const [completionCooks, setCompletionCooks] = useState<string[]>([]);
+
     const [viewingRecipeId, setViewingRecipeId] = useState<string | null>(null);
     const [isTodayTasks, setIsTodayTasks] = useState(false);
 
@@ -272,7 +277,7 @@ export default function PrepSchedulePage() {
 
         let cookId = assignedCooks[task.ingredientId];
         if (!cookId) {
-            alert("Please select a cook who completed this task.");
+            alert(t('PrepSchedule.err_select_cook'));
             return;
         }
 
@@ -304,7 +309,7 @@ export default function PrepSchedulePage() {
             }
         } else if (deleteTaskReason === 'NOT_NECESSARY') {
             if (!deleteTaskCook) {
-                alert("Please select a cook.");
+                alert(t('PrepSchedule.err_select_cook_short'));
                 setCompleting(null);
                 return;
             }
@@ -315,13 +320,44 @@ export default function PrepSchedulePage() {
                 if (isTodayTasks) setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
                 else setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
             } else {
-                alert("Error updating task.");
+                alert(t('PrepSchedule.err_update_task'));
             }
         }
 
         setDeleteTaskCandidate(null);
         setDeleteTaskReason(null);
         setDeleteTaskCook('');
+        setCompleting(null);
+    };
+
+    const handleConfirmComplete = async () => {
+        if (!completeCandidate || completionCooks.length === 0) return;
+        const task = completeCandidate;
+        const selectedCooks = [...completionCooks];
+
+        let actual = parseFloat(actuals[task.ingredientId]);
+        if (isNaN(actual)) {
+            actual = task.assignedAmount > 0 ? task.assignedAmount : (task.recurringAmount > 0 ? task.recurringAmount : 0);
+        }
+        if (actual <= 0) { setCompleteCandidate(null); setCompletionCooks([]); return; }
+
+        setCompleteCandidate(null);
+        setCompletionCooks([]);
+        setCompleting(task.ingredientId);
+
+        const res = await completePrepTask(task.ingredientId, actual, selectedCooks, task.assignmentId);
+        if (res.success) {
+            const cookNames = selectedCooks
+                .map(id => prepUsers.find(u => u.id === id)?.name)
+                .filter(Boolean)
+                .join(', ');
+            setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId
+                ? { ...t, completed: true, actualAmount: actual, completedBy: cookNames } : t));
+            setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId
+                ? { ...t, completed: true, actualAmount: actual, completedBy: cookNames } : t));
+        } else {
+            alert(t('PrepSchedule.err_update_task'));
+        }
         setCompleting(null);
     };
 
@@ -507,7 +543,7 @@ export default function PrepSchedulePage() {
                                                 </button>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                                    <button onClick={() => handleCompleteTask(task)} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <button onClick={() => { setCompleteCandidate(task); setCompletionCooks([]); }} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Completar' : 'Complete'}</span>
                                                         <span className="show-on-tablet"><Check size={16} /></span>
                                                     </button>
@@ -1698,6 +1734,34 @@ export default function PrepSchedulePage() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* COMPLETE TASK MODAL */}
+            {completeCandidate && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '400px', maxWidth: '100%', border: '1px solid var(--border)' }}>
+                        <h3 style={{ margin: '0 0 0.5rem 0' }}>{t('PrepSchedule.complete_title')}</h3>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{completeCandidate.ingredientName}</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                            {prepUsers.map(u => (
+                                <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minHeight: '44px', cursor: 'pointer', padding: '0.5rem 0.75rem', borderRadius: '8px', background: completionCooks.includes(u.id) ? 'rgba(34,197,94,0.1)' : 'transparent', border: `1px solid ${completionCooks.includes(u.id) ? 'rgba(34,197,94,0.4)' : 'var(--border)'}`, transition: 'all 0.15s' }}>
+                                    <input type="checkbox" checked={completionCooks.includes(u.id)}
+                                        onChange={() => setCompletionCooks(prev => prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id])}
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-primary)' }} />
+                                    <span style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{u.name}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                            <button onClick={() => { setCompleteCandidate(null); setCompletionCooks([]); }} className="btn-secondary">
+                                {locale === 'es' ? 'Cancelar' : 'Cancel'}
+                            </button>
+                            <button onClick={handleConfirmComplete} className="btn-primary" disabled={completionCooks.length === 0}>
+                                {locale === 'es' ? 'Confirmar' : 'Confirm'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
