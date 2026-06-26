@@ -72,6 +72,7 @@ export default function PrepSchedulePage() {
     const [isLoading, setIsLoading] = useState(true);
     const [actuals, setActuals] = useState<Record<string, string>>({});
     const [assignedCooks, setAssignedCooks] = useState<Record<string, string>>({});
+    const [confirmedCooks, setConfirmedCooks] = useState<Set<string>>(new Set());
     const [completing, setCompleting] = useState<string | null>(null);
     const [dayView, setDayView] = useState<'hoy' | 'manana'>('hoy');
     const [cookFilter, setCookFilter] = useState<string>('');
@@ -205,6 +206,8 @@ export default function PrepSchedulePage() {
             ]);
             setMorningTasks(todayData);
             setTomorrowTasks(tomorrowData);
+            setAssignedCooks({});
+            setConfirmedCooks(new Set());
             setPrepItems(items);
             setDigitalRecipes(recipes);
         } else if (tab === 'night') {
@@ -488,7 +491,7 @@ export default function PrepSchedulePage() {
                                             {isDone ? (
                                                 <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
                                             ) : (
-                                                <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] ?? (task.assignedCookName && task.assignedCookName !== 'Any Cook' ? task.assignedCookId : '')} onChange={(e) => setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                                <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] ?? (task.assignedCookName && task.assignedCookName !== 'Any Cook' ? task.assignedCookId : '')} onChange={(e) => { setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value })); setConfirmedCooks(prev => { const next = new Set(prev); if (e.target.value) next.add(task.ingredientId); else next.delete(task.ingredientId); return next; }); }} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: confirmedCooks.has(task.ingredientId) ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                                     <option value="">{t('PrepSchedule.any_cook')}</option>
                                                     {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                                 </select>
