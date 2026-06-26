@@ -496,7 +496,7 @@ export default function PrepSchedulePage() {
                                                             <BookOpen size={16} color="var(--accent-primary)" />
                                                         </button>
                                                     )}
-                                                    <span style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit', fontWeight: 500 }}>{task.ingredientName}</span>
+                                                    <span onClick={task.digitalRecipeId ? () => setViewingRecipeId(task.digitalRecipeId!) : undefined} style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit', fontWeight: 500, cursor: task.digitalRecipeId ? 'pointer' : 'default' }}>{task.ingredientName}</span>
                                                     {task.isUrgent && !task.isEmergency && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
                                                 </div>
                                                 {task.isEmergency && (
