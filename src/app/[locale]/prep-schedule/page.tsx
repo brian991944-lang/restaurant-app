@@ -1935,7 +1935,7 @@ export default function PrepSchedulePage() {
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
-                                <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
                                     <option value="units">Unidades</option>
                                     <option value="Lbs">Libras</option>
                                     <option value="oz">Onzas</option>
