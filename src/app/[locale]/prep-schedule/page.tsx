@@ -275,7 +275,7 @@ export default function PrepSchedulePage() {
 
         setCompleting(task.ingredientId);
 
-        const res = await completePrepTask(task.ingredientId, actual, cookId, task.assignmentId);
+        const res = await completePrepTask(task.ingredientId, actual, [cookId], task.assignmentId);
         if (res.success) {
             const cookName = prepUsers.find(u => u.id === cookId)?.name || 'Any Cook';
             setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: actual, completedBy: cookName } : t));
@@ -307,7 +307,7 @@ export default function PrepSchedulePage() {
             }
             const cook = prepUsers.find(u => u.id === deleteTaskCook);
             const cookName = cook ? cook.name : 'Unknown Cook';
-            const res = await completePrepTask(task.ingredientId, 0, deleteTaskCook, task.assignmentId, `Not Necessary, skipped by ${cookName}`);
+            const res = await completePrepTask(task.ingredientId, 0, [deleteTaskCook], task.assignmentId, `Not Necessary, skipped by ${cookName}`);
             if (res.success) {
                 if (isTodayTasks) setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
                 else setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
@@ -767,7 +767,7 @@ export default function PrepSchedulePage() {
             }
 
             setCompleting(ing.id);
-            const res = await completePrepTask(ing.id, parseFloat(qtyStr), userId);
+            const res = await completePrepTask(ing.id, parseFloat(qtyStr), [userId]);
 
             if (res.success) {
                 const logs = await getCompletedPrepLogs();

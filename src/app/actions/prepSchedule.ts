@@ -21,6 +21,8 @@ export interface PrepTask {
     completedBy?: string;
     assignedCookId?: string;
     assignedCookName?: string;
+    completionCookIds?: string[];
+    completionCookNames?: string[];
     digitalRecipeId?: string | null;
     digitalRecipeName?: string | null;
     suggestedBaseIngredientName?: string | null;
@@ -50,7 +52,8 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                         ingredient: {
                             include: { category: true }
                         },
-                        user: true
+                        user: true,
+                        completedByCooks: { include: { user: true } }
                     }
                 }
             }
@@ -187,9 +190,13 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 hasNightShift,
                 hasRecurring: hasRecurring || hasAirTightRuleToday,
                 isUrgent: isUrgent || isEmergency,
-                completedBy: assignment?.user?.name || undefined,
+                completedBy: assignment?.completedByCooks?.length
+                    ? assignment.completedByCooks.map((c: any) => c.user?.name).filter(Boolean).join(', ')
+                    : assignment?.user?.name || undefined,
                 assignedCookId: assignment?.userId || undefined,
                 assignedCookName: assignment?.user?.name || undefined,
+                completionCookIds: assignment?.completedByCooks?.map((c: any) => c.userId) ?? undefined,
+                completionCookNames: assignment?.completedByCooks?.map((c: any) => c.user?.name).filter(Boolean) ?? undefined,
                 digitalRecipeId: (ingredient as any).digitalRecipeId || null,
                 digitalRecipeName: (ingredient as any).digitalRecipe?.name || null,
                 suggestedBaseIngredientName,
@@ -212,40 +219,46 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 export async function completePrepTask(
     ingredientId: string,
     actualAmount: number,
-    userId: string,
+    userIds: string[],
     assignmentId?: string,
     note?: string
 ) {
     try {
-        const today = new Date();
+        if (!userIds || userIds.length === 0) return { success: false, error: 'NO_COOKS' };
 
+        const today = new Date();
         const estFormatted = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 
         let finalAssignmentId = assignmentId;
+
         if (assignmentId) {
             const assignment = await prisma.prepAssignment.findUnique({ where: { id: assignmentId } });
             if (assignment?.completed) return { success: true }; // Prevent Duplicate Processing
 
+            // Preserve userId (assigned cook) — no longer overwritten at completion
             await prisma.prepAssignment.update({
                 where: { id: assignmentId },
-                data: {
-                    portionsActual: actualAmount,
-                    completed: true,
-                    completedAt: today,
-                    userId
-                }
+                data: { portionsActual: actualAmount, completed: true, completedAt: today }
+            });
+
+            // Clean slate for re-completes, then write completion cooks to join table
+            await prisma.prepAssignmentCompletedBy.deleteMany({ where: { assignmentId } });
+            await prisma.prepAssignmentCompletedBy.createMany({
+                data: userIds.map(uid => ({ assignmentId, userId: uid })),
+                skipDuplicates: true,
             });
         } else {
-            // Find or create schedule for today
+            // Any Cook dummy marks the PrepAssignment as originally unassigned;
+            // real completing cooks go in the join table
+            const anyCook = await prisma.user.findFirst({ where: { email: 'anycook@system.local' } });
+            if (!anyCook) return { success: false, error: 'ANY_COOK_MISSING' };
+
             const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
-            const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
+            const endOfDay   = new Date(`${estFormatted}T23:59:59.999-05:00`);
 
             let schedule = await prisma.schedule.findFirst({
-                where: {
-                    date: { gte: startOfDay, lte: endOfDay }
-                }
+                where: { date: { gte: startOfDay, lte: endOfDay } }
             });
-
             if (!schedule) {
                 schedule = await prisma.schedule.create({
                     data: {
@@ -259,7 +272,7 @@ export async function completePrepTask(
             const newAssignment = await prisma.prepAssignment.create({
                 data: {
                     scheduleId: schedule.id,
-                    userId,
+                    userId: anyCook.id,
                     ingredientId,
                     portionsAssigned: 0,
                     portionsActual: actualAmount,
@@ -268,12 +281,17 @@ export async function completePrepTask(
                 }
             });
             finalAssignmentId = newAssignment.id;
+
+            await prisma.prepAssignmentCompletedBy.createMany({
+                data: userIds.map(uid => ({ assignmentId: finalAssignmentId!, userId: uid })),
+                skipDuplicates: true,
+            });
         }
 
         // 2. Handle Base Ingredient Linking (Enlace a Ingrediente Base)
         const taskIngredient = await prisma.ingredient.findUnique({
             where: { id: ingredientId },
-            include: { category: true } // Need category to check for 'Descongelar'
+            include: { category: true }
         });
 
         if (taskIngredient && taskIngredient.parentId) {
@@ -309,29 +327,22 @@ export async function completePrepTask(
             } else {
                 // Standard Prep Processing Rule (e.g. Chopping)
                 if ((taskIngredient as any).subtractFromInventory) {
-                    frozenInc = -frozenInc;
+                    frozenInc  = -frozenInc;
                     thawingInc = -thawingInc;
                 }
             }
 
-            const newFrozenQty = Math.max(0, inventory.frozenQty + frozenInc);
-            // Ignore Cap for Unfrozen stock mathematically if it goes temporarily out of sync, relying on Total physical limits
+            const newFrozenQty     = Math.max(0, inventory.frozenQty  + frozenInc);
             const cappedThawingQty = Math.max(0, inventory.thawingQty + thawingInc);
 
             await prisma.inventory.update({
                 where: { id: inventory.id },
-                data: {
-                    frozenQty: newFrozenQty,
-                    thawingQty: cappedThawingQty
-                }
+                data: { frozenQty: newFrozenQty, thawingQty: cappedThawingQty }
             });
 
-            // Also update the ingredient's unfrozenQuantity field for complete sync
             await prisma.ingredient.update({
                 where: { id: baseIngredientId },
-                data: {
-                    unfrozenQuantity: cappedThawingQty
-                }
+                data: { unfrozenQuantity: cappedThawingQty }
             });
 
             await prisma.inventoryTransaction.create({
