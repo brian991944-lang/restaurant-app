@@ -20,7 +20,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  prepAssignments PrepAssignment[]
+  prepAssignments      PrepAssignment[]
+  completedAssignments PrepAssignmentCompletedBy[]
 }
 
 model Provider {
@@ -245,9 +246,10 @@ model PrepAssignment {
   completedAt      DateTime?
   isUrgent         Boolean   @default(false)
 
-  schedule   Schedule   @relation(fields: [scheduleId], references: [id])
-  user       User       @relation(fields: [userId], references: [id])
-  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  schedule        Schedule                    @relation(fields: [scheduleId], references: [id])
+  user            User                        @relation(fields: [userId], references: [id])
+  ingredient      Ingredient                  @relation(fields: [ingredientId], references: [id])
+  completedByCooks PrepAssignmentCompletedBy[]
 }
 
 model DropdownOption {
@@ -329,4 +331,15 @@ model DigitalRecipeHistory {
   revisionDate    DateTime
   savedAt         DateTime @default(now())
   savedBy         String?
+}
+
+model PrepAssignmentCompletedBy {
+  id           String         @id @default(cuid())
+  assignmentId String
+  userId       String
+  createdAt    DateTime       @default(now())
+  assignment   PrepAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id])
+
+  @@unique([assignmentId, userId])
 }
