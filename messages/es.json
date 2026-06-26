@@ -151,6 +151,7 @@
         "add_manual_today": "-- Agregar Tarea para Hoy --",
         "qty": "Cant.",
         "urgent_q": "¿Urgente?",
-        "add_btn": "+ Agregar"
+        "add_btn": "+ Agregar",
+        "amount_required": "Ingresa la cantidad preparada antes de completar."
     }
 }

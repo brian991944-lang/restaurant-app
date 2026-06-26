@@ -71,6 +71,7 @@ export default function PrepSchedulePage() {
     // UI States
     const [isLoading, setIsLoading] = useState(true);
     const [actuals, setActuals] = useState<Record<string, string>>({});
+    const [amountWarnings, setAmountWarnings] = useState<Set<string>>(new Set());
     const [assignedCooks, setAssignedCooks] = useState<Record<string, string>>({}); // kept: read by handleCompleteTask (flagged unused)
     const [completing, setCompleting] = useState<string | null>(null);
     const [dayView, setDayView] = useState<'hoy' | 'manana'>('hoy');
@@ -211,6 +212,7 @@ export default function PrepSchedulePage() {
             setMorningTasks(todayData);
             setTomorrowTasks(tomorrowData);
             setAssignedCooks({});
+            setAmountWarnings(new Set());
             setPrepItems(items);
             setDigitalRecipes(recipes);
         } else if (tab === 'night') {
@@ -263,6 +265,9 @@ export default function PrepSchedulePage() {
 
     const handleActualChange = (ingredientId: string, value: string) => {
         setActuals(prev => ({ ...prev, [ingredientId]: value }));
+        if (value && parseFloat(value) > 0) {
+            setAmountWarnings(prev => { const n = new Set(prev); n.delete(ingredientId); return n; });
+        }
     };
 
     const handleCompleteTask = async (task: PrepTask) => {
@@ -514,8 +519,15 @@ export default function PrepSchedulePage() {
                                             {isDone ? (
                                                 <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
                                             ) : (
-                                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                                                    <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: '1px solid var(--border)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                                <div style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                        <input type="number" step="0.01" min="0" placeholder={recommendedTarget.toString()} value={actuals[task.ingredientId] || ''} onChange={(e) => handleActualChange(task.ingredientId, e.target.value)} style={{ width: '60px', padding: '0.3rem', border: amountWarnings.has(task.ingredientId) ? '2px solid var(--danger)' : '1px solid var(--border)', borderRadius: '8px', outline: 'none', background: 'white', color: 'black', textAlign: 'center', fontWeight: 'bold' }} />
+                                                        {amountWarnings.has(task.ingredientId) && (
+                                                            <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--danger)', marginTop: '0.25rem', maxWidth: '90px', lineHeight: 1.2 }}>
+                                                                {t('PrepSchedule.amount_required')}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <span className="show-on-tablet" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{displayMetric(task.metric)}</span>
                                                 </div>
                                             )}
@@ -550,7 +562,16 @@ export default function PrepSchedulePage() {
                                                 </button>
                                             ) : (
                                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                                                    <button onClick={() => { setCompleteCandidate(task); setCompletionCooks([]); }} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <button onClick={() => {
+                                                    const rawInput = actuals[task.ingredientId];
+                                                    if (!rawInput || parseFloat(rawInput) <= 0) {
+                                                        setAmountWarnings(prev => new Set(prev).add(task.ingredientId));
+                                                        return;
+                                                    }
+                                                    setAmountWarnings(prev => { const n = new Set(prev); n.delete(task.ingredientId); return n; });
+                                                    setCompleteCandidate(task);
+                                                    setCompletionCooks([]);
+                                                }} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                         <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Completar' : 'Complete'}</span>
                                                         <span className="show-on-tablet"><Check size={16} /></span>
                                                     </button>
