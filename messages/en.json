@@ -139,6 +139,7 @@
     "th_task": "Task",
     "th_quantity": "Quantity",
     "th_preparer": "Preparer (Optional)",
+    "th_preparer_assigned": "Assigned Cook",
     "th_urgent": "Urgent",
     "any_cook": "Any Cook",
     "complete_title": "Who completed this task?",

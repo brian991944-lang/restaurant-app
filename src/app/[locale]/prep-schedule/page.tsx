@@ -71,8 +71,7 @@ export default function PrepSchedulePage() {
     // UI States
     const [isLoading, setIsLoading] = useState(true);
     const [actuals, setActuals] = useState<Record<string, string>>({});
-    const [assignedCooks, setAssignedCooks] = useState<Record<string, string>>({});
-    const [confirmedCooks, setConfirmedCooks] = useState<Set<string>>(new Set());
+    const [assignedCooks, setAssignedCooks] = useState<Record<string, string>>({}); // kept: read by handleCompleteTask (flagged unused)
     const [completing, setCompleting] = useState<string | null>(null);
     const [dayView, setDayView] = useState<'hoy' | 'manana'>('hoy');
     const [cookFilter, setCookFilter] = useState<string>('');
@@ -212,7 +211,6 @@ export default function PrepSchedulePage() {
             setMorningTasks(todayData);
             setTomorrowTasks(tomorrowData);
             setAssignedCooks({});
-            setConfirmedCooks(new Set());
             setPrepItems(items);
             setDigitalRecipes(recipes);
         } else if (tab === 'night') {
@@ -390,10 +388,12 @@ export default function PrepSchedulePage() {
 
     const filterByCook = (tasks: PrepTask[]) =>
         !cookFilter ? tasks : tasks.filter(task => {
-            const resolved = assignedCooks[task.ingredientId] ??
-                (task.assignedCookName && task.assignedCookName !== 'Any Cook'
-                    ? task.assignedCookId : '');
-            return resolved === '' || resolved === cookFilter;
+            if (task.completed) {
+                return task.completionCookIds?.includes(cookFilter) ?? false;
+            }
+            const assignedId = task.assignedCookName && task.assignedCookName !== 'Any Cook'
+                ? task.assignedCookId : '';
+            return assignedId === '' || assignedId === cookFilter;
         });
 
     const renderTaskTable = (tasksObj: PrepTask[], title: string, emptyMessage: string, isTodayList: boolean) => {
@@ -439,7 +439,7 @@ export default function PrepSchedulePage() {
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad a Preparar' : 'Target'}</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center', minWidth: '120px' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad Preparada' : 'Actual'}</th>
                                 <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Unidad de Medida</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>Preparador</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>{t('PrepSchedule.th_preparer_assigned')}</th>
                                 <th className="status-column-responsive" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Status</th>
                             </tr>
                         </thead>
@@ -524,14 +524,21 @@ export default function PrepSchedulePage() {
                                             {displayMetric(task.metric)}
                                         </td>
                                         <td style={{ padding: '0.8rem 1rem' }}>
-                                            {isDone ? (
-                                                <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{task.completedBy || 'Any Cook'}</span>
-                                            ) : (
-                                                <select className="prep-dropdown-responsive" value={assignedCooks[task.ingredientId] ?? (task.assignedCookName && task.assignedCookName !== 'Any Cook' ? task.assignedCookId : '')} onChange={(e) => { setAssignedCooks(prev => ({ ...prev, [task.ingredientId]: e.target.value })); setConfirmedCooks(prev => { const next = new Set(prev); if (e.target.value) next.add(task.ingredientId); else next.delete(task.ingredientId); return next; }); }} style={{ width: '100%', padding: '0.5rem', borderRadius: '8px', background: confirmedCooks.has(task.ingredientId) ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                                    <option value="">{t('PrepSchedule.any_cook')}</option>
-                                                    {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                                                </select>
-                                            )}
+                                            {(() => {
+                                                const cellText = isDone
+                                                    ? (task.completionCookNames?.length
+                                                        ? task.completionCookNames.join(', ')
+                                                        : (task.completedBy || t('PrepSchedule.any_cook')))
+                                                    : (task.assignedCookName && task.assignedCookName !== 'Any Cook'
+                                                        ? task.assignedCookName
+                                                        : t('PrepSchedule.any_cook'));
+                                                const cellBg = isDone ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+                                                return (
+                                                    <span style={{ display: 'block', padding: '0.5rem 0.75rem', borderRadius: '8px', background: cellBg, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                                        {cellText}
+                                                    </span>
+                                                );
+                                            })()}
                                         </td>
                                         <td className="status-column-responsive" style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {isProcessing ? (

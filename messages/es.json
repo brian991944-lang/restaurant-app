@@ -139,6 +139,7 @@
         "th_task": "Tarea",
         "th_quantity": "Cantidad",
         "th_preparer": "Preparador (Opcional)",
+        "th_preparer_assigned": "Preparador Asignado",
         "th_urgent": "Urgente",
         "any_cook": "Cualquiera",
         "complete_title": "¿Quién completó esta tarea?",
