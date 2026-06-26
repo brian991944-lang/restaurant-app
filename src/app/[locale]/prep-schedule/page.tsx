@@ -1998,10 +1998,10 @@ export default function PrepSchedulePage() {
                             if (!recipe) return <div style={{ textAlign: 'center' }}>Cargando Receta...</div>;
 
                             let items: any[] = [];
-                            try { const _i = typeof recipe.ingredients === 'string' ? JSON.parse(recipe.ingredients) : recipe.ingredients; if (Array.isArray(_i)) items = _i; } catch (e) { }
+                            try { const _i = JSON.parse((recipe as any).ingredientsJson || '[]'); if (Array.isArray(_i)) items = _i; } catch (e) { }
 
                             let steps: any[] = [];
-                            try { const _s = typeof recipe.procedure === 'string' ? JSON.parse(recipe.procedure) : recipe.procedure; if (Array.isArray(_s)) steps = _s; } catch (e) { }
+                            try { const _s = JSON.parse((recipe as any).procedureJson || '[]'); if (Array.isArray(_s)) steps = _s; } catch (e) { }
 
                             return (
                                 <div>
@@ -2011,7 +2011,7 @@ export default function PrepSchedulePage() {
                                                 <h2 style={{ margin: 0 }}>{recipe.name}</h2>
                                                 <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.8rem' }}>{recipe.recipeCode}</span>
                                             </div>
-                                            {recipe.yieldInfo && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem', display: 'block' }}>Rendimiento: {recipe.yieldInfo}</span>}
+                                            {(recipe as any).yield && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem', display: 'block' }}>Rendimiento: {(recipe as any).yield}</span>}
                                         </div>
                                         <button onClick={() => setViewingRecipeId(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>&times;</button>
                                     </div>
