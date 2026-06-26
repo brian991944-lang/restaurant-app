@@ -1901,7 +1901,7 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Category</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Categoría</label>
                                 <SearchableSelect
                                     value={editTaskCatId}
                                     onChange={(val) => setEditTaskCatId(val)}
@@ -1935,15 +1935,15 @@ export default function PrepSchedulePage() {
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
-                                <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    <option value="units">units</option>
-                                    <option value="Lbs">Lbs</option>
-                                    <option value="oz">oz</option>
-                                    <option value="kilogramos (kg)">kilogramos (kg)</option>
-                                    <option value="Grams">Grams</option>
-                                    <option value="Pound">Pound</option>
-                                    <option value="liters">liters</option>
-                                    <option value="gallons">gallons</option>
+                                <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                                    <option value="units">Unidades</option>
+                                    <option value="Lbs">Libras</option>
+                                    <option value="oz">Onzas</option>
+                                    <option value="kilogramos (kg)">Kilogramos</option>
+                                    <option value="Grams">Gramos</option>
+                                    <option value="Pound">Libra</option>
+                                    <option value="liters">Litros</option>
+                                    <option value="gallons">Galones</option>
                                 </select>
                             </div>
 
