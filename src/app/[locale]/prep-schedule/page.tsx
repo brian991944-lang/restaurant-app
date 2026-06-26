@@ -1997,11 +1997,11 @@ export default function PrepSchedulePage() {
                             const recipe = digitalRecipes.find(r => r.id === viewingRecipeId);
                             if (!recipe) return <div style={{ textAlign: 'center' }}>Cargando Receta...</div>;
 
-                            let items = [];
-                            try { items = typeof recipe.ingredients === 'string' ? JSON.parse(recipe.ingredients) : recipe.ingredients; } catch (e) { }
+                            let items: any[] = [];
+                            try { const _i = typeof recipe.ingredients === 'string' ? JSON.parse(recipe.ingredients) : recipe.ingredients; if (Array.isArray(_i)) items = _i; } catch (e) { }
 
-                            let steps = [];
-                            try { steps = typeof recipe.procedure === 'string' ? JSON.parse(recipe.procedure) : recipe.procedure; } catch (e) { }
+                            let steps: any[] = [];
+                            try { const _s = typeof recipe.procedure === 'string' ? JSON.parse(recipe.procedure) : recipe.procedure; if (Array.isArray(_s)) steps = _s; } catch (e) { }
 
                             return (
                                 <div>
