@@ -2003,6 +2003,14 @@ export default function PrepSchedulePage() {
                             let steps: any[] = [];
                             try { const _s = JSON.parse((recipe as any).procedureJson || '[]'); if (Array.isArray(_s)) steps = _s; } catch (e) { }
 
+                            const groupedIngrs = items.reduce((acc: Record<string, any[]>, ingr: any) => {
+                                const g = ingr.groupName || 'Main Components';
+                                if (!acc[g]) acc[g] = [];
+                                acc[g].push(ingr);
+                                return acc;
+                            }, {});
+                            const groupKeys = Object.keys(groupedIngrs);
+
                             return (
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
@@ -2019,31 +2027,44 @@ export default function PrepSchedulePage() {
                                     <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{recipe.overview || 'Sin descripción general.'}</p>
 
                                     <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Ingredientes</h4>
-                                    <table style={{ width: '100%', marginBottom: '2rem', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                                                <th style={{ padding: '0.5rem' }}>Ingrediente</th>
-                                                <th style={{ padding: '0.5rem' }}>Cantidad</th>
-                                                <th style={{ padding: '0.5rem' }}>Notas</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {items.map((it: any, i: number) => (
-                                                <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <td style={{ padding: '0.5rem' }}>{it.name}</td>
-                                                    <td style={{ padding: '0.5rem', color: 'var(--accent-primary)' }}>{it.qty} {it.unit}</td>
-                                                    <td style={{ padding: '0.5rem', color: 'var(--text-secondary)' }}>{it.notes}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                    {groupKeys.length === 0 ? (
+                                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '2rem' }}>No hay ingredientes definidos.</p>
+                                    ) : (
+                                        groupKeys.map(groupName => (
+                                            <div key={groupName} style={{ marginBottom: '1.5rem' }}>
+                                                {(groupKeys.length > 1 || groupName !== 'Main Components') && (
+                                                    <h5 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-primary)', marginBottom: '0.6rem', paddingBottom: '0.3rem', borderBottom: '1px solid var(--border)', margin: '0 0 0.6rem 0' }}>{groupName}</h5>
+                                                )}
+                                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                    <thead>
+                                                        <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                                                            <th style={{ padding: '0.5rem' }}>Ingrediente</th>
+                                                            <th style={{ padding: '0.5rem' }}>Cantidad</th>
+                                                            <th style={{ padding: '0.5rem' }}>U. de Medida</th>
+                                                            <th style={{ padding: '0.5rem' }}>Notas</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {groupedIngrs[groupName].map((it: any, i: number) => (
+                                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'rgba(0,0,0,0.1)' : 'transparent' }}>
+                                                                <td style={{ padding: '0.5rem', fontWeight: 500 }}>{it.ingredient}</td>
+                                                                <td style={{ padding: '0.5rem', color: 'var(--accent-primary)' }}>{it.quantity}</td>
+                                                                <td style={{ padding: '0.5rem' }}>{it.metric}</td>
+                                                                <td style={{ padding: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem', whiteSpace: 'pre-wrap' }}>{it.notes}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ))
+                                    )}
 
                                     <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Procedimiento</h4>
                                     <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                         {steps.map((st: any, i: number) => (
                                             <div key={i} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                                                <div style={{ fontWeight: 'bold', color: 'var(--accent-primary)' }}>{i + 1}.</div>
-                                                <div style={{ lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{st.text}</div>
+                                                <div style={{ fontWeight: 'bold', color: 'var(--accent-primary)', flexShrink: 0 }}>{i + 1}.</div>
+                                                <div style={{ lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>{typeof st === 'string' ? st : (st.text ?? '')}</div>
                                             </div>
                                         ))}
                                     </div>
