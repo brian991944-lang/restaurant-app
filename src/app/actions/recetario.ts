@@ -192,16 +192,26 @@ export async function updateDigitalRecipe(id: string, data: any) {
             }
         });
 
-        await prisma.ingredient.updateMany({
-            where: { digitalRecipeId: id },
-            data: { digitalRecipeId: null }
+        const currentLinked = await prisma.ingredient.findFirst({
+            where: { digitalRecipeId: id, type: 'PREP_RECIPE' }
         });
 
-        if (data.linkedIngredientId) {
-            await prisma.ingredient.update({
-                where: { id: data.linkedIngredientId },
-                data: { digitalRecipeId: id }
-            });
+        const incomingId = data.linkedIngredientId || undefined;
+        const currentId = currentLinked?.id;
+
+        if (currentId !== incomingId) {
+            if (currentLinked) {
+                await prisma.ingredient.update({
+                    where: { id: currentLinked.id },
+                    data: { digitalRecipeId: null }
+                });
+            }
+            if (incomingId) {
+                await prisma.ingredient.update({
+                    where: { id: incomingId },
+                    data: { digitalRecipeId: id }
+                });
+            }
         }
 
         revalidatePath('/[locale]/recetario');
