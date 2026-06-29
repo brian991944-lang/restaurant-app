@@ -280,8 +280,11 @@ export default function RecetarioPage() {
 
     const handleEdit = (recipe: any) => {
         const linked = availablePreps.find(p => p.digitalRecipeId === recipe.id);
+        const linkedId = linked?.id
+            ?? recipe.linkedTasks?.find((t: any) => t.type === 'PREP_RECIPE')?.id
+            ?? '';
         setSelectedRecipe(recipe);
-        setEditData({ ...recipe, linkedIngredientId: linked ? linked.id : '' });
+        setEditData({ ...recipe, linkedIngredientId: linkedId });
         setIsEditing(true);
         setBatchMultiplier(1);
     };
