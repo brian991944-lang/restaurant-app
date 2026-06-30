@@ -63,7 +63,16 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 
         for (const sched of schedules) {
             for (const assignment of sched.prepAssignments) {
-                assignedTasksMap.set(assignment.ingredientId, assignment);
+                const existingEntry = assignedTasksMap.get(assignment.ingredientId);
+                if (!existingEntry) {
+                    assignedTasksMap.set(assignment.ingredientId, assignment);
+                    continue;
+                }
+                const isCompleted = (a: any) => a.completed === true || (a.completedByCooks?.length ?? 0) > 0;
+                // Completion data wins over a pending row; ties keep the first entry.
+                if (isCompleted(assignment) && !isCompleted(existingEntry)) {
+                    assignedTasksMap.set(assignment.ingredientId, assignment);
+                }
             }
         }
 
@@ -485,6 +494,25 @@ export async function createManualPrepAssignment(
 
         if (!defaultUser) {
             throw new Error("No users exist in the database to assign manual tasks");
+        }
+
+        const existingAssignment = await prisma.prepAssignment.findFirst({
+            where: {
+                ingredientId,
+                schedule: { date: { gte: startOfDay, lte: endOfDay } },
+            },
+        });
+
+        if (existingAssignment) {
+            // Already scheduled for this day — do not create a duplicate row,
+            // which would mask an existing completion in the list.
+            if (isUrgent && !existingAssignment.isUrgent) {
+                await prisma.prepAssignment.update({
+                    where: { id: existingAssignment.id },
+                    data: { isUrgent: true },
+                });
+            }
+            return { success: true, alreadyExisted: true };
         }
 
         await prisma.prepAssignment.create({
