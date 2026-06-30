@@ -66,20 +66,44 @@ export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: 
         }
 
         for (const t of tasks) {
-            // Delete existing assignment for this ingredient if any
-            await prisma.prepAssignment.deleteMany({
-                where: { scheduleId: schedule.id, ingredientId: t.ingredientId }
+            const resolvedUserId = (t.userId && t.userId !== 'ANY') ? t.userId : anyCook.id;
+
+            // Look for an existing assignment for this ingredient on this day's schedule,
+            // including its completion records.
+            const existing = await prisma.prepAssignment.findFirst({
+                where: { scheduleId: schedule.id, ingredientId: t.ingredientId },
+                include: { completedByCooks: true },
             });
 
+            if (existing) {
+                // NEVER delete-and-recreate (that cascade-deletes completion records).
+                // If this assignment is already completed, leave it completely untouched.
+                const isCompleted = existing.completed || (existing.completedByCooks?.length ?? 0) > 0;
+                if (isCompleted) {
+                    continue;
+                }
+                // Pending row: update in place, preserving the row identity. Do NOT set completed.
+                await prisma.prepAssignment.update({
+                    where: { id: existing.id },
+                    data: {
+                        userId: resolvedUserId,
+                        portionsAssigned: t.qty || 0,
+                        isUrgent: t.urgent || false,
+                    },
+                });
+                continue;
+            }
+
+            // No existing assignment for this ingredient today — create a fresh one.
             await prisma.prepAssignment.create({
                 data: {
                     scheduleId: schedule.id,
-                    userId: (t.userId && t.userId !== 'ANY') ? t.userId : anyCook.id,
+                    userId: resolvedUserId,
                     ingredientId: t.ingredientId,
                     portionsAssigned: t.qty || 0,
                     completed: false,
-                    isUrgent: t.urgent || false
-                }
+                    isUrgent: t.urgent || false,
+                },
             });
         }
 
