@@ -81,16 +81,36 @@ export async function submitShoppingList(providerNames: string[]) {
 
 export async function completeShoppingList(providerNames: string[]) {
     try {
-        await prisma.ingredient.updateMany({
-            where: {
-                provider: { name: { in: providerNames } },
-                isSubmittedForOrdering: true
-            },
-            data: { 
-                needsOrdering: false,
-                isSubmittedForOrdering: false
-            }
-        });
+        await prisma.$transaction([
+            // COMPRADO: purchased — drops off the list, reset to a clean pending state.
+            prisma.ingredient.updateMany({
+                where: {
+                    provider: { name: { in: providerNames } },
+                    isSubmittedForOrdering: true,
+                    purchaseStatus: 'COMPRADO'
+                },
+                data: {
+                    needsOrdering: false,
+                    isSubmittedForOrdering: false,
+                    purchaseStatus: 'PENDIENTE',
+                    carriedOver: false
+                }
+            }),
+            // NO_DISPONIBLE: stays on the list, flagged as carried-over (urgent).
+            // Do NOT change needsOrdering / isSubmittedForOrdering.
+            prisma.ingredient.updateMany({
+                where: {
+                    provider: { name: { in: providerNames } },
+                    isSubmittedForOrdering: true,
+                    purchaseStatus: 'NO_DISPONIBLE'
+                },
+                data: {
+                    purchaseStatus: 'PENDIENTE',
+                    carriedOver: true
+                }
+            })
+            // PENDIENTE items are intentionally left entirely untouched.
+        ]);
         revalidatePath('/[locale]/compras', 'page');
         return { success: true };
     } catch (e: any) {
