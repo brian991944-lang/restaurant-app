@@ -201,13 +201,15 @@ export async function editIngredient(id: string, data: any) {
             }
         }
 
+        const existing = await prisma.ingredient.findUnique({ where: { id }, select: { type: true } });
+
         const ingredient = await prisma.ingredient.update({
             where: { id },
             data: {
                 name: data.name,
                 nameEs: nameEs,
                 autoTranslate: data.autoTranslate,
-                type: data.type,
+                type: existing?.type === 'PREP_RECIPE' ? 'PREP_RECIPE' : data.type,
                 categoryId: category.id,
                 metric: data.metric || 'units',
                 providerId: providerId !== undefined ? providerId : undefined,
@@ -320,7 +322,7 @@ export async function savePrepRecipe(id: string | null, data: any) {
             portionWeightG: data.batchSize || 1, // Store batch size in portionWeightG!
             yieldPercent: existing ? existing.yieldPercent : 100, // Preserve Waste %, defaults to 100% (0% waste)
             currentPrice: data.currentPrice || 0,
-            digitalRecipeId: data.digitalRecipeId || null,
+            ...(data.digitalRecipeId !== undefined ? { digitalRecipeId: data.digitalRecipeId } : {}),
         };
 
         if (id) {
