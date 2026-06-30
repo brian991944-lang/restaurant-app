@@ -70,6 +70,8 @@ model Ingredient {
   totalBoxPrice  Float?
   needsOrdering  Boolean @default(false)
   isSubmittedForOrdering Boolean @default(false)
+  purchaseStatus String  @default("PENDIENTE")   // PENDIENTE | COMPRADO | NO_DISPONIBLE
+  carriedOver    Boolean @default(false)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?

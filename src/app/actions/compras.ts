@@ -44,6 +44,24 @@ export async function toggleNeedsOrdering(ingredientId: string, needsOrdering: b
         return { success: false, error: e.message };
     }
 }
+
+export async function setPurchaseStatus(id: string, status: string) {
+    try {
+        const validStatuses = ['PENDIENTE', 'COMPRADO', 'NO_DISPONIBLE'];
+        if (!validStatuses.includes(status)) {
+            return { success: false, error: 'Invalid purchase status' };
+        }
+        await prisma.ingredient.update({
+            where: { id },
+            data: { purchaseStatus: status }
+        });
+        revalidatePath('/[locale]/compras', 'page');
+        return { success: true };
+    } catch (e: any) {
+        console.error('Error setting purchase status:', e);
+        return { success: false, error: e.message };
+    }
+}
 export async function submitShoppingList(providerNames: string[]) {
     try {
         await prisma.ingredient.updateMany({
