@@ -65,13 +65,16 @@ export async function getPrepTaskItems() {
     });
 }
 
-export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false, digitalRecipeId?: string) {
+export async function addPrepTaskItem(name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false, digitalRecipeId?: string, esfuerzo?: string) {
     try {
         let actualMetric = metric;
         if (parentId) {
             const parent = await prisma.ingredient.findUnique({ where: { id: parentId } });
             if (parent) actualMetric = parent.metric;
         }
+
+        // Never trust the client value: only MANUAL or HERVIDO, default MANUAL.
+        const validEsfuerzo = esfuerzo === 'HERVIDO' ? 'HERVIDO' : 'MANUAL';
 
         // Determine type based on category type if possible, default to PREP
         const category = await prisma.category.findUnique({ where: { id: categoryId } });
@@ -89,7 +92,8 @@ export async function addPrepTaskItem(name: string, categoryId: string, metric: 
                 yieldPercent: 100,
                 // @ts-ignore
                 subtractFromInventory,
-                digitalRecipeId: digitalRecipeId || null
+                digitalRecipeId: digitalRecipeId || null,
+                esfuerzo: validEsfuerzo
             }
         });
         return { success: true, item };
@@ -109,13 +113,16 @@ export async function removePrepTaskItem(id: string) {
     }
 }
 
-export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false, digitalRecipeId?: string) {
+export async function editPrepTaskItem(id: string, name: string, categoryId: string, metric: string, parentId?: string, subtractFromInventory: boolean = false, digitalRecipeId?: string, esfuerzo?: string) {
     try {
         let actualMetric = metric;
         if (parentId) {
             const parent = await prisma.ingredient.findUnique({ where: { id: parentId } });
             if (parent) actualMetric = parent.metric;
         }
+
+        // Never trust the client value: only MANUAL or HERVIDO, default MANUAL.
+        const validEsfuerzo = esfuerzo === 'HERVIDO' ? 'HERVIDO' : 'MANUAL';
 
         const item = await prisma.ingredient.update({
             where: { id },
@@ -126,7 +133,8 @@ export async function editPrepTaskItem(id: string, name: string, categoryId: str
                 parentId: parentId || null,
                 // @ts-ignore
                 subtractFromInventory,
-                digitalRecipeId: digitalRecipeId || null
+                digitalRecipeId: digitalRecipeId || null,
+                esfuerzo: validEsfuerzo
             }
         });
         return { success: true, item };

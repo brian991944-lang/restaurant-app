@@ -1247,6 +1247,7 @@ export default function PrepSchedulePage() {
     const [newTaskMetric, setNewTaskMetric] = useState('units');
     const [newTaskSubtract, setNewTaskSubtract] = useState(false);
     const [newTaskRecipeId, setNewTaskRecipeId] = useState('');
+    const [newTaskHervido, setNewTaskHervido] = useState(false);
     const [showAddTaskModal, setShowAddTaskModal] = useState(false);
     const [isManageOptionsOpen, setIsManageOptionsOpen] = useState(false);
     const [taskSearchQuery, setTaskSearchQuery] = useState('');
@@ -1259,12 +1260,13 @@ export default function PrepSchedulePage() {
     const [editTaskMetric, setEditTaskMetric] = useState('units');
     const [editTaskSubtract, setEditTaskSubtract] = useState(false);
     const [editTaskRecipeId, setEditTaskRecipeId] = useState('');
+    const [editTaskHervido, setEditTaskHervido] = useState(false);
 
     const handleAddPrepTask = async () => {
         if (!newTaskName) return alert("Enter task name");
         if (!newTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined, newTaskSubtract, newTaskRecipeId || undefined);
+        await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined, newTaskSubtract, newTaskRecipeId || undefined, newTaskHervido ? 'HERVIDO' : 'MANUAL');
         setPrepItems(await getPrepTaskItems());
         setNewTaskName('');
         setNewTaskCatId('');
@@ -1272,6 +1274,7 @@ export default function PrepSchedulePage() {
         setNewTaskMetric('units');
         setNewTaskSubtract(false);
         setNewTaskRecipeId('');
+        setNewTaskHervido(false);
         setShowAddTaskModal(false);
         setIsLoading(false);
     };
@@ -1284,6 +1287,7 @@ export default function PrepSchedulePage() {
         setEditTaskMetric(task.metric || 'units');
         setEditTaskSubtract(task.subtractFromInventory || false);
         setEditTaskRecipeId(task.digitalRecipeId || '');
+        setEditTaskHervido(task.esfuerzo === 'HERVIDO');
         setShowEditTaskModal(true);
     };
 
@@ -1291,7 +1295,7 @@ export default function PrepSchedulePage() {
         if (!editTaskName) return alert("Enter task name");
         if (!editTaskCatId) return alert("Select a Category");
         setIsLoading(true);
-        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined, editTaskSubtract, editTaskRecipeId || undefined);
+        await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined, editTaskSubtract, editTaskRecipeId || undefined, editTaskHervido ? 'HERVIDO' : 'MANUAL');
         setPrepItems(await getPrepTaskItems());
         setShowEditTaskModal(false);
         setEditingTask(null);
@@ -1878,6 +1882,24 @@ export default function PrepSchedulePage() {
                                     )}
                                 </div>
                             )}
+
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '0.25rem' }}>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+                                    {locale === 'es' ? 'Clasificación de esfuerzo' : 'Effort Classification'}
+                                </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={newTaskHervido}
+                                        onChange={(e) => setNewTaskHervido(e.target.checked)}
+                                        style={{ width: '1.2rem', height: '1.2rem' }}
+                                    />
+                                    {locale === 'es' ? 'Tarea de hervido (pasiva)' : 'Boiling task (passive)'}
+                                </label>
+                                <p style={{ margin: '0.4rem 0 0 2rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                    {locale === 'es' ? 'Marca esto si la tarea es solo hervir o descongelar (no cuenta como prep manual).' : 'Check this if the task is only boiling or defrosting (does not count as manual prep).'}
+                                </p>
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
@@ -1971,6 +1993,24 @@ export default function PrepSchedulePage() {
                                     )}
                                 </div>
                             )}
+
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.25rem', marginTop: '0.25rem' }}>
+                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+                                    {locale === 'es' ? 'Clasificación de esfuerzo' : 'Effort Classification'}
+                                </div>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={editTaskHervido}
+                                        onChange={(e) => setEditTaskHervido(e.target.checked)}
+                                        style={{ width: '1.2rem', height: '1.2rem' }}
+                                    />
+                                    {locale === 'es' ? 'Tarea de hervido (pasiva)' : 'Boiling task (passive)'}
+                                </label>
+                                <p style={{ margin: '0.4rem 0 0 2rem', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                    {locale === 'es' ? 'Marca esto si la tarea es solo hervir o descongelar (no cuenta como prep manual).' : 'Check this if the task is only boiling or defrosting (does not count as manual prep).'}
+                                </p>
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
