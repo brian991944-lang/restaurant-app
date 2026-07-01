@@ -1,7 +1,7 @@
 'use client';
 
 import { Search, Plus, Filter, Calendar, Settings, Pencil, Trash2, Upload, Minus, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
@@ -862,7 +862,6 @@ export default function InventoryPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Category</th>
                                     <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Recipe Name</th>
                                     <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Yield / Batch Size</th>
                                     <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Cost per Batch</th>
@@ -880,50 +879,31 @@ export default function InventoryPage() {
                                     if (recipeRows.length === 0) {
                                         return (
                                             <tr>
-                                                <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                                                     {locale === 'es' ? 'No se encontraron recetas.' : 'No prep recipes found. Click "Add Prep Recipe" to create one.'}
                                                 </td>
                                             </tr>
                                         );
                                     }
 
-                                    // Group by category (pivot), sorted A→Z, then recipe name A→Z within each group.
-                                    const grouped = Array.from<[string, any[]]>(
-                                        recipeRows.reduce((acc, item) => {
-                                            const cat = getOptName(item.category || 'Uncategorized');
-                                            if (!acc.has(cat)) acc.set(cat, []);
-                                            acc.get(cat).push(item);
-                                            return acc;
-                                        }, new Map<string, any[]>())
-                                    ).sort((a, b) => a[0].localeCompare(b[0], locale));
+                                    // Flat list sorted alphabetically by recipe name (A→Z).
+                                    const sortedRows = [...recipeRows].sort((a: any, b: any) => a.name.localeCompare(b.name, locale));
 
-                                    return grouped.map(([category, items]) => {
-                                        items.sort((a: any, b: any) => a.name.localeCompare(b.name, locale));
-                                        return (
-                                            <Fragment key={category}>
-                                                {items.map((item: any, idx: number) => (
-                                                    <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                        {idx === 0 && (
-                                                            <td rowSpan={items.length} style={{ padding: '1rem 1.5rem', background: 'rgba(139, 92, 246, 0.05)', borderRight: '2px solid var(--border)', borderBottom: '1px solid var(--border)', verticalAlign: 'middle', fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                                                                {category}
-                                                            </td>
-                                                        )}
-                                                        <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{item.name}</td>
-                                                        <td style={{ padding: '1rem 1.5rem' }}>{item.portionWeightG || 1} {getOptName(item.metric)}</td>
-                                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * ((item.portionWeightG || 1) * (item.yieldPercent || 100) / 100)).toFixed(2)}</td>
-                                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}</td>
-                                                        <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
-                                                            <button onClick={(e) => { e.stopPropagation(); setAdjustingIngredient(item); }} style={{ color: 'var(--text-secondary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginRight: '1rem', border: '1px solid var(--border)', borderRadius: '6px' }}>
-                                                                {locale === 'es' ? 'Ajustar' : 'Adjust'}
-                                                            </button>
-                                                            <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
-                                                            <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>Delete</button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </Fragment>
-                                        );
-                                    });
+                                    return sortedRows.map((item: any) => (
+                                        <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <td style={{ padding: '1rem 1.5rem', fontWeight: 600 }}>{item.name}</td>
+                                            <td style={{ padding: '1rem 1.5rem' }}>{item.portionWeightG || 1} {getOptName(item.metric)}</td>
+                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--success)' }}>${((item.calculatedCost || 0) * ((item.portionWeightG || 1) * (item.yieldPercent || 100) / 100)).toFixed(2)}</td>
+                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>${(item.calculatedCost || 0).toFixed(2)} / {getOptName(item.metric)}</td>
+                                            <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                                <button onClick={(e) => { e.stopPropagation(); setAdjustingIngredient(item); }} style={{ color: 'var(--text-secondary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginRight: '1rem', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                                                    {locale === 'es' ? 'Ajustar' : 'Adjust'}
+                                                </button>
+                                                <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
+                                                <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>Delete</button>
+                                            </td>
+                                        </tr>
+                                    ));
                                 })()}
                             </tbody>
                         </table>
