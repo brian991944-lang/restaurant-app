@@ -240,16 +240,42 @@ export default function ComprasPage() {
 
                                                     const isEven = idx % 2 === 0;
 
+                                                    // Row styling. In the Lista Enviada view it is driven ONLY by
+                                                    // purchaseStatus (plain/neutral by default, green only when Comprado).
+                                                    // Every other tab keeps the original needsOrdering-based styling.
+                                                    let rowBg: string;
+                                                    let rowHoverBg: string;
+                                                    let nameColor: string;
+                                                    if (activeTab === 'SUBMITTED_LIST') {
+                                                        if (ing.purchaseStatus === 'COMPRADO') {
+                                                            rowBg = 'rgba(34, 197, 94, 0.05)';
+                                                            rowHoverBg = 'rgba(34, 197, 94, 0.1)';
+                                                            nameColor = 'var(--success)';
+                                                        } else if (ing.purchaseStatus === 'NO_DISPONIBLE') {
+                                                            rowBg = 'rgba(245, 158, 11, 0.08)';
+                                                            rowHoverBg = 'rgba(245, 158, 11, 0.15)';
+                                                            nameColor = '#f59e0b';
+                                                        } else {
+                                                            rowBg = isEven ? 'rgba(255,255,255,0.02)' : 'transparent';
+                                                            rowHoverBg = 'var(--bg-secondary)';
+                                                            nameColor = 'inherit';
+                                                        }
+                                                    } else {
+                                                        rowBg = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent');
+                                                        rowHoverBg = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)') : 'var(--bg-secondary)';
+                                                        nameColor = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'var(--success)' : 'var(--danger)') : 'inherit';
+                                                    }
+
                                                     return (
                                                         <tr
                                                             key={ing.id}
                                                             style={{
                                                                 borderBottom: '1px solid var(--border)',
                                                                 transition: 'background 0.2s',
-                                                                background: ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')
+                                                                background: rowBg
                                                             }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)') : 'var(--bg-secondary)'}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent')}
+                                                            onMouseOver={(e) => e.currentTarget.style.background = rowHoverBg}
+                                                            onMouseOut={(e) => e.currentTarget.style.background = rowBg}
                                                         >
                                                             {idx === 0 && (
                                                                 <td
@@ -312,7 +338,7 @@ export default function ComprasPage() {
                                                                     </button>
                                                                 )}
                                                             </td>
-                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'var(--success)' : 'var(--danger)') : 'inherit' }}>
+                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: nameColor }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                                     {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
                                                                     {activeTab === 'SUBMITTED_LIST' ? (
