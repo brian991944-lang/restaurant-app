@@ -25,8 +25,7 @@
   "Dashboard": {
     "welcome": "Welcome back",
     "recent_sales": "Recent Sales Activity",
-    "low_stock": "Low Stock Alerts",
-    "tasks": "Your Prep Tasks"
+    "low_stock": "Low Stock Alerts"
   },
   "Inventory": {
     "title": "Inventory",

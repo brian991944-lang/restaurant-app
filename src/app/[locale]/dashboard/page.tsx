@@ -21,13 +21,12 @@ export default async function DashboardPage() {
                 </p>
             </header>
 
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-                gap: '2rem'
-            }}>
-
-                <AdminOnly>
+            <AdminOnly>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                    gap: '2rem'
+                }}>
                     <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{ background: 'rgba(245, 158, 11, 0.2)', padding: '0.8rem', borderRadius: '12px', color: 'var(--warning)' }}>
@@ -47,27 +46,8 @@ export default async function DashboardPage() {
                         </div>
                         <button className="btn-primary" style={{ marginTop: 'auto' }}>Order More</button>
                     </div>
-                </AdminOnly>
-
-                <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ background: 'rgba(139, 92, 246, 0.2)', padding: '0.8rem', borderRadius: '12px', color: 'var(--accent-secondary)' }}>
-                            📋
-                        </div>
-                        <h3 style={{ fontSize: '1.25rem' }}>{td('tasks')}</h3>
-                    </div>
-                    <div style={{ color: 'var(--text-secondary)' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0' }}>
-                            <input type="checkbox" style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--accent-primary)' }} />
-                            <span>Thaw 5kg Octopus (Pulpo) for Prep</span>
-                        </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.5rem 0' }}>
-                            <input type="checkbox" style={{ width: '1.2rem', height: '1.2rem', accentColor: 'var(--accent-primary)' }} />
-                            <span>Prepare 20L Chicha Base</span>
-                        </label>
-                    </div>
                 </div>
-            </div>
+            </AdminOnly>
 
             <ResumenPreparaciones data={resumen} />
         </div>
