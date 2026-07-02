@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { getResumenPreparaciones } from '@/app/actions/resumenPreparaciones';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 interface Cook { id: string; name: string; }
 interface Task {
@@ -31,6 +33,67 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
     const tOptions = useTranslations('Options');
     const [selectedCook, setSelectedCook] = useState('todos');
 
+    const todayYMD = () => {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+    };
+
+    const [dateFilter, setDateFilter] = useState<'hoy' | 'ayer' | 'otra'>('hoy');
+    const [customDate, setCustomDate] = useState<string>(todayYMD());
+    const [reportData, setReportData] = useState<ResumenData>(data);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Day boundaries are computed on the CLIENT in local time — the server runs in
+    // UTC and cannot reliably know the restaurant's local "today".
+    const computeRange = (mode: 'hoy' | 'ayer' | 'otra', custom: string): [Date, Date] => {
+        let base: Date;
+        if (mode === 'otra') {
+            const [y, m, d] = custom.split('-').map(Number);
+            base = new Date(y, (m || 1) - 1, d || 1); // parse yyyy-mm-dd as LOCAL date
+        } else {
+            base = new Date();
+            if (mode === 'ayer') base.setDate(base.getDate() - 1);
+        }
+        const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0);
+        const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999);
+        return [start, end];
+    };
+
+    const runFetch = async (mode: 'hoy' | 'ayer' | 'otra', custom: string) => {
+        setIsLoading(true);
+        try {
+            const [start, end] = computeRange(mode, custom);
+            const result = await getResumenPreparaciones(start.toISOString(), end.toISOString());
+            setReportData(result);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // On mount, immediately load the local "Hoy" range — do NOT trust the server's
+    // unfiltered initial load as "today".
+    useEffect(() => {
+        runFetch('hoy', todayYMD());
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const selectDateMode = (mode: 'hoy' | 'ayer') => {
+        setDateFilter(mode);
+        runFetch(mode, customDate);
+    };
+    const selectOtra = () => {
+        setDateFilter('otra');
+        runFetch('otra', customDate);
+    };
+    const onCustomDateChange = (v: string) => {
+        setCustomDate(v);
+        setDateFilter('otra');
+        runFetch('otra', v);
+    };
+
     // Spanish collation everywhere (accents / ñ order correctly).
     const byText = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
 
@@ -47,17 +110,17 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
     };
 
     const sortedCooks = useMemo(
-        () => [...data.cooks].sort((a, b) => byText(a.name, b.name)),
-        [data.cooks]
+        () => [...reportData.cooks].sort((a, b) => byText(a.name, b.name)),
+        [reportData.cooks]
     );
 
     // KPI counts
     const manualCount = selectedCook === 'todos'
-        ? data.totals.manualTasks
-        : (data.perCookCounts[selectedCook]?.manual ?? 0);
+        ? reportData.totals.manualTasks
+        : (reportData.perCookCounts[selectedCook]?.manual ?? 0);
     const hervidoCount = selectedCook === 'todos'
-        ? data.totals.hervidoTasks
-        : (data.perCookCounts[selectedCook]?.hervido ?? 0);
+        ? reportData.totals.hervidoTasks
+        : (reportData.perCookCounts[selectedCook]?.hervido ?? 0);
 
     const renderBar = (key: string, label: string, value: number, max: number, color: string, valueLabel: string) => {
         const pct = max > 0 ? Math.max(2, (value / max) * 100) : 0;
@@ -87,7 +150,7 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
         const perCookKey = esfuerzo === 'HERVIDO' ? 'hervido' : 'manual';
 
         // Tasks for this esfuerzo, honoring the cook filter.
-        const sectionTasks = data.tasks.filter(t =>
+        const sectionTasks = reportData.tasks.filter(t =>
             t.esfuerzo === esfuerzo &&
             (selectedCook === 'todos' || t.cooks.some(c => c.id === selectedCook))
         );
@@ -101,7 +164,7 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
             const items = sortedCooks.map(c => ({
                 key: c.id,
                 label: c.name,
-                value: data.perCookCounts[c.id]?.[perCookKey] ?? 0,
+                value: reportData.perCookCounts[c.id]?.[perCookKey] ?? 0,
             }));
             const max = Math.max(1, ...items.map(i => i.value));
             bars = items.map(i => renderBar(i.key, i.label, i.value, max, color, String(i.value)));
@@ -214,17 +277,46 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{es ? 'Resumen de Preparaciones' : 'Prep Summary'}</h2>
-                <select
-                    value={selectedCook}
-                    onChange={(e) => setSelectedCook(e.target.value)}
-                    style={{ padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.9rem', minHeight: '44px', color: 'var(--text-primary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', cursor: 'pointer' }}
-                >
-                    <option value="todos">{es ? 'Todos los cocineros' : 'All cooks'}</option>
-                    {sortedCooks.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                </select>
+                {isLoading && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{es ? 'Cargando…' : 'Loading…'}</span>}
             </div>
+
+            {/* Date filter pills (Hoy / Ayer / Otra Fecha) — mirrors Asignar Preparaciones */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)', width: 'fit-content' }}>
+                    <button
+                        onClick={() => selectDateMode('hoy')}
+                        style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dateFilter === 'hoy' ? 600 : 400, background: dateFilter === 'hoy' ? 'var(--accent-primary)' : 'transparent', color: dateFilter === 'hoy' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                        {es ? 'Hoy' : 'Today'}
+                    </button>
+                    <button
+                        onClick={() => selectDateMode('ayer')}
+                        style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dateFilter === 'ayer' ? 600 : 400, background: dateFilter === 'ayer' ? 'var(--accent-primary)' : 'transparent', color: dateFilter === 'ayer' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                        {es ? 'Ayer' : 'Yesterday'}
+                    </button>
+                    <button
+                        onClick={selectOtra}
+                        style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dateFilter === 'otra' ? 600 : 400, background: dateFilter === 'otra' ? 'var(--accent-primary)' : 'transparent', color: dateFilter === 'otra' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                        {es ? 'Otra Fecha' : 'Other Date'}
+                    </button>
+                </div>
+                {dateFilter === 'otra' && (
+                    <DatePicker value={customDate} onChange={onCustomDateChange} locale={locale as 'es' | 'en'} />
+                )}
+            </div>
+
+            {/* Cook dropdown (below the date pills) */}
+            <select
+                value={selectedCook}
+                onChange={(e) => setSelectedCook(e.target.value)}
+                style={{ padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.9rem', minHeight: '44px', color: 'var(--text-primary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', cursor: 'pointer', width: 'fit-content' }}
+            >
+                <option value="todos">{es ? 'Todos los cocineros' : 'All cooks'}</option>
+                {sortedCooks.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+            </select>
+
+            <div style={{ opacity: isLoading ? 0.5 : 1, transition: 'opacity 0.15s', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
             {/* Two KPI cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem' }}>
@@ -241,6 +333,7 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
             {/* Sections: HERVIDO first, then MANUAL (intentional) */}
             {renderSection('HERVIDO')}
             {renderSection('MANUAL')}
+            </div>
         </div>
     );
 }
