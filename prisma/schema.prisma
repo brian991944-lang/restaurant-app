@@ -143,14 +143,39 @@ model VendorMarketItem {
   activeForIngredients Ingredient[] @relation("ActiveMarketItem")
 }
 
+model MenuCategory {
+  id        String   @id @default(cuid())
+  nameEn    String
+  nameEs    String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  menuItems MenuItem[]
+}
+
 model MenuItem {
   id                    String  @id @default(cuid())
   name                  String  @unique
   category              String? // Ceviches, Appetizers, Entrees, Sauces
   salePrice             Float   @default(0.0)
   targetFoodCostPct     Float   @default(25.0)
-  cloverId              String?
+  cloverId              String? // Integration point: Clover POS item id (menu <-> POS sync)
   hasInventoryModifiers Boolean @default(false)
+
+  // Digital menu module — additive fields only (all optional/defaulted)
+  nameEs          String?
+  descriptionEn   String?
+  descriptionEs   String?
+  photoUrl        String?
+  videoUrl        String?
+  isAvailable     Boolean @default(true)
+  isFeatured      Boolean @default(false)
+  sortOrder       Int     @default(0)
+  menuCategoryId  String? // Integration point: digital menu category (menu module)
+  menuCategory    MenuCategory? @relation(fields: [menuCategoryId], references: [id])
+  digitalRecipeId String? // Integration point: Recetario link for food-cost reporting
+  digitalRecipe   DigitalRecipe? @relation(fields: [digitalRecipeId], references: [id])
 
   recipeIngredients RecipeIngredient[]
   modifiers         MenuItemModifier[]
@@ -314,6 +339,7 @@ model DigitalRecipe {
 
   history         DigitalRecipeHistory[]
   linkedTasks     Ingredient[] @relation("IngredientToDigitalRecipe")
+  menuItems       MenuItem[]
 }
 
 model DigitalRecipeHistory {
