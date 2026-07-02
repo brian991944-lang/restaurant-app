@@ -18,7 +18,9 @@ export const viewport: Viewport = {
 export default function PublicMenuLayout({ children }: { children: React.ReactNode }) {
     return (
         <html lang="es">
-            <body className="menu-public">
+            {/* menu-dark pre-applied: default theme is dark, so first paint matches
+                before MenuClient syncs from localStorage */}
+            <body className="menu-public menu-dark">
                 {children}
             </body>
         </html>
