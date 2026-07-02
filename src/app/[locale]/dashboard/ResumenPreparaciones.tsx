@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useMemo, useEffect, Fragment } from 'react';
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
+import { toPng } from 'html-to-image';
+import { Share2 } from 'lucide-react';
 import { getResumenPreparaciones } from '@/app/actions/resumenPreparaciones';
 import { DatePicker } from '@/components/ui/DatePicker';
 
@@ -93,6 +95,46 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
         setDateFilter('otra');
         runFetch('otra', v);
     };
+
+    // Screenshot-share of the whole Resumen section.
+    const resumenRef = useRef<HTMLDivElement>(null);
+    const [capturing, setCapturing] = useState(false);
+
+    async function handleCompartir() {
+        if (!resumenRef.current) return;
+        setCapturing(true);
+        try {
+            const dataUrl = await toPng(resumenRef.current, {
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+                cacheBust: true,
+            });
+            const blob = await (await fetch(dataUrl)).blob();
+            const fecha = new Date().toISOString().slice(0, 10);
+            const file = new File([blob], `resumen-preparaciones-${fecha}.png`, { type: 'image/png' });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: 'Resumen de Preparaciones',
+                });
+            } else {
+                // Desktop fallback: download the PNG
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                a.download = file.name;
+                a.click();
+            }
+        } catch (err) {
+            // AbortError = user closed the share sheet; ignore silently
+            if ((err as Error).name !== 'AbortError') {
+                console.error('Error al compartir resumen:', err);
+                alert('No se pudo generar la imagen. Intenta de nuevo.');
+            }
+        } finally {
+            setCapturing(false);
+        }
+    }
 
     // Spanish collation everywhere (accents / ñ order correctly).
     const byText = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
@@ -274,9 +316,19 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
     };
 
     return (
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div ref={resumenRef} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{es ? 'Resumen de Preparaciones' : 'Prep Summary'}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{es ? 'Resumen de Preparaciones' : 'Prep Summary'}</h2>
+                    <button
+                        onClick={handleCompartir}
+                        disabled={capturing}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: 'var(--accent-primary)', color: '#fff', fontWeight: 600, fontSize: '0.9rem', cursor: capturing ? 'default' : 'pointer', opacity: capturing ? 0.6 : 1 }}
+                    >
+                        <Share2 size={16} />
+                        {capturing ? 'Generando imagen...' : 'Compartir por WhatsApp'}
+                    </button>
+                </div>
                 {isLoading && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{es ? 'Cargando…' : 'Loading…'}</span>}
             </div>
 
