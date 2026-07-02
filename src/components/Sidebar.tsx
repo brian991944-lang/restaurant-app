@@ -63,10 +63,12 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
     const filteredNavItems = isAdmin
         ? navItems
         : station === 'Cocina'
-            ? navItems.filter(item => {
-                const h = item.href;
-                return (h.endsWith('/inventory') || h.includes('/prep-schedule') || h.includes('/recetario') || h.includes('/compras'));
-            })
+            ? navItems
+                .filter(item => {
+                    const h = item.href;
+                    return (h.includes('/dashboard') || h.endsWith('/inventory') || h.includes('/prep-schedule') || h.includes('/recetario') || h.includes('/compras'));
+                })
+                .map(item => item.href === `/${locale}/dashboard` ? { ...item, name: locale === 'es' ? 'Resumen' : 'Summary' } : item)
             : station === 'Salon'
                 ? navItems.filter(item => {
                     const h = item.href;
