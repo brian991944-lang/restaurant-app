@@ -1,10 +1,13 @@
-import { useTranslations } from 'next-intl';
+import { getTranslations } from 'next-intl/server';
+import { getResumenPreparaciones } from '@/app/actions/resumenPreparaciones';
+import ResumenPreparaciones from './ResumenPreparaciones';
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardPage() {
-    const t = useTranslations('Index');
-    const td = useTranslations('Dashboard');
+export default async function DashboardPage() {
+    const t = await getTranslations('Index');
+    const td = await getTranslations('Dashboard');
+    const resumen = await getResumenPreparaciones();
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
@@ -62,6 +65,8 @@ export default function DashboardPage() {
                     </div>
                 </div>
             </div>
+
+            <ResumenPreparaciones data={resumen} />
         </div>
     );
 }
