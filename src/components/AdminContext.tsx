@@ -37,7 +37,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAdmin, isLoaded]);
 
-    const restrictedRoutes = ['/dashboard', '/purchases', '/menu', '/sales', '/data'];
+    const restrictedRoutes = ['/purchases', '/menu', '/sales', '/data'];
     const isRestricted = restrictedRoutes.some(route => pathname.includes(route));
 
     useEffect(() => {

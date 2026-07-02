@@ -1,6 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { getResumenPreparaciones } from '@/app/actions/resumenPreparaciones';
 import ResumenPreparaciones from './ResumenPreparaciones';
+import AdminOnly from './AdminOnly';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,25 +27,27 @@ export default async function DashboardPage() {
                 gap: '2rem'
             }}>
 
-                <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ background: 'rgba(245, 158, 11, 0.2)', padding: '0.8rem', borderRadius: '12px', color: 'var(--warning)' }}>
-                            ⚠️
+                <AdminOnly>
+                    <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ background: 'rgba(245, 158, 11, 0.2)', padding: '0.8rem', borderRadius: '12px', color: 'var(--warning)' }}>
+                                ⚠️
+                            </div>
+                            <h3 style={{ fontSize: '1.25rem' }}>{td('low_stock')}</h3>
                         </div>
-                        <h3 style={{ fontSize: '1.25rem' }}>{td('low_stock')}</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+                                <span>Raw Shrimp (frozen)</span>
+                                <span style={{ color: 'var(--danger)', fontWeight: 600 }}>1.2 kg</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                <span>Purple Corn</span>
+                                <span style={{ color: 'var(--warning)', fontWeight: 600 }}>4.0 kg</span>
+                            </div>
+                        </div>
+                        <button className="btn-primary" style={{ marginTop: 'auto' }}>Order More</button>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                            <span>Raw Shrimp (frozen)</span>
-                            <span style={{ color: 'var(--danger)', fontWeight: 600 }}>1.2 kg</span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                            <span>Purple Corn</span>
-                            <span style={{ color: 'var(--warning)', fontWeight: 600 }}>4.0 kg</span>
-                        </div>
-                    </div>
-                    <button className="btn-primary" style={{ marginTop: 'auto' }}>Order More</button>
-                </div>
+                </AdminOnly>
 
                 <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
