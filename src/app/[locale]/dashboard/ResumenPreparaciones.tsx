@@ -108,6 +108,12 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
                 pixelRatio: 2,
                 backgroundColor: '#ffffff',
                 cacheBust: true,
+                filter: (node) => {
+                    if (node instanceof HTMLElement && node.dataset.noCapture === 'true') {
+                        return false;
+                    }
+                    return true;
+                },
             });
             const blob = await (await fetch(dataUrl)).blob();
             const fecha = new Date().toISOString().slice(0, 10);
@@ -315,12 +321,21 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
         );
     };
 
+    // Selected day (start of the active range) for the on-image date context.
+    const selectedDate = computeRange(dateFilter, customDate)[0];
+
     return (
         <div ref={resumenRef} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{es ? 'Resumen de Preparaciones' : 'Prep Summary'}</h2>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{es ? 'Resumen de Preparaciones' : 'Prep Summary'}</h2>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            {new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(selectedDate)}
+                        </span>
+                    </div>
                     <button
+                        data-no-capture="true"
                         onClick={handleCompartir}
                         disabled={capturing}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', borderRadius: '8px', border: 'none', background: 'var(--accent-primary)', color: '#fff', fontWeight: 600, fontSize: '0.9rem', cursor: capturing ? 'default' : 'pointer', opacity: capturing ? 0.6 : 1 }}
@@ -333,7 +348,7 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
             </div>
 
             {/* Date filter pills (Hoy / Ayer / Otra Fecha) — mirrors Asignar Preparaciones */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div data-no-capture="true" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)', width: 'fit-content' }}>
                     <button
                         onClick={() => selectDateMode('hoy')}
@@ -358,6 +373,7 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
 
             {/* Cook dropdown (below the date pills) */}
             <select
+                data-no-capture="true"
                 value={selectedCook}
                 onChange={(e) => setSelectedCook(e.target.value)}
                 style={{ padding: '0.6rem 1rem', borderRadius: '8px', fontSize: '0.9rem', minHeight: '44px', color: 'var(--text-primary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', cursor: 'pointer', width: 'fit-content' }}
