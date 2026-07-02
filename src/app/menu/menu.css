@@ -1,0 +1,290 @@
+/* Public digital menu — self-contained styling, scoped under .menu-public.
+   This route is outside ThemeProvider/globals.css so everything lives here.
+   Hard rules for this module: NO backdrop-filter, filter, transform,
+   perspective, will-change, or contain. Feedback via background-color /
+   border-color / color / opacity transitions only, <= 200ms. */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
+.menu-public {
+  /* Palette: warm espresso dark + ivory + burnt orange accent */
+  --mp-bg: #171210;
+  --mp-surface: #211a15;
+  --mp-surface-2: #2a211b;
+  --mp-text: #f3ecdf;
+  --mp-text-dim: #b5a696;
+  --mp-accent: #cf6b2d;
+  --mp-accent-soft: rgba(207, 107, 45, 0.14);
+  --mp-border: rgba(243, 236, 223, 0.12);
+  --mp-catbar-h: 64px;
+
+  margin: 0;
+  box-sizing: border-box;
+  background-color: var(--mp-bg);
+  color: var(--mp-text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.menu-public *,
+.menu-public *::before,
+.menu-public *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.mp-page {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 1.25rem 4rem;
+}
+
+/* ---------- Header ---------- */
+
+.mp-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 2rem 0 1.25rem;
+}
+
+.mp-title {
+  font-size: 2.1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.mp-subtitle {
+  margin-top: 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 400;
+  color: var(--mp-text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mp-lang-toggle {
+  display: flex;
+  border: 1px solid var(--mp-border);
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background-color: var(--mp-surface);
+}
+
+.mp-lang-btn {
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--mp-text-dim);
+  background-color: transparent;
+  border: none;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mp-lang-btn.mp-lang-active {
+  background-color: var(--mp-accent);
+  color: #fff8ef;
+}
+
+/* ---------- Sticky category bar ---------- */
+
+.mp-catbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  /* Solid background (no backdrop-filter allowed) */
+  background-color: var(--mp-bg);
+  border-bottom: 1px solid var(--mp-border);
+  margin: 0 -1.25rem;
+  padding: 0 1.25rem;
+}
+
+.mp-catbar-inner {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.75rem 0;
+  scrollbar-width: none;
+}
+
+.mp-catbar-inner::-webkit-scrollbar {
+  display: none;
+}
+
+.mp-pill {
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--mp-text-dim);
+  background-color: var(--mp-surface);
+  border: 1px solid var(--mp-border);
+  border-radius: 999px;
+  padding: 0.5rem 1.05rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.mp-pill:hover {
+  border-color: var(--mp-accent);
+  color: var(--mp-text);
+}
+
+.mp-pill.mp-pill-active {
+  background-color: var(--mp-accent);
+  border-color: var(--mp-accent);
+  color: #fff8ef;
+}
+
+/* ---------- Sections & grid ---------- */
+
+.mp-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2.75rem;
+  padding-top: 1.75rem;
+}
+
+.mp-section {
+  /* Keep section headings clear of the sticky bar on anchor scroll */
+  scroll-margin-top: calc(var(--mp-catbar-h) + 0.75rem);
+}
+
+.mp-section-title {
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding-bottom: 0.6rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+/* iPad portrait (~768-834px): 2 columns */
+@media (min-width: 640px) {
+  .mp-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* iPad landscape (~1024-1194px) and up: 3 columns */
+@media (min-width: 1000px) {
+  .mp-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---------- Dish cards ---------- */
+
+.mp-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--mp-surface);
+  border: 1px solid var(--mp-border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.mp-card:hover {
+  border-color: rgba(207, 107, 45, 0.55);
+}
+
+.mp-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background-color: var(--mp-surface-2);
+}
+
+.mp-media-fill {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.mp-media-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image: linear-gradient(135deg, #33241a, #241a14 55%, #1d1512);
+}
+
+.mp-media-placeholder span {
+  font-size: 3rem;
+  font-weight: 300;
+  color: rgba(243, 236, 223, 0.28);
+}
+
+.mp-badge {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #fff8ef;
+  background-color: var(--mp-accent);
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+}
+
+.mp-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.95rem 1.05rem 1.15rem;
+}
+
+.mp-card-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.mp-item-name {
+  font-size: 1.08rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.mp-price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--mp-accent);
+  white-space: nowrap;
+}
+
+.mp-item-desc {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--mp-text-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mp-empty {
+  padding: 4rem 0;
+  text-align: center;
+  color: var(--mp-text-dim);
+  font-size: 1.05rem;
+}
