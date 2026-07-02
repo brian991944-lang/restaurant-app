@@ -202,8 +202,22 @@
   padding-top: 2.25rem;
 }
 
-.mp-section {
-  scroll-margin-top: calc(var(--m-nav-h) + 1rem);
+/* Tab switch: opacity-only fade, replayed via key remount (<=180ms) */
+@keyframes mp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mp-section-fade {
+  animation: mp-fade 160ms ease-out;
+}
+
+.mp-comingsoon {
+  padding: 3.5rem 0;
+  text-align: center;
+  color: var(--m-faint);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
 }
 
 .mp-section-head {

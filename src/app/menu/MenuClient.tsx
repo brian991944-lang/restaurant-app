@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Upload logo to Supabase restaurant-assets bucket and paste public URL here.
 const LOGO_URL = '';
@@ -30,11 +30,12 @@ type MenuItemData = {
 type Lang = 'en' | 'es';
 type Theme = 'light' | 'dark';
 
-const UI_TEXT: Record<Lang, { subtitle: string; featured: string; empty: string; itemsOne: string; itemsMany: string }> = {
+const UI_TEXT: Record<Lang, { subtitle: string; featured: string; empty: string; comingSoon: string; itemsOne: string; itemsMany: string }> = {
     en: {
         subtitle: 'Peruvian Kitchen',
         featured: 'Featured',
         empty: 'Menu coming soon.',
+        comingSoon: 'Coming soon',
         itemsOne: 'dish',
         itemsMany: 'dishes',
     },
@@ -42,6 +43,7 @@ const UI_TEXT: Record<Lang, { subtitle: string; featured: string; empty: string;
         subtitle: 'Cocina Peruana',
         featured: 'Destacado',
         empty: 'Menú disponible próximamente.',
+        comingSoon: 'Disponible próximamente',
         itemsOne: 'plato',
         itemsMany: 'platos',
     },
@@ -60,8 +62,8 @@ export default function MenuClient({
 }) {
     const [lang, setLang] = useState<Lang>('es');
     const [theme, setTheme] = useState<Theme>('dark');
-    const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
-    const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+    // Tabbed navigation: one category shown at a time (server orders by sortOrder)
+    const [activeCategory, setActiveCategory] = useState<string | null>(categories[0]?.id ?? null);
     const t = UI_TEXT[lang];
 
     // Read persisted theme after mount (avoids SSR hydration mismatch).
@@ -83,38 +85,10 @@ export default function MenuClient({
         list.push(item);
         itemsByCategory.set(item.menuCategoryId, list);
     }
-    // Only show categories that actually have available items
-    const visibleCategories = categories.filter(c => (itemsByCategory.get(c.id) || []).length > 0);
 
-    useEffect(() => {
-        if (visibleCategories.length === 0) return;
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                // Pick the topmost visible section as active
-                const visible = entries
-                    .filter(e => e.isIntersecting)
-                    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-                if (visible.length > 0) {
-                    setActiveCategoryId(visible[0].target.getAttribute('data-category-id'));
-                }
-            },
-            // Band just below the sticky nav decides the active section
-            { rootMargin: '-15% 0px -70% 0px', threshold: 0 }
-        );
-
-        for (const cat of visibleCategories) {
-            const el = sectionRefs.current[cat.id];
-            if (el) observer.observe(el);
-        }
-        return () => observer.disconnect();
-        // visibleCategories identity changes each render; its ids are stable per data load
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [categories, items]);
-
-    const scrollToCategory = (id: string) => {
-        setActiveCategoryId(id);
-        sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const selectCategory = (id: string) => {
+        setActiveCategory(id);
+        window.scrollTo(0, 0);
     };
 
     const categoryName = (c: MenuCategoryData) => (lang === 'es' ? c.nameEs : c.nameEn);
@@ -179,6 +153,11 @@ export default function MenuClient({
         </article>
     );
 
+    const currentCategory = categories.find(c => c.id === activeCategory) || null;
+    const currentItems = currentCategory ? (itemsByCategory.get(currentCategory.id) || []) : [];
+    const hero = currentItems.find(i => i.isFeatured) || null;
+    const rest = hero ? currentItems.filter(i => i.id !== hero.id) : currentItems;
+
     return (
         <div className="mp-page">
             <header className="mp-header">
@@ -216,17 +195,19 @@ export default function MenuClient({
                 </div>
             </header>
 
-            {visibleCategories.length === 0 ? (
+            {categories.length === 0 ? (
                 <p className="mp-empty">{t.empty}</p>
             ) : (
                 <>
                     <nav className="mp-catbar" aria-label="Categories">
-                        <div className="mp-catbar-inner">
-                            {visibleCategories.map(cat => (
+                        <div className="mp-catbar-inner" role="tablist">
+                            {categories.map(cat => (
                                 <button
                                     key={cat.id}
-                                    className={`mp-navlink${activeCategoryId === cat.id ? ' mp-navlink-active' : ''}`}
-                                    onClick={() => scrollToCategory(cat.id)}
+                                    role="tab"
+                                    aria-selected={activeCategory === cat.id}
+                                    className={`mp-navlink${activeCategory === cat.id ? ' mp-navlink-active' : ''}`}
+                                    onClick={() => selectCategory(cat.id)}
                                 >
                                     {categoryName(cat)}
                                 </button>
@@ -234,42 +215,37 @@ export default function MenuClient({
                         </div>
                     </nav>
 
-                    <main className="mp-main">
-                        {visibleCategories.map(cat => {
-                            const list = itemsByCategory.get(cat.id) || [];
-                            const hero = list.find(i => i.isFeatured) || null;
-                            const rest = hero ? list.filter(i => i.id !== hero.id) : list;
-                            return (
-                                <section
-                                    key={cat.id}
-                                    className="mp-section"
-                                    data-category-id={cat.id}
-                                    ref={el => { sectionRefs.current[cat.id] = el; }}
-                                >
-                                    <div className="mp-section-head">
-                                        <h2 className="mp-section-title">{categoryName(cat)}</h2>
+                    {currentCategory && (
+                        <main className="mp-main">
+                            {/* key remounts the section per tab so the opacity fade replays */}
+                            <section key={currentCategory.id} className="mp-section mp-section-fade">
+                                <div className="mp-section-head">
+                                    <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
+                                    {currentItems.length > 0 && (
                                         <span className="mp-section-count">
-                                            {list.length} {list.length === 1 ? t.itemsOne : t.itemsMany}
+                                            {currentItems.length} {currentItems.length === 1 ? t.itemsOne : t.itemsMany}
                                         </span>
-                                    </div>
-                                    {hero ? (
-                                        <div className="mp-feature-grid">
-                                            {renderCard(hero, true)}
-                                            {rest.length > 0 && (
-                                                <div className="mp-rows">
-                                                    {rest.map(renderRow)}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div className="mp-grid">
-                                            {list.map(item => renderCard(item))}
-                                        </div>
                                     )}
-                                </section>
-                            );
-                        })}
-                    </main>
+                                </div>
+                                {currentItems.length === 0 ? (
+                                    <p className="mp-comingsoon">{t.comingSoon}</p>
+                                ) : hero ? (
+                                    <div className="mp-feature-grid">
+                                        {renderCard(hero, true)}
+                                        {rest.length > 0 && (
+                                            <div className="mp-rows">
+                                                {rest.map(renderRow)}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="mp-grid">
+                                        {currentItems.map(item => renderCard(item))}
+                                    </div>
+                                )}
+                            </section>
+                        </main>
+                    )}
                 </>
             )}
         </div>
