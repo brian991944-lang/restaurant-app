@@ -1,11 +1,11 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getBusinessDate, getScheduleAnchorUtc, getScheduleWindowUtc } from '@/lib/businessDay';
 
 export async function getAssignmentsForDate(targetDate: Date) {
-    const estFormatted = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-    const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
-    const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
+    const businessDate = getBusinessDate(targetDate);
+    const { start: startOfDay, end: endOfDay } = getScheduleWindowUtc(businessDate);
 
     const schedules = await prisma.schedule.findMany({
         where: {
@@ -32,12 +32,25 @@ export async function getAssignmentsForDate(targetDate: Date) {
     return assignments;
 }
 
-export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: number, userId?: string, urgent?: boolean }[], targetDate?: Date) {
+/**
+ * Assigns night-shift prep tasks to an EXPLICIT business day.
+ *
+ * targetDate must be a 'YYYY-MM-DD' string chosen by the caller — there is
+ * deliberately NO implicit "today" fallback. On July 1 2026 an evening run
+ * with an implicit same-day target attached 15 next-day tasks to July 1's
+ * schedule; requiring the target (and re-verifying the resolved schedule's
+ * day below) prevents that class of mis-file.
+ */
+export async function assignNightShiftTasks(
+    tasks: { ingredientId: string, qty: number, userId?: string, urgent?: boolean }[],
+    targetDate: string
+) {
     try {
-        const assignFor = targetDate || new Date();
-        const estFormatted = assignFor.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-        const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
-        const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
+        if (!targetDate || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+            throw new Error('Falta la fecha de asignación (formato AAAA-MM-DD). Selecciona el día antes de guardar.');
+        }
+
+        const { start: startOfDay, end: endOfDay } = getScheduleWindowUtc(targetDate);
 
         // Find or create schedule for the date
         let schedule = await prisma.schedule.findFirst({
@@ -52,11 +65,18 @@ export async function assignNightShiftTasks(tasks: { ingredientId: string, qty: 
         if (!schedule) {
             schedule = await prisma.schedule.create({
                 data: {
-                    date: new Date(`${estFormatted}T12:00:00-05:00`),
+                    date: getScheduleAnchorUtc(targetDate),
                     createdBy: 'NightShift',
                     assignedTo: 'MorningCrew'
                 }
             });
+        }
+
+        // Mis-file guard: the resolved schedule MUST belong to the requested
+        // business day. Never silently attach tasks to a different day.
+        const resolvedDay = getBusinessDate(schedule.date);
+        if (resolvedDay !== targetDate) {
+            throw new Error(`Conflicto de fechas: se pidió asignar para ${targetDate} pero el horario resuelto es del ${resolvedDay}. No se guardó nada.`);
         }
 
         // Get dummy user 'Any Cook'

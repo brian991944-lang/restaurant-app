@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
+import { getBusinessDate, getNextBusinessDate } from '@/lib/businessDay';
 import { getRecurringRules, createRecurringRule, deleteRecurringRule, getThawableIngredients } from '@/app/actions/recurringPrep';
 import { getPrepUsers } from '@/app/actions/users';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
@@ -76,7 +77,9 @@ export default function PrepSchedulePage() {
     const [completing, setCompleting] = useState<string | null>(null);
     const [dayView, setDayView] = useState<'hoy' | 'manana'>('hoy');
     const [cookFilter, setCookFilter] = useState<string>('');
-    const [assignDateMode, setAssignDateMode] = useState<'hoy' | 'manana' | 'otra'>('hoy');
+    // Night-shift assignment defaults to the NEXT business day (the crew works
+    // in the evening building tomorrow's list) — never an implicit "today".
+    const [assignDateMode, setAssignDateMode] = useState<'hoy' | 'manana' | 'otra'>('manana');
 
     // Delete Modal State
     const [deleteTaskCandidate, setDeleteTaskCandidate] = useState<PrepTask | null>(null);
@@ -94,11 +97,13 @@ export default function PrepSchedulePage() {
     const [nightDrafts, setNightDrafts] = useState<Record<string, { selected: boolean, qty: string, userId: string, urgent: boolean }>>({});
     const [baseIngredients, setBaseIngredients] = useState<any[]>([]);
 
-    const [targetAssignDate, setTargetAssignDate] = useState<string>(() => {
-        const d = new Date();
-        d.setHours(d.getHours() - 5);
-        return d.toISOString().split('T')[0];
-    });
+    const [targetAssignDate, setTargetAssignDate] = useState<string>(() => getNextBusinessDate());
+
+    // Human-readable label of the assignment target day, always shown in the
+    // Asignar flow so the crew can SEE which day they are building.
+    const formatAssignTarget = (dateStr: string) =>
+        new Date(`${dateStr}T12:00:00Z`).toLocaleDateString(locale === 'es' ? 'es-PE' : 'en-US',
+            { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/New_York' });
 
     const displayMetric = (m: string | null | undefined) => {
         if (!m) return '';
@@ -216,7 +221,7 @@ export default function PrepSchedulePage() {
             setPrepItems(items);
             setDigitalRecipes(recipes);
         } else if (tab === 'night') {
-            const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
+            const tzDate = new Date(`${targetAssignDate}T12:00:00Z`);
             const [assignments, members, tasks] = await Promise.all([getAssignmentsForDate(tzDate), getTeamMembers(), getPrepTaskItems()]);
             setNightAssignments(assignments);
             setTeamMembers(members);
@@ -665,8 +670,16 @@ export default function PrepSchedulePage() {
     };
 
     const handleSaveNightShift = async () => {
+        // Confirm step: the crew must see and accept the target day.
+        const targetLabel = formatAssignTarget(targetAssignDate);
+        const selectedCount = Object.keys(nightDrafts).filter(id => nightDrafts[id].selected).length;
+        const confirmMsg = locale === 'es'
+            ? `¿Asignar ${selectedCount} tarea(s) para: ${targetLabel}?`
+            : `Assign ${selectedCount} task(s) for: ${targetLabel}?`;
+        if (!confirm(confirmMsg)) return;
+
         setIsLoading(true);
-        const tzDate = new Date(`${targetAssignDate}T12:00:00-05:00`);
+        const tzDate = new Date(`${targetAssignDate}T12:00:00Z`);
         const calculatedTasks = await getDailyPrepTasks(tzDate);
 
         const tasksPayload = Object.keys(nightDrafts)
@@ -692,7 +705,7 @@ export default function PrepSchedulePage() {
 
 
 
-        const res = await assignNightShiftTasks(tasksPayload, tzDate);
+        const res = await assignNightShiftTasks(tasksPayload, targetAssignDate);
         if (res.success) {
             alert("Tasks assigned successfully!");
             await loadDataForTab('night');
@@ -737,16 +750,22 @@ export default function PrepSchedulePage() {
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {/* Target-day banner: the crew must always SEE which day they are building */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.85rem 1.25rem', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.12)', border: '1px solid var(--accent-primary)', fontSize: '1.05rem', fontWeight: 600 }}>
+                    <CalendarDays size={20} color="var(--accent-primary)" />
+                    <span>{locale === 'es' ? 'Asignando tareas para:' : 'Assigning tasks for:'}</span>
+                    <span style={{ color: 'var(--accent-primary)', textTransform: 'capitalize' }}>{formatAssignTarget(targetAssignDate)}</span>
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(255,255,255,0.04)', padding: '0.3rem', borderRadius: '999px', border: '1px solid var(--border)', width: 'fit-content' }}>
                             <button
-                                onClick={() => { setAssignDateMode('hoy'); const d = new Date(); d.setHours(d.getHours() - 5); setTargetAssignDate(d.toISOString().split('T')[0]); }}
+                                onClick={() => { setAssignDateMode('hoy'); setTargetAssignDate(getBusinessDate()); }}
                                 style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'hoy' ? 600 : 400, background: assignDateMode === 'hoy' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'hoy' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
                                 Hoy
                             </button>
                             <button
-                                onClick={() => { setAssignDateMode('manana'); const d = new Date(); d.setHours(d.getHours() - 5); d.setDate(d.getDate() + 1); setTargetAssignDate(d.toISOString().split('T')[0]); }}
+                                onClick={() => { setAssignDateMode('manana'); setTargetAssignDate(getNextBusinessDate()); }}
                                 style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'manana' ? 600 : 400, background: assignDateMode === 'manana' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'manana' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
                                 Mañana
                             </button>

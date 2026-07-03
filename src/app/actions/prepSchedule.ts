@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { unstable_noStore as noStore } from 'next/cache';
 import { revalidatePath } from 'next/cache';
+import { getBusinessDate, getBusinessDayOfWeek, getScheduleAnchorUtc, getScheduleWindowUtc } from '@/lib/businessDay';
 
 export interface PrepTask {
     ingredientId: string;
@@ -37,9 +38,8 @@ export interface PrepTask {
  */
 export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
     try {
-        const estFormatted = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-        const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
-        const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
+        const businessDate = getBusinessDate(targetDate);
+        const { start: startOfDay, end: endOfDay } = getScheduleWindowUtc(businessDate);
 
         // Fetch Schedule + prepAssignments
         const schedules = await prisma.schedule.findMany({
@@ -77,8 +77,7 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         }
 
         // 2. Fetch recurring rules for TODAY'S day of week (0=Sun, 1=Mon, etc)
-        const targetEstDate = new Date(`${estFormatted}T12:00:00-05:00`);
-        const dayOfWeek = targetEstDate.getDay();
+        const dayOfWeek = getBusinessDayOfWeek(businessDate);
         const recurringRules = await prisma.recurringPrepRule.findMany({
             where: { dayOfWeek },
             include: { baseIngredient: true }
@@ -236,7 +235,7 @@ export async function completePrepTask(
         if (!userIds || userIds.length === 0) return { success: false, error: 'NO_COOKS' };
 
         const today = new Date();
-        const estFormatted = today.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        const businessDate = getBusinessDate(today);
 
         let finalAssignmentId = assignmentId;
 
@@ -262,8 +261,7 @@ export async function completePrepTask(
             const anyCook = await prisma.user.findFirst({ where: { email: 'anycook@system.local' } });
             if (!anyCook) return { success: false, error: 'ANY_COOK_MISSING' };
 
-            const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
-            const endOfDay   = new Date(`${estFormatted}T23:59:59.999-05:00`);
+            const { start: startOfDay, end: endOfDay } = getScheduleWindowUtc(businessDate);
 
             let schedule = await prisma.schedule.findFirst({
                 where: { date: { gte: startOfDay, lte: endOfDay } }
@@ -271,7 +269,7 @@ export async function completePrepTask(
             if (!schedule) {
                 schedule = await prisma.schedule.create({
                     data: {
-                        date: new Date(`${estFormatted}T12:00:00-05:00`),
+                        date: getScheduleAnchorUtc(businessDate),
                         createdBy: 'System (Auto-Complete)',
                         assignedTo: 'MorningCrew'
                     }
@@ -469,9 +467,8 @@ export async function createManualPrepAssignment(
     amount: number
 ) {
     try {
-        const estFormatted = targetDate.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-        const startOfDay = new Date(`${estFormatted}T00:00:00-05:00`);
-        const endOfDay = new Date(`${estFormatted}T23:59:59.999-05:00`);
+        const businessDate = getBusinessDate(targetDate);
+        const { start: startOfDay, end: endOfDay } = getScheduleWindowUtc(businessDate);
 
         let schedule = await prisma.schedule.findFirst({
             where: {
@@ -482,7 +479,7 @@ export async function createManualPrepAssignment(
         if (!schedule) {
             schedule = await prisma.schedule.create({
                 data: {
-                    date: new Date(`${estFormatted}T12:00:00-05:00`),
+                    date: getScheduleAnchorUtc(businessDate),
                     createdBy: 'System (Manual Add)',
                     assignedTo: 'MorningCrew'
                 }
