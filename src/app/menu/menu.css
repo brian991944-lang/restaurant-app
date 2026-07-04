@@ -63,32 +63,56 @@
 
 /* ---------- Header ---------- */
 
+/* Centered logo with the language/theme cluster pinned top-right */
 .mp-header {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem 0 1.25rem;
+  justify-content: center;
+  padding: 1.75rem 0 1.25rem;
 }
 
 .mp-logo-img {
   display: block;
-  height: 44px;
+  height: 72px;
   width: auto;
 }
 
 .mp-wordmark {
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.15rem;
+  font-size: 2.2rem;
   font-weight: 500;
   letter-spacing: 0.35em;
+  /* offset optically re-centers the trailing letterspace */
+  padding-left: 0.35em;
   color: var(--m-teal);
 }
 
 .mp-header-controls {
+  position: absolute;
+  right: 0;
+  top: calc(50% - 1.1rem + 0.25rem);
   display: flex;
   align-items: center;
   gap: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .mp-header {
+    padding-top: 3.4rem;
+  }
+
+  .mp-logo-img {
+    height: 56px;
+  }
+
+  .mp-wordmark {
+    font-size: 1.45rem;
+  }
+
+  .mp-header-controls {
+    top: 0.75rem;
+  }
 }
 
 .mp-lang-toggle {
@@ -434,4 +458,214 @@
   color: var(--m-muted);
   font-size: 1rem;
   letter-spacing: 0.05em;
+}
+
+/* ---------- Tappable media + play badge ---------- */
+
+.mp-media-tappable {
+  cursor: pointer;
+}
+
+.mp-card-row-tappable {
+  cursor: pointer;
+}
+
+.mp-play-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: rgba(27, 22, 15, 0.62);
+  color: #f0e7d6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* nudge the triangle optically centered */
+  padding-left: 2px;
+}
+
+.mp-row-media .mp-play-badge {
+  width: 26px;
+  height: 26px;
+  bottom: 5px;
+  right: 5px;
+}
+
+/* ---------- Dish lightbox (always dark, both themes) ---------- */
+
+.mp-lightbox {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background-color: rgba(0, 0, 0, 0.92);
+  overflow-y: auto;
+  display: flex;
+  padding: 3.5rem 1rem 2.5rem;
+  animation: mp-fade 160ms ease-out;
+  /* lightbox is always dark: pin the gold accent to the dark-palette value */
+  --m-gold: #c99a52;
+}
+
+.mp-lb-content {
+  margin: auto; /* centers vertically, allows scroll when tall */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: min(92vw, 860px);
+}
+
+.mp-lb-close {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #f0e7d6;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 101;
+}
+
+.mp-lb-name {
+  font-family: 'Instrument Serif', serif;
+  font-weight: 400;
+  font-size: clamp(24px, 4vw, 32px);
+  line-height: 1.15;
+  color: #f0e7d6;
+}
+
+.mp-lb-price {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--m-gold);
+}
+
+.mp-lb-tabs {
+  display: flex;
+  align-items: baseline;
+  gap: 1.75rem;
+  margin-top: 0.25rem;
+}
+
+.mp-lb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8f7d6c;
+  background: none;
+  border: none;
+  border-bottom: 1.5px solid transparent;
+  padding: 0.35rem 0;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.mp-lb-tab.mp-lb-tab-active {
+  color: #f0e7d6;
+  border-bottom-color: var(--m-gold);
+}
+
+.mp-lb-media {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 92vw;
+}
+
+.mp-lb-photo {
+  display: block;
+  max-width: 92vw;
+  max-height: 62vh;
+  object-fit: contain;
+  animation: mp-fade 160ms ease-out;
+}
+
+.mp-lb-video {
+  display: block;
+  max-width: 92vw;
+  max-height: 62vh;
+  background-color: #000;
+}
+
+.mp-lb-chevron {
+  position: absolute;
+  top: calc(50% - 15px);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #f0e7d6;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mp-lb-chevron-left {
+  left: 0.5rem;
+}
+
+.mp-lb-chevron-right {
+  right: 0.5rem;
+}
+
+.mp-lb-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.mp-lb-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #4a3527;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.mp-lb-dot.mp-lb-dot-active {
+  background-color: var(--m-gold);
+}
+
+.mp-lb-tagline {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--m-gold);
+  margin-top: 0.35rem;
+}
+
+.mp-lb-desc {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13.5px;
+  font-weight: 300;
+  line-height: 1.6;
+  color: #a89482;
+  max-width: 46ch;
 }
