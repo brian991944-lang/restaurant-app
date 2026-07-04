@@ -114,7 +114,7 @@ export default function ImageUpload({
                             position: 'absolute',
                             top: '8px',
                             right: '8px',
-                            background: 'rgba(0,0,0,0.6)',
+                            background: 'rgba(0,0,0,0.55)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '50%',
@@ -123,8 +123,7 @@ export default function ImageUpload({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            cursor: 'pointer',
-                            backdropFilter: 'blur(4px)'
+                            cursor: 'pointer'
                         }}
                         title="Eliminar imagen"
                     >
