@@ -130,12 +130,24 @@ interface MenuItemInput {
     nameEs?: string | null;
     descriptionEn?: string | null;
     descriptionEs?: string | null;
+    taglineEn?: string | null;  // short "how we make it" line for the lightbox, max 60 chars
+    taglineEs?: string | null;
     salePrice?: number;
     menuCategoryId?: string | null;
-    photoUrl?: string | null;
+    photoUrl?: string | null;    // card cover
+    photoUrls?: string[];        // lightbox gallery, append order = display order
     videoUrl?: string | null;
     isAvailable?: boolean;
     isFeatured?: boolean;
+}
+
+const TAGLINE_MAX = 60;
+
+function taglineError(data: MenuItemInput): string | null {
+    if ((data.taglineEn?.trim().length ?? 0) > TAGLINE_MAX || (data.taglineEs?.trim().length ?? 0) > TAGLINE_MAX) {
+        return `La frase no puede superar los ${TAGLINE_MAX} caracteres.`;
+    }
+    return null;
 }
 
 function isUniqueNameError(e: any) {
@@ -147,6 +159,8 @@ export async function createMenuItem(data: MenuItemInput) {
         if (!data.name?.trim()) {
             return { success: false, error: 'El nombre (EN) es obligatorio.' };
         }
+        const tagErr = taglineError(data);
+        if (tagErr) return { success: false, error: tagErr };
         const last = await prisma.menuItem.findFirst({
             where: { menuCategoryId: data.menuCategoryId ?? null },
             orderBy: { sortOrder: 'desc' }
@@ -157,9 +171,12 @@ export async function createMenuItem(data: MenuItemInput) {
                 nameEs: data.nameEs?.trim() || null,
                 descriptionEn: data.descriptionEn?.trim() || null,
                 descriptionEs: data.descriptionEs?.trim() || null,
+                taglineEn: data.taglineEn?.trim() || null,
+                taglineEs: data.taglineEs?.trim() || null,
                 salePrice: data.salePrice ?? 0,
                 menuCategoryId: data.menuCategoryId || null,
                 photoUrl: data.photoUrl || null,
+                photoUrls: data.photoUrls ?? [],
                 videoUrl: data.videoUrl?.trim() || null,
                 isAvailable: data.isAvailable ?? true,
                 isFeatured: data.isFeatured ?? false,
@@ -185,6 +202,8 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
         if (data.name !== undefined && !data.name?.trim()) {
             return { success: false, error: 'El nombre (EN) es obligatorio.' };
         }
+        const tagErr = taglineError(data);
+        if (tagErr) return { success: false, error: tagErr };
         const item = await prisma.menuItem.update({
             where: { id },
             data: {
@@ -192,9 +211,12 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.nameEs !== undefined ? { nameEs: data.nameEs?.trim() || null } : {}),
                 ...(data.descriptionEn !== undefined ? { descriptionEn: data.descriptionEn?.trim() || null } : {}),
                 ...(data.descriptionEs !== undefined ? { descriptionEs: data.descriptionEs?.trim() || null } : {}),
+                ...(data.taglineEn !== undefined ? { taglineEn: data.taglineEn?.trim() || null } : {}),
+                ...(data.taglineEs !== undefined ? { taglineEs: data.taglineEs?.trim() || null } : {}),
                 ...(data.salePrice !== undefined ? { salePrice: data.salePrice } : {}),
                 ...(data.menuCategoryId !== undefined ? { menuCategoryId: data.menuCategoryId || null } : {}),
                 ...(data.photoUrl !== undefined ? { photoUrl: data.photoUrl || null } : {}),
+                ...(data.photoUrls !== undefined ? { photoUrls: data.photoUrls } : {}),
                 ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl?.trim() || null } : {}),
                 ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
                 ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {})

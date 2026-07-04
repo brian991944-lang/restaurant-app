@@ -19,11 +19,14 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [nameEs, setNameEs] = useState('');
     const [descriptionEn, setDescriptionEn] = useState('');
     const [descriptionEs, setDescriptionEs] = useState('');
+    const [taglineEn, setTaglineEn] = useState('');
+    const [taglineEs, setTaglineEs] = useState('');
     const [salePrice, setSalePrice] = useState('0');
     const [menuCategoryId, setMenuCategoryId] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
     const [isFeatured, setIsFeatured] = useState(false);
     const [photoUrl, setPhotoUrl] = useState('');
+    const [photoUrls, setPhotoUrls] = useState<string[]>([]);
     const [videoUrl, setVideoUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -36,22 +39,28 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setNameEs(initialData.nameEs || '');
                 setDescriptionEn(initialData.descriptionEn || '');
                 setDescriptionEs(initialData.descriptionEs || '');
+                setTaglineEn(initialData.taglineEn || '');
+                setTaglineEs(initialData.taglineEs || '');
                 setSalePrice((initialData.salePrice ?? 0).toString());
                 setMenuCategoryId(initialData.menuCategoryId || '');
                 setIsAvailable(initialData.isAvailable ?? true);
                 setIsFeatured(initialData.isFeatured ?? false);
                 setPhotoUrl(initialData.photoUrl || '');
+                setPhotoUrls(initialData.photoUrls || []);
                 setVideoUrl(initialData.videoUrl || '');
             } else {
                 setName('');
                 setNameEs('');
                 setDescriptionEn('');
                 setDescriptionEs('');
+                setTaglineEn('');
+                setTaglineEs('');
                 setSalePrice('0');
                 setMenuCategoryId(defaultCategoryId || '');
                 setIsAvailable(true);
                 setIsFeatured(false);
                 setPhotoUrl('');
+                setPhotoUrls([]);
                 setVideoUrl('');
             }
         }
@@ -68,9 +77,12 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             nameEs,
             descriptionEn,
             descriptionEs,
+            taglineEn,
+            taglineEs,
             salePrice: parseFloat(salePrice) || 0,
             menuCategoryId: menuCategoryId || null,
             photoUrl: photoUrl || null,
+            photoUrls,
             videoUrl,
             isAvailable,
             isFeatured
@@ -131,6 +143,20 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                         </div>
                     </div>
 
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Frase (EN) <span style={{ fontSize: '0.8rem' }}>({taglineEn.length}/60)</span></label>
+                            <input value={taglineEn} onChange={e => setTaglineEn(e.target.value)} type="text" maxLength={60} className="input-field" placeholder="e.g. Flame-seared over charcoal" />
+                        </div>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Frase (ES) <span style={{ fontSize: '0.8rem' }}>({taglineEs.length}/60)</span></label>
+                            <input value={taglineEs} onChange={e => setTaglineEs(e.target.value)} type="text" maxLength={60} className="input-field" placeholder="p.ej. Sellado a la llama sobre carbón" />
+                        </div>
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '-0.75rem' }}>
+                        Frase corta con gancho — cómo lo preparamos. Aparece en la vista ampliada.
+                    </span>
+
                     {/* Future auto-translation hook: wire this button to a translation
                         service to fill the ES fields from the EN fields (or vice versa). */}
                     <button
@@ -176,14 +202,47 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                     </div>
 
                     <div style={fieldStyle}>
-                        <label style={labelStyle}>Foto del plato</label>
+                        <label style={labelStyle}>Foto principal <span style={{ fontSize: '0.8rem' }}>(portada de la tarjeta)</span></label>
                         <ImageUpload
                             bucketName="restaurant-assets"
                             currentUrl={photoUrl || undefined}
                             onUploadComplete={(url) => setPhotoUrl(url)}
                             onRemove={() => setPhotoUrl('')}
-                            placeholder="Subir foto del plato"
+                            placeholder="Subir foto principal"
                         />
+                    </div>
+
+                    <div style={fieldStyle}>
+                        <label style={labelStyle}>Galería <span style={{ fontSize: '0.8rem' }}>({photoUrls.length}/6 — se muestra en la vista ampliada)</span></label>
+                        {photoUrls.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '0.5rem' }}>
+                                {photoUrls.map((url, index) => (
+                                    <div key={`${url}-${index}`} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                        <img src={url} alt={`Galería ${index + 1}`} style={{ width: '100%', height: '96px', objectFit: 'cover', display: 'block' }} />
+                                        <button
+                                            type="button"
+                                            onClick={() => setPhotoUrls(prev => prev.filter((_, i) => i !== index))}
+                                            title="Quitar foto"
+                                            style={{
+                                                position: 'absolute', top: '4px', right: '4px',
+                                                background: 'rgba(0,0,0,0.55)', color: 'white', border: 'none',
+                                                borderRadius: '50%', width: '24px', height: '24px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {photoUrls.length < 6 && (
+                            <ImageUpload
+                                bucketName="restaurant-assets"
+                                onUploadComplete={(url) => setPhotoUrls(prev => prev.length < 6 ? [...prev, url] : prev)}
+                                placeholder="Agregar foto a la galería"
+                            />
+                        )}
                     </div>
 
                     <div style={fieldStyle}>

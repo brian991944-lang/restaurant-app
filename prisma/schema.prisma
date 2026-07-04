@@ -168,7 +168,10 @@ model MenuItem {
   descriptionEn   String?
   descriptionEs   String?
   photoUrl        String?
+  photoUrls       String[] @default([]) // gallery photos for the lightbox; photoUrl remains the card cover
   videoUrl        String?
+  taglineEn       String? // short catchy "how we make it" line, shown in the lightbox (max 60 chars, enforced in menuAdmin actions)
+  taglineEs       String?
   isAvailable     Boolean @default(true)
   isFeatured      Boolean @default(false)
   sortOrder       Int     @default(0)
