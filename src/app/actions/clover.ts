@@ -2,8 +2,16 @@
 
 import prisma from '@/lib/prisma';
 
-const CLOVER_MERCHANT_ID = '5EFY7JF0XERB1';
-const CLOVER_TOKEN = '80bb90a1-8598-71bb-606d-2d8eac4fe14e';
+function requireCloverEnv(name: 'CLOVER_MERCHANT_ID' | 'CLOVER_API_TOKEN'): string {
+    const value = process.env[name];
+    if (!value) {
+        throw new Error('Faltan las credenciales de Clover (CLOVER_MERCHANT_ID / CLOVER_API_TOKEN) en las variables de entorno');
+    }
+    return value;
+}
+
+const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
+const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
 
 async function depleteInventory(ingredientId: string, quantity: number, note: string) {
     const inv = await prisma.inventory.findUnique({ where: { ingredientId: ingredientId } });
