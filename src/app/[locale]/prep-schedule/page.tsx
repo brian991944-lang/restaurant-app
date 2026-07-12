@@ -841,8 +841,8 @@ export default function PrepSchedulePage() {
             return effectiveCook === activeCookNumber;
         });
 
-        // Filter out completed tasks from today
-        const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        // Filter out completed tasks from today (operational business day, 5 AM NY cutover)
+        const todayStr = getBusinessDate();
 
         const handleCompleteDefrost = async (ing: any) => {
             const qtyStr = defrostQuantities[ing.id];
@@ -889,7 +889,7 @@ export default function PrepSchedulePage() {
 
         activeIngredients.forEach((ing: any) => {
             const isCompletedToday = completedLogs.some((log: any) => {
-                const logEstStr = new Date(log.completedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                const logEstStr = getBusinessDate(new Date(log.completedAt));
                 return log.ingredientName === ing.name && logEstStr === todayStr;
             });
             if (isCompletedToday) completedCount++;
@@ -958,7 +958,7 @@ export default function PrepSchedulePage() {
 
                                     // Check if completed today by inspecting logs
                                     const completedLogsToday = completedLogs.filter((log: any) => {
-                                        const logEstStr = new Date(log.completedAt).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+                                        const logEstStr = getBusinessDate(new Date(log.completedAt));
                                         return log.ingredientName === taskName && logEstStr === todayStr;
                                     });
 

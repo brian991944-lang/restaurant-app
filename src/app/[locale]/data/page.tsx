@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { Download, Search, FileText, UploadCloud, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
+import { getBusinessDate } from '@/lib/businessDay';
 
 const MOCK_DATA = [
     { id: '1', date: '2026-02-20', source: 'Clover POS API', type: 'Sales Data', records: 142, status: 'Synced' },
@@ -35,7 +36,7 @@ export default function RawDataPage() {
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `fusionista_raw_data_${new Date().toISOString().split('T')[0]}.csv`);
+        link.setAttribute("download", `fusionista_raw_data_${getBusinessDate()}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
