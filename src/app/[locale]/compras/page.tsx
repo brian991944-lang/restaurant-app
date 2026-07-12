@@ -339,6 +339,7 @@ export default function ComprasPage() {
                                                                 )}
                                                             </td>
                                                             <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: nameColor }}>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                                     {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
                                                                     {activeTab === 'SUBMITTED_LIST' ? (
@@ -367,6 +368,32 @@ export default function ComprasPage() {
                                                                         )
                                                                     )}
                                                                 </div>
+                                                                {Array.isArray(ing.prepItems) && ing.prepItems.length > 0 && (
+                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                                                        {ing.prepItems.map((proc: any) => {
+                                                                            const procQty = (proc.inventory?.frozenQty || 0) + (proc.inventory?.thawingQty || 0);
+                                                                            return (
+                                                                                <span
+                                                                                    key={proc.id}
+                                                                                    title={locale === 'es' ? 'Ya tienes esto porcionado/preparado' : 'You already have this portioned/prepped'}
+                                                                                    style={{
+                                                                                        fontSize: '0.75rem',
+                                                                                        fontWeight: 600,
+                                                                                        color: '#60a5fa',
+                                                                                        background: 'rgba(59, 130, 246, 0.1)',
+                                                                                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                                                                                        padding: '0.15rem 0.5rem',
+                                                                                        borderRadius: '10px',
+                                                                                        whiteSpace: 'nowrap'
+                                                                                    }}
+                                                                                >
+                                                                                    ↳ {locale === 'es' && proc.nameEs ? proc.nameEs : proc.name}: {Number(procQty.toFixed(2))} {proc.metric}
+                                                                                </span>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                             </td>
                                                             {isAdmin && (
                                                                 <>

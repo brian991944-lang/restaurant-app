@@ -96,11 +96,9 @@ export default function InventoryPage() {
             return next;
         });
     };
-    const [overviewTab, setOverviewTab] = useState<'RAW' | 'FREEZER' | 'PROCESSED' | 'RELATIONSHIPS'>('FREEZER');
-    const [rawCategoryFilter, setRawCategoryFilter] = useState('');
-    const [rawIngredientFilter, setRawIngredientFilter] = useState('');
-    const [processedCategoryFilter, setProcessedCategoryFilter] = useState('');
-    const [processedIngredientFilter, setProcessedIngredientFilter] = useState('');
+    const [overviewTab, setOverviewTab] = useState<'PIVOT' | 'FREEZER'>('PIVOT');
+    const [pivotCategoryFilter, setPivotCategoryFilter] = useState('');
+    const [pivotIngredientFilter, setPivotIngredientFilter] = useState('');
     const [allIngredientsCategoryFilter, setAllIngredientsCategoryFilter] = useState('');
     const [allIngredientsNameFilter, setAllIngredientsNameFilter] = useState('');
     const [allIngredientsTypeFilter, setAllIngredientsTypeFilter] = useState<'ALL' | 'PARENT' | 'CHILD'>('ALL');
@@ -504,33 +502,107 @@ export default function InventoryPage() {
         );
     };
 
-    const renderSection = (type: 'RAW' | 'PROCESSED', catFilter: string, ingFilter: string) => {
-        let items = filteredInventory.filter(i => i.type === type);
-        if (catFilter) items = items.filter(i => i.category === catFilter);
-        if (ingFilter) items = items.filter(i => i.name === ingFilter);
+    // Pivot view: RAW ingredient as anchor row, its PROCESSED (portioned) forms nested
+    // beneath in blue, and standalone PREP_RECIPE bases (Pesto, Fondos, etc.) in yellow.
+    // This replaces the old separate Ingredientes Crudos / Alimentos Procesados / Ingredient
+    // Relationships tabs with one combined view for shopping-decision purposes.
+    const renderPivot = (catFilter: string, ingFilter: string) => {
+        let rawItems = filteredInventory.filter(i => i.type === 'RAW');
+        let prepItems = filteredInventory.filter(i => i.type === 'PREP_RECIPE');
 
-        const grouped = items.reduce((acc, item) => {
-            if (!acc[item.category]) acc[item.category] = [];
-            acc[item.category].push(item);
-            return acc;
-        }, {} as Record<string, Ingredient[]>);
+        if (catFilter) {
+            rawItems = rawItems.filter(i => i.category === catFilter);
+            prepItems = prepItems.filter(i => i.category === catFilter);
+        }
+        if (ingFilter) {
+            rawItems = rawItems.filter(i => i.name === ingFilter);
+            prepItems = prepItems.filter(i => i.name === ingFilter);
+        }
 
-        const sortedCategories = Object.keys(grouped).sort();
+        type PivotRow = { anchor: Ingredient; children: Ingredient[] };
+        const rawRows: PivotRow[] = rawItems.map(parent => ({
+            anchor: parent,
+            children: filteredInventory.filter(c => c.type === 'PROCESSED' && (c as any).parent?.id === parent.id)
+        }));
 
-        if (items.length === 0) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No items found.</div>;
+        const grouped: Record<string, { raws: PivotRow[]; preps: Ingredient[] }> = {};
+        rawRows.forEach(row => {
+            const cat = row.anchor.category;
+            if (!grouped[cat]) grouped[cat] = { raws: [], preps: [] };
+            grouped[cat].raws.push(row);
+        });
+        prepItems.forEach(item => {
+            const cat = item.category;
+            if (!grouped[cat]) grouped[cat] = { raws: [], preps: [] };
+            grouped[cat].preps.push(item);
+        });
+
+        const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b, locale));
+
+        if (sortedCategories.length === 0) {
+            return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'No se encontraron ingredientes.' : 'No items found.'}</div>;
+        }
 
         return (
-            <div style={{ display: 'flex', flexDirection: 'column', marginTop: '2.5rem', position: 'relative', zIndex: 0 }}>
-                {sortedCategories.map(cat => (
-                    <div key={cat} style={{ display: 'flex', flexDirection: 'column', marginBottom: '2rem' }}>
-                        <h3 style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.8, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginBottom: '1.5rem', marginTop: 0 }}>
-                            {getOptName(cat)}
-                        </h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
-                            {grouped[cat].sort((a, b) => a.name.localeCompare(b.name)).map(item => renderIngredientBox(item))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1rem' }}>
+                {sortedCategories.map(cat => {
+                    const { raws, preps } = grouped[cat];
+                    raws.sort((a, b) => a.anchor.name.localeCompare(b.anchor.name, locale));
+                    preps.sort((a, b) => a.name.localeCompare(b.name, locale));
+
+                    return (
+                        <div key={cat} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
+                            <div style={{ padding: '1rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
+                                <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{getOptName(cat)}</h3>
+                            </div>
+                            <div>
+                                {raws.map(({ anchor, children }) => (
+                                    <div key={anchor.id}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            <div>
+                                                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{anchor.name}</div>
+                                                {(anchor as any).providerName && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{(anchor as any).providerName}</div>}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                                                <span style={{ fontWeight: 700, fontSize: '1.2rem' }}>{formatDisplayQty(anchor, anchor.total)}</span>
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(anchor)}</span>
+                                            </div>
+                                        </div>
+                                        {children.map(child => (
+                                            <div key={child.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1.5rem 0.8rem 3rem', borderBottom: '1px solid var(--border)', background: 'rgba(59, 130, 246, 0.08)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <span style={{ opacity: 0.6 }}>↳</span>
+                                                    <span style={{ fontWeight: 500 }}>{child.name}</span>
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                                                        {locale === 'es' ? 'PORCIONADO' : 'PORTIONED'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                                                    <span style={{ fontWeight: 600 }}>{formatDisplayQty(child, child.total)}</span>
+                                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(child)}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ))}
+                                {preps.map(item => (
+                                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'rgba(245, 158, 11, 0.10)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <span style={{ fontWeight: 700 }}>{item.name}</span>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                                                {locale === 'es' ? 'PREPARADO' : 'PREP BASE'}
+                                            </span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                                            <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{formatDisplayQty(item, item.total)}</span>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(item)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         );
     };
@@ -635,10 +707,8 @@ export default function InventoryPage() {
                 <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+                        <button onClick={() => setOverviewTab('PIVOT')} className={overviewTab === 'PIVOT' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'PIVOT' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PIVOT' ? 'white' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Inventario' : 'Inventory'}</button>
                         <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
-                        <button onClick={() => setOverviewTab('RAW')} className={overviewTab === 'RAW' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'RAW' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RAW' ? 'white' : 'var(--text-secondary)' }}>{t('raw_ingredients')}</button>
-                        <button onClick={() => setOverviewTab('PROCESSED')} className={overviewTab === 'PROCESSED' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'PROCESSED' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PROCESSED' ? 'white' : 'var(--text-secondary)' }}>{t('processed_food')}</button>
-                        <button onClick={() => setOverviewTab('RELATIONSHIPS')} className={overviewTab === 'RELATIONSHIPS' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'RELATIONSHIPS' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'RELATIONSHIPS' ? 'white' : 'var(--text-secondary)' }}>Ingredient Relationships</button>
                     </div>
 
                     {lastSyncTime && (
@@ -721,89 +791,36 @@ export default function InventoryPage() {
                             </div>
                         )}
 
-                        {overviewTab === 'RAW' && (
+                        {overviewTab === 'PIVOT' && (
                             <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 50, marginBottom: '1.5rem' }}>
-                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('raw_ingredients')}</h2>
+                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{locale === 'es' ? 'Inventario' : 'Inventory'}</h2>
+                                    <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>
+                                        {locale === 'es'
+                                            ? 'Crudo → Porcionado, y bases preparadas, en una sola vista.'
+                                            : 'Raw → Portioned, and prepared bases, in one view.'}
+                                    </p>
                                     <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', width: '100%' }}>
                                         <SearchableSelect
-                                            value={rawCategoryFilter}
+                                            value={pivotCategoryFilter}
                                             onChange={(val) => {
-                                                setRawCategoryFilter(val);
-                                                setRawIngredientFilter('');
+                                                setPivotCategoryFilter(val);
+                                                setPivotIngredientFilter('');
                                             }}
                                             placeholder="All Categories"
-                                            options={[{ value: '', label: 'All Categories' }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'RAW').map(i => i.category))).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(c) }))]}
+                                            options={[{ value: '', label: 'All Categories' }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'RAW' || i.type === 'PREP_RECIPE').map(i => i.category))).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(c) }))]}
                                             wrapperStyle={{ flex: 1, minWidth: '150px' }}
                                         />
                                         <SearchableSelect
-                                            value={rawIngredientFilter}
-                                            onChange={(val) => setRawIngredientFilter(val)}
+                                            value={pivotIngredientFilter}
+                                            onChange={(val) => setPivotIngredientFilter(val)}
                                             placeholder="All Ingredients"
-                                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'RAW' && (!rawCategoryFilter || i.category === rawCategoryFilter)).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
+                                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => (i.type === 'RAW' || i.type === 'PREP_RECIPE') && (!pivotCategoryFilter || i.category === pivotCategoryFilter)).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
                                             wrapperStyle={{ flex: 1, minWidth: '150px' }}
                                         />
                                     </div>
                                 </div>
-                                {renderSection('RAW', rawCategoryFilter, rawIngredientFilter)}
-                            </div>
-                        )}
-
-                        {overviewTab === 'PROCESSED' && (
-                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 40, marginBottom: '1.5rem' }}>
-                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('processed_food')}</h2>
-                                    <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', width: '100%' }}>
-                                        <SearchableSelect
-                                            value={processedCategoryFilter}
-                                            onChange={(val) => {
-                                                setProcessedCategoryFilter(val);
-                                                setProcessedIngredientFilter('');
-                                            }}
-                                            placeholder="All Categories"
-                                            options={[{ value: '', label: 'All Categories' }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'PROCESSED').map(i => i.category))).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(c) }))]}
-                                            wrapperStyle={{ flex: 1, minWidth: '150px' }}
-                                        />
-                                        <SearchableSelect
-                                            value={processedIngredientFilter}
-                                            onChange={(val) => setProcessedIngredientFilter(val)}
-                                            placeholder="All Ingredients"
-                                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'PROCESSED' && (!processedCategoryFilter || i.category === processedCategoryFilter)).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
-                                            wrapperStyle={{ flex: 1, minWidth: '150px' }}
-                                        />
-                                    </div>
-                                </div>
-                                {renderSection('PROCESSED', processedCategoryFilter, processedIngredientFilter)}
-                            </div>
-                        )}
-                        {overviewTab === 'RELATIONSHIPS' && (
-                            <div style={{ flex: 1, minWidth: '350px', display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Ingredient Relationships</h2>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    {filteredInventory.filter(i => i.type === 'RAW').sort((a, b) => a.name.localeCompare(b.name)).map(parent => {
-                                        const children = filteredInventory.filter(i => i.parent?.id === parent.id);
-                                        return (
-                                            <div key={parent.id} className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                    <strong>{parent.name}</strong>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>{parent.total} {getOptName(parent.metric)}</span>
-                                                </div>
-                                                {children.length > 0 && (
-                                                    <div style={{ paddingLeft: '2rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderLeft: '2px solid var(--border)' }}>
-                                                        {children.map(child => (
-                                                            <div key={child.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                                                                <span style={{ color: 'var(--accent-primary)' }}>↳ {child.name}</span>
-                                                                <span style={{ color: 'var(--text-secondary)' }}>{child.total} {getOptName(child.metric)}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                {renderPivot(pivotCategoryFilter, pivotIngredientFilter)}
                             </div>
                         )}
                     </div>

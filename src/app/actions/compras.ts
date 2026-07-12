@@ -19,6 +19,13 @@ export async function getComprasIngredients(providerNames: string[]) {
                 provider: true,
                 inventory: true,
                 category: true,
+                // Portioned/processed forms of this raw ingredient (e.g. Camaron Porcionado
+                // for Shrimp 51/60), so the shopping list can show the full picture before
+                // someone flags a raw item as needing reorder.
+                prepItems: {
+                    where: { type: 'PROCESSED' },
+                    include: { inventory: true }
+                }
             },
             orderBy: {
                 name: 'asc'
