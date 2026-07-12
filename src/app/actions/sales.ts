@@ -1,13 +1,31 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
+
+/** 'YYYY-MM-DD' plus n days (pure calendar math, no TZ involved). */
+function shiftDate(dateStr: string, days: number): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days, 12)).toISOString().slice(0, 10);
+}
+
+/** Short display label ('Jul 8') for a 'YYYY-MM-DD' business date. */
+function businessDateLabel(businessDate: string): string {
+    return new Date(`${businessDate}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+}
 
 export async function getSalesAuditData() {
     try {
-        const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        // Audit covers the last 3 operational business days (5 AM NY cutover),
+        // so sales rung up after midnight count toward the previous day.
+        const businessDates = [-2, -1, 0].map(off => shiftDate(getBusinessDate(), off));
+        const labelByDate = new Map(businessDates.map(bd => [bd, businessDateLabel(bd)]));
+        // NY midnight of the oldest business date is always at or before that
+        // day's 5 AM start; rows attributed earlier are skipped in the loop.
+        const windowStart = getScheduleWindowUtc(businessDates[0]).start;
 
         const lineItems = await prisma.processedCloverLineItem.findMany({
-            where: { createdTime: { gte: threeDaysAgo } },
+            where: { createdTime: { gte: windowStart } },
             include: { modifiers: true },
             orderBy: { createdTime: 'asc' }
         });
@@ -16,7 +34,8 @@ export async function getSalesAuditData() {
         const grouped: Record<string, Record<string, Record<string, { qty: number, modifiers: Record<string, number> }>>> = {};
 
         for (const li of lineItems) {
-            const dateStr = li.createdTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' });
+            const dateStr = labelByDate.get(getBusinessDate(li.createdTime));
+            if (!dateStr) continue; // belongs to a business day outside the 3-day audit window
 
             const cat = li.categoryName || 'Uncategorized';
 
@@ -44,12 +63,8 @@ export async function getSalesAuditData() {
             }
         }
 
-        // We want an array of 3 days. Let's find the last 3 days starting from today down.
-        const days = [];
-        for (let i = 2; i >= 0; i--) {
-            const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-            days.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/New_York' }));
-        }
+        // The same 3 business days, oldest first, as display labels.
+        const days = businessDates.map(bd => labelByDate.get(bd)!);
 
         return { success: true, grouped, days };
     } catch (e) {

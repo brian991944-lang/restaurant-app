@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { getConversionFactor } from '@/lib/conversion';
+import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
 
 async function translateToSpanish(text: string): Promise<string> {
@@ -38,7 +39,9 @@ export async function getInventory() {
                 where: {
                     type: 'SALES_DEDUCT_CLOVER',
                     createdAt: {
-                        gte: new Date(new Date().setHours(0, 0, 0, 0))
+                        // Deductions since the current business day began (NY),
+                        // not since server-local midnight (UTC on Vercel).
+                        gte: getScheduleWindowUtc(getBusinessDate()).start
                     }
                 }
             }
