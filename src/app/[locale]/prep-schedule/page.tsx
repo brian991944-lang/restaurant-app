@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
 import { getAssignmentsForDate, assignNightShiftTasks } from '@/app/actions/nightShift';
-import { getBusinessDate, getNextBusinessDate } from '@/lib/businessDay';
+import { getBusinessDate, getBusinessDayOfWeek, getNextBusinessDate } from '@/lib/businessDay';
 import { getRecurringRules, createRecurringRule, deleteRecurringRule, getThawableIngredients } from '@/app/actions/recurringPrep';
 import { getPrepUsers } from '@/app/actions/users';
 import { getDropdownOptions } from '@/app/actions/dropdownOptions';
@@ -964,7 +964,7 @@ export default function PrepSchedulePage() {
 
                                     const isCompletedToday = completedLogsToday.length > 0;
 
-                                    const todayIndex = new Date().getDay();
+                                    const todayIndex = getBusinessDayOfWeek(getBusinessDate());
                                     const ruleForToday = recurringRules.find((r: any) => r.ingredientId === ing.id && r.dayOfWeek === todayIndex);
                                     const suggested = ruleForToday ? ruleForToday.amount : 0;
 
