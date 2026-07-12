@@ -156,8 +156,19 @@ export async function addIngredient(data: any) {
         revalidatePath('/[locale]/prep-schedule');
         revalidatePath('/[locale]/compras');
         return { success: true, ingredient };
-    } catch (e) {
+    } catch (e: any) {
         console.error('Failed to add ingredient:', e);
+        if (e?.code === 'P2002') {
+            try {
+                const existing = await prisma.ingredient.findUnique({
+                    where: { name: data.name },
+                    select: { isActive: true }
+                });
+                if (existing && existing.isActive === false) {
+                    return { success: false, error: 'Ya existe un ingrediente deshabilitado con este nombre. Reactívalo desde Inventario.' };
+                }
+            } catch { /* fall through to generic error */ }
+        }
         return { success: false, error: 'Database Error' };
     }
 }
@@ -230,6 +241,7 @@ export async function editIngredient(id: string, data: any) {
                 cloverId: data.cloverId !== undefined ? (data.cloverId || null) : undefined,
                 mappingMultiplier: data.mappingMultiplier !== undefined ? parseFloat(data.mappingMultiplier) : undefined,
                 activeMarketItemId: data.activeMarketItemId !== undefined ? (data.activeMarketItemId || null) : undefined,
+                isActive: data.isActive !== undefined ? data.isActive : undefined,
             }
         });
 
@@ -676,6 +688,20 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
     } catch (e) {
         console.error("Failed to log inventory adjustment:", e);
         return { success: false, error: 'Database error logging adjustment' };
+    }
+}
+
+export async function setIngredientActive(id: string, isActive: boolean) {
+    try {
+        await prisma.ingredient.update({
+            where: { id },
+            data: { isActive }
+        });
+        revalidatePath('/[locale]/inventory');
+        return { success: true };
+    } catch (e: any) {
+        console.error('Failed to set ingredient active state:', e);
+        return { success: false, error: e?.message || String(e) };
     }
 }
 

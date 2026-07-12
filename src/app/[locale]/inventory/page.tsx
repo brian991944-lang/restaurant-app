@@ -48,6 +48,7 @@ interface Ingredient {
     packUnit?: string;
     packsInBox?: number | null;
     totalBoxPrice?: number | null;
+    isActive?: boolean;
 }
 
 const MOCK_INVENTORY: Ingredient[] = [
@@ -404,6 +405,7 @@ export default function InventoryPage() {
         packsInBox: item.packsInBox,
         totalBoxPrice: item.totalBoxPrice,
         composedOf: item.composedOf || [],
+        isActive: item.isActive !== false,
         calculatedCost: resolveCost(item)
     }));
 
@@ -1042,7 +1044,12 @@ export default function InventoryPage() {
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem', paddingLeft: item.parent ? 'calc(1.5rem + 24px)' : '1.5rem', fontWeight: item.parent ? 400 : 700, color: item.parent ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
                                                         {item.parent && <span style={{ marginRight: '8px', opacity: 0.5 }}>└</span>}
-                                                        {item.name}
+                                                        <span style={{ opacity: item.isActive === false ? 0.45 : 1 }}>{item.name}</span>
+                                                        {item.isActive === false && (
+                                                            <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px', verticalAlign: 'middle' }}>
+                                                                Deshabilitado
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem' }}>
                                                         <span style={{
@@ -1205,7 +1212,12 @@ export default function InventoryPage() {
                                                                                                 onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
                                                                                                 onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
                                                                                             >
-                                                                                                {ing.name}
+                                                                                                <span style={{ opacity: ing.isActive === false ? 0.45 : 1 }}>{ing.name}</span>
+                                                                                                {ing.isActive === false && (
+                                                                                                    <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                                                                                                        Deshabilitado
+                                                                                                    </span>
+                                                                                                )}
                                                                                             </button>
                                                                                         </td>
                                                                                         <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>{ing.total}</td>
@@ -1293,7 +1305,12 @@ export default function InventoryPage() {
                                                                                         onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
                                                                                         onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
                                                                                     >
-                                                                                        {ing.name}
+                                                                                        <span style={{ opacity: ing.isActive === false ? 0.45 : 1 }}>{ing.name}</span>
+                                                                                        {ing.isActive === false && (
+                                                                                            <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                                                                                                Deshabilitado
+                                                                                            </span>
+                                                                                        )}
                                                                                     </button>
                                                                                 </td>
                                                                                 <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>{ing.total}</td>

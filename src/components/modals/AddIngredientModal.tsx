@@ -63,6 +63,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [translatedNamePreview, setTranslatedNamePreview] = useState('');
     const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
     const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(false);
+    const [isDisabled, setIsDisabled] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
     const [totalStock, setTotalStock] = useState<string>('');
@@ -258,6 +259,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
             setAllowNegativeStock(initialData?.allowNegativeStock ?? false);
+            setIsDisabled(initialData ? initialData.isActive === false : false);
             setIsPacked(initialData?.isPacked ?? false);
             setUnitsPerPack(initialData?.unitsPerPack ?? 1.0);
             setPackUnit(initialData?.packUnit ?? 'Units');
@@ -382,6 +384,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             unfrozenQuantity: trackFreezerStatus ? getFinalQuantity(unfrozenStock) : undefined,
             trackFreezerStatus: trackFreezerStatus,
             allowNegativeStock: allowNegativeStock,
+            isActive: !isDisabled,
             isPacked: isPacked,
             unitsPerPack: isPacked ? unitsPerPack : 1.0,
             packUnit: isPacked ? packUnit : 'Units',
@@ -865,6 +868,21 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             <input value={mappingMultiplier} onChange={e => setMappingMultiplier(parseFloat(e.target.value) || 1)} type="number" step="0.01" className="input-field" />
                         </div>
                     </div>
+
+                    {initialData && (
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem 1rem', background: 'rgba(239, 68, 68, 0.06)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                            <input
+                                type="checkbox"
+                                checked={isDisabled}
+                                onChange={e => setIsDisabled(e.target.checked)}
+                                style={{ accentColor: 'var(--danger)', width: '16px', height: '16px', marginTop: '2px' }}
+                            />
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Deshabilitar ingrediente</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Los cocineros no verán este ingrediente en ninguna lista</span>
+                            </span>
+                        </label>
+                    )}
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
                         <button type="button" onClick={onClose} style={{ padding: '0.6rem 1rem', borderRadius: '8px', color: 'var(--text-secondary)', background: 'transparent' }}>

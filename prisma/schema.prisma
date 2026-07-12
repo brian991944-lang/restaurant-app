@@ -72,6 +72,7 @@ model Ingredient {
   isSubmittedForOrdering Boolean @default(false)
   purchaseStatus String  @default("PENDIENTE")   // PENDIENTE | COMPRADO | NO_DISPONIBLE
   carriedOver    Boolean @default(false)
+  isActive       Boolean @default(true)           // soft-disable: false = hidden from cook-facing lists
   esfuerzo       String  @default("MANUAL")       // MANUAL | HERVIDO
   updatedAt      DateTime  @default(now()) @updatedAt
 
