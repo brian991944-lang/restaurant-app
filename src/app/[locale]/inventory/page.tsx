@@ -528,23 +528,68 @@ export default function InventoryPage() {
             prepItems = prepItems.filter(i => i.name === ingFilter);
         }
 
-        type PivotRow = { anchor: Ingredient; children: Ingredient[] };
-        const rawRows: PivotRow[] = rawItems.map(parent => ({
-            anchor: parent,
-            children: filteredInventory.filter(c => c.type === 'PROCESSED' && (c as any).parent?.id === parent.id)
-        }));
+        // Every loaded item renders exactly once: RAW and PREP_RECIPE anchors
+        // carry their PROCESSED descendant chains (multi-level, visited-guarded).
+        // A PROCESSED item not reachable from any anchor rendered in this pass
+        // (parent missing, or its anchor filtered out) falls back to a top-level
+        // row in its own category with a "↳ de:" note instead of vanishing.
+        type PivotChild = { item: Ingredient; depth: number };
+        type PivotRow = { anchor: Ingredient; children: PivotChild[]; crossParent?: any };
 
-        const grouped: Record<string, { raws: PivotRow[]; preps: Ingredient[] }> = {};
-        rawRows.forEach(row => {
-            const cat = row.anchor.category;
-            if (!grouped[cat]) grouped[cat] = { raws: [], preps: [] };
-            grouped[cat].raws.push(row);
-        });
-        prepItems.forEach(item => {
-            const cat = item.category;
-            if (!grouped[cat]) grouped[cat] = { raws: [], preps: [] };
-            grouped[cat].preps.push(item);
-        });
+        const buildRow = (anchor: Ingredient, crossParent?: any): PivotRow => {
+            const children: PivotChild[] = [];
+            const visited = new Set<string>([anchor.id]);
+            const walk = (parentId: string, depth: number) => {
+                filteredInventory
+                    .filter(c => c.type === 'PROCESSED' && (c as any).parent?.id === parentId)
+                    .sort((a, b) => a.name.localeCompare(b.name, locale))
+                    .forEach(c => {
+                        if (visited.has(c.id)) return;
+                        visited.add(c.id);
+                        children.push({ item: c, depth });
+                        walk(c.id, depth + 1);
+                    });
+            };
+            walk(anchor.id, 1);
+            return { anchor, children, crossParent };
+        };
+
+        const rawRows: PivotRow[] = rawItems.map(parent => buildRow(parent));
+        const prepRows: PivotRow[] = prepItems.map(parent => buildRow(parent));
+
+        const reachable = new Set<string>();
+        [...rawRows, ...prepRows].forEach(r => r.children.forEach(c => reachable.add(c.item.id)));
+        const unreachable = new Set(filteredInventory.filter(i => i.type === 'PROCESSED' && !reachable.has(i.id)).map(i => i.id));
+        // Orphan roots: unreachable PROCESSED whose parent is not itself an
+        // unreachable PROCESSED (those nest under their orphaned parent's row).
+        let orphanItems = filteredInventory.filter(i =>
+            unreachable.has(i.id) && !((i as any).parent && unreachable.has((i as any).parent.id))
+        );
+        if (catFilter) orphanItems = orphanItems.filter(i => i.category === catFilter);
+        if (ingFilter) orphanItems = orphanItems.filter(i => i.name === ingFilter);
+        const orphanRows: PivotRow[] = orphanItems.map(item => buildRow(item, (item as any).parent || null));
+
+        const grouped: Record<string, { raws: PivotRow[]; preps: PivotRow[]; orphans: PivotRow[] }> = {};
+        const groupFor = (cat: string) => (grouped[cat] = grouped[cat] || { raws: [], preps: [], orphans: [] });
+        rawRows.forEach(row => groupFor(row.anchor.category).raws.push(row));
+        prepRows.forEach(row => groupFor(row.anchor.category).preps.push(row));
+        orphanRows.forEach(row => groupFor(row.anchor.category).orphans.push(row));
+
+        const renderChildRow = ({ item: child, depth }: PivotChild) => (
+            <div key={child.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: `0.8rem 1.5rem 0.8rem ${1.5 + depth * 1.5}rem`, borderBottom: '1px solid var(--border)', background: 'rgba(59, 130, 246, 0.08)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ opacity: 0.6 }}>↳</span>
+                    <span style={{ fontWeight: 500 }}>{child.name}</span>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                        {locale === 'es' ? 'PORCIONADO' : 'PORTIONED'}
+                    </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                    <span style={{ fontWeight: 600 }}>{formatDisplayQty(child, child.total)}</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(child)}</span>
+                </div>
+            </div>
+        );
 
         const sortedCategories = Object.keys(grouped).sort((a, b) => a.localeCompare(b, locale));
 
@@ -555,9 +600,10 @@ export default function InventoryPage() {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1rem' }}>
                 {sortedCategories.map(cat => {
-                    const { raws, preps } = grouped[cat];
+                    const { raws, preps, orphans } = grouped[cat];
                     raws.sort((a, b) => a.anchor.name.localeCompare(b.anchor.name, locale));
-                    preps.sort((a, b) => a.name.localeCompare(b.name, locale));
+                    preps.sort((a, b) => a.anchor.name.localeCompare(b.anchor.name, locale));
+                    orphans.sort((a, b) => a.anchor.name.localeCompare(b.anchor.name, locale));
 
                     return (
                         <div key={cat} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
@@ -577,35 +623,48 @@ export default function InventoryPage() {
                                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(anchor)}</span>
                                             </div>
                                         </div>
-                                        {children.map(child => (
-                                            <div key={child.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1.5rem 0.8rem 3rem', borderBottom: '1px solid var(--border)', background: 'rgba(59, 130, 246, 0.08)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {children.map(renderChildRow)}
+                                    </div>
+                                ))}
+                                {orphans.map(({ anchor: item, children, crossParent }) => (
+                                    <div key={item.id}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'rgba(59, 130, 246, 0.08)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <span style={{ opacity: 0.6 }}>↳</span>
-                                                    <span style={{ fontWeight: 500 }}>{child.name}</span>
+                                                    <span style={{ fontWeight: 700 }}>{item.name}</span>
                                                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#60a5fa', background: 'rgba(59,130,246,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
                                                         {locale === 'es' ? 'PORCIONADO' : 'PORTIONED'}
                                                     </span>
                                                 </div>
-                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                                                    <span style={{ fontWeight: 600 }}>{formatDisplayQty(child, child.total)}</span>
-                                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(child)}</span>
-                                                </div>
+                                                {crossParent && (
+                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                        ↳ de: {locale === 'es' && crossParent.nameEs ? crossParent.nameEs : crossParent.name}
+                                                    </div>
+                                                )}
                                             </div>
-                                        ))}
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                                                <span style={{ fontWeight: 600 }}>{formatDisplayQty(item, item.total)}</span>
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(item)}</span>
+                                            </div>
+                                        </div>
+                                        {children.map(renderChildRow)}
                                     </div>
                                 ))}
-                                {preps.map(item => (
-                                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'rgba(245, 158, 11, 0.10)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                            <span style={{ fontWeight: 700 }}>{item.name}</span>
-                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
-                                                {locale === 'es' ? 'PREPARADO' : 'PREP BASE'}
-                                            </span>
+                                {preps.map(({ anchor: item, children }) => (
+                                    <div key={item.id}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', background: 'rgba(245, 158, 11, 0.10)', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span style={{ fontWeight: 700 }}>{item.name}</span>
+                                                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#f59e0b', background: 'rgba(245,158,11,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
+                                                    {locale === 'es' ? 'PREPARADO' : 'PREP BASE'}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                                                <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{formatDisplayQty(item, item.total)}</span>
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(item)}</span>
+                                            </div>
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-                                            <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{formatDisplayQty(item, item.total)}</span>
-                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{getDisplayMetric(item)}</span>
-                                        </div>
+                                        {children.map(renderChildRow)}
                                     </div>
                                 ))}
                             </div>
