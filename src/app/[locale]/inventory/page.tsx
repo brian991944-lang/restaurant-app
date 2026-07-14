@@ -49,6 +49,8 @@ interface Ingredient {
     packsInBox?: number | null;
     totalBoxPrice?: number | null;
     isActive?: boolean;
+    nestDepth?: number;
+    crossGroupParent?: any;
 }
 
 const MOCK_INVENTORY: Ingredient[] = [
@@ -411,9 +413,14 @@ export default function InventoryPage() {
 
     const filteredInventory = mappedInventory.filter(item => true /* all */);
 
+    // Group by the raw (English) category name so distinct categories whose
+    // localized labels collide (e.g. "Meat & Poultry" with nameEs "Carnes" vs.
+    // a category literally named "Carnes") don't merge; section headers still
+    // show the localized name.
     const groupedInventory = filteredInventory.reduce((acc, item) => {
-        if (!acc[item.category]) acc[item.category] = [];
-        acc[item.category].push(item);
+        const key = item.rawCategory || item.category;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
         return acc;
     }, {} as Record<string, Ingredient[]>);
 
@@ -942,14 +949,14 @@ export default function InventoryPage() {
                                 setAllIngredientsNameFilter('');
                             }}
                             placeholder="All Categories"
-                            options={[{ value: '', label: 'All Categories' }, ...Object.keys(groupedInventory).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(c) }))]}
+                            options={[{ value: '', label: 'All Categories' }, ...Object.keys(groupedInventory).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(groupedInventory[c][0]?.category || c) }))]}
                             wrapperStyle={{ flex: 1, minWidth: '200px' }}
                         />
                         <SearchableSelect
                             value={allIngredientsNameFilter}
                             onChange={(val) => setAllIngredientsNameFilter(val)}
                             placeholder="All Ingredients"
-                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => (!allIngredientsCategoryFilter || i.category === allIngredientsCategoryFilter) && (allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent))).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
+                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => (!allIngredientsCategoryFilter || (i.rawCategory || i.category) === allIngredientsCategoryFilter) && (allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent))).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
                             wrapperStyle={{ flex: 1, minWidth: '200px' }}
                         />
                         <SearchableSelect
@@ -973,26 +980,29 @@ export default function InventoryPage() {
                                 .filter(i => !allIngredientsNameFilter || i.name === allIngredientsNameFilter)
                                 .filter(i => allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent));
 
-                            // 1. Separate all items into parents and children.
-                            const rootItems = filteredItems.filter(i => !i.parent);
-                            const childItems = filteredItems.filter(i => i.parent);
+                            // 1. A row is top-level if it has no parent, or its parent is not
+                            //    rendered in this group (cross-category orphan) — those must not
+                            //    fake a nesting under an unrelated row.
+                            const idsInGroup = new Set(filteredItems.map(i => i.id));
+                            const topLevelItems = filteredItems.filter(i => !(i.parent && idsInGroup.has(i.parent.id)));
+                            topLevelItems.sort((a, b) => a.name.localeCompare(b.name));
 
-                            // 2. Sort the parent items (and children) alphabetically based on their localized names.
-                            rootItems.sort((a, b) => a.name.localeCompare(b.name));
-                            childItems.sort((a, b) => a.name.localeCompare(b.name));
-
-                            // 3. Iterate through sorted parents and insert their specific child items immediately after them.
+                            // 2. Walk each top-level row and insert its descendants directly
+                            //    beneath it, following multi-level chains (RAW → PROCESSED → PREP)
+                            //    so a child anchors under its parent even when the parent is
+                            //    itself a child.
                             const finalSortedItems = [] as typeof items;
-                            rootItems.forEach(parent => {
-                                finalSortedItems.push(parent);
-                                const childrenOfParent = childItems.filter(c => c.parent.id === parent.id);
-                                finalSortedItems.push(...childrenOfParent);
-                            });
-
-                            // Ensure any orphan children (e.g., if parent was filtered out by a search text) are still rendered
-                            const handledIds = new Set(finalSortedItems.map(i => i.id));
-                            const orphanChildren = childItems.filter(c => !handledIds.has(c.id));
-                            finalSortedItems.push(...orphanChildren);
+                            const visited = new Set<string>();
+                            const pushWithDescendants = (item: Ingredient, depth: number) => {
+                                if (visited.has(item.id)) return;
+                                visited.add(item.id);
+                                finalSortedItems.push({ ...item, nestDepth: depth, crossGroupParent: depth === 0 ? item.parent : null });
+                                filteredItems
+                                    .filter(c => c.parent?.id === item.id)
+                                    .sort((a, b) => a.name.localeCompare(b.name))
+                                    .forEach(c => pushWithDescendants(c, depth + 1));
+                            };
+                            topLevelItems.forEach(item => pushWithDescendants(item, 0));
 
                             filteredItems = finalSortedItems;
 
@@ -1001,7 +1011,7 @@ export default function InventoryPage() {
                             return (
                                 <div key={category} className="glass-panel" style={{ padding: 0, overflow: 'hidden' }}>
                                     <div style={{ padding: '1rem 1.5rem', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                                        <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{getOptName(category)}</h3>
+                                        <h3 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{getOptName(items[0]?.category || category)}</h3>
                                     </div>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                         <thead>
@@ -1042,13 +1052,18 @@ export default function InventoryPage() {
                                                             {getDisplayMetric(item)}
                                                         </span>
                                                     </td>
-                                                    <td style={{ padding: '1rem 1.5rem', paddingLeft: item.parent ? 'calc(1.5rem + 24px)' : '1.5rem', fontWeight: item.parent ? 400 : 700, color: item.parent ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
-                                                        {item.parent && <span style={{ marginRight: '8px', opacity: 0.5 }}>└</span>}
+                                                    <td style={{ padding: '1rem 1.5rem', paddingLeft: item.nestDepth ? `calc(1.5rem + ${item.nestDepth * 24}px)` : '1.5rem', fontWeight: item.nestDepth ? 400 : 700, color: item.nestDepth ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                                                        {(item.nestDepth || 0) > 0 && <span style={{ marginRight: '8px', opacity: 0.5 }}>└</span>}
                                                         <span style={{ opacity: item.isActive === false ? 0.45 : 1 }}>{item.name}</span>
                                                         {item.isActive === false && (
                                                             <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px', verticalAlign: 'middle' }}>
                                                                 Deshabilitado
                                                             </span>
+                                                        )}
+                                                        {item.crossGroupParent && (
+                                                            <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                                                ↳ de: {locale === 'es' && item.crossGroupParent.nameEs ? item.crossGroupParent.nameEs : item.crossGroupParent.name}
+                                                            </div>
                                                         )}
                                                     </td>
                                                     <td style={{ padding: '1rem 1.5rem' }}>
