@@ -10,9 +10,6 @@ function requireCloverEnv(name: 'CLOVER_MERCHANT_ID' | 'CLOVER_API_TOKEN'): stri
     return value;
 }
 
-const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
-const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
-
 async function depleteInventory(ingredientId: string, quantity: number, note: string) {
     const inv = await prisma.inventory.findUnique({ where: { ingredientId: ingredientId } });
     if (!inv) return;
@@ -55,6 +52,8 @@ async function depleteInventory(ingredientId: string, quantity: number, note: st
 }
 
 export async function fetchCloverMenuItems() {
+    const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
+    const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
     try {
         const url = `https://api.clover.com/v3/merchants/${CLOVER_MERCHANT_ID}/items?limit=1000`;
         const res = await fetch(url, {
@@ -69,6 +68,8 @@ export async function fetchCloverMenuItems() {
 }
 
 export async function fetchCloverModifiers() {
+    const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
+    const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
     try {
         const url = `https://api.clover.com/v3/merchants/${CLOVER_MERCHANT_ID}/modifier_groups?expand=modifiers&limit=1000`;
         const res = await fetch(url, {
@@ -98,6 +99,8 @@ export async function fetchCloverModifiers() {
 }
 
 export async function syncCloverSales() {
+    const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
+    const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
     try {
         // 1. Delete records older than 3 days (72 hours)
         const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
