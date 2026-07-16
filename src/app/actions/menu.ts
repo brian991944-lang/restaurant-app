@@ -1,6 +1,28 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { fetchCloverItemDetails, updateCloverItemDescription } from './clover';
+
+/**
+ * For Clover-linked items, Clover is the source of truth: mirror its live
+ * name/price/category over whatever was submitted. Falls back to submitted
+ * values if Clover is unreachable. Description flows the other way (app -> Clover).
+ */
+async function resolveCloverFields(data: any): Promise<{ name: string; category: string | null; salePrice: number }> {
+    const submitted = {
+        name: data.name,
+        category: data.category ?? null,
+        salePrice: data.salePrice || 0
+    };
+    if (!data.cloverId) return submitted;
+    const details = await fetchCloverItemDetails(data.cloverId);
+    if (!details) return submitted;
+    return {
+        name: details.name || submitted.name,
+        category: details.category ?? submitted.category,
+        salePrice: details.price
+    };
+}
 
 export async function getMenuItems() {
     return prisma.menuItem.findMany({
@@ -20,13 +42,24 @@ export async function getMenuItems() {
     });
 }
 
+export async function getMenuCategories() {
+    const rows = await prisma.menuItem.findMany({
+        select: { category: true },
+        distinct: ['category'],
+        where: { category: { not: null } },
+        orderBy: { category: 'asc' }
+    });
+    return rows.map(r => r.category).filter((c): c is string => !!c);
+}
+
 export async function addMenuItem(data: any) {
     try {
+        const cloverFields = await resolveCloverFields(data);
         const menuItem = await prisma.menuItem.create({
             data: {
-                name: data.name,
-                category: data.category,
-                salePrice: data.salePrice || 0,
+                name: cloverFields.name,
+                category: cloverFields.category,
+                salePrice: cloverFields.salePrice,
                 targetFoodCostPct: data.targetFoodCostPct || 25.0,
                 cloverId: data.cloverId || null,
                 hasInventoryModifiers: data.hasInventoryModifiers || false,
@@ -52,6 +85,10 @@ export async function addMenuItem(data: any) {
                 }
             }
         });
+        // Description is managed from the app -> pushed to Clover. Never blocks the save.
+        if (menuItem.cloverId && typeof data.cloverDescription === 'string') {
+            await updateCloverItemDescription(menuItem.cloverId, data.cloverDescription);
+        }
         return { success: true, menuItem };
     } catch (e) {
         console.error('Failed to add menu item:', e);
@@ -66,12 +103,13 @@ export async function editMenuItem(id: string, data: any) {
         await prisma.menuItemModifier.deleteMany({ where: { menuItemId: id } });
 
         // Update item and create new ingredients
+        const cloverFields = await resolveCloverFields(data);
         const menuItem = await prisma.menuItem.update({
             where: { id },
             data: {
-                name: data.name,
-                category: data.category,
-                salePrice: data.salePrice || 0,
+                name: cloverFields.name,
+                category: cloverFields.category,
+                salePrice: cloverFields.salePrice,
                 targetFoodCostPct: data.targetFoodCostPct || 25.0,
                 cloverId: data.cloverId || null,
                 hasInventoryModifiers: data.hasInventoryModifiers || false,
@@ -97,6 +135,10 @@ export async function editMenuItem(id: string, data: any) {
                 }
             }
         });
+        // Description is managed from the app -> pushed to Clover. Never blocks the save.
+        if (menuItem.cloverId && typeof data.cloverDescription === 'string') {
+            await updateCloverItemDescription(menuItem.cloverId, data.cloverDescription);
+        }
         return { success: true, menuItem };
     } catch (e) {
         console.error('Failed to edit menu item:', e);

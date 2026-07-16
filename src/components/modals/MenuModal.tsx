@@ -3,7 +3,8 @@
 import { Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getInventory } from '@/app/actions/inventory';
-import { fetchCloverMenuItems, fetchCloverModifiers } from '@/app/actions/clover';
+import { getMenuCategories } from '@/app/actions/menu';
+import { fetchCloverMenuItems, fetchCloverModifiers, fetchCloverItemDetails } from '@/app/actions/clover';
 import { getConversionFactor, ALLOWED_METRICS } from '@/lib/conversion';
 import { calculateRecipeCost, resolveIngredientCost } from '@/lib/calculations';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
@@ -23,9 +24,12 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
     // Form state
     const [name, setName] = useState('');
     const [category, setCategory] = useState('');
+    const [categoriesList, setCategoriesList] = useState<string[]>([]);
+    const [isNewCategory, setIsNewCategory] = useState(false);
     const [salePrice, setSalePrice] = useState('0');
     const [targetFoodCostPct, setTargetFoodCostPct] = useState('25.0');
     const [cloverId, setCloverId] = useState('');
+    const [cloverDescription, setCloverDescription] = useState('');
     const [hasInventoryModifiers, setHasInventoryModifiers] = useState(false);
     const [ingredients, setIngredients] = useState<{ id: string, ingredientId: string, quantity: string, unit: string }[]>([]);
     const [modifiers, setModifiers] = useState<{ id: string, name: string, cloverModifierId: string, ingredients: { id: string, ingredientId: string, quantity: string, unit: string }[] }[]>([]);
@@ -36,6 +40,8 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
     useEffect(() => {
         if (isOpen) {
             getInventory().then(setIngredientsList);
+            getMenuCategories().then(setCategoriesList);
+            setIsNewCategory(false);
             fetchCloverMenuItems().then(setCloverItems);
             fetchCloverModifiers().then(setCloverModifiersOpt);
 
@@ -76,6 +82,25 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
         }
     }, [isOpen, initialData]);
 
+    // Clover is the source of truth for linked items: mirror its live
+    // name/price/category into the form whenever a Clover item is linked.
+    useEffect(() => {
+        if (!isOpen || !cloverId) {
+            setCloverDescription('');
+            return;
+        }
+        fetchCloverItemDetails(cloverId).then(details => {
+            if (!details) return;
+            setName(details.name);
+            setSalePrice(details.price.toString());
+            if (details.category) {
+                setCategory(details.category);
+                setIsNewCategory(false);
+            }
+            setCloverDescription(details.description);
+        });
+    }, [isOpen, cloverId]);
+
     const handleAddIngredient = () => {
         setIngredients([...ingredients, { id: Math.random().toString(), ingredientId: '', quantity: '0', unit: 'units' }]);
     };
@@ -105,6 +130,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
             salePrice: parseFloat(salePrice) || 0,
             targetFoodCostPct: parseFloat(targetFoodCostPct) || 25,
             cloverId: cloverId || null,
+            cloverDescription: cloverId ? cloverDescription : undefined,
             hasInventoryModifiers,
             ingredients: ingredients.map(ing => ({
                 ingredientId: ing.ingredientId,
@@ -148,18 +174,41 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Menu Item Name</label>
-                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="input-field" placeholder="e.g. Lomo Saltado" required />
+                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="input-field" placeholder="e.g. Lomo Saltado" required disabled={!!cloverId} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Category</label>
-                            <input value={category} onChange={e => setCategory(e.target.value)} type="text" className="input-field" placeholder="e.g. Entrees" required />
+                            <select
+                                value={isNewCategory ? '__new__' : category}
+                                onChange={e => {
+                                    if (e.target.value === '__new__') {
+                                        setIsNewCategory(true);
+                                        setCategory('');
+                                    } else {
+                                        setIsNewCategory(false);
+                                        setCategory(e.target.value);
+                                    }
+                                }}
+                                className="input-field"
+                                required={!isNewCategory}
+                                disabled={!!cloverId}
+                            >
+                                <option value="" disabled>Select a category...</option>
+                                {(categoriesList.includes(category) || !category ? categoriesList : [category, ...categoriesList]).map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                                <option value="__new__">+ New category...</option>
+                            </select>
+                            {isNewCategory && (
+                                <input value={category} onChange={e => setCategory(e.target.value)} type="text" className="input-field" placeholder="New category name" required autoFocus />
+                            )}
                         </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Selling Price ($)</label>
-                            <input value={salePrice} onChange={e => setSalePrice(e.target.value)} type="number" step="0.01" className="input-field" placeholder="25.00" required />
+                            <input value={salePrice} onChange={e => setSalePrice(e.target.value)} type="number" step="0.01" className="input-field" placeholder="25.00" required disabled={!!cloverId} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Target Food Cost %</label>
@@ -176,6 +225,22 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                             options={[{ value: '', label: 'None' }, ...cloverItems.map(item => ({ value: item.id, label: `${item.name} - ${item.id}` }))]}
                             placeholder="Select a Clover Item..."
                         />
+                        {cloverId && (
+                            <>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                    Linked: name, price &amp; category mirror Clover automatically. Description below is saved to Clover.
+                                </p>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Description (Clover)</label>
+                                <textarea
+                                    value={cloverDescription}
+                                    onChange={e => setCloverDescription(e.target.value)}
+                                    className="input-field"
+                                    rows={3}
+                                    placeholder="Item description shown in Clover / online ordering..."
+                                    style={{ resize: 'vertical', minHeight: '70px' }}
+                                />
+                            </>
+                        )}
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>

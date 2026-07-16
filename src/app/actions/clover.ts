@@ -51,6 +51,65 @@ async function depleteInventory(ingredientId: string, quantity: number, note: st
     }).catch(() => null);
 }
 
+async function cloverFetch(path: string, opts: RequestInit = {}) {
+    const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
+    const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
+    const url = `https://api.clover.com/v3/merchants/${CLOVER_MERCHANT_ID}${path}`;
+    const headers = { 'Authorization': `Bearer ${CLOVER_TOKEN}`, 'Content-Type': 'application/json' };
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        const res = await fetch(url, { ...opts, headers });
+        if (res.status === 429) {
+            await new Promise(r => setTimeout(r, attempt * 2000));
+            continue;
+        }
+        if (!res.ok) throw new Error(`Clover ${opts.method || 'GET'} ${path} -> ${res.status}: ${await res.text()}`);
+        return res.json();
+    }
+    throw new Error(`Clover ${path}: rate limited (429) after retries`);
+}
+
+/**
+ * Fetch a linked Clover item's live details. Clover is the source of truth
+ * for linked menu items: the app mirrors name, price and category from here.
+ * Returns null (non-fatal) if Clover is unreachable.
+ */
+export async function fetchCloverItemDetails(cloverId: string): Promise<{
+    name: string;
+    price: number;          // dollars
+    description: string;
+    category: string | null;
+} | null> {
+    try {
+        const item = await cloverFetch(`/items/${cloverId}?expand=categories`);
+        return {
+            name: item.name || '',
+            price: (item.price || 0) / 100,
+            description: item.description || '',
+            category: item.categories?.elements?.[0]?.name || null
+        };
+    } catch (e) {
+        console.error('fetchCloverItemDetails failed:', e);
+        return null;
+    }
+}
+
+/**
+ * Update the description of a Clover item (managed from the app's menu modal).
+ * Non-fatal: callers should not fail the DB save if Clover is unreachable.
+ */
+export async function updateCloverItemDescription(cloverId: string, description: string) {
+    try {
+        await cloverFetch(`/items/${cloverId}`, {
+            method: 'POST',
+            body: JSON.stringify({ description })
+        });
+        return { success: true };
+    } catch (e) {
+        console.error('updateCloverItemDescription failed:', e);
+        return { success: false, error: e instanceof Error ? e.message : String(e) };
+    }
+}
+
 export async function fetchCloverMenuItems() {
     const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
     const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
