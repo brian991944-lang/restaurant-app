@@ -376,3 +376,71 @@ model PrepAssignmentCompletedBy {
 
   @@unique([assignmentId, userId])
 }
+
+// ─────────────────────────────────────────────────────────────
+// QuickBooks Online sync models
+// Design: one flattened fact table (QboTransactionLine) with
+// denormalized account attributes, so both the in-app pivot and
+// Power BI can aggregate without joins.
+// ─────────────────────────────────────────────────────────────
+
+model QboConnection {
+  id                    String   @id @default(cuid())
+  realmId               String   @unique
+  accessToken           String
+  refreshToken          String
+  accessTokenExpiresAt  DateTime
+  refreshTokenExpiresAt DateTime
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model QboAccount {
+  id                 String   @id // QBO Account.Id
+  name               String
+  fullyQualifiedName String?
+  accountType        String? // e.g. "Expense", "Cost of Goods Sold", "Income"
+  accountSubType     String?
+  classification     String? // Asset | Liability | Equity | Revenue | Expense
+  active             Boolean  @default(true)
+  syncedAt           DateTime @updatedAt
+}
+
+model QboVendor {
+  id          String   @id
+  displayName String
+  active      Boolean  @default(true)
+  syncedAt    DateTime @updatedAt
+}
+
+/// One row per transaction line across Purchase, Bill, Invoice,
+/// JournalEntry. This is the pivot/Power BI fact table.
+model QboTransactionLine {
+  id             String   @id // `${txnType}:${txnId}:${lineIndex}`
+  txnId          String
+  txnType        String // Purchase | Bill | Invoice | JournalEntry
+  txnDate        DateTime @db.Date
+  docNumber      String?
+  accountId      String?
+  accountName    String? // denormalized for pivoting
+  accountType    String? // denormalized
+  classification String? // denormalized: Revenue / Expense / etc.
+  entityName     String? // vendor (expenses) or customer (income)
+  memo           String?
+  amount         Decimal  @db.Decimal(14, 2) // signed: expenses +, credits -
+  postingType    String? // Debit | Credit (journal entries only)
+  syncedAt       DateTime @updatedAt
+
+  @@index([txnDate])
+  @@index([accountName])
+  @@index([entityName])
+  @@index([txnType])
+}
+
+model QboSyncState {
+  id             String    @id @default("singleton")
+  lastCdcAt      DateTime? // watermark for Change Data Capture
+  fullSyncDoneAt DateTime?
+  lastRunStatus  String?
+  updatedAt      DateTime  @updatedAt
+}

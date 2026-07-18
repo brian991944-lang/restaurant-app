@@ -34,10 +34,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (isLoaded) {
             sessionStorage.setItem('isAdmin', isAdmin.toString());
+            // Mirror admin state into a cookie so admin-only API routes
+            // (e.g. /api/quickbooks/*) can check it server-side.
+            if (isAdmin) {
+                document.cookie = 'fusionista_admin=true; path=/; max-age=43200; samesite=lax';
+            } else {
+                document.cookie = 'fusionista_admin=; path=/; max-age=0';
+            }
         }
     }, [isAdmin, isLoaded]);
 
-    const restrictedRoutes = ['/purchases', '/menu', '/sales', '/data'];
+    const restrictedRoutes = ['/purchases', '/menu', '/sales', '/data', '/finanzas'];
     const isRestricted = restrictedRoutes.some(route => pathname.includes(route));
 
     useEffect(() => {

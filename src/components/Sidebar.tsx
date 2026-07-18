@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee, Landmark } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
@@ -54,6 +54,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar },
         { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp },
         { name: t('raw_data'), href: `/${locale}/data`, icon: Database },
+        { name: 'Finanzas', href: `/${locale}/finanzas`, icon: Landmark },
         { name: 'Inventory Salon', href: `/${locale}/inventory-salon`, icon: Package },
         { name: 'Tips & Reviews', href: `/${locale}/tips-reviews`, icon: TrendingUp },
         { name: 'Gift Cards', href: `/${locale}/gift-cards`, icon: Tags },
