@@ -28,6 +28,7 @@ export default async function PublicMenuPage() {
                 photoUrls: true,
                 videoUrl: true,
                 isFeatured: true,
+                featuredRank: true,
                 menuCategoryId: true,
             },
         }),

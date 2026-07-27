@@ -20,6 +20,11 @@
   --m-tag-text: #f6f1e6;
   --m-img-bg: #c9b8a0;
 
+  /* Featured "most ordered" glow (brighter than --m-gold on purpose) */
+  --m-glow-ring: 0 0 0 2px rgba(224, 183, 92, 1);
+  --m-glow-near: 0 0 26px rgba(224, 183, 92, 0.65);
+  --m-glow-far: 0 0 60px rgba(224, 183, 92, 0.38), 0 0 100px rgba(224, 183, 92, 0.2);
+
   --m-nav-h: 56px;
 
   margin: 0;
@@ -45,6 +50,10 @@
   --m-burgundy: #7d3340;
   --m-tag-text: #f0e7d6;
   --m-img-bg: #3a2a22;
+
+  --m-glow-ring: 0 0 0 1.5px rgba(224, 183, 92, 0.85);
+  --m-glow-near: 0 0 22px rgba(224, 183, 92, 0.45);
+  --m-glow-far: 0 0 52px rgba(224, 183, 92, 0.24), 0 0 88px rgba(224, 183, 92, 0.12);
 }
 
 .menu-public *,
@@ -164,6 +173,149 @@
 .mp-theme-btn:hover {
   color: var(--m-ink);
   border-color: var(--m-faint);
+}
+
+/* ---------- Featured "most ordered" band ---------- */
+
+.mp-feat-band {
+  padding-top: 1.5rem;
+  /* outer bloom reaches ~100px; keep clear of the sticky nav below */
+  margin-bottom: 96px;
+}
+
+.mp-feat-label {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.mp-feat-rule {
+  flex: 1;
+  height: 1px;
+  background-color: var(--m-hairline);
+}
+
+.mp-feat-label-text {
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--m-faint);
+  white-space: nowrap;
+}
+
+.mp-feat-pair {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.75rem;
+}
+
+.mp-feat-tile {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background-color: var(--m-img-bg);
+}
+
+.mp-feat-tile-solo {
+  aspect-ratio: 21 / 9;
+}
+
+.mp-feat-tile-pair {
+  aspect-ratio: 5 / 4;
+}
+
+/* Glow lives ONLY on featured tiles — never on any shared card class */
+.mp-feat-glow {
+  box-shadow: var(--m-glow-ring), var(--m-glow-near), var(--m-glow-far);
+}
+
+.mp-feat-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Flat scrim, identical in both themes, so text over the photo stays legible */
+.mp-feat-scrim {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(20, 14, 10, 0.42);
+}
+
+.mp-feat-body {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 1.5rem 1.75rem;
+  padding-right: 6rem; /* clear the price pinned in the corner */
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.mp-feat-name {
+  font-family: 'Instrument Serif', serif;
+  font-weight: 400;
+  font-size: clamp(22px, 3.2vw, 34px);
+  line-height: 1.1;
+  color: var(--m-tag-text);
+}
+
+.mp-feat-tile-pair .mp-feat-name {
+  font-size: clamp(19px, 4.5vw, 24px);
+}
+
+.mp-feat-desc {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--m-tag-text);
+  opacity: 0.86;
+  max-width: 52ch;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mp-feat-price {
+  position: absolute;
+  right: 1.75rem;
+  bottom: 1.5rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--m-gold);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .mp-feat-band {
+    margin-bottom: 88px;
+  }
+
+  .mp-feat-pair {
+    gap: 1rem;
+  }
+
+  .mp-feat-body {
+    padding: 1rem 1.1rem;
+    padding-right: 4.5rem;
+  }
+
+  .mp-feat-price {
+    right: 1.1rem;
+    bottom: 1rem;
+    font-size: 1rem;
+  }
 }
 
 /* ---------- Sticky category nav ---------- */

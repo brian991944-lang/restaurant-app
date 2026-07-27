@@ -175,6 +175,7 @@ model MenuItem {
   taglineEs       String?
   isAvailable     Boolean @default(true)
   isFeatured      Boolean @default(false)
+  featuredRank    Int?    // "most ordered" band on the public menu: lower rank shows first (null = not featured)
   sortOrder       Int     @default(0)
   menuCategoryId  String? // Integration point: digital menu category (menu module)
   menuCategory    MenuCategory? @relation(fields: [menuCategoryId], references: [id])
