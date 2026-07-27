@@ -235,6 +235,49 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
     }
 }
 
+// Public-menu "Lo Más Pedido" band. Ranks 1 and 2 are mutually exclusive across
+// all items — writing rank N first clears N wherever it currently lives. A dish
+// with no cover photo cannot be featured (the band renders an image). This is
+// separate from isFeatured, which drives the per-category hero and is untouched here.
+export async function setFeaturedRank(itemId: string, rank: 1 | 2 | null) {
+    try {
+        if (rank !== null) {
+            const item = await prisma.menuItem.findUnique({
+                where: { id: itemId },
+                select: { photoUrl: true, photoUrls: true }
+            });
+            if (!item) {
+                return { success: false, error: 'El plato no existe.' };
+            }
+            const hasPhoto = !!(item.photoUrl || (item.photoUrls ?? [])[0]);
+            if (!hasPhoto) {
+                return { success: false, error: 'Este plato necesita una foto antes de destacarse.' };
+            }
+            // Atomic: strip this rank from whoever holds it, then assign it here.
+            await prisma.$transaction([
+                prisma.menuItem.updateMany({
+                    where: { featuredRank: rank, id: { not: itemId } },
+                    data: { featuredRank: null }
+                }),
+                prisma.menuItem.update({
+                    where: { id: itemId },
+                    data: { featuredRank: rank }
+                })
+            ]);
+        } else {
+            await prisma.menuItem.update({
+                where: { id: itemId },
+                data: { featuredRank: null }
+            });
+        }
+        revalidateMenuPaths();
+        return { success: true };
+    } catch (e) {
+        console.error('setFeaturedRank failed:', e);
+        return { success: false, error: 'No se pudo actualizar el destacado.' };
+    }
+}
+
 export async function reorderMenuItems(categoryId: string, orderedIds: string[]) {
     try {
         await prisma.$transaction(

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { X, Languages } from 'lucide-react';
 import ImageUpload from '@/components/ui/ImageUpload';
-import { createMenuItem, updateMenuItem } from '@/app/actions/menuAdmin';
+import { createMenuItem, updateMenuItem, setFeaturedRank } from '@/app/actions/menuAdmin';
 
 interface ItemEditorModalProps {
     isOpen: boolean;
@@ -30,10 +30,15 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [videoUrl, setVideoUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    // "Lo Más Pedido" band — saved independently of the form via setFeaturedRank.
+    const [featuredRank, setFeaturedRankState] = useState<number | null>(null);
+    const [featuredError, setFeaturedError] = useState<string | null>(null);
+    const [featuredSaving, setFeaturedSaving] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
             setError(null);
+            setFeaturedError(null);
             if (initialData) {
                 setName(initialData.name || '');
                 setNameEs(initialData.nameEs || '');
@@ -48,6 +53,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setPhotoUrl(initialData.photoUrl || '');
                 setPhotoUrls(initialData.photoUrls || []);
                 setVideoUrl(initialData.videoUrl || '');
+                setFeaturedRankState(initialData.featuredRank ?? null);
             } else {
                 setName('');
                 setNameEs('');
@@ -62,6 +68,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setPhotoUrl('');
                 setPhotoUrls([]);
                 setVideoUrl('');
+                setFeaturedRankState(null);
             }
         }
     }, [isOpen, initialData, defaultCategoryId]);
@@ -99,8 +106,34 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
         }
     };
 
+    // A live view of whether a cover photo exists in the modal; the server enforces
+    // the same rule against the persisted row and is the real gate.
+    const hasPhoto = !!(photoUrl || photoUrls[0]);
+
+    const handleFeaturedChange = async (rank: 1 | 2 | null) => {
+        if (!initialData || rank === featuredRank || featuredSaving) return;
+        const prev = featuredRank;
+        setFeaturedError(null);
+        setFeaturedSaving(true);
+        setFeaturedRankState(rank); // optimistic
+        const result = await setFeaturedRank(initialData.id, rank);
+        setFeaturedSaving(false);
+        if (result.success) {
+            // Refresh the parent list so a sibling that lost this rank reflects it.
+            onSaved();
+        } else {
+            setFeaturedRankState(prev);
+            setFeaturedError(result.error || 'No se pudo actualizar el destacado.');
+        }
+    };
+
     const labelStyle: React.CSSProperties = { fontSize: '0.9rem', color: 'var(--text-secondary)' };
     const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.5rem' };
+    const featOptions: { label: string; value: 1 | 2 | null }[] = [
+        { label: 'No', value: null },
+        { label: '1º', value: 1 },
+        { label: '2º', value: 2 },
+    ];
 
     return (
         <div style={{
@@ -199,6 +232,50 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                             <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} style={{ width: '20px', height: '20px' }} />
                             <span>Destacado</span>
                         </label>
+                    </div>
+
+                    {/* Separate block from "Destacado" above so the two are not confusable. */}
+                    <div style={{ ...fieldStyle, borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>
+                        <label style={labelStyle}>Lo Más Pedido</label>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            Aparece en la banda destacada del menú público.
+                        </span>
+                        <div role="group" aria-label="Lo Más Pedido" style={{ display: 'inline-flex', alignSelf: 'flex-start', marginTop: '0.25rem', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                            {featOptions.map((opt, idx) => {
+                                const active = featuredRank === opt.value;
+                                const isRankOption = opt.value !== null;
+                                const disabled = featuredSaving || !initialData || (isRankOption && !hasPhoto);
+                                return (
+                                    <button
+                                        key={String(opt.value)}
+                                        type="button"
+                                        onClick={() => handleFeaturedChange(opt.value)}
+                                        disabled={disabled}
+                                        aria-pressed={active}
+                                        style={{
+                                            minWidth: '60px', minHeight: '44px', padding: '0.5rem 1.1rem',
+                                            border: 'none',
+                                            borderLeft: idx === 0 ? 'none' : '1px solid var(--border)',
+                                            background: active ? 'var(--accent-primary)' : 'transparent',
+                                            color: active ? 'white' : 'var(--text-primary)',
+                                            fontWeight: active ? 600 : 400,
+                                            cursor: disabled ? 'not-allowed' : 'pointer',
+                                            opacity: disabled && !active ? 0.45 : 1
+                                        }}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {!initialData ? (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Guarda el plato primero.</span>
+                        ) : !hasPhoto ? (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Requiere una foto.</span>
+                        ) : null}
+                        {featuredError && (
+                            <span style={{ fontSize: '0.85rem', color: '#ef4444' }}>{featuredError}</span>
+                        )}
                     </div>
 
                     <div style={fieldStyle}>
