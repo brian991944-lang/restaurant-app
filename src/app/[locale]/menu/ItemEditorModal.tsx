@@ -30,6 +30,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [photoFocalX, setPhotoFocalX] = useState(50);
     const [photoFocalY, setPhotoFocalY] = useState(50);
     const [photoZoom, setPhotoZoom] = useState(100);
+    const [photoFit, setPhotoFit] = useState<'cover' | 'contain'>('cover');
     const [videoUrl, setVideoUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -58,6 +59,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setPhotoFocalX(initialData.photoFocalX ?? 50);
                 setPhotoFocalY(initialData.photoFocalY ?? 50);
                 setPhotoZoom(initialData.photoZoom ?? 100);
+                setPhotoFit(initialData.photoFit === 'contain' ? 'contain' : 'cover');
                 setVideoUrl(initialData.videoUrl || '');
                 setFeaturedRankState(initialData.featuredRank ?? null);
             } else {
@@ -76,6 +78,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setPhotoFocalX(50);
                 setPhotoFocalY(50);
                 setPhotoZoom(100);
+                setPhotoFit('cover');
                 setVideoUrl('');
                 setFeaturedRankState(null);
             }
@@ -102,6 +105,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             photoFocalX,
             photoFocalY,
             photoZoom,
+            photoFit,
             videoUrl,
             isAvailable,
             isFeatured
@@ -321,16 +325,21 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     overflow: 'hidden',
                                     borderRadius: '8px',
                                     border: '1px solid var(--border)',
-                                    cursor: 'crosshair'
+                                    cursor: 'crosshair',
+                                    ...(photoFit === 'contain' ? {
+                                        backgroundImage: "url('https://abijsgttguoyyamoqcxg.supabase.co/storage/v1/object/public/restaurant-assets/textil-andino.webp')",
+                                        backgroundRepeat: 'repeat',
+                                        backgroundSize: '120px auto'
+                                    } : {})
                                 }}
                             >
                                 <img
                                     src={photoUrl}
                                     alt="Encuadre de la foto"
                                     style={{
-                                        width: `${photoZoom}%`,
-                                        height: `${photoZoom}%`,
-                                        objectFit: 'cover',
+                                        width: `${photoFit === 'contain' ? 100 : photoZoom}%`,
+                                        height: `${photoFit === 'contain' ? 100 : photoZoom}%`,
+                                        objectFit: photoFit,
                                         objectPosition: `${photoFocalX}% ${photoFocalY}%`,
                                         display: 'block'
                                     }}
@@ -354,6 +363,36 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                 />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <label style={labelStyle}>Ajuste de la foto</label>
+                                <div role="group" aria-label="Ajuste de la foto" style={{ display: 'inline-flex', alignSelf: 'flex-start', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                                    {([
+                                        { label: 'Rellenar', value: 'cover' as const },
+                                        { label: 'Foto completa', value: 'contain' as const },
+                                    ]).map((opt, idx) => {
+                                        const active = photoFit === opt.value;
+                                        return (
+                                            <button
+                                                key={opt.value}
+                                                type="button"
+                                                onClick={() => setPhotoFit(opt.value)}
+                                                aria-pressed={active}
+                                                style={{
+                                                    minWidth: '60px', minHeight: '44px', padding: '0.5rem 1.1rem',
+                                                    border: 'none',
+                                                    borderLeft: idx === 0 ? 'none' : '1px solid var(--border)',
+                                                    background: active ? 'var(--accent-primary)' : 'transparent',
+                                                    color: active ? 'white' : 'var(--text-primary)',
+                                                    fontWeight: active ? 600 : 400,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: photoFit === 'contain' ? 0.45 : 1 }}>
                                 <label style={labelStyle}>Acercar <span style={{ fontSize: '0.8rem' }}>({photoZoom}%)</span></label>
                                 <input
                                     type="range"
@@ -362,7 +401,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     step={5}
                                     value={photoZoom}
                                     onChange={(e) => setPhotoZoom(Number(e.target.value))}
-                                    style={{ width: '100%' }}
+                                    disabled={photoFit === 'contain'}
+                                    style={{ width: '100%', cursor: photoFit === 'contain' ? 'not-allowed' : 'pointer' }}
                                 />
                             </div>
                             <button

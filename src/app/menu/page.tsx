@@ -29,6 +29,7 @@ export default async function PublicMenuPage() {
                 photoFocalX: true,
                 photoFocalY: true,
                 photoZoom: true,
+                photoFit: true,
                 videoUrl: true,
                 isFeatured: true,
                 featuredRank: true,

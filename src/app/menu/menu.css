@@ -241,6 +241,13 @@
   display: block;
 }
 
+/* Backdrop shown behind "contain"-fit favorites photos (whole photo visible) */
+.mp-feat-tile-textile {
+  background-image: url('https://abijsgttguoyyamoqcxg.supabase.co/storage/v1/object/public/restaurant-assets/textil-andino.webp');
+  background-repeat: repeat;
+  background-size: 120px auto;
+}
+
 /* Card wrapper: glowing photo tile with name/price/desc in normal flow below */
 .mp-feat-card {
   display: flex;

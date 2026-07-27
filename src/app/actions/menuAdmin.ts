@@ -139,6 +139,7 @@ interface MenuItemInput {
     photoFocalX?: number;        // cover focal point X, 0-100 %
     photoFocalY?: number;        // cover focal point Y, 0-100 %
     photoZoom?: number;          // favorites-band cover zoom, 100-300 %
+    photoFit?: string;           // favorites-band fit: "cover" or "contain"
     videoUrl?: string | null;
     isAvailable?: boolean;
     isFeatured?: boolean;
@@ -183,6 +184,7 @@ export async function createMenuItem(data: MenuItemInput) {
                 photoFocalX: data.photoFocalX ?? 50,
                 photoFocalY: data.photoFocalY ?? 50,
                 photoZoom: data.photoZoom ?? 100,
+                photoFit: data.photoFit ?? 'cover',
                 videoUrl: data.videoUrl?.trim() || null,
                 isAvailable: data.isAvailable ?? true,
                 isFeatured: data.isFeatured ?? false,
@@ -226,6 +228,7 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.photoFocalX !== undefined ? { photoFocalX: data.photoFocalX } : {}),
                 ...(data.photoFocalY !== undefined ? { photoFocalY: data.photoFocalY } : {}),
                 ...(data.photoZoom !== undefined ? { photoZoom: data.photoZoom } : {}),
+                ...(data.photoFit !== undefined ? { photoFit: data.photoFit } : {}),
                 ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl?.trim() || null } : {}),
                 ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
                 ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {})

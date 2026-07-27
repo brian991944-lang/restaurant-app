@@ -33,6 +33,7 @@ type MenuItemData = {
     photoFocalX: number;
     photoFocalY: number;
     photoZoom: number;
+    photoFit: string;
     videoUrl: string | null;
     isFeatured: boolean;
     featuredRank: number | null;
@@ -242,10 +243,14 @@ export default function MenuClient({
     const renderFeaturedTile = (item: MenuItemData, variant: 'solo' | 'pair') => {
         const cover = coverOf(item);
         const desc = itemDescription(item);
+        // "contain" shows the whole photo on a textile backdrop; zoom is meaningless
+        // there (the image is already fully visible), so it's forced back to 100%.
+        const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
+        const zoom = fit === 'contain' ? 100 : item.photoZoom;
         return (
             <article key={item.id} className={`mp-feat-card mp-feat-card-${variant}`}>
                 <div
-                    className={`mp-feat-tile mp-feat-tile-${variant} mp-feat-glow`}
+                    className={`mp-feat-tile mp-feat-tile-${variant} mp-feat-glow${fit === 'contain' ? ' mp-feat-tile-textile' : ''}`}
                     role="button"
                     tabIndex={0}
                     aria-label={`${t.view} ${itemName(item)}`}
@@ -257,7 +262,7 @@ export default function MenuClient({
                         }
                     }}
                 >
-                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`, width: `${item.photoZoom}%`, height: `${item.photoZoom}%` }} />}
+                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectFit: fit, objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`, width: `${zoom}%`, height: `${zoom}%` }} />}
                 </div>
                 <div className="mp-feat-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
