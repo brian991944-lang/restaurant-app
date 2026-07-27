@@ -27,6 +27,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [isFeatured, setIsFeatured] = useState(false);
     const [photoUrl, setPhotoUrl] = useState('');
     const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+    const [photoFocalX, setPhotoFocalX] = useState(50);
+    const [photoFocalY, setPhotoFocalY] = useState(50);
     const [videoUrl, setVideoUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -52,6 +54,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setIsFeatured(initialData.isFeatured ?? false);
                 setPhotoUrl(initialData.photoUrl || '');
                 setPhotoUrls(initialData.photoUrls || []);
+                setPhotoFocalX(initialData.photoFocalX ?? 50);
+                setPhotoFocalY(initialData.photoFocalY ?? 50);
                 setVideoUrl(initialData.videoUrl || '');
                 setFeaturedRankState(initialData.featuredRank ?? null);
             } else {
@@ -67,6 +71,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setIsFeatured(false);
                 setPhotoUrl('');
                 setPhotoUrls([]);
+                setPhotoFocalX(50);
+                setPhotoFocalY(50);
                 setVideoUrl('');
                 setFeaturedRankState(null);
             }
@@ -90,6 +96,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             menuCategoryId: menuCategoryId || null,
             photoUrl: photoUrl || null,
             photoUrls,
+            photoFocalX,
+            photoFocalY,
             videoUrl,
             isAvailable,
             isFeatured
@@ -288,6 +296,76 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                             placeholder="Subir foto principal"
                         />
                     </div>
+
+                    {photoUrl && (
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Encuadre de la foto</label>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Haz clic en la parte del plato que debe quedar centrada.
+                            </span>
+                            <div
+                                onClick={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                                    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                                    setPhotoFocalX(Math.max(0, Math.min(100, x)));
+                                    setPhotoFocalY(Math.max(0, Math.min(100, y)));
+                                }}
+                                style={{
+                                    position: 'relative',
+                                    aspectRatio: '21 / 9',
+                                    overflow: 'hidden',
+                                    borderRadius: '8px',
+                                    border: '1px solid var(--border)',
+                                    cursor: 'crosshair'
+                                }}
+                            >
+                                <img
+                                    src={photoUrl}
+                                    alt="Encuadre de la foto"
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'cover',
+                                        objectPosition: `${photoFocalX}% ${photoFocalY}%`,
+                                        display: 'block'
+                                    }}
+                                />
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${photoFocalX}%`,
+                                        top: `${photoFocalY}%`,
+                                        width: '18px',
+                                        height: '18px',
+                                        marginLeft: '-9px',
+                                        marginTop: '-9px',
+                                        borderRadius: '50%',
+                                        border: '2px solid white',
+                                        boxShadow: '0 0 0 2px rgba(0,0,0,0.55)',
+                                        background: 'rgba(255,255,255,0.25)',
+                                        pointerEvents: 'none'
+                                    }}
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setPhotoFocalX(50); setPhotoFocalY(50); }}
+                                style={{
+                                    alignSelf: 'flex-start',
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: '0.25rem 0',
+                                    color: 'var(--accent-primary)',
+                                    fontSize: '0.85rem',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Restablecer al centro
+                            </button>
+                        </div>
+                    )}
 
                     <div style={fieldStyle}>
                         <label style={labelStyle}>Galería <span style={{ fontSize: '0.8rem' }}>({photoUrls.length}/6 — se muestra en la vista ampliada)</span></label>

@@ -136,6 +136,8 @@ interface MenuItemInput {
     menuCategoryId?: string | null;
     photoUrl?: string | null;    // card cover
     photoUrls?: string[];        // lightbox gallery, append order = display order
+    photoFocalX?: number;        // cover focal point X, 0-100 %
+    photoFocalY?: number;        // cover focal point Y, 0-100 %
     videoUrl?: string | null;
     isAvailable?: boolean;
     isFeatured?: boolean;
@@ -177,6 +179,8 @@ export async function createMenuItem(data: MenuItemInput) {
                 menuCategoryId: data.menuCategoryId || null,
                 photoUrl: data.photoUrl || null,
                 photoUrls: data.photoUrls ?? [],
+                photoFocalX: data.photoFocalX ?? 50,
+                photoFocalY: data.photoFocalY ?? 50,
                 videoUrl: data.videoUrl?.trim() || null,
                 isAvailable: data.isAvailable ?? true,
                 isFeatured: data.isFeatured ?? false,
@@ -217,6 +221,8 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.menuCategoryId !== undefined ? { menuCategoryId: data.menuCategoryId || null } : {}),
                 ...(data.photoUrl !== undefined ? { photoUrl: data.photoUrl || null } : {}),
                 ...(data.photoUrls !== undefined ? { photoUrls: data.photoUrls } : {}),
+                ...(data.photoFocalX !== undefined ? { photoFocalX: data.photoFocalX } : {}),
+                ...(data.photoFocalY !== undefined ? { photoFocalY: data.photoFocalY } : {}),
                 ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl?.trim() || null } : {}),
                 ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
                 ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {})
