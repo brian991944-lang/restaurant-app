@@ -337,8 +337,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     src={photoUrl}
                                     alt="Encuadre de la foto"
                                     style={{
-                                        width: `${photoFit === 'contain' ? 100 : photoZoom}%`,
-                                        height: `${photoFit === 'contain' ? 100 : photoZoom}%`,
+                                        width: `${photoZoom}%`,
+                                        height: `${photoZoom}%`,
                                         objectFit: photoFit,
                                         objectPosition: `${photoFocalX}% ${photoFocalY}%`,
                                         display: 'block'
@@ -392,17 +392,16 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     })}
                                 </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: photoFit === 'contain' ? 0.45 : 1 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 <label style={labelStyle}>Acercar <span style={{ fontSize: '0.8rem' }}>({photoZoom}%)</span></label>
                                 <input
                                     type="range"
                                     min={100}
-                                    max={300}
+                                    max={200}
                                     step={5}
                                     value={photoZoom}
                                     onChange={(e) => setPhotoZoom(Number(e.target.value))}
-                                    disabled={photoFit === 'contain'}
-                                    style={{ width: '100%', cursor: photoFit === 'contain' ? 'not-allowed' : 'pointer' }}
+                                    style={{ width: '100%', cursor: 'pointer' }}
                                 />
                             </div>
                             <button
@@ -418,7 +417,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     cursor: 'pointer'
                                 }}
                             >
-                                Restablecer
+                                Recentrar
                             </button>
                         </div>
                     )}

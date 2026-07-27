@@ -243,10 +243,9 @@ export default function MenuClient({
     const renderFeaturedTile = (item: MenuItemData, variant: 'solo' | 'pair') => {
         const cover = coverOf(item);
         const desc = itemDescription(item);
-        // "contain" shows the whole photo on a textile backdrop; zoom is meaningless
-        // there (the image is already fully visible), so it's forced back to 100%.
+        // "contain" shows the whole photo on a textile backdrop; zoom applies in both modes.
         const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
-        const zoom = fit === 'contain' ? 100 : item.photoZoom;
+        const zoom = item.photoZoom;
         return (
             <article key={item.id} className={`mp-feat-card mp-feat-card-${variant}`}>
                 <div
