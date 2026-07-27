@@ -313,7 +313,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                 }}
                                 style={{
                                     position: 'relative',
-                                    aspectRatio: '21 / 9',
+                                    aspectRatio: '4 / 3',
                                     overflow: 'hidden',
                                     borderRadius: '8px',
                                     border: '1px solid var(--border)',
