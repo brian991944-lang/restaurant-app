@@ -234,7 +234,7 @@
 
 .mp-feat-img {
   position: absolute;
-  inset: 0;
+  /* no inset: inline left/top pan the zoom overflow (focal-driven, no transform) */
   width: 100%;
   height: 100%;
   object-fit: cover;

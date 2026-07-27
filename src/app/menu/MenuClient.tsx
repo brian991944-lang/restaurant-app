@@ -261,7 +261,7 @@ export default function MenuClient({
                         }
                     }}
                 >
-                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectFit: fit, objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`, width: `${zoom}%`, height: `${zoom}%` }} />}
+                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectFit: fit, objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`, width: `${zoom}%`, height: `${zoom}%`, left: `${-(zoom - 100) * (item.photoFocalX / 100)}%`, top: `${-(zoom - 100) * (item.photoFocalY / 100)}%` }} />}
                 </div>
                 <div className="mp-feat-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>

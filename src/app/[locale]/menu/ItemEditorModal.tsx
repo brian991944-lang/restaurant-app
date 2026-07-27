@@ -337,10 +337,13 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     src={photoUrl}
                                     alt="Encuadre de la foto"
                                     style={{
+                                        position: 'absolute',
                                         width: `${photoZoom}%`,
                                         height: `${photoZoom}%`,
                                         objectFit: photoFit,
                                         objectPosition: `${photoFocalX}% ${photoFocalY}%`,
+                                        left: `${-(photoZoom - 100) * (photoFocalX / 100)}%`,
+                                        top: `${-(photoZoom - 100) * (photoFocalY / 100)}%`,
                                         display: 'block'
                                     }}
                                 />
