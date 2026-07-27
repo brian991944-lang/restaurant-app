@@ -235,16 +235,16 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
     }
 }
 
-// Public-menu "Lo Más Pedido" band. Ranks 1 and 2 are mutually exclusive across
-// all items — writing rank N first clears N wherever it currently lives. A dish
-// with no cover photo cannot be featured (the band renders an image). This is
-// separate from isFeatured, which drives the per-category hero and is untouched here.
+// Public-menu "Favorites" band. Ranks 1 and 2 are mutually exclusive PER CATEGORY
+// — writing rank N first clears N from other items in the same category, leaving
+// other categories untouched. A dish with no cover photo cannot be featured (the
+// band renders an image). This is separate from isFeatured, which is untouched here.
 export async function setFeaturedRank(itemId: string, rank: 1 | 2 | null) {
     try {
         if (rank !== null) {
             const item = await prisma.menuItem.findUnique({
                 where: { id: itemId },
-                select: { photoUrl: true, photoUrls: true }
+                select: { photoUrl: true, photoUrls: true, menuCategoryId: true }
             });
             if (!item) {
                 return { success: false, error: 'El plato no existe.' };
@@ -253,10 +253,11 @@ export async function setFeaturedRank(itemId: string, rank: 1 | 2 | null) {
             if (!hasPhoto) {
                 return { success: false, error: 'Este plato necesita una foto antes de destacarse.' };
             }
-            // Atomic: strip this rank from whoever holds it, then assign it here.
+            // Atomic: within this item's category, strip this rank from whoever holds
+            // it, then assign it here.
             await prisma.$transaction([
                 prisma.menuItem.updateMany({
-                    where: { featuredRank: rank, id: { not: itemId } },
+                    where: { featuredRank: rank, menuCategoryId: item.menuCategoryId, id: { not: itemId } },
                     data: { featuredRank: null }
                 }),
                 prisma.menuItem.update({

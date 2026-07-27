@@ -41,14 +41,14 @@ type Theme = 'light' | 'dark';
 type MediaTab = 'fotos' | 'video';
 
 const UI_TEXT: Record<Lang, {
-    subtitle: string; featured: string; mostOrdered: string; empty: string; comingSoon: string;
+    subtitle: string; featured: string; favorites: string; empty: string; comingSoon: string;
     itemsOne: string; itemsMany: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
 }> = {
     en: {
         subtitle: 'Peruvian Kitchen',
         featured: 'Featured',
-        mostOrdered: 'MOST ORDERED',
+        favorites: 'FAVORITES',
         empty: 'Menu coming soon.',
         comingSoon: 'Coming soon',
         itemsOne: 'dish',
@@ -63,7 +63,7 @@ const UI_TEXT: Record<Lang, {
     es: {
         subtitle: 'Cocina Peruana',
         featured: 'Destacado',
-        mostOrdered: 'LO MÁS PEDIDO',
+        favorites: 'FAVORITOS',
         empty: 'Menú disponible próximamente.',
         comingSoon: 'Disponible próximamente',
         itemsOne: 'plato',
@@ -165,13 +165,6 @@ export default function MenuClient({
         itemsByCategory.set(item.menuCategoryId, list);
     }
 
-    // "Most ordered" band: ranked items that actually have an image, lowest rank
-    // first, capped at 2. A rank without an image is skipped (never rendered blank).
-    const featured = items
-        .filter(i => i.featuredRank != null && !!coverOf(i))
-        .sort((a, b) => (a.featuredRank as number) - (b.featuredRank as number))
-        .slice(0, 2);
-
     const selectCategory = (id: string) => {
         setActiveCategory(id);
         window.scrollTo(0, 0);
@@ -223,7 +216,6 @@ export default function MenuClient({
                         <PlayGlyph size={12} />
                     </span>
                 )}
-                {item.isFeatured && <span className="mp-badge">{t.featured}</span>}
             </div>
         );
     };
@@ -241,38 +233,48 @@ export default function MenuClient({
         </article>
     );
 
-    // Featured "most ordered" tile. Opens the same lightbox as regular cards.
+    // Favorites tile. Photo renders at full color; name/price/desc sit below the
+    // tile like a normal card. Opens the same lightbox as regular cards.
     const renderFeaturedTile = (item: MenuItemData, variant: 'solo' | 'pair') => {
         const cover = coverOf(item);
         const desc = itemDescription(item);
         return (
-            <div
-                key={item.id}
-                className={`mp-feat-tile mp-feat-tile-${variant} mp-feat-glow`}
-                role="button"
-                tabIndex={0}
-                aria-label={`${t.view} ${itemName(item)}`}
-                onClick={() => openLightbox(item)}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        openLightbox(item);
-                    }
-                }}
-            >
-                {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" />}
-                <div className="mp-feat-scrim" aria-hidden="true" />
+            <article key={item.id} className={`mp-feat-card mp-feat-card-${variant}`}>
+                <div
+                    className={`mp-feat-tile mp-feat-tile-${variant} mp-feat-glow`}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${t.view} ${itemName(item)}`}
+                    onClick={() => openLightbox(item)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            openLightbox(item);
+                        }
+                    }}
+                >
+                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" />}
+                </div>
                 <div className="mp-feat-body">
-                    <h3 className="mp-feat-name">{itemName(item)}</h3>
+                    <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
+                        <h3 className="mp-feat-name">{itemName(item)}</h3>
+                        <span className="mp-feat-price">{formatPrice(item.salePrice)}</span>
+                    </div>
                     {variant === 'solo' && desc && <p className="mp-feat-desc">{desc}</p>}
                 </div>
-                <span className="mp-feat-price">{formatPrice(item.salePrice)}</span>
-            </div>
+            </article>
         );
     };
 
     const currentCategory = categories.find(c => c.id === activeCategory) || null;
     const currentItems = currentCategory ? (itemsByCategory.get(currentCategory.id) || []) : [];
+
+    // Favorites band: this category's ranked items that have a cover photo, lowest
+    // rank first, capped at 2. A rank without an image is skipped (never blank).
+    const featured = currentItems
+        .filter(i => i.featuredRank != null && !!coverOf(i))
+        .sort((a, b) => (a.featuredRank as number) - (b.featuredRank as number))
+        .slice(0, 2);
 
     const renderLightbox = () => {
         if (!selected) return null;
@@ -437,21 +439,6 @@ export default function MenuClient({
                 <p className="mp-empty">{t.empty}</p>
             ) : (
                 <>
-                    {featured.length > 0 && (
-                        <section className="mp-feat-band" aria-label={t.mostOrdered}>
-                            <div className="mp-feat-label">
-                                <span className="mp-feat-rule" aria-hidden="true" />
-                                <span className="mp-feat-label-text">{t.mostOrdered}</span>
-                                <span className="mp-feat-rule" aria-hidden="true" />
-                            </div>
-                            <div className={featured.length === 1 ? 'mp-feat-single' : 'mp-feat-pair'}>
-                                {featured.map(item =>
-                                    renderFeaturedTile(item, featured.length === 1 ? 'solo' : 'pair')
-                                )}
-                            </div>
-                        </section>
-                    )}
-
                     <nav className="mp-catbar" aria-label="Categories">
                         <div className="mp-catbar-inner" role="tablist">
                             {categories.map(cat => (
@@ -480,6 +467,20 @@ export default function MenuClient({
                                         </span>
                                     )}
                                 </div>
+                                {featured.length > 0 && (
+                                    <section className="mp-feat-band" aria-label={t.favorites}>
+                                        <div className="mp-feat-label">
+                                            <span className="mp-feat-rule" aria-hidden="true" />
+                                            <span className="mp-feat-label-text">{t.favorites}</span>
+                                            <span className="mp-feat-rule" aria-hidden="true" />
+                                        </div>
+                                        <div className={featured.length === 1 ? 'mp-feat-single' : 'mp-feat-pair'}>
+                                            {featured.map(item =>
+                                                renderFeaturedTile(item, featured.length === 1 ? 'solo' : 'pair')
+                                            )}
+                                        </div>
+                                    </section>
+                                )}
                                 {currentItems.length === 0 ? (
                                     <p className="mp-comingsoon">{t.comingSoon}</p>
                                 ) : (

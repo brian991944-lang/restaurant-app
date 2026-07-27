@@ -175,12 +175,12 @@
   border-color: var(--m-faint);
 }
 
-/* ---------- Featured "most ordered" band ---------- */
+/* ---------- Favorites band (per category) ---------- */
 
 .mp-feat-band {
   padding-top: 1.5rem;
-  /* outer bloom reaches ~100px; keep clear of the sticky nav below */
-  margin-bottom: 96px;
+  /* outer bloom reaches ~100px; keep clear of the grid below */
+  margin-bottom: 56px;
 }
 
 .mp-feat-label {
@@ -241,20 +241,14 @@
   display: block;
 }
 
-/* Flat scrim, identical in both themes, so text over the photo stays legible */
-.mp-feat-scrim {
-  position: absolute;
-  inset: 0;
-  background-color: rgba(20, 14, 10, 0.42);
+/* Card wrapper: glowing photo tile with name/price/desc in normal flow below */
+.mp-feat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
 
 .mp-feat-body {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 1.5rem 1.75rem;
-  padding-right: 6rem; /* clear the price pinned in the corner */
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -265,7 +259,7 @@
   font-weight: 400;
   font-size: clamp(22px, 3.2vw, 34px);
   line-height: 1.1;
-  color: var(--m-tag-text);
+  color: var(--m-ink);
 }
 
 .mp-feat-tile-pair .mp-feat-name {
@@ -277,8 +271,7 @@
   font-style: italic;
   font-size: 16px;
   line-height: 1.4;
-  color: var(--m-tag-text);
-  opacity: 0.86;
+  color: var(--m-muted);
   max-width: 52ch;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -287,34 +280,17 @@
 }
 
 .mp-feat-price {
-  position: absolute;
-  right: 1.75rem;
-  bottom: 1.5rem;
   font-family: 'Space Grotesk', sans-serif;
   font-size: 1.1rem;
   font-weight: 500;
   color: var(--m-gold);
   white-space: nowrap;
+  text-align: right;
 }
 
 @media (max-width: 640px) {
-  .mp-feat-band {
-    margin-bottom: 88px;
-  }
-
   .mp-feat-pair {
     gap: 1rem;
-  }
-
-  .mp-feat-body {
-    padding: 1rem 1.1rem;
-    padding-right: 4.5rem;
-  }
-
-  .mp-feat-price {
-    right: 1.1rem;
-    bottom: 1rem;
-    font-size: 1rem;
   }
 }
 
