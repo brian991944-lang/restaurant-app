@@ -29,6 +29,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [photoUrls, setPhotoUrls] = useState<string[]>([]);
     const [photoFocalX, setPhotoFocalX] = useState(50);
     const [photoFocalY, setPhotoFocalY] = useState(50);
+    const [photoZoom, setPhotoZoom] = useState(100);
     const [videoUrl, setVideoUrl] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -56,6 +57,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setPhotoUrls(initialData.photoUrls || []);
                 setPhotoFocalX(initialData.photoFocalX ?? 50);
                 setPhotoFocalY(initialData.photoFocalY ?? 50);
+                setPhotoZoom(initialData.photoZoom ?? 100);
                 setVideoUrl(initialData.videoUrl || '');
                 setFeaturedRankState(initialData.featuredRank ?? null);
             } else {
@@ -73,6 +75,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setPhotoUrls([]);
                 setPhotoFocalX(50);
                 setPhotoFocalY(50);
+                setPhotoZoom(100);
                 setVideoUrl('');
                 setFeaturedRankState(null);
             }
@@ -98,6 +101,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             photoUrls,
             photoFocalX,
             photoFocalY,
+            photoZoom,
             videoUrl,
             isAvailable,
             isFeatured
@@ -313,7 +317,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                 }}
                                 style={{
                                     position: 'relative',
-                                    aspectRatio: '4 / 3',
+                                    aspectRatio: '3 / 2',
                                     overflow: 'hidden',
                                     borderRadius: '8px',
                                     border: '1px solid var(--border)',
@@ -324,8 +328,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     src={photoUrl}
                                     alt="Encuadre de la foto"
                                     style={{
-                                        width: '100%',
-                                        height: '100%',
+                                        width: `${photoZoom}%`,
+                                        height: `${photoZoom}%`,
                                         objectFit: 'cover',
                                         objectPosition: `${photoFocalX}% ${photoFocalY}%`,
                                         display: 'block'
@@ -349,9 +353,21 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     }}
                                 />
                             </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <label style={labelStyle}>Acercar <span style={{ fontSize: '0.8rem' }}>({photoZoom}%)</span></label>
+                                <input
+                                    type="range"
+                                    min={100}
+                                    max={300}
+                                    step={5}
+                                    value={photoZoom}
+                                    onChange={(e) => setPhotoZoom(Number(e.target.value))}
+                                    style={{ width: '100%' }}
+                                />
+                            </div>
                             <button
                                 type="button"
-                                onClick={() => { setPhotoFocalX(50); setPhotoFocalY(50); }}
+                                onClick={() => { setPhotoFocalX(50); setPhotoFocalY(50); setPhotoZoom(100); }}
                                 style={{
                                     alignSelf: 'flex-start',
                                     background: 'none',
@@ -362,7 +378,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     cursor: 'pointer'
                                 }}
                             >
-                                Restablecer al centro
+                                Restablecer
                             </button>
                         </div>
                     )}

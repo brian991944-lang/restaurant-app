@@ -172,6 +172,7 @@ model MenuItem {
   photoUrls       String[] @default([]) // gallery photos for the lightbox; photoUrl remains the card cover
   photoFocalX     Int      @default(50) // cover focal point X as 0-100 %, drives object-position crop on the public menu
   photoFocalY     Int      @default(50) // cover focal point Y as 0-100 %
+  photoZoom       Int      @default(100) // favorites-band cover zoom, 100-300 % (image width/height, no transform)
   videoUrl        String?
   taglineEn       String? // short catchy "how we make it" line, shown in the lightbox (max 60 chars, enforced in menuAdmin actions)
   taglineEs       String?

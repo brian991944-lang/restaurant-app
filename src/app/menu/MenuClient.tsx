@@ -32,6 +32,7 @@ type MenuItemData = {
     photoUrls: string[];
     photoFocalX: number;
     photoFocalY: number;
+    photoZoom: number;
     videoUrl: string | null;
     isFeatured: boolean;
     featuredRank: number | null;
@@ -256,7 +257,7 @@ export default function MenuClient({
                         }
                     }}
                 >
-                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%` }} />}
+                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`, width: `${item.photoZoom}%`, height: `${item.photoZoom}%` }} />}
                 </div>
                 <div className="mp-feat-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
