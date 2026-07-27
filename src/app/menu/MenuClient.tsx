@@ -241,21 +241,6 @@ export default function MenuClient({
         </article>
     );
 
-    const renderRow = (item: MenuItemData) => (
-        <article key={item.id} className="mp-row">
-            {renderMedia(item, true)}
-            <div className="mp-row-body">
-                <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
-                    <h3 className="mp-item-name">{itemName(item)}</h3>
-                    <span className="mp-price">{formatPrice(item.salePrice)}</span>
-                </div>
-                {itemDescription(item) && (
-                    <p className="mp-item-desc">{itemDescription(item)}</p>
-                )}
-            </div>
-        </article>
-    );
-
     // Featured "most ordered" tile. Opens the same lightbox as regular cards.
     const renderFeaturedTile = (item: MenuItemData, variant: 'solo' | 'pair') => {
         const cover = coverOf(item);
@@ -288,8 +273,6 @@ export default function MenuClient({
 
     const currentCategory = categories.find(c => c.id === activeCategory) || null;
     const currentItems = currentCategory ? (itemsByCategory.get(currentCategory.id) || []) : [];
-    const hero = currentItems.find(i => i.isFeatured) || null;
-    const rest = hero ? currentItems.filter(i => i.id !== hero.id) : currentItems;
 
     const renderLightbox = () => {
         if (!selected) return null;
@@ -499,15 +482,6 @@ export default function MenuClient({
                                 </div>
                                 {currentItems.length === 0 ? (
                                     <p className="mp-comingsoon">{t.comingSoon}</p>
-                                ) : hero ? (
-                                    <div className="mp-feature-grid">
-                                        {renderCard(hero, true)}
-                                        {rest.length > 0 && (
-                                            <div className="mp-rows">
-                                                {rest.map(renderRow)}
-                                            </div>
-                                        )}
-                                    </div>
                                 ) : (
                                     <div className="mp-grid">
                                         {currentItems.map(item => renderCard(item))}
