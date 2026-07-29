@@ -85,8 +85,13 @@ export async function addMenuItem(data: any) {
                 }
             }
         });
-        // Description is managed from the app -> pushed to Clover. Never blocks the save.
+        // Description is managed from the app -> pushed to Clover AND persisted to
+        // descriptionEn so the digital menu displays it. Never blocks the save.
         if (menuItem.cloverId && typeof data.cloverDescription === 'string') {
+            await prisma.menuItem.update({
+                where: { id: menuItem.id },
+                data: { descriptionEn: data.cloverDescription.trim() || null }
+            }).catch(() => null);
             await updateCloverItemDescription(menuItem.cloverId, data.cloverDescription);
         }
         return { success: true, menuItem };
@@ -135,8 +140,13 @@ export async function editMenuItem(id: string, data: any) {
                 }
             }
         });
-        // Description is managed from the app -> pushed to Clover. Never blocks the save.
+        // Description is managed from the app -> pushed to Clover AND persisted to
+        // descriptionEn so the digital menu displays it. Never blocks the save.
         if (menuItem.cloverId && typeof data.cloverDescription === 'string') {
+            await prisma.menuItem.update({
+                where: { id: menuItem.id },
+                data: { descriptionEn: data.cloverDescription.trim() || null }
+            }).catch(() => null);
             await updateCloverItemDescription(menuItem.cloverId, data.cloverDescription);
         }
         return { success: true, menuItem };

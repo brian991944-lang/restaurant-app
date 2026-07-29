@@ -2,6 +2,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { updateCloverItemDescription } from './clover';
 
 // Revalidate the public digital menu and the admin editor after any write.
 function revalidateMenuPaths() {
@@ -236,6 +237,12 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 // Clover sync and Recetario integrations respectively.
             }
         });
+        // Mirror descriptionEn to the linked Clover item's description (EN only;
+        // descriptionEs is app-managed). Non-fatal: the app save never fails
+        // because Clover is unreachable.
+        if (item.cloverId && data.descriptionEn !== undefined) {
+            await updateCloverItemDescription(item.cloverId, data.descriptionEn?.trim() || '');
+        }
         revalidateMenuPaths();
         return { success: true, item };
     } catch (e) {
