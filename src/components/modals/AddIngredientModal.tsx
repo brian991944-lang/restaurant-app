@@ -79,6 +79,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [cloverId, setCloverId] = useState<string>('');
     const [mappingMultiplier, setMappingMultiplier] = useState<number>(1);
     const [itemType, setItemType] = useState<'ingredient' | 'supply'>('ingredient');
+    const [area, setArea] = useState<'cocina' | 'salon' | 'ambos'>('cocina');
 
     // Packed Tracking States
     const [isPacked, setIsPacked] = useState<boolean>(false);
@@ -115,6 +116,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setCalcBoxPrice('');
             setOverrideDisplayUnit('Packs');
             setItemType('ingredient');
+            setArea('cocina');
         }
     }, [isOpen]);
 
@@ -260,6 +262,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
             setAllowNegativeStock(initialData?.allowNegativeStock ?? false);
             setIsDisabled(initialData ? initialData.isActive === false : false);
+            // Derive Área from the two stored booleans; fall back to the DB defaults
+            // (isSalonItem false / showInKitchen true) so new items land on Cocina.
+            const initIsSalon = initialData?.isSalonItem ?? false;
+            const initInKitchen = initialData?.showInKitchen ?? true;
+            setArea(initIsSalon ? (initInKitchen ? 'ambos' : 'salon') : 'cocina');
             setIsPacked(initialData?.isPacked ?? false);
             setUnitsPerPack(initialData?.unitsPerPack ?? 1.0);
             setPackUnit(initialData?.packUnit ?? 'Units');
@@ -385,6 +392,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             trackFreezerStatus: trackFreezerStatus,
             allowNegativeStock: allowNegativeStock,
             isActive: !isDisabled,
+            isSalonItem: area !== 'cocina',
+            showInKitchen: area !== 'salon',
             isPacked: isPacked,
             unitsPerPack: isPacked ? unitsPerPack : 1.0,
             packUnit: isPacked ? packUnit : 'Units',
@@ -562,6 +571,21 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             />
                         </div>
                     </div>
+
+                    {isAdmin && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Área</label>
+                            <select
+                                className="input-field"
+                                value={area}
+                                onChange={(e) => setArea(e.target.value as 'cocina' | 'salon' | 'ambos')}
+                            >
+                                <option value="cocina">Cocina</option>
+                                <option value="salon">Salón</option>
+                                <option value="ambos">Ambos</option>
+                            </select>
+                        </div>
+                    )}
 
                     {itemType === 'ingredient' && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
