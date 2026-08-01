@@ -22,7 +22,7 @@ export default function CostosTab() {
 
     useEffect(() => {
         loadData();
-        import('@/app/actions/inventory').then(m => m.getInventory().then(setAllIngredients));
+        import('@/app/actions/inventory').then(m => m.getInventory({ scope: 'all' }).then(setAllIngredients));
     }, []);
 
     const handleSaveMenu = async (data: any) => {

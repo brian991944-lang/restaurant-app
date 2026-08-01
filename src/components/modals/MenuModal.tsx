@@ -39,7 +39,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
 
     useEffect(() => {
         if (isOpen) {
-            getInventory().then(setIngredientsList);
+            getInventory({ scope: 'all' }).then(setIngredientsList);
             getMenuCategories().then(setCategoriesList);
             setIsNewCategory(false);
             fetchCloverMenuItems().then(setCloverItems);
