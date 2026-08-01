@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { getConversionFactor } from '@/lib/conversion';
 import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
@@ -17,13 +18,21 @@ async function translateToSpanish(text: string): Promise<string> {
     }
 }
 
-export async function getInventory() {
+export async function getInventory(
+    { includeInactive = false, scope = 'kitchen' }: { includeInactive?: boolean; scope?: 'kitchen' | 'salon' | 'all' } = {}
+) {
+    // Built conditionally so we never pass undefined-valued keys to Prisma.
+    const where: Prisma.IngredientWhereInput = {
+        type: {
+            in: ['RAW', 'PROCESSED', 'PREP_RECIPE']
+        }
+    };
+    if (!includeInactive) where.isActive = true;
+    if (scope === 'kitchen') where.showInKitchen = true;
+    else if (scope === 'salon') where.isSalonItem = true;
+
     return prisma.ingredient.findMany({
-        where: {
-            type: {
-                in: ['RAW', 'PROCESSED', 'PREP_RECIPE']
-            }
-        },
+        where,
         include: {
             category: true,
             provider: true,
