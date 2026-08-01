@@ -115,6 +115,7 @@ model SalonStock {
   qtyBodega        Int        @default(0)
   parFront         Int        @default(0)
   unitsPerPack     Int        @default(24)
+  salePrice        Int        @default(0)   // sell price in integer cents, mirrors Clover's price format
   cloverItemId     String?
   lastCloverSyncAt DateTime?
   createdAt        DateTime   @default(now())
