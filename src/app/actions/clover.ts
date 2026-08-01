@@ -126,6 +126,88 @@ export async function fetchCloverMenuItems() {
     }
 }
 
+/**
+ * Read-only Clover item list for the Salón stock module. Unlike
+ * fetchCloverMenuItems (which returns only id/name via a bare fetch), this goes
+ * through cloverFetch so it inherits the 429 retry, and it preserves the fields
+ * the Salón UI needs — notably stockCount, which stays null when Clover omits
+ * it rather than being flattened to 0.
+ *
+ * Writes nothing to Clover and nothing to the database.
+ */
+export async function fetchCloverItemsForSalon(): Promise<{
+    items: {
+        id: string;
+        name: string;
+        price: number;            // raw integer cents, as Clover sends it
+        stockCount: number | null; // null = Clover omitted the field
+        autoManage: boolean;
+        available: boolean;
+        hidden: boolean;
+        deleted: boolean;
+        sku: string | null;
+        categoryName: string | null;
+    }[];
+    alreadyLinked: string[];
+    error: string | null;
+}> {
+    let error: string | null = null;
+
+    // Which Clover ids are already claimed by an Ingredient row.
+    let alreadyLinked: string[] = [];
+    try {
+        const linked = await prisma.ingredient.findMany({
+            where: { cloverId: { not: null } },
+            select: { cloverId: true }
+        });
+        alreadyLinked = linked.map(i => i.cloverId as string);
+    } catch (e) {
+        error = `No se pudieron leer los ingredientes vinculados: ${e instanceof Error ? e.message : String(e)}`;
+    }
+
+    let rawItems: any[] = [];
+    try {
+        const data = await cloverFetch('/items?limit=1000');
+        rawItems = data.elements || [];
+    } catch (e) {
+        const msg = `No se pudieron obtener los artículos de Clover: ${e instanceof Error ? e.message : String(e)}`;
+        return { items: [], alreadyLinked, error: error ? `${error} | ${msg}` : msg };
+    }
+
+    // itemId -> categoryName, same shape as syncCloverSales builds. A failure
+    // here is reported rather than swallowed: items still come back, with
+    // categoryName null across the board.
+    const catMap = new Map<string, string>();
+    try {
+        const catData = await cloverFetch('/categories?expand=items&limit=1000');
+        for (const c of catData.elements || []) {
+            for (const i of c.items?.elements || []) {
+                catMap.set(i.id, c.name);
+            }
+        }
+    } catch (e) {
+        const msg = `No se pudieron obtener las categorías de Clover: ${e instanceof Error ? e.message : String(e)}`;
+        error = error ? `${error} | ${msg}` : msg;
+    }
+
+    const items = rawItems
+        .filter((el: any) => el.deleted !== true)
+        .map((el: any) => ({
+            id: el.id,
+            name: el.name || '',
+            price: typeof el.price === 'number' ? el.price : 0,
+            stockCount: typeof el.stockCount === 'number' ? el.stockCount : null,
+            autoManage: el.autoManage === true,
+            available: el.available === true,
+            hidden: el.hidden === true,
+            deleted: el.deleted === true,
+            sku: el.sku || null,
+            categoryName: catMap.get(el.id) ?? null
+        }));
+
+    return { items, alreadyLinked, error };
+}
+
 export async function fetchCloverModifiers() {
     const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
     const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
