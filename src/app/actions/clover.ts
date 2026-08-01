@@ -427,3 +427,132 @@ export async function probeCloverStockEndpoints(): Promise<{
 
     return { itemStocks, itemStocksError, incaKolaDiet, incaKolaDietError };
 }
+
+/**
+ * Import the requested Clover items as Salón ingredients. Reads Clover through
+ * fetchCloverItemsForSalon and writes only to the database — nothing is sent
+ * back to Clover.
+ *
+ * Every item is isolated in its own try/catch: a single bad row is recorded in
+ * `skipped` and the rest of the batch still lands.
+ */
+export async function importSalonDrinksFromClover(cloverIds: string[]): Promise<{
+    created: number;
+    updated: number;
+    skipped: { name: string; reason: string }[];
+}> {
+    let created = 0;
+    let updated = 0;
+    const skipped: { name: string; reason: string }[] = [];
+
+    // Prisma's unique-constraint violation, narrowed to the Ingredient.name index.
+    const isDuplicateNameError = (e: any) =>
+        e?.code === 'P2002' && JSON.stringify(e?.meta?.target ?? '').includes('name');
+
+    const { items, error } = await fetchCloverItemsForSalon();
+    if (items.length === 0) {
+        const reason = error ?? 'Clover no devolvió artículos';
+        return { created, updated, skipped: cloverIds.map(id => ({ name: id, reason })) };
+    }
+
+    const byId = new Map(items.map(i => [i.id, i]));
+
+    // One category for the whole batch, created before the loop and reused.
+    let categoryId: string;
+    try {
+        const existingCategory = await prisma.category.findFirst({
+            where: { name: 'Bebidas Salón', type: 'INGREDIENT' }
+        });
+        categoryId = existingCategory
+            ? existingCategory.id
+            : (await prisma.category.create({
+                data: {
+                    name: 'Bebidas Salón',
+                    nameEs: 'Bebidas Salón',
+                    type: 'INGREDIENT',
+                    department: 'DRINKS'
+                }
+            })).id;
+    } catch (e) {
+        const reason = `No se pudo preparar la categoría Bebidas Salón: ${e instanceof Error ? e.message : String(e)}`;
+        return { created, updated, skipped: cloverIds.map(id => ({ name: id, reason })) };
+    }
+
+    for (const cloverId of cloverIds) {
+        const item = byId.get(cloverId);
+        try {
+            if (!item) {
+                skipped.push({ name: cloverId, reason: 'No se encontró el artículo en Clover' });
+                continue;
+            }
+
+            // cloverId is not unique in the schema, so this is a findFirst.
+            const existing = await prisma.ingredient.findFirst({ where: { cloverId } });
+
+            let ingredientId: string;
+            if (existing) {
+                await prisma.ingredient.update({
+                    where: { id: existing.id },
+                    data: { name: item.name }
+                });
+                ingredientId = existing.id;
+                updated++;
+            } else {
+                try {
+                    const ingredient = await prisma.ingredient.create({
+                        data: {
+                            name: item.name,
+                            cloverId,
+                            categoryId,
+                            type: 'RAW',
+                            isSalonItem: true,
+                            showInKitchen: false,
+                            isActive: true,
+                            metric: 'units',
+                            parentId: null
+                        }
+                    });
+                    ingredientId = ingredient.id;
+                    created++;
+                } catch (e) {
+                    if (isDuplicateNameError(e)) {
+                        skipped.push({ name: item.name, reason: 'Ya existe un ingrediente con ese nombre' });
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+
+            // Quantities on an existing row are the salón's live counts — only
+            // the price is refreshed from Clover.
+            const stock = await prisma.salonStock.findUnique({ where: { ingredientId } });
+            if (stock) {
+                await prisma.salonStock.update({
+                    where: { ingredientId },
+                    data: { salePrice: item.price }
+                });
+            } else {
+                await prisma.salonStock.create({
+                    data: {
+                        ingredientId,
+                        qtyFront: 0,
+                        qtyBodega: 0,
+                        parFront: 0,
+                        unitsPerPack: 24,
+                        cloverItemId: cloverId,
+                        salePrice: item.price
+                    }
+                });
+            }
+        } catch (e) {
+            skipped.push({
+                name: item?.name || cloverId,
+                reason: isDuplicateNameError(e)
+                    ? 'Ya existe un ingrediente con ese nombre'
+                    : (e instanceof Error ? e.message : String(e))
+            });
+        }
+    }
+
+    return { created, updated, skipped };
+}
