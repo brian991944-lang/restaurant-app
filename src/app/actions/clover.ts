@@ -395,3 +395,35 @@ export async function getLastSyncTime() {
         return null;
     }
 }
+
+/**
+ * TEMPORARY read-only probe for the salon-debug page. Two GETs, nothing else:
+ * writes nothing to Clover and nothing to the database. Each call is isolated
+ * so one failing still reports the other. cloverFetch throws with the HTTP
+ * status and response body already in the message, so the raw message is kept
+ * verbatim rather than being reworded.
+ */
+export async function probeCloverStockEndpoints(): Promise<{
+    itemStocks: any;
+    itemStocksError: string | null;
+    incaKolaDiet: any;
+    incaKolaDietError: string | null;
+}> {
+    let itemStocks: any = null;
+    let itemStocksError: string | null = null;
+    try {
+        itemStocks = await cloverFetch('/item_stocks?limit=100');
+    } catch (e) {
+        itemStocksError = e instanceof Error ? e.message : String(e);
+    }
+
+    let incaKolaDiet: any = null;
+    let incaKolaDietError: string | null = null;
+    try {
+        incaKolaDiet = await cloverFetch('/items/AS7W11RAMW4CW');
+    } catch (e) {
+        incaKolaDietError = e instanceof Error ? e.message : String(e);
+    }
+
+    return { itemStocks, itemStocksError, incaKolaDiet, incaKolaDietError };
+}
