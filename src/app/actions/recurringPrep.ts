@@ -39,7 +39,7 @@ export async function deleteRecurringRule(id: string) {
 
 export async function getThawableIngredients() {
     return prisma.ingredient.findMany({
-        where: { type: 'TASK', category: { name: 'Descongelar' } },
+        where: { type: 'TASK', category: { name: 'Descongelar' }, isActive: true, showInKitchen: true },
         select: {
             id: true,
             name: true,

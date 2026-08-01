@@ -11,7 +11,7 @@ export async function getTeamMembers() {
 
 export async function getBaseIngredients() {
     return prisma.ingredient.findMany({
-        where: { type: { in: ['RAW', 'PROCESSED', 'PREP_RECIPE'] } },
+        where: { type: { in: ['RAW', 'PROCESSED', 'PREP_RECIPE'] }, isActive: true, showInKitchen: true },
         orderBy: { name: 'asc' }
     });
 }
@@ -45,7 +45,7 @@ export async function removeTeamMember(id: string) {
 
 export async function getPrepTaskItems() {
     return prisma.ingredient.findMany({
-        where: { type: { in: ['PREP', 'TASK'] } }, // Include both PREP and system TASK (Descongelar)
+        where: { type: { in: ['PREP', 'TASK'] }, isActive: true, showInKitchen: true }, // Include both PREP and system TASK (Descongelar)
         include: { 
             category: true, 
             parent: {

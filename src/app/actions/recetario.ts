@@ -18,7 +18,7 @@ export async function getDigitalRecipes() {
 export async function getAvailablePrepRecipes() {
     try {
         return await prisma.ingredient.findMany({
-            where: { type: 'PREP_RECIPE' },
+            where: { type: 'PREP_RECIPE', isActive: true, showInKitchen: true },
             select: {
                 id: true,
                 name: true,

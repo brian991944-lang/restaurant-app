@@ -90,7 +90,7 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
 
         // 3. Fetch all ingredients
         const rawIngredients = await prisma.ingredient.findMany({
-            where: { type: { in: ['RAW', 'PREP', 'PROCESSED', 'TASK'] }, trackFreezerStatus: false },
+            where: { type: { in: ['RAW', 'PREP', 'PROCESSED', 'TASK'] }, trackFreezerStatus: false, isActive: true, showInKitchen: true },
             include: { category: true, parent: true, digitalRecipe: true, inventory: true, prepRules: true }
         });
 

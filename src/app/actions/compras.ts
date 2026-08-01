@@ -9,6 +9,7 @@ export async function getComprasIngredients(providerNames: string[]) {
             where: {
                 type: 'RAW',
                 parentId: null,
+                isActive: true,
                 provider: {
                     name: {
                         in: providerNames
