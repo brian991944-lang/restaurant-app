@@ -24,7 +24,7 @@ export async function getComprasIngredients(providerNames: string[]) {
                 // for Shrimp 51/60), so the shopping list can show the full picture before
                 // someone flags a raw item as needing reorder.
                 prepItems: {
-                    where: { type: 'PROCESSED' },
+                    where: { type: 'PROCESSED', isActive: true },
                     include: { inventory: true }
                 }
             },
