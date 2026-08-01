@@ -73,6 +73,8 @@ model Ingredient {
   purchaseStatus String  @default("PENDIENTE")   // PENDIENTE | COMPRADO | NO_DISPONIBLE
   carriedOver    Boolean @default(false)
   isActive       Boolean @default(true)           // soft-disable: false = hidden from cook-facing lists
+  isSalonItem    Boolean @default(false)
+  showInKitchen  Boolean @default(true)
   esfuerzo       String  @default("MANUAL")       // MANUAL | HERVIDO
   updatedAt      DateTime  @default(now()) @updatedAt
 
@@ -81,6 +83,7 @@ model Ingredient {
   prepItems Ingredient[] @relation("IngredientToPrep")
 
   inventory         Inventory?
+  salonStock        SalonStock?
   transactions      InventoryTransaction[]
   recipeIngredients RecipeIngredient[]
   prepAssignments   PrepAssignment[]
@@ -102,6 +105,20 @@ model Ingredient {
 
   digitalRecipeId    String?
   digitalRecipe      DigitalRecipe?       @relation("IngredientToDigitalRecipe", fields: [digitalRecipeId], references: [id])
+}
+
+model SalonStock {
+  id               String     @id @default(cuid())
+  ingredientId     String     @unique
+  ingredient       Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  qtyFront         Int        @default(0)
+  qtyBodega        Int        @default(0)
+  parFront         Int        @default(0)
+  unitsPerPack     Int        @default(24)
+  cloverItemId     String?
+  lastCloverSyncAt DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
 }
 
 model ProcessedCloverLineItem {
