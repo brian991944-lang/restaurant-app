@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Package, LayoutDashboard } from 'lucide-react';
+import { Package } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { getWaitStaff } from '@/app/actions/clover';
 import { getSalonStock, restockSalonItem } from '@/app/actions/inventory';
+import {
+    getShiftList, toggleShiftTask, setShiftRunStaff, completeShiftRun,
+    type ShiftListType
+} from '@/app/actions/shiftLists';
 
 type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type StaffMember = Awaited<ReturnType<typeof getWaitStaff>>['staff'][number];
@@ -318,16 +322,273 @@ function RestockView() {
     );
 }
 
-function AperturaPlaceholder() {
-    return (
-        <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ background: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <LayoutDashboard size={48} color="var(--accent-secondary)" />
+type ShiftList = Awaited<ReturnType<typeof getShiftList>>;
+
+/**
+ * One shift checklist: sections in order, each with its own staff picker and
+ * tasks. Every tap writes through immediately — there is no save step, so a
+ * tablet closing mid-shift loses nothing.
+ */
+function ShiftChecklist({ listType, staff, staffError }: {
+    listType: ShiftListType;
+    staff: StaffMember[];
+    staffError: string | null;
+}) {
+    const [data, setData] = useState<ShiftList | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+
+    // Local mirrors so a tap responds instantly instead of after a round-trip.
+    const [checked, setChecked] = useState<Set<string>>(new Set());
+    const [staffBySection, setStaffBySection] = useState<Record<string, string[]>>({});
+    const [actionError, setActionError] = useState<string | null>(null);
+
+    const [isCompleting, setIsCompleting] = useState(false);
+    const [completed, setCompleted] = useState(false);
+
+    const load = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const result = await getShiftList(listType);
+            setData(result);
+            setChecked(new Set((result.run?.checks ?? []).map(c => c.taskId)));
+
+            const bySection: Record<string, string[]> = {};
+            for (const s of result.run?.staff ?? []) {
+                (bySection[s.sectionId] ??= []).push(s.employeeId);
+            }
+            setStaffBySection(bySection);
+            setCompleted(result.run?.completedAt != null);
+            setLoadError(null);
+        } catch (e) {
+            setLoadError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsLoading(false);
+        }
+    }, [listType]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const handleToggleTask = async (taskId: string) => {
+        const next = !checked.has(taskId);
+        setChecked(prev => {
+            const copy = new Set(prev);
+            if (next) copy.add(taskId);
+            else copy.delete(taskId);
+            return copy;
+        });
+        setActionError(null);
+
+        const result = await toggleShiftTask(listType, taskId, next);
+        if (!result.success) {
+            // Roll the optimistic change back so the box never shows a state
+            // the database does not hold.
+            setChecked(prev => {
+                const copy = new Set(prev);
+                if (next) copy.delete(taskId);
+                else copy.add(taskId);
+                return copy;
+            });
+            setActionError(result.error ?? 'No se pudo guardar la tarea.');
+        }
+    };
+
+    const handleToggleStaff = async (sectionId: string, employee: StaffMember) => {
+        const current = staffBySection[sectionId] ?? [];
+        const nextIds = current.includes(employee.id)
+            ? current.filter(id => id !== employee.id)
+            : [...current, employee.id];
+
+        const previous = current;
+        setStaffBySection(prev => ({ ...prev, [sectionId]: nextIds }));
+        setActionError(null);
+
+        const employees = nextIds
+            .map(id => staff.find(s => s.id === id))
+            .filter((s): s is StaffMember => !!s)
+            .map(s => ({ id: s.id, name: s.name }));
+
+        const result = await setShiftRunStaff(listType, sectionId, employees);
+        if (!result.success) {
+            setStaffBySection(prev => ({ ...prev, [sectionId]: previous }));
+            setActionError(result.error ?? 'No se pudo guardar el personal.');
+        }
+    };
+
+    const handleComplete = async () => {
+        setIsCompleting(true);
+        setActionError(null);
+        try {
+            const result = await completeShiftRun(listType);
+            if (!result.success) {
+                setActionError(result.error ?? 'No se pudo cerrar la lista.');
+                return;
+            }
+            setCompleted(true);
+        } catch (e) {
+            setActionError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsCompleting(false);
+        }
+    };
+
+    if (isLoading) {
+        return <p style={{ color: 'var(--text-secondary)', fontSize: '1.15rem' }}>Cargando...</p>;
+    }
+    if (loadError) {
+        return <p style={{ color: 'var(--danger)', fontSize: '1.15rem' }}>Error al cargar: {loadError}</p>;
+    }
+    if (!data || data.sections.length === 0) {
+        return (
+            <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center' }}>
+                <p style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-secondary)' }}>
+                    No hay tareas configuradas para esta lista.
+                </p>
             </div>
-            <h3 style={{ fontSize: '1.5rem', margin: 0, color: 'var(--text-primary)' }}>En construcción</h3>
-            <p style={{ color: 'var(--text-secondary)', maxWidth: '420px', fontSize: '1.1rem', margin: 0 }}>
-                Las tareas de apertura estarán disponibles pronto.
-            </p>
+        );
+    }
+
+    const allTasks = data.sections.flatMap(s => s.tasks);
+    const doneCount = allTasks.filter(t => checked.has(t.id)).length;
+    const everySectionStaffed = data.sections.every(s => (staffBySection[s.id] ?? []).length > 0);
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {staffError && (
+                <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{staffError}</p>
+            )}
+
+            {data.sections.map(section => {
+                const selectedIds = staffBySection[section.id] ?? [];
+
+                return (
+                    <div key={section.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                            {section.name}
+                        </h2>
+
+                        <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                ¿Quién hizo esta sección?
+                            </span>
+                            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                {staff.length === 0 && (
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                                        No hay personal disponible.
+                                    </span>
+                                )}
+                                {staff.map(person => {
+                                    const isOn = selectedIds.includes(person.id);
+                                    return (
+                                        <button
+                                            key={person.id}
+                                            onClick={() => handleToggleStaff(section.id, person)}
+                                            style={{
+                                                padding: '0.8rem 1.3rem', minHeight: '56px',
+                                                borderRadius: '999px', fontSize: '1.1rem', fontWeight: 600,
+                                                cursor: 'pointer',
+                                                color: isOn ? 'white' : 'var(--text-secondary)',
+                                                background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                            }}
+                                        >
+                                            {person.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            {section.tasks.map(task => {
+                                const isOn = checked.has(task.id);
+                                return (
+                                    <button
+                                        key={task.id}
+                                        onClick={() => handleToggleTask(task.id)}
+                                        className="glass-panel"
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '1rem',
+                                            padding: '1.1rem 1.25rem', minHeight: '72px',
+                                            textAlign: 'left', width: '100%', cursor: 'pointer',
+                                            border: isOn
+                                                ? '1px solid color-mix(in srgb, var(--success) 45%, transparent)'
+                                                : '1px solid var(--border)',
+                                            background: isOn
+                                                ? 'color-mix(in srgb, var(--success) 10%, transparent)'
+                                                : undefined
+                                        }}
+                                    >
+                                        <span
+                                            aria-hidden
+                                            style={{
+                                                flexShrink: 0,
+                                                width: '32px', height: '32px', borderRadius: '8px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '1.3rem', fontWeight: 700, lineHeight: 1,
+                                                color: isOn ? 'white' : 'transparent',
+                                                background: isOn ? 'var(--success)' : 'transparent',
+                                                border: isOn ? '1px solid var(--success)' : '2px solid var(--border)'
+                                            }}
+                                        >
+                                            ✓
+                                        </span>
+                                        <span style={{
+                                            fontSize: '1.2rem',
+                                            color: isOn ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                            textDecoration: isOn ? 'line-through' : 'none'
+                                        }}>
+                                            {task.text}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            })}
+
+            {actionError && (
+                <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.1rem' }}>{actionError}</p>
+            )}
+
+            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {doneCount} de {allTasks.length} completadas
+                </p>
+
+                {!everySectionStaffed && (
+                    <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+                        Selecciona quién hizo cada sección para poder completar.
+                    </p>
+                )}
+
+                <button
+                    onClick={handleComplete}
+                    disabled={!everySectionStaffed || isCompleting}
+                    className="btn-primary"
+                    style={{
+                        alignSelf: 'flex-start',
+                        borderRadius: '10px', padding: '1rem 2rem', minHeight: '72px',
+                        fontSize: '1.25rem', fontWeight: 700,
+                        opacity: !everySectionStaffed || isCompleting ? 0.5 : 1,
+                        cursor: !everySectionStaffed || isCompleting ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    {isCompleting ? 'Guardando...' : 'Completar y compartir'}
+                </button>
+
+                {completed && (
+                    <div style={{
+                        padding: '1rem 1.25rem', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 600,
+                        color: 'var(--success)',
+                        background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)'
+                    }}>
+                        ✓ Lista completada. El envío automático se añadirá pronto.
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -337,6 +598,23 @@ export default function ClosingListsPage() {
     const { isAdmin } = useAdmin();
     const locale = useLocale();
     const [activeTab, setActiveTab] = useState<'APERTURA' | 'CIERRE'>('CIERRE');
+
+    // Fetched once here and shared by both checklists. RestockView keeps its
+    // own copy so it stays self-contained.
+    const [staff, setStaff] = useState<StaffMember[]>([]);
+    const [staffError, setStaffError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        getWaitStaff()
+            .then(r => {
+                if (cancelled) return;
+                setStaff(r.staff);
+                if (r.error) setStaffError(r.error);
+            })
+            .catch(e => { if (!cancelled) setStaffError(e instanceof Error ? e.message : String(e)); });
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '900px', margin: '0 auto', padding: '1.5rem' }}>
@@ -381,8 +659,20 @@ export default function ClosingListsPage() {
                 </div>
             </div>
 
-            {activeTab === 'APERTURA' && <AperturaPlaceholder />}
-            {activeTab === 'CIERRE' && <RestockView />}
+            {activeTab === 'APERTURA' && (
+                <ShiftChecklist listType="APERTURA" staff={staff} staffError={staffError} />
+            )}
+
+            {activeTab === 'CIERRE' && (
+                <>
+                    <ShiftChecklist listType="CIERRE" staff={staff} staffError={staffError} />
+
+                    <h2 style={{ margin: '1rem 0 0 0', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Sacar bebidas
+                    </h2>
+                    <RestockView />
+                </>
+            )}
         </div>
     );
 }
