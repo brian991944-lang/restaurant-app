@@ -560,6 +560,50 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
+ * TEMPORARY read-only probe: one employee with their custom role expanded, plus
+ * the merchant's role list, to pin down how "Wait Staff" is represented.
+ *
+ * Two GETs, no POST or PUT. The employee object is reduced to a whitelist
+ * before it leaves the server — pin, email and customId are never returned.
+ */
+export async function probeCloverEmployeeRoles(): Promise<{
+    employee: any;
+    employeeError: string | null;
+    roles: any;
+    rolesError: string | null;
+}> {
+    let employee: any = null;
+    let employeeError: string | null = null;
+    try {
+        const raw = await cloverFetch('/employees/SQT9QH6JK9BMT?expand=customRole');
+        // Whitelist, not blacklist: only these keys can ever escape, so a field
+        // added by Clover later cannot leak by default.
+        const safe: Record<string, any> = {
+            id: raw?.id ?? null,
+            name: raw?.name ?? null,
+            nickname: raw?.nickname ?? null,
+            role: raw?.role ?? null
+        };
+        for (const key of Object.keys(raw ?? {})) {
+            if (/role/i.test(key)) safe[key] = raw[key];
+        }
+        employee = safe;
+    } catch (e) {
+        employeeError = e instanceof Error ? e.message : String(e);
+    }
+
+    let roles: any = null;
+    let rolesError: string | null = null;
+    try {
+        roles = await cloverFetch('/roles?limit=100');
+    } catch (e) {
+        rolesError = e instanceof Error ? e.message : String(e);
+    }
+
+    return { employee, employeeError, roles, rolesError };
+}
+
+/**
  * TEMPORARY read-only probe: lists Clover employees so the role fields can be
  * inspected. One GET, no POST or PUT — writes nothing to Clover and nothing to
  * the database.
