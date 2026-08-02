@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Package, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Package, Pencil, Trash2, ArrowUp, ArrowDown, Users } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
-import { getWaitStaff } from '@/app/actions/clover';
-import { getSalonStock, restockSalonItem } from '@/app/actions/inventory';
+import { getWaitStaff, getWaitStaffForAdmin } from '@/app/actions/clover';
+import { getSalonStock, restockSalonItem, setStaffVisibility } from '@/app/actions/inventory';
 import {
     getShiftList, toggleShiftTask, setShiftRunStaff, completeShiftRun,
     getAllShiftSections, createShiftTask, updateShiftTask, deleteShiftTask,
@@ -927,6 +927,144 @@ function ShiftListEditorModal({ listType, onClose }: {
     );
 }
 
+type AdminStaffMember = Awaited<ReturnType<typeof getWaitStaffForAdmin>>['staff'][number];
+
+/**
+ * Show or hide individual Wait Staff in the salón pickers. The list itself
+ * comes from Clover and is not editable here — only whether each person is
+ * offered as an option.
+ */
+function StaffVisibilityModal({ onClose }: { onClose: () => void }) {
+    const [rows, setRows] = useState<AdminStaffMember[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [busyId, setBusyId] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        getWaitStaffForAdmin()
+            .then(r => {
+                if (cancelled) return;
+                setRows(r.staff);
+                if (r.error) setError(r.error);
+            })
+            .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
+            .finally(() => { if (!cancelled) setIsLoading(false); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const handleToggle = async (person: AdminStaffMember) => {
+        const next = !person.isVisible;
+        setBusyId(person.id);
+        setError(null);
+
+        // Update in place rather than refetching: a Clover round-trip per tap
+        // would make the list feel unresponsive.
+        setRows(prev => prev.map(r => (r.id === person.id ? { ...r, isVisible: next } : r)));
+
+        try {
+            const result = await setStaffVisibility(person.id, person.name, next);
+            if (!result.success) {
+                setRows(prev => prev.map(r => (r.id === person.id ? { ...r, isVisible: person.isVisible } : r)));
+                setError(result.error ?? 'No se pudo guardar la visibilidad.');
+            }
+        } catch (e) {
+            setRows(prev => prev.map(r => (r.id === person.id ? { ...r, isVisible: person.isVisible } : r)));
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    return (
+        <div
+            onClick={() => { if (!busyId) onClose(); }}
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1000,
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '1.5rem'
+            }}
+        >
+            <div
+                onClick={e => e.stopPropagation()}
+                className="glass-panel"
+                style={{ padding: '2rem', maxWidth: '560px', width: '100%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            >
+                <div>
+                    <h3 style={{ margin: '0 0 0.4rem 0', fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Personal del salón
+                    </h3>
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                        Quién aparece al elegir personal. La lista viene de Clover.
+                    </p>
+                </div>
+
+                {error && (
+                    <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{error}</p>
+                )}
+
+                {isLoading ? (
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>Cargando...</p>
+                ) : rows.length === 0 ? (
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
+                        No se encontró personal con el rol Wait Staff en Clover.
+                    </p>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {rows.map(person => (
+                            <div
+                                key={person.id}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+                                    padding: '1rem 1.25rem', minHeight: '72px', borderRadius: '12px',
+                                    border: '1px solid var(--border)',
+                                    background: 'rgba(255,255,255,0.02)',
+                                    opacity: person.isVisible ? 1 : 0.55
+                                }}
+                            >
+                                <span style={{ flex: 1, minWidth: '160px', fontSize: '1.2rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                                    {person.name}
+                                </span>
+                                <button
+                                    onClick={() => handleToggle(person)}
+                                    disabled={busyId === person.id}
+                                    style={{
+                                        minHeight: '56px', padding: '0 1.5rem', borderRadius: '999px',
+                                        fontSize: '1.05rem', fontWeight: 600,
+                                        cursor: busyId === person.id ? 'not-allowed' : 'pointer',
+                                        opacity: busyId === person.id ? 0.5 : 1,
+                                        color: person.isVisible ? 'white' : 'var(--text-secondary)',
+                                        background: person.isVisible ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                        border: person.isVisible ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                    }}
+                                >
+                                    {person.isVisible ? 'Mostrar' : 'Ocultar'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <button
+                    onClick={onClose}
+                    disabled={busyId !== null}
+                    className="btn-secondary"
+                    style={{
+                        alignSelf: 'flex-start',
+                        borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
+                        fontSize: '1.1rem', fontWeight: 600,
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                        cursor: busyId !== null ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function ClosingListsPage() {
     // Read now so admin-only controls can be added later without restructuring.
     const { isAdmin } = useAdmin();
@@ -944,20 +1082,21 @@ export default function ClosingListsPage() {
     const [restockStaff, setRestockStaff] = useState<{ id: string; name: string } | null>(null);
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
+    const [isStaffOpen, setIsStaffOpen] = useState(false);
     // Bumped when the editor closes; remounts the checklist so it refetches.
     const [listVersion, setListVersion] = useState(0);
 
-    useEffect(() => {
-        let cancelled = false;
-        getWaitStaff()
-            .then(r => {
-                if (cancelled) return;
-                setStaff(r.staff);
-                if (r.error) setStaffError(r.error);
-            })
-            .catch(e => { if (!cancelled) setStaffError(e instanceof Error ? e.message : String(e)); });
-        return () => { cancelled = true; };
+    const loadStaff = useCallback(async () => {
+        try {
+            const r = await getWaitStaff();
+            setStaff(r.staff);
+            setStaffError(r.error);
+        } catch (e) {
+            setStaffError(e instanceof Error ? e.message : String(e));
+        }
     }, []);
+
+    useEffect(() => { loadStaff(); }, [loadStaff]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '900px', margin: '0 auto', padding: '1.5rem' }}>
@@ -973,6 +1112,21 @@ export default function ClosingListsPage() {
                 </div>
 
                 {isAdmin && (
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={() => setIsStaffOpen(true)}
+                        className="btn-secondary"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.6rem',
+                            borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
+                            fontSize: '1.1rem', fontWeight: 600,
+                            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Users size={20} />
+                        <span>Personal</span>
+                    </button>
                     <button
                         onClick={() => setIsEditorOpen(true)}
                         className="btn-secondary"
@@ -987,6 +1141,7 @@ export default function ClosingListsPage() {
                         <Pencil size={20} />
                         <span>Editar listas</span>
                     </button>
+                    </div>
                 )}
             </div>
 
@@ -1043,6 +1198,18 @@ export default function ClosingListsPage() {
                             />
                         </>
                     }
+                />
+            )}
+
+            {isAdmin && isStaffOpen && (
+                <StaffVisibilityModal
+                    onClose={async () => {
+                        setIsStaffOpen(false);
+                        // Pills come from getWaitStaff, which now filters on the
+                        // flags just edited — refetch so they update at once.
+                        await loadStaff();
+                        setListVersion(v => v + 1);
+                    }}
                 />
             )}
 

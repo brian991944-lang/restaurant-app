@@ -567,35 +567,85 @@ export async function pushSalonItemToClover(ingredientId: string, stockCountOver
 }
 
 /**
- * The merchant's wait staff, read from Clover.
+ * Wait Staff as Clover holds them, before any visibility filtering.
  *
- * Read-only: one GET, nothing written to Clover or the database. Each returned
- * object is constructed from scratch with exactly two fields, so no other part
- * of the Clover employee record — pin, email, customId or anything Clover adds
- * later — can reach the caller.
+ * Each object is constructed from scratch with exactly two fields, so no other
+ * part of the Clover employee record — pin, email, customId or anything Clover
+ * adds later — can reach a caller. Module-private: both public actions go
+ * through here so the PII rule is enforced in one place.
+ */
+async function fetchWaitStaffFromClover(): Promise<{ id: string; name: string }[]> {
+    const data = await cloverFetch('/employees?limit=100&expand=roles');
+    const employees: any[] = data?.elements || [];
+
+    const isWaitStaff = (emp: any) =>
+        (emp?.roles?.elements || []).some(
+            (r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === 'wait staff'
+        );
+
+    return employees
+        .filter(isWaitStaff)
+        .map((emp: any) => ({
+            id: String(emp?.id ?? ''),
+            name: String(emp?.nickname || emp?.name || '')
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+}
+
+/**
+ * The merchant's wait staff, read from Clover, excluding anyone an admin has
+ * hidden. Read-only with respect to Clover.
  */
 export async function getWaitStaff(): Promise<{
     staff: { id: string; name: string }[];
     error: string | null;
 }> {
     try {
-        const data = await cloverFetch('/employees?limit=100&expand=roles');
-        const employees: any[] = data?.elements || [];
+        const staff = await fetchWaitStaffFromClover();
 
-        const isWaitStaff = (emp: any) =>
-            (emp?.roles?.elements || []).some(
-                (r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === 'wait staff'
-            );
+        // Only rows explicitly turned off are excluded; anyone without a row —
+        // including a new Clover hire — stays visible.
+        const hidden = await prisma.salonStaffVisibility.findMany({
+            where: { isVisible: false },
+            select: { cloverId: true }
+        });
+        const hiddenIds = new Set(hidden.map(h => h.cloverId));
 
-        const staff = employees
-            .filter(isWaitStaff)
-            .map((emp: any) => ({
-                id: String(emp?.id ?? ''),
-                name: String(emp?.nickname || emp?.name || '')
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+        return { staff: staff.filter(s => !hiddenIds.has(s.id)), error: null };
+    } catch (e) {
+        return {
+            staff: [],
+            error: `No se pudo obtener el personal de salón desde Clover: ${e instanceof Error ? e.message : String(e)}`
+        };
+    }
+}
 
-        return { staff, error: null };
+/**
+ * Every Wait Staff member with their current visibility, for the admin toggle
+ * list. Unlike getWaitStaff this hides nobody — it is the editor for that flag.
+ */
+export async function getWaitStaffForAdmin(): Promise<{
+    staff: { id: string; name: string; isVisible: boolean }[];
+    error: string | null;
+}> {
+    try {
+        const staff = await fetchWaitStaffFromClover();
+
+        const rows = await prisma.salonStaffVisibility.findMany({
+            select: { cloverId: true, isVisible: true }
+        });
+        const byId = new Map(rows.map(r => [r.cloverId, r.isVisible]));
+
+        return {
+            staff: staff.map(s => ({
+                id: s.id,
+                name: s.name,
+                // No row means visible, so nobody disappears before an admin
+                // has ever touched the list.
+                isVisible: byId.get(s.id) ?? true
+            })),
+            error: null
+        };
     } catch (e) {
         return {
             staff: [],

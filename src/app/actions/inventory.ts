@@ -158,6 +158,36 @@ export async function updateSalonStock(
 }
 
 /**
+ * Show or hide one Clover employee in the salón staff pickers. Keyed on
+ * cloverId so the row survives a name change in Clover; the name is stored
+ * alongside only so the admin list reads sensibly.
+ */
+export async function setStaffVisibility(
+    cloverId: string,
+    name: string,
+    isVisible: boolean
+): Promise<{ success: boolean; error?: string }> {
+    if (!cloverId) {
+        return { success: false, error: 'Falta el identificador del empleado.' };
+    }
+
+    try {
+        await prisma.salonStaffVisibility.upsert({
+            where: { cloverId },
+            create: { cloverId, name, isVisible },
+            update: { name, isVisible }
+        });
+
+        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/inventory-salon');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to set staff visibility:', e);
+        return { success: false, error: 'No se pudo guardar la visibilidad del personal.' };
+    }
+}
+
+/**
  * The managed list of salón groups. On first use the table is seeded from the
  * salonGroup values already stored on SalonStock, so groups created before this
  * list existed are not lost.
