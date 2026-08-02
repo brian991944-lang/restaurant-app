@@ -167,7 +167,7 @@ export async function fetchCloverItemsForSalon(): Promise<{
 
     let rawItems: any[] = [];
     try {
-        const data = await cloverFetch('/items?limit=1000');
+        const data = await cloverFetch('/items?limit=1000&expand=itemStock');
         rawItems = data.elements || [];
     } catch (e) {
         const msg = `No se pudieron obtener los artículos de Clover: ${e instanceof Error ? e.message : String(e)}`;
@@ -196,7 +196,9 @@ export async function fetchCloverItemsForSalon(): Promise<{
             id: el.id,
             name: el.name || '',
             price: typeof el.price === 'number' ? el.price : 0,
-            stockCount: typeof el.stockCount === 'number' ? el.stockCount : null,
+            // The live count lives on the expanded itemStock relation; el.stockCount
+            // on the bare item is always 0 and must not be read.
+            stockCount: typeof el.itemStock?.stockCount === 'number' ? el.itemStock.stockCount : null,
             autoManage: el.autoManage === true,
             available: el.available === true,
             hidden: el.hidden === true,
@@ -509,6 +511,28 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
         available: itemBack?.available === true,
         autoManage: itemBack?.autoManage === true
     };
+
+    // Clover can answer 200 to a write it silently discards, so the read-back is
+    // compared field by field against what was sent. Anything short of an exact
+    // match on all three is a failed push.
+    const mismatches: string[] = [];
+    if (echo.name !== ingredient.name) {
+        mismatches.push(`nombre (enviado "${ingredient.name}", Clover devolvió "${echo.name}")`);
+    }
+    if (echo.price !== stock.salePrice) {
+        mismatches.push(`precio (enviado ${stock.salePrice}, Clover devolvió ${echo.price})`);
+    }
+    if (echo.stockCount !== stock.qtyFront) {
+        mismatches.push(`stock (enviado ${stock.qtyFront}, Clover devolvió ${echo.stockCount === null ? 'null' : echo.stockCount})`);
+    }
+
+    if (mismatches.length > 0) {
+        return {
+            success: false,
+            error: `Clover no guardó los mismos valores: ${mismatches.join('; ')}.`,
+            echo
+        };
+    }
 
     try {
         await prisma.salonStock.update({
