@@ -22,6 +22,7 @@ interface Draft {
     qtyFront: string;
     parFront: string;
     priceDollars: string;
+    autoManage: boolean;
 }
 
 // Clover sends prices as integer cents; every price on this page goes through here.
@@ -175,7 +176,8 @@ export default function InventorySalonPage() {
             qtyBodega: String(stock?.qtyBodega ?? 0),
             qtyFront: String(stock?.qtyFront ?? 0),
             parFront: String(stock?.parFront ?? 0),
-            priceDollars: ((stock?.salePrice ?? 0) / 100).toFixed(2)
+            priceDollars: ((stock?.salePrice ?? 0) / 100).toFixed(2),
+            autoManage: stock?.autoManage ?? true
         });
     };
 
@@ -228,6 +230,7 @@ export default function InventorySalonPage() {
                 qtyFront: parsed['Front'],
                 parFront: parsed['Par'],
                 salePrice: Math.round(dollars * 100),
+                autoManage: draft.autoManage,
                 // Omitted when blank so the column default stands rather than
                 // storing an empty group name.
                 ...(draft.salonGroup.trim() ? { salonGroup: draft.salonGroup.trim() } : {})
@@ -600,7 +603,21 @@ export default function InventorySalonPage() {
                                                                                 style={inputStyle}
                                                                             />
                                                                         </Field>
+                                                                        <Field label="Control de stock" wide>
+                                                                            <select
+                                                                                value={draft.autoManage ? 'auto' : 'manual'}
+                                                                                onChange={e => setDraft({ ...draft, autoManage: e.target.value === 'auto' })}
+                                                                                style={{ ...inputStyle, cursor: 'pointer' }}
+                                                                            >
+                                                                                <option value="auto">Automático</option>
+                                                                                <option value="manual">Manual</option>
+                                                                            </select>
+                                                                        </Field>
                                                                     </div>
+
+                                                                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                                                                        Automático: Clover descuenta el stock en cada venta y desactiva el producto al llegar a 0.
+                                                                    </p>
 
                                                                     {editError && (
                                                                         <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{editError}</p>

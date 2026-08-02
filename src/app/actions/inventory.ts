@@ -89,6 +89,7 @@ export async function updateSalonStock(
         parFront?: number;
         salePrice?: number;
         salonGroup?: string;
+        autoManage?: boolean;
     }
 ): Promise<{ success: boolean; error?: string }> {
     const negatives: [string, number | undefined][] = [
@@ -115,7 +116,8 @@ export async function updateSalonStock(
             data.qtyBodega !== undefined ||
             data.parFront !== undefined ||
             data.salePrice !== undefined ||
-            data.salonGroup !== undefined;
+            data.salonGroup !== undefined ||
+            data.autoManage !== undefined;
 
         if (touchesStock) {
             // Upsert rather than update: an ingredient can be flagged for the
@@ -129,14 +131,16 @@ export async function updateSalonStock(
                     qtyBodega: data.qtyBodega ?? 0,
                     parFront: data.parFront ?? 0,
                     salePrice: data.salePrice ?? 0,
-                    ...(data.salonGroup !== undefined ? { salonGroup: data.salonGroup } : {})
+                    ...(data.salonGroup !== undefined ? { salonGroup: data.salonGroup } : {}),
+                    ...(data.autoManage !== undefined ? { autoManage: data.autoManage } : {})
                 },
                 update: {
                     qtyFront: data.qtyFront !== undefined ? data.qtyFront : undefined,
                     qtyBodega: data.qtyBodega !== undefined ? data.qtyBodega : undefined,
                     parFront: data.parFront !== undefined ? data.parFront : undefined,
                     salePrice: data.salePrice !== undefined ? data.salePrice : undefined,
-                    salonGroup: data.salonGroup !== undefined ? data.salonGroup : undefined
+                    salonGroup: data.salonGroup !== undefined ? data.salonGroup : undefined,
+                    autoManage: data.autoManage !== undefined ? data.autoManage : undefined
                 }
             });
         }

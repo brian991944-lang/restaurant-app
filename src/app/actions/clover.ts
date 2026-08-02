@@ -452,11 +452,16 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
     const cloverId = ingredient.cloverId;
     const stock = ingredient.salonStock;
 
-    // Step 1 — name and price. salePrice is already integer cents, sent as-is.
+    // Step 1 — name, price and stock-control mode. salePrice is already
+    // integer cents, sent as-is.
     try {
         await cloverFetch(`/items/${cloverId}`, {
             method: 'POST',
-            body: JSON.stringify({ name: ingredient.name, price: stock.salePrice })
+            body: JSON.stringify({
+                name: ingredient.name,
+                price: stock.salePrice,
+                autoManage: stock.autoManage
+            })
         });
     } catch (e) {
         return {
@@ -525,6 +530,9 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
     }
     if (echo.stockCount !== stock.qtyFront) {
         mismatches.push(`stock (enviado ${stock.qtyFront}, Clover devolvió ${echo.stockCount === null ? 'null' : echo.stockCount})`);
+    }
+    if (echo.autoManage !== stock.autoManage) {
+        mismatches.push(`control de stock (enviado ${stock.autoManage}, Clover devolvió ${echo.autoManage})`);
     }
 
     if (mismatches.length > 0) {
