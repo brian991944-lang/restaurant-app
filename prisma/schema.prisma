@@ -491,3 +491,70 @@ model QboSyncState {
   lastRunStatus  String?
   updatedAt      DateTime  @updatedAt
 }
+
+model ShiftSection {
+  id        String  @id @default(cuid())
+  listType  String              // APERTURA | CIERRE | LIMPIEZA
+  name      String
+  dayOfWeek Int?                // LIMPIEZA only: 1=Lunes .. 4=Jueves
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+  tasks     ShiftTask[]
+}
+
+model ShiftTask {
+  id         String  @id @default(cuid())
+  sectionId  String
+  section    ShiftSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  text       String
+  daysOfWeek String?            // comma ISO days e.g. "4,7". null = every day
+  sortOrder  Int     @default(0)
+  isActive   Boolean @default(true)
+  checks     ShiftTaskCheck[]
+  deferrals  ShiftDeferral[]
+}
+
+model ShiftRun {
+  id               String    @id @default(cuid())
+  listType         String
+  businessDate     String    // YYYY-MM-DD
+  completedAt      DateTime?
+  shareAttemptedAt DateTime?
+  createdAt        DateTime  @default(now())
+  checks           ShiftTaskCheck[]
+  staff            ShiftRunStaff[]
+  deferrals        ShiftDeferral[]
+  @@unique([listType, businessDate])
+}
+
+model ShiftRunStaff {
+  id           String   @id @default(cuid())
+  runId        String
+  run          ShiftRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  sectionId    String
+  employeeId   String
+  employeeName String
+  @@unique([runId, sectionId, employeeId])
+}
+
+model ShiftTaskCheck {
+  id        String    @id @default(cuid())
+  runId     String
+  run       ShiftRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  taskId    String
+  task      ShiftTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  checkedAt DateTime  @default(now())
+  @@unique([runId, taskId])
+}
+
+model ShiftDeferral {
+  id          String    @id @default(cuid())
+  taskId      String
+  task        ShiftTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  runId       String
+  run         ShiftRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  reason      String
+  plannedFor  String    // ESTA_NOCHE | PROXIMA_APERTURA
+  resolvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+}
