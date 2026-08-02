@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite, probeCocaColaStockReads } from '@/app/actions/clover';
+import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite, probeCocaColaStockReads, probeCloverStockWriteMethods } from '@/app/actions/clover';
 
 type Result = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type Probe = Awaited<ReturnType<typeof probeCloverStockEndpoints>>;
 type StockProbe = Awaited<ReturnType<typeof probeCloverStockWrite>>;
 type ColaProbe = Awaited<ReturnType<typeof probeCocaColaStockReads>>;
+type WriteProbe = Awaited<ReturnType<typeof probeCloverStockWriteMethods>>;
 
 const DRINK_WORDS = ['drink', 'bebida', 'beverage', 'soda', 'refresco'];
 
@@ -18,6 +19,23 @@ export default function SalonDebugPage() {
     const [stockProbeError, setStockProbeError] = useState<string | null>(null);
     const [colaProbe, setColaProbe] = useState<ColaProbe | null>(null);
     const [colaProbeError, setColaProbeError] = useState<string | null>(null);
+    // Section 7 writes to Clover, so it is never run on mount — only on click.
+    const [writeProbe, setWriteProbe] = useState<WriteProbe | null>(null);
+    const [writeProbeError, setWriteProbeError] = useState<string | null>(null);
+    const [isRunningWriteProbe, setIsRunningWriteProbe] = useState(false);
+
+    const runWriteProbe = async () => {
+        setIsRunningWriteProbe(true);
+        setWriteProbeError(null);
+        setWriteProbe(null);
+        try {
+            setWriteProbe(await probeCloverStockWriteMethods());
+        } catch (e) {
+            setWriteProbeError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsRunningWriteProbe(false);
+        }
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -180,5 +198,48 @@ export default function SalonDebugPage() {
         lines.push(`devuelven 44: ${matches.length > 0 ? matches.join(', ') : 'ninguno'}`);
     }
 
-    return <pre>{lines.join('\n')}</pre>;
+    lines.push('');
+    lines.push('--- SECTION 7: métodos de escritura de stock (Inca Kola Diet) ---');
+    if (isRunningWriteProbe) {
+        lines.push('Ejecutando...');
+    } else if (writeProbeError) {
+        lines.push(`Fallo al llamar probeCloverStockWriteMethods: ${writeProbeError}`);
+    } else if (!writeProbe) {
+        lines.push('No ejecutado. Esta sección ESCRIBE en Clover (7, 9, 11) y no restaura el valor original.');
+        lines.push('Pulsa el botón de abajo para ejecutarla.');
+    } else {
+        for (const step of writeProbe.steps) {
+            lines.push('');
+            lines.push(step.label);
+            lines.push(step.error !== null ? step.error : JSON.stringify(step.raw, null, 2));
+        }
+
+        lines.push('');
+        lines.push(`stockCount inicial: ${writeProbe.startingStockCount === null ? 'null' : writeProbe.startingStockCount}`);
+        lines.push(`tras PUT (esperado 7): ${writeProbe.afterPut === null ? 'null' : writeProbe.afterPut}`);
+        lines.push(`tras POST /item_stocks (esperado 9): ${writeProbe.afterPostItemStocks === null ? 'null' : writeProbe.afterPostItemStocks}`);
+        lines.push(`tras POST /items (esperado 11): ${writeProbe.afterPostItems === null ? 'null' : writeProbe.afterPostItems}`);
+
+        const worked: string[] = [];
+        if (writeProbe.afterPut === 7) worked.push('PUT /item_stocks');
+        if (writeProbe.afterPostItemStocks === 9) worked.push('POST /item_stocks { item: { id }, stockCount }');
+        if (writeProbe.afterPostItems === 11) worked.push('POST /items { itemStock: { stockCount } }');
+
+        lines.push('');
+        lines.push(`métodos que SÍ cambiaron el valor: ${worked.length > 0 ? worked.join(', ') : 'NINGUNO'}`);
+        lines.push(`valor actual en Clover: ${writeProbe.afterPostItems === null ? 'desconocido' : writeProbe.afterPostItems} (restaurar a ${writeProbe.startingStockCount === null ? '?' : writeProbe.startingStockCount} manualmente)`);
+    }
+
+    return (
+        <div>
+            <pre>{lines.join('\n')}</pre>
+            <button
+                onClick={runWriteProbe}
+                disabled={isRunningWriteProbe}
+                style={{ padding: '1rem', fontSize: '1rem', border: '1px solid currentColor' }}
+            >
+                {isRunningWriteProbe ? 'Ejecutando...' : 'Ejecutar SECTION 7 (ESCRIBE en Clover)'}
+            </button>
+        </div>
+    );
 }

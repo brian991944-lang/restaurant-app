@@ -551,6 +551,72 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
+ * TEMPORARY diagnostic: determines which HTTP method and body shape Clover
+ * actually honours for a stock write. Targets ONLY Inca Kola Diet.
+ *
+ * WARNING — this one WRITES. Steps 2, 4 and 6 mutate the live stock count
+ * (7, then 9, then 11) and nothing restores it; step 1 records the original
+ * value so it can be put back by hand afterwards. Delete this action once the
+ * question is settled.
+ */
+export async function probeCloverStockWriteMethods(): Promise<{
+    steps: { label: string; raw: any; error: string | null }[];
+    startingStockCount: number | null;
+    afterPut: number | null;
+    afterPostItemStocks: number | null;
+    afterPostItems: number | null;
+}> {
+    const ITEM = 'AS7W11RAMW4CW';
+    const steps: { label: string; raw: any; error: string | null }[] = [];
+
+    // Each step is isolated: a failure is recorded and the sequence continues,
+    // so a rejected method does not hide the result of the next one.
+    const run = async (label: string, path: string, init: RequestInit = {}) => {
+        try {
+            const raw = await cloverFetch(path, init);
+            steps.push({ label, raw, error: null });
+            return raw;
+        } catch (e) {
+            steps.push({ label, raw: null, error: e instanceof Error ? e.message : String(e) });
+            return null;
+        }
+    };
+
+    const before = await run(`1. GET /item_stocks/${ITEM} (inicial)`, `/item_stocks/${ITEM}`);
+
+    await run(
+        `2. PUT /item_stocks/${ITEM} { stockCount: 7 }`,
+        `/item_stocks/${ITEM}`,
+        { method: 'PUT', body: JSON.stringify({ stockCount: 7 }) }
+    );
+    const afterPutRaw = await run(`3. GET /item_stocks/${ITEM} (¿7?)`, `/item_stocks/${ITEM}`);
+
+    await run(
+        `4. POST /item_stocks/${ITEM} { item: { id }, stockCount: 9 }`,
+        `/item_stocks/${ITEM}`,
+        { method: 'POST', body: JSON.stringify({ item: { id: ITEM }, stockCount: 9 }) }
+    );
+    const afterPostStocksRaw = await run(`5. GET /item_stocks/${ITEM} (¿9?)`, `/item_stocks/${ITEM}`);
+
+    await run(
+        `6. POST /items/${ITEM} { itemStock: { stockCount: 11 } }`,
+        `/items/${ITEM}`,
+        { method: 'POST', body: JSON.stringify({ itemStock: { stockCount: 11 } }) }
+    );
+    const afterPostItemsRaw = await run(`7. GET /item_stocks/${ITEM} (¿11?)`, `/item_stocks/${ITEM}`);
+
+    const count = (r: any) => (typeof r?.stockCount === 'number' ? r.stockCount : null);
+
+    return {
+        steps,
+        startingStockCount: count(before),
+        afterPut: count(afterPutRaw),
+        afterPostItemStocks: count(afterPostStocksRaw),
+        afterPostItems: count(afterPostItemsRaw)
+    };
+}
+
+/**
  * TEMPORARY read-only probe: three ways of reading the same stock number for
  * Coca Cola Diet, to establish which endpoint actually reports what the Clover
  * dashboard shows. Three GETs, no POST or PUT — writes nothing to Clover and
