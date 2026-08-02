@@ -152,5 +152,30 @@
     "urgent_q": "Urgent?",
     "add_btn": "+ Add",
     "amount_required": "Enter the prepared amount before completing."
+  },
+  "Tips": {
+    "title": "Tip Distribution",
+    "subtitle": "Today's split by shift",
+    "total_tips": "Credit card tips",
+    "total_service_charge": "Service charge",
+    "total_cash": "Cash tips",
+    "clover_synced": "Synced with Clover",
+    "shift": "Shift",
+    "name": "Name",
+    "role": "Role",
+    "mesero": "Server",
+    "busser": "Busser",
+    "credit_tips": "Card",
+    "service_charge": "Service charge",
+    "cash": "Cash",
+    "subtotal": "Subtotal",
+    "not_counted": "Not counted",
+    "remaining": "Left to distribute",
+    "excess": "Over-distributed",
+    "balanced": "Balanced",
+    "submitted": "Submitted",
+    "submitted_by": "Submitted by",
+    "no_entries": "Nobody is recorded in this shift.",
+    "no_day_yet": "Today's tip distribution has not been started yet."
   }
 }

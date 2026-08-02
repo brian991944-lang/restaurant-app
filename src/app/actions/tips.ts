@@ -7,7 +7,7 @@ import { getBusinessDateAsDate } from '@/lib/businessDay';
 import { toCents, sumCents } from '@/lib/money';
 import { isAdminSession } from '@/lib/adminGuard';
 
-const TIPS_ROUTE = '/[locale]/tips';
+const TIPS_ROUTE = '/[locale]/tips-reviews';
 
 /**
  * Decimal → number conversion for this module.
@@ -132,36 +132,62 @@ function serializeDay(day: Prisma.TipDayGetPayload<{
     };
 }
 
+const DAY_INCLUDE = {
+    shifts: {
+        orderBy: { orderIndex: 'asc' },
+        include: { entries: { orderBy: { createdAt: 'asc' } } }
+    }
+} satisfies Prisma.TipDayInclude;
+
 /**
- * The tip day for a business date, created on first access.
+ * The tip day for a business date, or null if none has been started.
  *
- * Reader: returns data bare and throws on failure. The upsert means two
- * tablets opening the page at once cannot collide on the unique businessDate.
+ * Reader: pure. Merely viewing the page must never create a row, so callers
+ * that need a day to exist use ensureTipDay instead.
  */
 export async function getTipDay(businessDate?: Date) {
     const date = businessDate ?? getBusinessDateAsDate();
 
-    await prisma.tipDay.upsert({
+    const day = await prisma.tipDay.findUnique({
         where: { businessDate: date },
-        create: {
-            businessDate: date,
-            // A day always has at least one shift, so the UI never opens empty.
-            shifts: { create: { orderIndex: 0 } }
-        },
-        update: {}
+        include: DAY_INCLUDE
     });
 
-    const day = await prisma.tipDay.findUniqueOrThrow({
-        where: { businessDate: date },
-        include: {
-            shifts: {
-                orderBy: { orderIndex: 'asc' },
-                include: { entries: { orderBy: { createdAt: 'asc' } } }
-            }
-        }
-    });
+    return day ? serializeDay(day) : null;
+}
 
-    return serializeDay(day);
+/**
+ * The tip day for a business date, created if absent along with its first
+ * shift. Called when a user actually starts entering data.
+ *
+ * The upsert means two tablets doing this at once cannot collide on the
+ * unique businessDate.
+ */
+export async function ensureTipDay(businessDate?: Date) {
+    const date = businessDate ?? getBusinessDateAsDate();
+
+    try {
+        await prisma.tipDay.upsert({
+            where: { businessDate: date },
+            create: {
+                businessDate: date,
+                // A day always has at least one shift, so the UI never opens empty.
+                shifts: { create: { orderIndex: 0 } }
+            },
+            update: {}
+        });
+
+        const day = await prisma.tipDay.findUniqueOrThrow({
+            where: { businessDate: date },
+            include: DAY_INCLUDE
+        });
+
+        revalidatePath(TIPS_ROUTE);
+        return { success: true as const, day: serializeDay(day) };
+    } catch (e) {
+        console.error('Failed to ensure tip day:', e);
+        return { success: false as const, error: 'No se pudo abrir el día de propinas.' };
+    }
 }
 
 /** Guard shared by every writer: a submitted day is closed to normal edits. */
