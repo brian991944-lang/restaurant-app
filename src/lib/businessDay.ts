@@ -124,3 +124,32 @@ export function getBusinessDayOfWeek(businessDate: string): number {
     const [y, m, d] = businessDate.split('-').map(Number);
     return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay();
 }
+
+/**
+ * The same business day as getBusinessDate(), expressed as a Date rather than a
+ * 'YYYY-MM-DD' string. Same BUSINESS_DAY_CUTOVER_HOUR, same NY timezone math —
+ * this is only a representation change, not a second calendar. Do not introduce
+ * another cutover for it.
+ *
+ * Pinned to 00:00:00.000Z so it stores cleanly in a Prisma @db.Date column.
+ */
+export function getBusinessDateAsDate(now: Date = new Date()): Date {
+    const [y, m, d] = getBusinessDate(now).split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+}
+
+/**
+ * Spanish long form of a business date, e.g. 'domingo, 2 de agosto de 2026'.
+ *
+ * timeZone is 'UTC' on purpose: the stored value is already a plain calendar
+ * date pinned to UTC midnight, so formatting it in NY would shift it back a day.
+ */
+export function formatBusinessDateEs(d: Date): string {
+    return new Intl.DateTimeFormat('es', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: 'UTC',
+    }).format(d);
+}
