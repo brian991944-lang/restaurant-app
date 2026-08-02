@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Package } from 'lucide-react';
+import { Package, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { getWaitStaff } from '@/app/actions/clover';
 import { getSalonStock, restockSalonItem } from '@/app/actions/inventory';
 import {
     getShiftList, toggleShiftTask, setShiftRunStaff, completeShiftRun,
+    getAllShiftSections, createShiftTask, updateShiftTask, deleteShiftTask,
+    reorderShiftTask, createShiftSection, updateShiftSection,
     type ShiftListType
 } from '@/app/actions/shiftLists';
 
@@ -593,6 +595,346 @@ function ShiftChecklist({ listType, staff, staffError }: {
     );
 }
 
+type EditorSection = Awaited<ReturnType<typeof getAllShiftSections>>[number];
+
+const DAY_CHIPS: { iso: number; label: string }[] = [
+    { iso: 1, label: 'L' },
+    { iso: 2, label: 'M' },
+    { iso: 3, label: 'X' },
+    { iso: 4, label: 'J' },
+    { iso: 5, label: 'V' },
+    { iso: 6, label: 'S' },
+    { iso: 7, label: 'D' }
+];
+
+const parseDays = (value: string | null): number[] =>
+    value
+        ? value.split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n))
+        : [];
+
+const editorInput: React.CSSProperties = {
+    padding: '0.7rem 0.9rem',
+    minHeight: '52px',
+    fontSize: '1.05rem',
+    borderRadius: '8px',
+    color: 'var(--text-primary)',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border)',
+    width: '100%'
+};
+
+const smallButton: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    minWidth: '52px', minHeight: '52px', borderRadius: '8px',
+    background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+    color: 'var(--text-secondary)', cursor: 'pointer'
+};
+
+/**
+ * Admin editor for one list's sections and tasks. Every control writes straight
+ * through and then refetches, so the modal always shows real stored state
+ * rather than an optimistic guess.
+ */
+function ShiftListEditorModal({ listType, onClose }: {
+    listType: ShiftListType;
+    onClose: () => void;
+}) {
+    const [sections, setSections] = useState<EditorSection[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const [taskText, setTaskText] = useState<Record<string, string>>({});
+    const [sectionName, setSectionName] = useState<Record<string, string>>({});
+    const [newTask, setNewTask] = useState<Record<string, string>>({});
+    const [newSection, setNewSection] = useState('');
+
+    const load = useCallback(async () => {
+        try {
+            const rows = await getAllShiftSections(listType);
+            setSections(rows);
+            // Drop local drafts so fields reflect what was actually saved.
+            setTaskText({});
+            setSectionName({});
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsLoading(false);
+        }
+    }, [listType]);
+
+    useEffect(() => { load(); }, [load]);
+
+    const run = async (fn: () => Promise<{ success: boolean; error?: string }>) => {
+        setBusy(true);
+        setError(null);
+        try {
+            const result = await fn();
+            if (!result.success) {
+                setError(result.error ?? 'No se pudo completar la acción.');
+                return false;
+            }
+            await load();
+            return true;
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+            return false;
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const toggleDay = (task: EditorSection['tasks'][number], iso: number) => {
+        const current = parseDays(task.daysOfWeek);
+        const next = current.includes(iso)
+            ? current.filter(d => d !== iso)
+            : [...current, iso].sort((a, b) => a - b);
+        // Empty means every day, which is stored as null rather than "".
+        return run(() => updateShiftTask(task.id, { daysOfWeek: next.length ? next.join(',') : null }));
+    };
+
+    return (
+        <div
+            onClick={() => { if (!busy) onClose(); }}
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1000,
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '1.5rem'
+            }}
+        >
+            <div
+                onClick={e => e.stopPropagation()}
+                className="glass-panel"
+                style={{ padding: '2rem', maxWidth: '820px', width: '100%', maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+            >
+                <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Editar lista — {listType === 'APERTURA' ? 'Apertura' : 'Cierre'}
+                </h3>
+
+                {error && (
+                    <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{error}</p>
+                )}
+
+                {isLoading ? (
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>Cargando...</p>
+                ) : (
+                    <>
+                        {sections.map(section => (
+                            <div
+                                key={section.id}
+                                style={{
+                                    display: 'flex', flexDirection: 'column', gap: '1rem',
+                                    padding: '1.25rem', borderRadius: '12px',
+                                    border: '1px solid var(--border)',
+                                    background: 'rgba(255,255,255,0.02)',
+                                    opacity: section.isActive ? 1 : 0.6
+                                }}
+                            >
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        value={sectionName[section.id] ?? section.name}
+                                        onChange={e => setSectionName(prev => ({ ...prev, [section.id]: e.target.value }))}
+                                        style={{ ...editorInput, flex: '1 1 240px', width: 'auto', fontWeight: 600 }}
+                                    />
+                                    <button
+                                        onClick={() => run(() => updateShiftSection(section.id, { name: sectionName[section.id] ?? section.name }))}
+                                        disabled={busy || (sectionName[section.id] ?? section.name).trim() === section.name}
+                                        className="btn-primary"
+                                        style={{
+                                            borderRadius: '8px', padding: '0.7rem 1.2rem', minHeight: '52px',
+                                            fontSize: '1rem', fontWeight: 600,
+                                            opacity: busy || (sectionName[section.id] ?? section.name).trim() === section.name ? 0.5 : 1,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Renombrar
+                                    </button>
+                                    <button
+                                        onClick={() => run(() => updateShiftSection(section.id, { isActive: !section.isActive }))}
+                                        disabled={busy}
+                                        style={{ ...smallButton, minWidth: 'auto', padding: '0 1.1rem', fontSize: '1rem', fontWeight: 600 }}
+                                    >
+                                        {section.isActive ? 'Desactivar' : 'Activar'}
+                                    </button>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    {section.tasks.length === 0 && (
+                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                                            Esta sección no tiene tareas.
+                                        </p>
+                                    )}
+
+                                    {section.tasks.map((task, index) => {
+                                        const days = parseDays(task.daysOfWeek);
+                                        return (
+                                            <div
+                                                key={task.id}
+                                                style={{
+                                                    display: 'flex', flexDirection: 'column', gap: '0.6rem',
+                                                    padding: '0.9rem', borderRadius: '8px',
+                                                    border: '1px solid var(--border)',
+                                                    opacity: task.isActive ? 1 : 0.55
+                                                }}
+                                            >
+                                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    <input
+                                                        type="text"
+                                                        value={taskText[task.id] ?? task.text}
+                                                        onChange={e => setTaskText(prev => ({ ...prev, [task.id]: e.target.value }))}
+                                                        onBlur={() => {
+                                                            const next = (taskText[task.id] ?? task.text).trim();
+                                                            if (next && next !== task.text) run(() => updateShiftTask(task.id, { text: next }));
+                                                        }}
+                                                        style={{ ...editorInput, flex: '1 1 280px', width: 'auto' }}
+                                                    />
+                                                    <button
+                                                        onClick={() => run(() => reorderShiftTask(task.id, 'UP'))}
+                                                        disabled={busy || index === 0}
+                                                        style={{ ...smallButton, opacity: busy || index === 0 ? 0.4 : 1 }}
+                                                        aria-label="Subir"
+                                                    >
+                                                        <ArrowUp size={20} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => reorderShiftTask(task.id, 'DOWN'))}
+                                                        disabled={busy || index === section.tasks.length - 1}
+                                                        style={{ ...smallButton, opacity: busy || index === section.tasks.length - 1 ? 0.4 : 1 }}
+                                                        aria-label="Bajar"
+                                                    >
+                                                        <ArrowDown size={20} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => updateShiftTask(task.id, { isActive: !task.isActive }))}
+                                                        disabled={busy}
+                                                        style={{ ...smallButton, minWidth: 'auto', padding: '0 1rem', fontSize: '0.95rem', fontWeight: 600 }}
+                                                    >
+                                                        {task.isActive ? 'Activa' : 'Inactiva'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => run(() => deleteShiftTask(task.id))}
+                                                        disabled={busy}
+                                                        style={{
+                                                            ...smallButton,
+                                                            color: 'var(--danger)',
+                                                            background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                                                            border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)'
+                                                        }}
+                                                        aria-label="Borrar"
+                                                    >
+                                                        <Trash2 size={20} />
+                                                    </button>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                    <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                                                        Días:
+                                                    </span>
+                                                    {DAY_CHIPS.map(day => {
+                                                        const on = days.includes(day.iso);
+                                                        return (
+                                                            <button
+                                                                key={day.iso}
+                                                                onClick={() => toggleDay(task, day.iso)}
+                                                                disabled={busy}
+                                                                style={{
+                                                                    width: '48px', height: '48px', borderRadius: '999px',
+                                                                    fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+                                                                    color: on ? 'white' : 'var(--text-secondary)',
+                                                                    background: on ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                                    border: on ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                                                }}
+                                                            >
+                                                                {day.label}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                        {days.length === 0 ? 'todos los días' : ''}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <input
+                                        type="text"
+                                        value={newTask[section.id] ?? ''}
+                                        onChange={e => setNewTask(prev => ({ ...prev, [section.id]: e.target.value }))}
+                                        placeholder="Nueva tarea"
+                                        style={{ ...editorInput, flex: '1 1 240px', width: 'auto' }}
+                                    />
+                                    <button
+                                        onClick={async () => {
+                                            const ok = await run(() => createShiftTask(section.id, newTask[section.id] ?? ''));
+                                            if (ok) setNewTask(prev => ({ ...prev, [section.id]: '' }));
+                                        }}
+                                        disabled={busy || !(newTask[section.id] ?? '').trim()}
+                                        className="btn-primary"
+                                        style={{
+                                            borderRadius: '8px', padding: '0.7rem 1.3rem', minHeight: '52px',
+                                            fontSize: '1rem', fontWeight: 600,
+                                            opacity: busy || !(newTask[section.id] ?? '').trim() ? 0.5 : 1,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Añadir tarea
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                            <input
+                                type="text"
+                                value={newSection}
+                                onChange={e => setNewSection(e.target.value)}
+                                placeholder="Nueva sección"
+                                style={{ ...editorInput, flex: '1 1 240px', width: 'auto' }}
+                            />
+                            <button
+                                onClick={async () => {
+                                    const ok = await run(() => createShiftSection(listType, newSection));
+                                    if (ok) setNewSection('');
+                                }}
+                                disabled={busy || !newSection.trim()}
+                                className="btn-primary"
+                                style={{
+                                    borderRadius: '8px', padding: '0.7rem 1.3rem', minHeight: '52px',
+                                    fontSize: '1rem', fontWeight: 600,
+                                    opacity: busy || !newSection.trim() ? 0.5 : 1,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Añadir sección
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                <button
+                    onClick={onClose}
+                    disabled={busy}
+                    className="btn-secondary"
+                    style={{
+                        alignSelf: 'flex-start',
+                        borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
+                        fontSize: '1.1rem', fontWeight: 600,
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                        cursor: busy ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function ClosingListsPage() {
     // Read now so admin-only controls can be added later without restructuring.
     const { isAdmin } = useAdmin();
@@ -603,6 +945,10 @@ export default function ClosingListsPage() {
     // own copy so it stays self-contained.
     const [staff, setStaff] = useState<StaffMember[]>([]);
     const [staffError, setStaffError] = useState<string | null>(null);
+
+    const [isEditorOpen, setIsEditorOpen] = useState(false);
+    // Bumped when the editor closes; remounts the checklist so it refetches.
+    const [listVersion, setListVersion] = useState(0);
 
     useEffect(() => {
         let cancelled = false;
@@ -619,13 +965,32 @@ export default function ClosingListsPage() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '900px', margin: '0 auto', padding: '1.5rem' }}>
 
-            <div>
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
-                    {locale === 'es' ? 'Listas de Apertura y Cierre' : 'Opening & Closing Lists'}
-                </h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
-                    Tareas de apertura y reposición de cierre.
-                </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                        {locale === 'es' ? 'Listas de Apertura y Cierre' : 'Opening & Closing Lists'}
+                    </h1>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
+                        Tareas de apertura y reposición de cierre.
+                    </p>
+                </div>
+
+                {isAdmin && (
+                    <button
+                        onClick={() => setIsEditorOpen(true)}
+                        className="btn-secondary"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.6rem',
+                            borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
+                            fontSize: '1.1rem', fontWeight: 600,
+                            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <Pencil size={20} />
+                        <span>Editar listas</span>
+                    </button>
+                )}
             </div>
 
             {/* Controls Container */}
@@ -660,18 +1025,28 @@ export default function ClosingListsPage() {
             </div>
 
             {activeTab === 'APERTURA' && (
-                <ShiftChecklist listType="APERTURA" staff={staff} staffError={staffError} />
+                <ShiftChecklist key={`APERTURA-${listVersion}`} listType="APERTURA" staff={staff} staffError={staffError} />
             )}
 
             {activeTab === 'CIERRE' && (
                 <>
-                    <ShiftChecklist listType="CIERRE" staff={staff} staffError={staffError} />
+                    <ShiftChecklist key={`CIERRE-${listVersion}`} listType="CIERRE" staff={staff} staffError={staffError} />
 
                     <h2 style={{ margin: '1rem 0 0 0', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         Sacar bebidas
                     </h2>
                     <RestockView />
                 </>
+            )}
+
+            {isAdmin && isEditorOpen && (
+                <ShiftListEditorModal
+                    listType={activeTab}
+                    onClose={() => {
+                        setIsEditorOpen(false);
+                        setListVersion(v => v + 1);
+                    }}
+                />
             )}
         </div>
     );

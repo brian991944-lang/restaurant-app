@@ -59,6 +59,177 @@ export async function getShiftList(listType: ShiftListType) {
     return { sections: filtered, run, businessDate };
 }
 
+/**
+ * Everything in a list for the admin editor: inactive sections and tasks
+ * included, and no day filtering — the editor has to show what it can edit.
+ */
+export async function getAllShiftSections(listType: string) {
+    return prisma.shiftSection.findMany({
+        where: { listType },
+        orderBy: { sortOrder: 'asc' },
+        include: { tasks: { orderBy: { sortOrder: 'asc' } } }
+    });
+}
+
+export async function createShiftTask(
+    sectionId: string,
+    text: string
+): Promise<{ success: boolean; error?: string }> {
+    const trimmed = text.trim();
+    if (!trimmed) return { success: false, error: 'El texto de la tarea no puede estar vacío.' };
+
+    try {
+        const last = await prisma.shiftTask.findFirst({
+            where: { sectionId },
+            orderBy: { sortOrder: 'desc' },
+            select: { sortOrder: true }
+        });
+
+        await prisma.shiftTask.create({
+            data: { sectionId, text: trimmed, sortOrder: (last?.sortOrder ?? -1) + 1 }
+        });
+
+        revalidatePath('/[locale]/closing-lists');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to create shift task:', e);
+        return { success: false, error: 'No se pudo crear la tarea.' };
+    }
+}
+
+export async function updateShiftTask(
+    taskId: string,
+    data: { text?: string; daysOfWeek?: string | null; isActive?: boolean; sectionId?: string }
+): Promise<{ success: boolean; error?: string }> {
+    if (data.text !== undefined && !data.text.trim()) {
+        return { success: false, error: 'El texto de la tarea no puede estar vacío.' };
+    }
+
+    try {
+        await prisma.shiftTask.update({
+            where: { id: taskId },
+            data: {
+                text: data.text !== undefined ? data.text.trim() : undefined,
+                // null is meaningful here (every day), so only `undefined` skips.
+                daysOfWeek: data.daysOfWeek !== undefined ? data.daysOfWeek : undefined,
+                isActive: data.isActive !== undefined ? data.isActive : undefined,
+                sectionId: data.sectionId !== undefined ? data.sectionId : undefined
+            }
+        });
+
+        revalidatePath('/[locale]/closing-lists');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to update shift task:', e);
+        return { success: false, error: 'No se pudo guardar la tarea.' };
+    }
+}
+
+export async function deleteShiftTask(taskId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Checks and deferrals cascade from the schema.
+        await prisma.shiftTask.delete({ where: { id: taskId } });
+        revalidatePath('/[locale]/closing-lists');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to delete shift task:', e);
+        return { success: false, error: 'No se pudo borrar la tarea.' };
+    }
+}
+
+export async function reorderShiftTask(
+    taskId: string,
+    direction: 'UP' | 'DOWN'
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const task = await prisma.shiftTask.findUnique({ where: { id: taskId } });
+        if (!task) return { success: false, error: 'No se encontró la tarea.' };
+
+        const neighbour = await prisma.shiftTask.findFirst({
+            where: {
+                sectionId: task.sectionId,
+                sortOrder: direction === 'UP' ? { lt: task.sortOrder } : { gt: task.sortOrder }
+            },
+            orderBy: { sortOrder: direction === 'UP' ? 'desc' : 'asc' }
+        });
+
+        // No neighbour means it is already at that end of the section.
+        // Note: the lt/gt comparison is strict, so two tasks sharing a
+        // sortOrder cannot be reordered past each other. Seeded and
+        // newly-created tasks always get distinct values, so this does not
+        // arise in practice.
+        if (!neighbour) return { success: true };
+
+        await prisma.$transaction([
+            prisma.shiftTask.update({ where: { id: task.id }, data: { sortOrder: neighbour.sortOrder } }),
+            prisma.shiftTask.update({ where: { id: neighbour.id }, data: { sortOrder: task.sortOrder } })
+        ]);
+
+        revalidatePath('/[locale]/closing-lists');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to reorder shift task:', e);
+        return { success: false, error: 'No se pudo reordenar la tarea.' };
+    }
+}
+
+export async function createShiftSection(
+    listType: string,
+    name: string,
+    dayOfWeek?: number | null
+): Promise<{ success: boolean; error?: string }> {
+    const trimmed = name.trim();
+    if (!trimmed) return { success: false, error: 'El nombre de la sección no puede estar vacío.' };
+
+    try {
+        const last = await prisma.shiftSection.findFirst({
+            where: { listType },
+            orderBy: { sortOrder: 'desc' },
+            select: { sortOrder: true }
+        });
+
+        await prisma.shiftSection.create({
+            data: {
+                listType,
+                name: trimmed,
+                dayOfWeek: dayOfWeek ?? null,
+                sortOrder: (last?.sortOrder ?? -1) + 1
+            }
+        });
+
+        revalidatePath('/[locale]/closing-lists');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to create shift section:', e);
+        return { success: false, error: 'No se pudo crear la sección.' };
+    }
+}
+
+export async function updateShiftSection(
+    id: string,
+    data: { name?: string; isActive?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+    if (data.name !== undefined && !data.name.trim()) {
+        return { success: false, error: 'El nombre de la sección no puede estar vacío.' };
+    }
+
+    try {
+        await prisma.shiftSection.update({
+            where: { id },
+            data: {
+                name: data.name !== undefined ? data.name.trim() : undefined,
+                isActive: data.isActive !== undefined ? data.isActive : undefined
+            }
+        });
+
+        revalidatePath('/[locale]/closing-lists');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to update shift section:', e);
+        return { success: false, error: 'No se pudo guardar la sección.' };
+    }
+}
+
 /** Today's run, created on demand so the first tap starts the shift. */
 async function ensureRun(listType: ShiftListType) {
     const businessDate = getBusinessDate();
