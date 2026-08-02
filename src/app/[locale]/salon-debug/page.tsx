@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite } from '@/app/actions/clover';
+import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite, probeCocaColaStockReads } from '@/app/actions/clover';
 
 type Result = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type Probe = Awaited<ReturnType<typeof probeCloverStockEndpoints>>;
 type StockProbe = Awaited<ReturnType<typeof probeCloverStockWrite>>;
+type ColaProbe = Awaited<ReturnType<typeof probeCocaColaStockReads>>;
 
 const DRINK_WORDS = ['drink', 'bebida', 'beverage', 'soda', 'refresco'];
 
@@ -15,6 +16,8 @@ export default function SalonDebugPage() {
     const [probeError, setProbeError] = useState<string | null>(null);
     const [stockProbe, setStockProbe] = useState<StockProbe | null>(null);
     const [stockProbeError, setStockProbeError] = useState<string | null>(null);
+    const [colaProbe, setColaProbe] = useState<ColaProbe | null>(null);
+    const [colaProbeError, setColaProbeError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -27,6 +30,9 @@ export default function SalonDebugPage() {
         probeCloverStockWrite()
             .then(r => { if (!cancelled) setStockProbe(r); })
             .catch(e => { if (!cancelled) setStockProbeError(e instanceof Error ? e.message : String(e)); });
+        probeCocaColaStockReads()
+            .then(r => { if (!cancelled) setColaProbe(r); })
+            .catch(e => { if (!cancelled) setColaProbeError(e instanceof Error ? e.message : String(e)); });
         return () => { cancelled = true; };
     }, []);
 
@@ -127,6 +133,51 @@ export default function SalonDebugPage() {
             lines.push(`stockCount: ${stockProbe.itemStockCount === null ? 'null' : stockProbe.itemStockCount}`);
             lines.push(`available: ${stockProbe.itemAvailable === null ? 'null' : stockProbe.itemAvailable}`);
         }
+    }
+
+    lines.push('');
+    if (colaProbeError) {
+        lines.push(`Fallo al llamar probeCocaColaStockReads: ${colaProbeError}`);
+    } else if (!colaProbe) {
+        lines.push('Cargando sección 6...');
+    } else {
+        lines.push('--- SECTION 6: Coca Cola Diet (2JJ8XPD1480JJ), dashboard muestra 44 ---');
+
+        lines.push('(a) GET /item_stocks/2JJ8XPD1480JJ:');
+        if (colaProbe.itemStockError !== null) {
+            lines.push(colaProbe.itemStockError);
+        } else {
+            lines.push(JSON.stringify(colaProbe.itemStockRaw, null, 2));
+        }
+
+        lines.push('');
+        lines.push('(b) GET /items/2JJ8XPD1480JJ:');
+        if (colaProbe.itemError !== null) {
+            lines.push(colaProbe.itemError);
+        } else {
+            lines.push(`stockCount: ${colaProbe.itemStockCount === null ? 'null' : colaProbe.itemStockCount}`);
+        }
+
+        lines.push('');
+        lines.push('(c) GET /items/2JJ8XPD1480JJ?expand=itemStock:');
+        if (colaProbe.expandError !== null) {
+            lines.push(colaProbe.expandError);
+        } else {
+            lines.push(JSON.stringify(colaProbe.expandRaw, null, 2));
+        }
+
+        // Which read path, if any, actually reports the dashboard number.
+        const aCount = colaProbe.itemStockRaw?.stockCount;
+        const bCount = colaProbe.itemStockCount;
+        const cCount = colaProbe.expandRaw?.itemStock?.stockCount;
+        const matches: string[] = [];
+        if (aCount === 44) matches.push('(a) /item_stocks');
+        if (bCount === 44) matches.push('(b) /items stockCount');
+        if (cCount === 44) matches.push('(c) /items?expand=itemStock');
+
+        lines.push('');
+        lines.push(`valores leídos -> a: ${aCount ?? 'ausente'} | b: ${bCount ?? 'ausente'} | c: ${cCount ?? 'ausente'}`);
+        lines.push(`devuelven 44: ${matches.length > 0 ? matches.join(', ') : 'ninguno'}`);
     }
 
     return <pre>{lines.join('\n')}</pre>;

@@ -527,6 +527,51 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
+ * TEMPORARY read-only probe: three ways of reading the same stock number for
+ * Coca Cola Diet, to establish which endpoint actually reports what the Clover
+ * dashboard shows. Three GETs, no POST or PUT — writes nothing to Clover and
+ * nothing to the database.
+ */
+export async function probeCocaColaStockReads(): Promise<{
+    itemStockRaw: any;
+    itemStockError: string | null;
+    itemStockCount: number | null;
+    itemError: string | null;
+    expandRaw: any;
+    expandError: string | null;
+}> {
+    // a) the dedicated stock record
+    let itemStockRaw: any = null;
+    let itemStockError: string | null = null;
+    try {
+        itemStockRaw = await cloverFetch('/item_stocks/2JJ8XPD1480JJ');
+    } catch (e) {
+        itemStockError = e instanceof Error ? e.message : String(e);
+    }
+
+    // b) stockCount as reported on the item itself
+    let itemStockCount: number | null = null;
+    let itemError: string | null = null;
+    try {
+        const item = await cloverFetch('/items/2JJ8XPD1480JJ');
+        itemStockCount = typeof item?.stockCount === 'number' ? item.stockCount : null;
+    } catch (e) {
+        itemError = e instanceof Error ? e.message : String(e);
+    }
+
+    // c) the item with its stock relation expanded
+    let expandRaw: any = null;
+    let expandError: string | null = null;
+    try {
+        expandRaw = await cloverFetch('/items/2JJ8XPD1480JJ?expand=itemStock');
+    } catch (e) {
+        expandError = e instanceof Error ? e.message : String(e);
+    }
+
+    return { itemStockRaw, itemStockError, itemStockCount, itemError, expandRaw, expandError };
+}
+
+/**
  * TEMPORARY read-only probe: inspects what Clover currently holds for the Inca
  * Kola Diet item. Two GETs, no POST or PUT — writes nothing to Clover and
  * nothing to the database.
