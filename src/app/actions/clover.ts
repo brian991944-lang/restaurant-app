@@ -560,22 +560,32 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
- * TEMPORARY read-only probe: one employee with their custom role expanded, plus
- * the merchant's role list, to pin down how "Wait Staff" is represented.
+ * TEMPORARY read-only probe: one employee with roles expanded, the merchant's
+ * role list, and a summary of how many employees carry a roles field — enough
+ * to pin down how "Wait Staff" is represented.
  *
- * Two GETs, no POST or PUT. The employee object is reduced to a whitelist
- * before it leaves the server — pin, email and customId are never returned.
+ * Three GETs, no POST or PUT. Nothing personal leaves the server: the single
+ * employee is reduced to a whitelist, and the list call returns only counts and
+ * name-plus-role-name for a few samples. pin, email and customId are never
+ * returned.
  */
 export async function probeCloverEmployeeRoles(): Promise<{
     employee: any;
     employeeError: string | null;
     roles: any;
     rolesError: string | null;
+    listSummary: {
+        totalEmployees: number;
+        withRoles: number;
+        samples: { name: string; roleNames: string[] }[];
+        note: string;
+    } | null;
+    listError: string | null;
 }> {
     let employee: any = null;
     let employeeError: string | null = null;
     try {
-        const raw = await cloverFetch('/employees/SQT9QH6JK9BMT?expand=customRole');
+        const raw = await cloverFetch('/employees/SQT9QH6JK9BMT?expand=roles');
         // Whitelist, not blacklist: only these keys can ever escape, so a field
         // added by Clover later cannot leak by default.
         const safe: Record<string, any> = {
@@ -600,7 +610,45 @@ export async function probeCloverEmployeeRoles(): Promise<{
         rolesError = e instanceof Error ? e.message : String(e);
     }
 
-    return { employee, employeeError, roles, rolesError };
+    // The raw list is never returned — only aggregate counts and a few
+    // name/role-name pairs, so no employee record leaves the server intact.
+    let listSummary: {
+        totalEmployees: number;
+        withRoles: number;
+        samples: { name: string; roleNames: string[] }[];
+        note: string;
+    } | null = null;
+    let listError: string | null = null;
+    try {
+        const data = await cloverFetch('/employees?limit=100&expand=roles');
+        const all: any[] = data?.elements || [];
+
+        const roleNamesOf = (emp: any): string[] => {
+            const r = emp?.roles;
+            const list = Array.isArray(r) ? r : (Array.isArray(r?.elements) ? r.elements : []);
+            return list
+                .map((x: any) => (typeof x?.name === 'string' ? x.name : null))
+                .filter((n: string | null): n is string => n !== null);
+        };
+
+        const withRolesList = all.filter(emp => roleNamesOf(emp).length > 0);
+
+        listSummary = {
+            totalEmployees: all.length,
+            withRoles: withRolesList.length,
+            samples: withRolesList.slice(0, 3).map(emp => ({
+                name: emp?.name ?? 'null',
+                roleNames: roleNamesOf(emp)
+            })),
+            note: withRolesList.length === 0
+                ? 'Ningún empleado trae un campo roles con contenido.'
+                : `${withRolesList.length} de ${all.length} empleados traen roles.`
+        };
+    } catch (e) {
+        listError = e instanceof Error ? e.message : String(e);
+    }
+
+    return { employee, employeeError, roles, rolesError, listSummary, listError };
 }
 
 /**
