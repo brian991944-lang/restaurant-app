@@ -37,15 +37,16 @@ const inputStyle: React.CSSProperties = {
     border: '1px solid var(--border)'
 };
 
+/** Six columns when editable, five when submitted. Each set sums to exactly 100%. */
 function ShiftColGroup({ editable }: { editable: boolean }) {
     return (
         <colgroup>
-            <col style={{ width: editable ? '20%' : '22%' }} />
-            <col style={{ width: editable ? '14%' : '16%' }} />
-            <col style={{ width: editable ? '19%' : '20.66%' }} />
-            <col style={{ width: editable ? '19%' : '20.66%' }} />
-            <col style={{ width: editable ? '19%' : '20.66%' }} />
-            {editable && <col style={{ width: '9%' }} />}
+            <col style={{ width: editable ? '22%' : '24%' }} />
+            <col style={{ width: editable ? '16%' : '18%' }} />
+            <col style={{ width: editable ? '17%' : '19%' }} />
+            <col style={{ width: editable ? '17%' : '19%' }} />
+            <col style={{ width: editable ? '17%' : '20%' }} />
+            {editable && <col style={{ width: '11%' }} />}
         </colgroup>
     );
 }
@@ -199,6 +200,10 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
     ];
 
     const roleLabel = (role: Role) => (role === 'MESERO' ? t('mesero') : t('busser'));
+    // The Rol column is 16%, which at tablet-portrait width leaves ~28px of text
+    // room per button — not enough for "Mesero". The full word stays as the
+    // title and aria-label so nothing is lost to a screen reader or on hover.
+    const roleShort = (role: Role) => (role === 'MESERO' ? 'Mes.' : 'Bus.');
 
     return (
         <>
@@ -220,7 +225,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                 {t('no_entries')}
                             </p>
                         ) : (
-                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: readOnly ? '680px' : '860px', tableLayout: 'fixed' }}>
+                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '560px', tableLayout: 'fixed' }}>
                                 <ShiftColGroup editable={!readOnly} />
                                 <thead>
                                     <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
@@ -302,16 +307,18 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                             <button
                                                                 key={r}
                                                                 onClick={() => patch(entry.id, { role: r })}
+                                                                title={roleLabel(r)}
+                                                                aria-label={roleLabel(r)}
                                                                 style={{
-                                                                    flex: 1, minHeight: '52px', padding: '0 0.5rem',
-                                                                    borderRadius: '8px', fontSize: '0.95rem', fontWeight: 600,
-                                                                    cursor: 'pointer',
+                                                                    flex: 1, minHeight: '52px', padding: '0 0.35rem',
+                                                                    borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                                                                    whiteSpace: 'nowrap', cursor: 'pointer',
                                                                     color: d.role === r ? 'white' : 'var(--text-secondary)',
                                                                     background: d.role === r ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
                                                                     border: d.role === r ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
                                                                 }}
                                                             >
-                                                                {roleLabel(r)}
+                                                                {roleShort(r)}
                                                             </button>
                                                         ))}
                                                     </div>
@@ -353,11 +360,13 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                     <button
                                                         onClick={() => handleSave(entry, shift.id)}
                                                         disabled={busy || !dirty || !d.cloverEmployeeId}
-                                                        title={t('save')}
+                                                        title={busy ? t('saving') : t('save')}
+                                                        aria-label={t('save')}
+                                                        aria-busy={busy}
                                                         style={{
                                                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                                            gap: '0.4rem', minHeight: '52px', minWidth: '52px', padding: '0 0.8rem',
-                                                            borderRadius: '8px', fontSize: '0.95rem', fontWeight: 600,
+                                                            minHeight: '52px', minWidth: '52px', padding: '0 0.5rem',
+                                                            borderRadius: '8px',
                                                             color: dirty && d.cloverEmployeeId ? 'white' : 'var(--text-secondary)',
                                                             background: dirty && d.cloverEmployeeId ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
                                                             border: dirty && d.cloverEmployeeId ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
@@ -365,7 +374,10 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                             cursor: busy || !dirty || !d.cloverEmployeeId ? 'not-allowed' : 'pointer'
                                                         }}
                                                     >
-                                                        {busy ? t('saving') : <><Save size={18} />{t('save')}</>}
+                                                        {/* Identical element in both states, so the column never
+                                                            reflows mid-save. There is no working spinner in this
+                                                            codebase to reuse, so busy reads as dimming. */}
+                                                        <Save size={18} style={{ opacity: busy ? 0.4 : 1 }} />
                                                     </button>
                                                 </td>
                                             </tr>
