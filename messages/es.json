@@ -181,6 +181,9 @@
     "saving": "Guardando...",
     "unsaved": "Sin guardar",
     "choose_person": "Elegir persona",
-    "unsaved_warning": "Hay filas sin guardar."
+    "unsaved_warning": "Hay filas sin guardar.",
+    "filled_by_prompt": "¿Quién llenó este turno?",
+    "filled_by": "Llenado por",
+    "save_shift": "Guardar turno"
   }
 }

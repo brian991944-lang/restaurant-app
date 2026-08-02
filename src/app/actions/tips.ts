@@ -115,6 +115,9 @@ function serializeDay(day: Prisma.TipDayGetPayload<{
         shifts: day.shifts.map(shift => ({
             id: shift.id,
             orderIndex: shift.orderIndex,
+            filledByCloverId: shift.filledByCloverId,
+            filledByName: shift.filledByName,
+            filledAt: shift.filledAt,
             entries: shift.entries.map(entry => ({
                 id: entry.id,
                 cloverEmployeeId: entry.cloverEmployeeId,
@@ -327,6 +330,129 @@ export async function upsertEntry(
     } catch (e) {
         console.error('Failed to upsert tip entry:', e);
         return { success: false, error: 'No se pudo guardar la persona.' };
+    }
+}
+
+export type ShiftEntryInput = {
+    cloverEmployeeId: string;
+    employeeName: string;
+    role: TipEntryRole;
+    creditTips: number;
+    serviceCharge: number;
+    cashTips: number | null;
+};
+
+/**
+ * Replace a shift's roster in one atomic write.
+ *
+ * The submitted array is authoritative: rows in it are upserted, and anyone in
+ * the shift who is absent from it is removed. Everything is validated before
+ * the transaction opens, so a bad row rejects the whole call rather than
+ * leaving the shift half-saved.
+ */
+export async function saveShift(
+    shiftId: string,
+    entries: ShiftEntryInput[],
+    filledByCloverId: string,
+    filledByName: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!filledByCloverId) {
+        return { success: false, error: 'Falta indicar quién llenó este turno.' };
+    }
+
+    // Position is 1-based because the message is read by someone looking at a
+    // numbered list of rows, not at an array.
+    for (let i = 0; i < entries.length; i++) {
+        if (!entries[i].cloverEmployeeId) {
+            return { success: false, error: `Falta elegir la persona de la fila ${i + 1}.` };
+        }
+    }
+
+    const seen = new Set<string>();
+    for (const e of entries) {
+        if (seen.has(e.cloverEmployeeId)) {
+            return {
+                success: false,
+                error: `${e.employeeName || 'Esa persona'} está repetida en el turno. Cada persona puede aparecer una sola vez.`
+            };
+        }
+        seen.add(e.cloverEmployeeId);
+    }
+
+    const shift = await prisma.tipShift.findUnique({
+        where: { id: shiftId },
+        select: { tipDayId: true }
+    });
+    if (!shift) return { success: false, error: 'No se encontró el turno.' };
+
+    const blocked = await assertEditable(shift.tipDayId);
+    if (blocked) return { success: false, error: blocked };
+
+    try {
+        await prisma.$transaction(async tx => {
+            for (const e of entries) {
+                // Changing someone's cash away from zero invalidates a prior
+                // "confirmed zero", so the confirmation is cleared with it.
+                const clearsZeroConfirmation = e.cashTips !== null && e.cashTips !== 0;
+
+                await tx.tipShiftEntry.upsert({
+                    where: {
+                        tipShiftId_cloverEmployeeId: {
+                            tipShiftId: shiftId,
+                            cloverEmployeeId: e.cloverEmployeeId
+                        }
+                    },
+                    create: {
+                        tipShiftId: shiftId,
+                        cloverEmployeeId: e.cloverEmployeeId,
+                        employeeName: e.employeeName,
+                        role: e.role,
+                        creditTips: e.creditTips,
+                        serviceCharge: e.serviceCharge,
+                        cashTips: e.cashTips
+                    },
+                    update: {
+                        employeeName: e.employeeName,
+                        role: e.role,
+                        creditTips: e.creditTips,
+                        serviceCharge: e.serviceCharge,
+                        cashTips: e.cashTips,
+                        ...(clearsZeroConfirmation
+                            ? {
+                                cashZeroConfirmedByCloverId: null,
+                                cashZeroConfirmedByName: null,
+                                cashZeroConfirmedAt: null
+                            }
+                            : {})
+                    }
+                });
+            }
+
+            // Anyone dropped from the array is dropped from the shift. With an
+            // empty array this clears the shift entirely, which is the correct
+            // reading of "these are all the people".
+            await tx.tipShiftEntry.deleteMany({
+                where: {
+                    tipShiftId: shiftId,
+                    cloverEmployeeId: { notIn: entries.map(e => e.cloverEmployeeId) }
+                }
+            });
+
+            await tx.tipShift.update({
+                where: { id: shiftId },
+                data: {
+                    filledByCloverId,
+                    filledByName,
+                    filledAt: new Date()
+                }
+            });
+        });
+
+        revalidatePath(TIPS_ROUTE);
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to save shift:', e);
+        return { success: false, error: 'No se pudo guardar el turno.' };
     }
 }
 

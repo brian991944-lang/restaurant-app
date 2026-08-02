@@ -163,7 +163,7 @@
     "shift": "Shift",
     "name": "Name",
     "role": "Role",
-    "mesero": "Server",
+    "mesero": "Waiter",
     "busser": "Busser",
     "credit_tips": "Card",
     "service_charge": "Service charge",
@@ -181,6 +181,9 @@
     "saving": "Saving...",
     "unsaved": "Unsaved",
     "choose_person": "Choose person",
-    "unsaved_warning": "There are unsaved rows."
+    "unsaved_warning": "There are unsaved rows.",
+    "filled_by_prompt": "Who filled in this shift?",
+    "filled_by": "Filled by",
+    "save_shift": "Save shift"
   }
 }

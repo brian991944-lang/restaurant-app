@@ -635,12 +635,15 @@ model TipTargetOverride {
 }
 
 model TipShift {
-  id         String          @id @default(cuid())
-  tipDayId   String
-  tipDay     TipDay          @relation(fields: [tipDayId], references: [id], onDelete: Cascade)
-  orderIndex Int
-  entries    TipShiftEntry[]
-  createdAt  DateTime        @default(now())
+  id               String          @id @default(cuid())
+  tipDayId         String
+  tipDay           TipDay          @relation(fields: [tipDayId], references: [id], onDelete: Cascade)
+  orderIndex       Int
+  entries          TipShiftEntry[]
+  filledByCloverId String?
+  filledByName     String?
+  filledAt         DateTime?
+  createdAt        DateTime        @default(now())
   @@unique([tipDayId, orderIndex])
 }
 

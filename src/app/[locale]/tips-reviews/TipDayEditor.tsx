@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2, Save } from 'lucide-react';
-import { upsertEntry, removeEntry } from '@/app/actions/tips';
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { saveShift } from '@/app/actions/tips';
 // Type-only: avoids shipping a client reference to an action never called here.
 import type { getTipDay } from '@/app/actions/tips';
 import { toCents, sumCents, formatMoney } from '@/lib/money';
 
 type TipDay = NonNullable<Awaited<ReturnType<typeof getTipDay>>>;
-type TipEntry = TipDay['shifts'][number]['entries'][number];
+type TipShift = TipDay['shifts'][number];
+type TipEntry = TipShift['entries'][number];
 type StaffMember = { id: string; name: string };
 type Role = TipEntry['role'];
 
@@ -37,16 +38,15 @@ const inputStyle: React.CSSProperties = {
     border: '1px solid var(--border)'
 };
 
-/** Six columns when editable, five when submitted. Each set sums to exactly 100%. */
-function ShiftColGroup({ editable }: { editable: boolean }) {
+/** Five columns in both states, so submitted and draft days align identically. */
+function ShiftColGroup() {
     return (
         <colgroup>
-            <col style={{ width: editable ? '22%' : '24%' }} />
-            <col style={{ width: editable ? '16%' : '18%' }} />
-            <col style={{ width: editable ? '17%' : '19%' }} />
-            <col style={{ width: editable ? '17%' : '19%' }} />
-            <col style={{ width: editable ? '17%' : '20%' }} />
-            {editable && <col style={{ width: '11%' }} />}
+            <col style={{ width: '24%' }} />
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '19%' }} />
+            <col style={{ width: '19%' }} />
+            <col style={{ width: '20%' }} />
         </colgroup>
     );
 }
@@ -65,7 +65,7 @@ const cashOf = (d: RowDraft): number | null => (d.cash.trim() === '' ? null : to
 
 /**
  * Comparable form of a row. Money is compared in cents, so re-typing '30' over
- * '30.00' does not mark the row dirty — only a real change does.
+ * '30.00' does not mark the shift dirty — only a real change does.
  */
 const signature = (d: RowDraft) =>
     JSON.stringify([
@@ -82,9 +82,9 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
 
     const allEntries = useMemo(() => day.shifts.flatMap(s => s.entries), [day]);
 
-    // Baseline is what the database holds; drafts are what the user sees. A row
-    // is dirty when their signatures differ, so there is no flag to forget to
-    // clear after a save.
+    // Baseline is what the database holds; drafts are what the user sees. A
+    // shift is dirty when any of its rows' signatures differ, so there is no
+    // flag to forget to clear after a save.
     const [baseline, setBaseline] = useState<Record<string, RowDraft>>(() =>
         Object.fromEntries(allEntries.map(e => [e.id, draftFromEntry(e)]))
     );
@@ -92,95 +92,111 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
         Object.fromEntries(allEntries.map(e => [e.id, draftFromEntry(e)]))
     );
 
-    const [busyId, setBusyId] = useState<string | null>(null);
-    const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+    /** Who is filling each shift in, keyed by shift id. */
+    const [filler, setFiller] = useState<Record<string, string>>(() =>
+        Object.fromEntries(day.shifts.map(s => [s.id, s.filledByCloverId ?? '']))
+    );
+    /** Local mirror of filledBy so the footer updates without a refetch. */
+    const [filled, setFilled] = useState<Record<string, { name: string; at: string }>>(() =>
+        Object.fromEntries(
+            day.shifts
+                .filter(s => s.filledByName && s.filledAt)
+                .map(s => [s.id, { name: s.filledByName!, at: String(s.filledAt) }])
+        )
+    );
 
-    const isDirty = (id: string) => {
-        const d = drafts[id], b = baseline[id];
-        return !!d && !!b && signature(d) !== signature(b);
-    };
-    const dirtyCount = Object.keys(drafts).filter(isDirty).length;
+    const [busyShiftId, setBusyShiftId] = useState<string | null>(null);
+    const [shiftErrors, setShiftErrors] = useState<Record<string, string>>({});
+
+    const isShiftDirty = (shift: TipShift) =>
+        shift.entries.some(e => {
+            const d = drafts[e.id], b = baseline[e.id];
+            return !!d && !!b && signature(d) !== signature(b);
+        });
+
+    const dirtyShiftCount = day.shifts.filter(isShiftDirty).length;
 
     // A dropped write here is somebody's money, so the browser warns rather
     // than the page trying to flush anything on the way out.
     useEffect(() => {
-        if (readOnly || dirtyCount === 0) return;
+        if (readOnly || dirtyShiftCount === 0) return;
         const onBeforeUnload = (e: BeforeUnloadEvent) => {
             e.preventDefault();
             e.returnValue = '';
         };
         window.addEventListener('beforeunload', onBeforeUnload);
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
-    }, [readOnly, dirtyCount]);
+    }, [readOnly, dirtyShiftCount]);
 
     const patch = (id: string, change: Partial<RowDraft>) =>
         setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...change } }));
 
-    const handleSave = async (entry: TipEntry, shiftId: string) => {
-        const d = drafts[entry.id];
-        if (!d) return;
-
-        if (!d.cloverEmployeeId) {
-            setRowErrors(prev => ({ ...prev, [entry.id]: t('choose_person') }));
+    const handleSaveShift = async (shift: TipShift) => {
+        const fillerId = filler[shift.id];
+        const fillerPerson = staff.find(s => s.id === fillerId);
+        if (!fillerId) {
+            setShiftErrors(prev => ({ ...prev, [shift.id]: t('filled_by_prompt') }));
             return;
         }
-        for (const [label, raw] of [[t('credit_tips'), d.credit], [t('service_charge'), d.service]] as const) {
-            if (raw.trim() === '' || !Number.isFinite(Number(raw.replace(/[$,\s]/g, '')))) {
-                setRowErrors(prev => ({ ...prev, [entry.id]: `${label}: el monto no es válido.` }));
+
+        const rows = shift.entries.map(e => drafts[e.id]).filter(Boolean);
+        for (let i = 0; i < rows.length; i++) {
+            const d = rows[i];
+            for (const [label, raw] of [[t('credit_tips'), d.credit], [t('service_charge'), d.service]] as const) {
+                if (raw.trim() === '' || !Number.isFinite(Number(raw.replace(/[$,\s]/g, '')))) {
+                    setShiftErrors(prev => ({ ...prev, [shift.id]: `Fila ${i + 1} — ${label}: el monto no es válido.` }));
+                    return;
+                }
+            }
+            if (d.cash.trim() !== '' && !Number.isFinite(Number(d.cash.replace(/[$,\s]/g, '')))) {
+                setShiftErrors(prev => ({ ...prev, [shift.id]: `Fila ${i + 1} — ${t('cash')}: el monto no es válido.` }));
                 return;
             }
         }
-        if (d.cash.trim() !== '' && !Number.isFinite(Number(d.cash.replace(/[$,\s]/g, '')))) {
-            setRowErrors(prev => ({ ...prev, [entry.id]: `${t('cash')}: el monto no es válido.` }));
-            return;
-        }
 
-        setBusyId(entry.id);
-        setRowErrors(prev => {
+        setBusyShiftId(shift.id);
+        setShiftErrors(prev => {
             const next = { ...prev };
-            delete next[entry.id];
+            delete next[shift.id];
             return next;
         });
 
         try {
-            const result = await upsertEntry(
-                shiftId,
-                d.cloverEmployeeId,
-                d.employeeName,
-                d.role,
-                toCents(d.credit) / 100,
-                toCents(d.service) / 100,
-                cashOf(d)
+            const result = await saveShift(
+                shift.id,
+                rows.map(d => ({
+                    cloverEmployeeId: d.cloverEmployeeId,
+                    employeeName: d.employeeName,
+                    role: d.role,
+                    creditTips: toCents(d.credit) / 100,
+                    serviceCharge: toCents(d.service) / 100,
+                    cashTips: cashOf(d)
+                })),
+                fillerId,
+                fillerPerson?.name ?? ''
             );
+
             if (!result.success) {
-                setRowErrors(prev => ({ ...prev, [entry.id]: result.error ?? 'No se pudo guardar la fila.' }));
+                setShiftErrors(prev => ({ ...prev, [shift.id]: result.error ?? 'No se pudo guardar el turno.' }));
                 return;
             }
 
-            // upsertEntry keys on [shift, cloverEmployeeId], so reassigning a row
-            // to a different person writes a new row rather than moving this
-            // one. Remove the old one after the new one exists — a failure here
-            // leaves a visible duplicate rather than losing the amounts.
-            const previousId = baseline[entry.id]?.cloverEmployeeId;
-            if (previousId && previousId !== d.cloverEmployeeId) {
-                const removed = await removeEntry(entry.id);
-                if (!removed.success) {
-                    setRowErrors(prev => ({
-                        ...prev,
-                        [entry.id]: 'Se guardó con la persona nueva, pero quedó duplicada la anterior. Avisa a un administrador.'
-                    }));
-                    return;
-                }
-            }
-
-            setBaseline(prev => ({ ...prev, [entry.id]: { ...d } }));
-        } catch (e) {
-            setRowErrors(prev => ({
+            setBaseline(prev => {
+                const next = { ...prev };
+                for (const e of shift.entries) if (drafts[e.id]) next[e.id] = { ...drafts[e.id] };
+                return next;
+            });
+            setFilled(prev => ({
                 ...prev,
-                [entry.id]: e instanceof Error ? e.message : String(e)
+                [shift.id]: { name: fillerPerson?.name ?? '', at: new Date().toISOString() }
+            }));
+        } catch (e) {
+            setShiftErrors(prev => ({
+                ...prev,
+                [shift.id]: e instanceof Error ? e.message : String(e)
             }));
         } finally {
-            setBusyId(null);
+            setBusyShiftId(null);
         }
     };
 
@@ -200,14 +216,16 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
     ];
 
     const roleLabel = (role: Role) => (role === 'MESERO' ? t('mesero') : t('busser'));
-    // The Rol column is 16%, which at tablet-portrait width leaves ~28px of text
-    // room per button — not enough for "Mesero". The full word stays as the
-    // title and aria-label so nothing is lost to a screen reader or on hover.
-    const roleShort = (role: Role) => (role === 'MESERO' ? 'Mes.' : 'Bus.');
 
     return (
         <>
             {day.shifts.map(shift => {
+                const dirty = !readOnly && isShiftDirty(shift);
+                const busy = busyShiftId === shift.id;
+                const err = shiftErrors[shift.id];
+                const fillerId = filler[shift.id] ?? '';
+                const done = filled[shift.id];
+
                 // Someone already on another row of this shift cannot be picked
                 // again — the unique constraint would reject it.
                 const takenInShift = new Set(
@@ -215,7 +233,16 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                 );
 
                 return (
-                    <div key={shift.id} className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
+                    <div
+                        key={shift.id}
+                        className="glass-panel"
+                        style={{
+                            padding: '0',
+                            overflowX: 'auto',
+                            // Unsaved work is obvious without reading anything.
+                            borderLeft: dirty ? '4px solid var(--warning)' : undefined
+                        }}
+                    >
                         <h2 style={{ margin: 0, padding: '1.25rem 1rem', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
                             {t('shift')} {shift.orderIndex + 1}
                         </h2>
@@ -226,7 +253,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                             </p>
                         ) : (
                             <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '560px', tableLayout: 'fixed' }}>
-                                <ShiftColGroup editable={!readOnly} />
+                                <ShiftColGroup />
                                 <thead>
                                     <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                         <th style={head}>{t('name')}</th>
@@ -234,15 +261,11 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                         <th style={numericHead}>{t('credit_tips')}</th>
                                         <th style={numericHead}>{t('service_charge')}</th>
                                         <th style={numericHead}>{t('cash')}</th>
-                                        {!readOnly && <th style={numericHead} />}
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {shift.entries.map(entry => {
                                         const d = drafts[entry.id];
-                                        const dirty = isDirty(entry.id);
-                                        const busy = busyId === entry.id;
-                                        const err = rowErrors[entry.id];
 
                                         if (readOnly || !d) {
                                             return (
@@ -266,15 +289,8 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                         }
 
                                         return (
-                                            <tr
-                                                key={entry.id}
-                                                style={{
-                                                    borderBottom: err ? 'none' : '1px solid var(--border)',
-                                                    // Unsaved work is obvious without reading anything.
-                                                    borderLeft: dirty ? '4px solid var(--warning)' : '4px solid transparent'
-                                                }}
-                                            >
-                                                <td style={{ ...cell, paddingLeft: 'calc(1rem - 4px)' }}>
+                                            <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <td style={cell}>
                                                     <select
                                                         value={d.cloverEmployeeId}
                                                         onChange={e => {
@@ -308,7 +324,6 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                                 key={r}
                                                                 onClick={() => patch(entry.id, { role: r })}
                                                                 title={roleLabel(r)}
-                                                                aria-label={roleLabel(r)}
                                                                 style={{
                                                                     flex: 1, minHeight: '52px', padding: '0 0.35rem',
                                                                     borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
@@ -318,7 +333,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                                     border: d.role === r ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
                                                                 }}
                                                             >
-                                                                {roleShort(r)}
+                                                                {roleLabel(r)}
                                                             </button>
                                                         ))}
                                                     </div>
@@ -355,48 +370,9 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                         }}
                                                     />
                                                 </td>
-
-                                                <td style={{ ...cell, textAlign: 'right' }}>
-                                                    <button
-                                                        onClick={() => handleSave(entry, shift.id)}
-                                                        disabled={busy || !dirty || !d.cloverEmployeeId}
-                                                        title={busy ? t('saving') : t('save')}
-                                                        aria-label={t('save')}
-                                                        aria-busy={busy}
-                                                        style={{
-                                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                                            minHeight: '52px', minWidth: '52px', padding: '0 0.5rem',
-                                                            borderRadius: '8px',
-                                                            color: dirty && d.cloverEmployeeId ? 'white' : 'var(--text-secondary)',
-                                                            background: dirty && d.cloverEmployeeId ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                                                            border: dirty && d.cloverEmployeeId ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
-                                                            opacity: busy ? 0.5 : 1,
-                                                            cursor: busy || !dirty || !d.cloverEmployeeId ? 'not-allowed' : 'pointer'
-                                                        }}
-                                                    >
-                                                        {/* Identical element in both states, so the column never
-                                                            reflows mid-save. There is no working spinner in this
-                                                            codebase to reuse, so busy reads as dimming. */}
-                                                        <Save size={18} style={{ opacity: busy ? 0.4 : 1 }} />
-                                                    </button>
-                                                </td>
                                             </tr>
                                         );
                                     })}
-
-                                    {/* Per-row errors sit on their own line so they can be read
-                                        in full without squeezing the grid. */}
-                                    {shift.entries.map(entry =>
-                                        rowErrors[entry.id] ? (
-                                            <tr key={`${entry.id}-error`} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                <td colSpan={readOnly ? 5 : 6} style={{ padding: '0 1rem 0.9rem 1rem' }}>
-                                                    <span style={{ color: 'var(--danger)', fontSize: '1rem' }}>
-                                                        {drafts[entry.id]?.employeeName || entry.employeeName}: {rowErrors[entry.id]}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        ) : null
-                                    )}
 
                                     <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
                                         <td style={{ ...cell, fontWeight: 700, color: 'var(--text-primary)' }} colSpan={2}>
@@ -415,17 +391,84 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                 </td>
                                             );
                                         })}
-                                        {!readOnly && <td style={cell} />}
                                     </tr>
                                 </tbody>
                             </table>
+                        )}
+
+                        {!readOnly && (
+                            <div style={{
+                                padding: '1.25rem 1rem',
+                                borderTop: '1px solid var(--border)',
+                                display: 'flex', flexDirection: 'column', gap: '0.75rem'
+                            }}>
+                                <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                    {t('filled_by_prompt')}
+                                </span>
+
+                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                    {staff.length === 0 && (
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                                            No hay personal disponible.
+                                        </span>
+                                    )}
+                                    {staff.map(person => {
+                                        const isOn = fillerId === person.id;
+                                        return (
+                                            <button
+                                                key={person.id}
+                                                // Single-select: tapping replaces rather than accumulates.
+                                                onClick={() => setFiller(prev => ({ ...prev, [shift.id]: person.id }))}
+                                                style={{
+                                                    padding: '0.8rem 1.3rem', minHeight: '56px',
+                                                    borderRadius: '999px', fontSize: '1.1rem', fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    color: isOn ? 'white' : 'var(--text-secondary)',
+                                                    background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                    border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                                }}
+                                            >
+                                                {person.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {err && (
+                                    <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{err}</p>
+                                )}
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                    <button
+                                        onClick={() => handleSaveShift(shift)}
+                                        disabled={busy || !dirty || !fillerId}
+                                        style={{
+                                            minHeight: '56px', padding: '0 1.6rem', borderRadius: '8px',
+                                            fontSize: '1.1rem', fontWeight: 700,
+                                            color: dirty && fillerId ? 'white' : 'var(--text-secondary)',
+                                            background: dirty && fillerId ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                            border: dirty && fillerId ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
+                                            opacity: busy ? 0.5 : 1,
+                                            cursor: busy || !dirty || !fillerId ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        {busy ? t('saving') : t('save_shift')}
+                                    </button>
+
+                                    {done && (
+                                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
+                                            {t('filled_by')} {done.name} · {new Date(done.at).toLocaleString('es')}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
                         )}
                     </div>
                 );
             })}
 
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {!readOnly && dirtyCount > 0 && (
+                {!readOnly && dirtyShiftCount > 0 && (
                     <p style={{ margin: 0, color: 'var(--warning)', fontSize: '1.05rem', fontWeight: 600 }}>
                         {t('unsaved_warning')}
                     </p>
