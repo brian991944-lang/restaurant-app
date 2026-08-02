@@ -486,15 +486,23 @@ export async function adminUpdateSubmittedDay(
             });
             if (!day) throw new TipValidationError('No se encontró el día de propinas.');
 
-            const logChange = (previousValue: Prisma.Decimal | number, newValue: number, note: string) =>
+            // entryId is set for entry-level changes and left null for the
+            // day totals. The note is kept either way: it snapshots the label
+            // and field as they read at the time, which the join cannot
+            // reconstruct after a rename or a shift renumber.
+            const logChange = (
+                previousValue: Prisma.Decimal | number,
+                newValue: number,
+                note: string,
+                entryId: string | null = null
+            ) =>
                 tx.tipTargetOverride.create({
                     data: {
                         tipDayId,
+                        entryId,
                         field: TipTargetField.ENTRY_ADJUSTMENT,
                         previousValue,
                         newValue,
-                        // TipTargetOverride has no entry FK, so which entry and
-                        // which field is recorded in the reason text.
                         reason: reason ? `${note} — ${reason}` : note,
                         changedByCloverId,
                         changedByName
@@ -512,10 +520,10 @@ export async function adminUpdateSubmittedDay(
                 const who = `${entry.employeeName} (${shiftLabel(shift.orderIndex)})`;
 
                 if (change.creditTips !== undefined) {
-                    await logChange(entry.creditTips, change.creditTips, `${who}: propina con tarjeta`);
+                    await logChange(entry.creditTips, change.creditTips, `${who}: propina con tarjeta`, entry.id);
                 }
                 if (change.serviceCharge !== undefined) {
-                    await logChange(entry.serviceCharge, change.serviceCharge, `${who}: cargo por servicio`);
+                    await logChange(entry.serviceCharge, change.serviceCharge, `${who}: cargo por servicio`, entry.id);
                 }
                 if (change.cashTips !== undefined) {
                     // A null previous value logs as 0 — the column is required —
@@ -524,7 +532,8 @@ export async function adminUpdateSubmittedDay(
                     await logChange(
                         had ?? 0,
                         change.cashTips ?? 0,
-                        `${who}: efectivo${had === null ? ' (sin contar antes)' : ''}${change.cashTips === null ? ' (marcado sin contar)' : ''}`
+                        `${who}: efectivo${had === null ? ' (sin contar antes)' : ''}${change.cashTips === null ? ' (marcado sin contar)' : ''}`,
+                        entry.id
                     );
                 }
 

@@ -618,6 +618,11 @@ model TipTargetOverride {
   id                String         @id @default(cuid())
   tipDayId          String
   tipDay            TipDay         @relation(fields: [tipDayId], references: [id], onDelete: Cascade)
+  // Set for entry-level adjustments, null for day-level ones. SetNull rather
+  // than Cascade on purpose: deleting an entry must not erase the record that
+  // it was changed.
+  entryId           String?
+  entry             TipShiftEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
   field             TipTargetField
   previousValue     Decimal        @db.Decimal(10,2)
   newValue          Decimal        @db.Decimal(10,2)
@@ -626,6 +631,7 @@ model TipTargetOverride {
   changedByName     String
   createdAt         DateTime       @default(now())
   @@index([tipDayId])
+  @@index([entryId])
 }
 
 model TipShift {
@@ -653,6 +659,7 @@ model TipShiftEntry {
   cashZeroConfirmedByCloverId String?
   cashZeroConfirmedByName     String?
   cashZeroConfirmedAt         DateTime?
+  overrides                   TipTargetOverride[]
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime     @updatedAt
   @@unique([tipShiftId, cloverEmployeeId])
