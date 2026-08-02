@@ -1,14 +1,26 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { ChevronDown, ChevronRight, Download, RefreshCw, Package } from 'lucide-react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
+import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil } from 'lucide-react';
+import { useAdmin } from '@/components/AdminContext';
 import { fetchCloverItemsForSalon, importSalonDrinksFromClover } from '@/app/actions/clover';
-import { getSalonStock } from '@/app/actions/inventory';
+import { getSalonStock, updateSalonStock } from '@/app/actions/inventory';
 
 type CloverResult = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type CloverItem = CloverResult['items'][number];
 type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type ImportResult = Awaited<ReturnType<typeof importSalonDrinksFromClover>>;
+
+const NO_GROUP = 'Sin grupo';
+
+interface Draft {
+    name: string;
+    salonGroup: string;
+    qtyBodega: string;
+    qtyFront: string;
+    parFront: string;
+    priceDollars: string;
+}
 
 // Clover sends prices as integer cents; every price on this page goes through here.
 const money = (cents: number | null | undefined) =>
@@ -16,6 +28,27 @@ const money = (cents: number | null | undefined) =>
 
 const num = (value: number | null | undefined) =>
     typeof value === 'number' ? String(value) : '—';
+
+// Tap-target sized for tablet use.
+const inputStyle: React.CSSProperties = {
+    padding: '0.7rem 0.9rem',
+    minHeight: '52px',
+    fontSize: '1.05rem',
+    borderRadius: '8px',
+    color: 'var(--text-primary)',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border)',
+    width: '100%'
+};
+
+function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
+    return (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: wide ? '1 1 240px' : '0 1 130px' }}>
+            <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+            {children}
+        </label>
+    );
+}
 
 function Badge({ label, tone }: { label: string; tone: 'success' | 'warning' | 'danger' }) {
     const color = `var(--${tone})`;
@@ -36,7 +69,13 @@ function Badge({ label, tone }: { label: string; tone: 'success' | 'warning' | '
 }
 
 export default function InventorySalonPage() {
+    const { isAdmin } = useAdmin();
     const [isImportOpen, setIsImportOpen] = useState(false);
+
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [draft, setDraft] = useState<Draft | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+    const [editError, setEditError] = useState<string | null>(null);
 
     const [clover, setClover] = useState<CloverResult | null>(null);
     const [isLoadingClover, setIsLoadingClover] = useState(false);
@@ -115,8 +154,101 @@ export default function InventorySalonPage() {
         }
     };
 
+    const startEdit = (row: SalonRow) => {
+        const stock = row.salonStock;
+        setEditingId(row.id);
+        setEditError(null);
+        setDraft({
+            name: row.name,
+            // Blank rather than "Sin grupo": that label is a display placeholder,
+            // not a value to write back to the database.
+            salonGroup: stock?.salonGroup ?? '',
+            qtyBodega: String(stock?.qtyBodega ?? 0),
+            qtyFront: String(stock?.qtyFront ?? 0),
+            parFront: String(stock?.parFront ?? 0),
+            priceDollars: ((stock?.salePrice ?? 0) / 100).toFixed(2)
+        });
+    };
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        setDraft(null);
+        setEditError(null);
+    };
+
+    const handleSave = async () => {
+        if (!editingId || !draft) return;
+
+        const name = draft.name.trim();
+        if (!name) {
+            setEditError('El nombre no puede estar vacío.');
+            return;
+        }
+
+        const counts: [string, string][] = [
+            ['Bodega', draft.qtyBodega],
+            ['Front', draft.qtyFront],
+            ['Par', draft.parFront]
+        ];
+        const parsed: Record<string, number> = {};
+        for (const [label, raw] of counts) {
+            const value = Number(raw);
+            if (raw.trim() === '' || !Number.isFinite(value)) {
+                setEditError(`El valor de ${label} no es un número válido.`);
+                return;
+            }
+            if (value < 0) {
+                setEditError(`El valor de ${label} no puede ser negativo.`);
+                return;
+            }
+            parsed[label] = Math.round(value);
+        }
+
+        const dollars = Number(draft.priceDollars.replace(/\$/g, '').trim());
+        if (!Number.isFinite(dollars) || dollars < 0) {
+            setEditError('El precio no es válido.');
+            return;
+        }
+
+        setIsSaving(true);
+        setEditError(null);
+        try {
+            const result = await updateSalonStock(editingId, {
+                name,
+                qtyBodega: parsed['Bodega'],
+                qtyFront: parsed['Front'],
+                parFront: parsed['Par'],
+                salePrice: Math.round(dollars * 100),
+                // Omitted when blank so the column default stands rather than
+                // storing an empty group name.
+                ...(draft.salonGroup.trim() ? { salonGroup: draft.salonGroup.trim() } : {})
+            });
+            if (!result.success) {
+                setEditError(result.error ?? 'Error al guardar los cambios.');
+                return;
+            }
+            cancelEdit();
+            await loadSalon();
+        } catch (e) {
+            setEditError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const drinks = (clover?.items ?? []).filter(i => i.categoryName === 'Drinks');
     const linkedIds = new Set(clover?.alreadyLinked ?? []);
+
+    // Rows bucketed by salonGroup; a missing stock row falls into "Sin grupo".
+    const grouped = new Map<string, SalonRow[]>();
+    for (const row of salonRows) {
+        const key = row.salonStock?.salonGroup || NO_GROUP;
+        const bucket = grouped.get(key);
+        if (bucket) bucket.push(row);
+        else grouped.set(key, [row]);
+    }
+    const groupNames = [...grouped.keys()].sort((a, b) => a.localeCompare(b, 'es'));
+    const columnCount = isAdmin ? 7 : 6;
 
     const cellStyle = { padding: '1rem 1.25rem', fontSize: '1.05rem' };
     const headStyle = { padding: '1rem 1.25rem', fontWeight: 500, fontSize: '0.95rem' };
@@ -302,28 +434,172 @@ export default function InventorySalonPage() {
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Total</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Par</th>
                                     <th style={{ ...headStyle, textAlign: 'right' }}>Precio</th>
+                                    {isAdmin && <th style={{ ...headStyle, textAlign: 'right' }}>Acciones</th>}
                                 </tr>
                             </thead>
                             <tbody>
-                                {salonRows.map(row => {
-                                    const stock = row.salonStock;
-                                    const total = stock ? stock.qtyBodega + stock.qtyFront : null;
+                                {groupNames.map(groupName => {
+                                    const rows = [...(grouped.get(groupName) ?? [])]
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+                                    const subtotal = rows.reduce(
+                                        (sum, r) => sum + (r.salonStock ? r.salonStock.qtyBodega + r.salonStock.qtyFront : 0),
+                                        0
+                                    );
+
                                     return (
-                                        <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                            <td style={{ ...cellStyle, fontWeight: 500, color: 'var(--text-primary)' }}>
-                                                {row.name}
-                                                {!row.isActive && (
-                                                    <span style={{ marginLeft: '0.6rem' }}>
-                                                        <Badge label="Inactivo" tone="danger" />
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyBodega)}</td>
-                                            <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyFront)}</td>
-                                            <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700 }}>{num(total)}</td>
-                                            <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.parFront)}</td>
-                                            <td style={{ ...cellStyle, textAlign: 'right' }}>{money(stock?.salePrice)}</td>
-                                        </tr>
+                                        <Fragment key={groupName}>
+                                            <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                                                <td style={{ ...cellStyle, fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent-primary)' }}>
+                                                    {groupName}
+                                                </td>
+                                                <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--text-secondary)' }} />
+                                                <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--text-secondary)' }} />
+                                                <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                                    {subtotal}
+                                                </td>
+                                                <td colSpan={isAdmin ? 3 : 2} style={{ ...cellStyle }} />
+                                            </tr>
+
+                                            {rows.map(row => {
+                                                const stock = row.salonStock;
+                                                const total = stock ? stock.qtyBodega + stock.qtyFront : null;
+
+                                                if (isAdmin && editingId === row.id && draft) {
+                                                    return (
+                                                        <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td colSpan={columnCount} style={{ padding: '1.25rem' }}>
+                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                                                        <Field label="Nombre" wide>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={draft.name}
+                                                                                onChange={e => setDraft({ ...draft, name: e.target.value })}
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
+                                                                        <Field label="Grupo" wide>
+                                                                            <input
+                                                                                type="text"
+                                                                                value={draft.salonGroup}
+                                                                                onChange={e => setDraft({ ...draft, salonGroup: e.target.value })}
+                                                                                placeholder="Escribe un grupo nuevo si hace falta"
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
+                                                                        <Field label="Bodega">
+                                                                            <input
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={draft.qtyBodega}
+                                                                                onChange={e => setDraft({ ...draft, qtyBodega: e.target.value })}
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
+                                                                        <Field label="Front">
+                                                                            <input
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={draft.qtyFront}
+                                                                                onChange={e => setDraft({ ...draft, qtyFront: e.target.value })}
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
+                                                                        <Field label="Par">
+                                                                            <input
+                                                                                type="number"
+                                                                                min={0}
+                                                                                value={draft.parFront}
+                                                                                onChange={e => setDraft({ ...draft, parFront: e.target.value })}
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
+                                                                        <Field label="Precio ($)">
+                                                                            <input
+                                                                                type="text"
+                                                                                inputMode="decimal"
+                                                                                value={draft.priceDollars}
+                                                                                onChange={e => setDraft({ ...draft, priceDollars: e.target.value })}
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
+                                                                    </div>
+
+                                                                    {editError && (
+                                                                        <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{editError}</p>
+                                                                    )}
+
+                                                                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                                                        <button
+                                                                            onClick={handleSave}
+                                                                            disabled={isSaving}
+                                                                            className="btn-primary"
+                                                                            style={{
+                                                                                borderRadius: '8px', padding: '0.8rem 1.5rem', minHeight: '52px',
+                                                                                fontSize: '1.05rem', fontWeight: 600,
+                                                                                opacity: isSaving ? 0.5 : 1,
+                                                                                cursor: isSaving ? 'not-allowed' : 'pointer'
+                                                                            }}
+                                                                        >
+                                                                            {isSaving ? 'Guardando...' : 'Guardar'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={cancelEdit}
+                                                                            disabled={isSaving}
+                                                                            className="btn-secondary"
+                                                                            style={{
+                                                                                borderRadius: '8px', padding: '0.8rem 1.5rem', minHeight: '52px',
+                                                                                fontSize: '1.05rem', fontWeight: 600,
+                                                                                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                                                                cursor: isSaving ? 'not-allowed' : 'pointer'
+                                                                            }}
+                                                                        >
+                                                                            Cancelar
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ ...cellStyle, fontWeight: 500, color: 'var(--text-primary)' }}>
+                                                            {row.name}
+                                                            {!row.isActive && (
+                                                                <span style={{ marginLeft: '0.6rem' }}>
+                                                                    <Badge label="Inactivo" tone="danger" />
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyBodega)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyFront)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700 }}>{num(total)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.parFront)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'right' }}>{money(stock?.salePrice)}</td>
+                                                        {isAdmin && (
+                                                            <td style={{ ...cellStyle, textAlign: 'right' }}>
+                                                                <button
+                                                                    onClick={() => startEdit(row)}
+                                                                    className="btn-secondary"
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                                                                        borderRadius: '8px', padding: '0.7rem 1.1rem', minHeight: '48px',
+                                                                        fontSize: '1rem', fontWeight: 500,
+                                                                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                >
+                                                                    <Pencil size={18} />
+                                                                    <span>Editar</span>
+                                                                </button>
+                                                            </td>
+                                                        )}
+                                                    </tr>
+                                                );
+                                            })}
+                                        </Fragment>
                                     );
                                 })}
                             </tbody>

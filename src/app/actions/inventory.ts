@@ -75,6 +75,83 @@ export async function getSalonStock() {
     });
 }
 
+/**
+ * Salón row editor. Writes to the database only — nothing is sent to Clover.
+ * Fields absent from `data` are left untouched (the `!== undefined` guards),
+ * so a partial payload never blanks a stored value.
+ */
+export async function updateSalonStock(
+    ingredientId: string,
+    data: {
+        name?: string;
+        qtyFront?: number;
+        qtyBodega?: number;
+        parFront?: number;
+        salePrice?: number;
+        salonGroup?: string;
+    }
+): Promise<{ success: boolean; error?: string }> {
+    const negatives: [string, number | undefined][] = [
+        ['Front', data.qtyFront],
+        ['Bodega', data.qtyBodega],
+        ['Par', data.parFront]
+    ];
+    for (const [label, value] of negatives) {
+        if (value !== undefined && value < 0) {
+            return { success: false, error: `El valor de ${label} no puede ser negativo.` };
+        }
+    }
+
+    try {
+        if (data.name !== undefined) {
+            await prisma.ingredient.update({
+                where: { id: ingredientId },
+                data: { name: data.name }
+            });
+        }
+
+        const touchesStock =
+            data.qtyFront !== undefined ||
+            data.qtyBodega !== undefined ||
+            data.parFront !== undefined ||
+            data.salePrice !== undefined ||
+            data.salonGroup !== undefined;
+
+        if (touchesStock) {
+            // Upsert rather than update: an ingredient can be flagged for the
+            // salón without a stock row yet, and editing it should create one
+            // instead of failing.
+            await prisma.salonStock.upsert({
+                where: { ingredientId },
+                create: {
+                    ingredientId,
+                    qtyFront: data.qtyFront ?? 0,
+                    qtyBodega: data.qtyBodega ?? 0,
+                    parFront: data.parFront ?? 0,
+                    salePrice: data.salePrice ?? 0,
+                    ...(data.salonGroup !== undefined ? { salonGroup: data.salonGroup } : {})
+                },
+                update: {
+                    qtyFront: data.qtyFront !== undefined ? data.qtyFront : undefined,
+                    qtyBodega: data.qtyBodega !== undefined ? data.qtyBodega : undefined,
+                    parFront: data.parFront !== undefined ? data.parFront : undefined,
+                    salePrice: data.salePrice !== undefined ? data.salePrice : undefined,
+                    salonGroup: data.salonGroup !== undefined ? data.salonGroup : undefined
+                }
+            });
+        }
+
+        revalidatePath('/[locale]/inventory-salon');
+        return { success: true };
+    } catch (e: any) {
+        console.error('Failed to update salon stock:', e);
+        if (e?.code === 'P2002' && JSON.stringify(e?.meta?.target ?? '').includes('name')) {
+            return { success: false, error: 'Ya existe un ingrediente con ese nombre.' };
+        }
+        return { success: false, error: 'Error al guardar los cambios.' };
+    }
+}
+
 export async function getProviders() {
     return prisma.provider.findMany({
         include: {
