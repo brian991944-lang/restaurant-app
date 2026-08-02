@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { fetchCloverItemsForSalon, probeCloverStockEndpoints } from '@/app/actions/clover';
+import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite } from '@/app/actions/clover';
 
 type Result = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type Probe = Awaited<ReturnType<typeof probeCloverStockEndpoints>>;
+type StockProbe = Awaited<ReturnType<typeof probeCloverStockWrite>>;
 
 const DRINK_WORDS = ['drink', 'bebida', 'beverage', 'soda', 'refresco'];
 
@@ -12,6 +13,8 @@ export default function SalonDebugPage() {
     const [loadError, setLoadError] = useState<string | null>(null);
     const [probe, setProbe] = useState<Probe | null>(null);
     const [probeError, setProbeError] = useState<string | null>(null);
+    const [stockProbe, setStockProbe] = useState<StockProbe | null>(null);
+    const [stockProbeError, setStockProbeError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -21,6 +24,9 @@ export default function SalonDebugPage() {
         probeCloverStockEndpoints()
             .then(r => { if (!cancelled) setProbe(r); })
             .catch(e => { if (!cancelled) setProbeError(e instanceof Error ? e.message : String(e)); });
+        probeCloverStockWrite()
+            .then(r => { if (!cancelled) setStockProbe(r); })
+            .catch(e => { if (!cancelled) setStockProbeError(e instanceof Error ? e.message : String(e)); });
         return () => { cancelled = true; };
     }, []);
 
@@ -95,6 +101,31 @@ export default function SalonDebugPage() {
             lines.push(probe.incaKolaDietError);
         } else {
             lines.push(JSON.stringify(probe.incaKolaDiet, null, 2));
+        }
+    }
+
+    lines.push('');
+    if (stockProbeError) {
+        lines.push(`Fallo al llamar probeCloverStockWrite: ${stockProbeError}`);
+    } else if (!stockProbe) {
+        lines.push('Cargando sección 5...');
+    } else {
+        lines.push('--- SECTION 5: estado actual de Inca Kola Diet ---');
+
+        lines.push('GET /item_stocks/AS7W11RAMW4CW:');
+        if (stockProbe.itemStockError !== null) {
+            lines.push(stockProbe.itemStockError);
+        } else {
+            lines.push(JSON.stringify(stockProbe.itemStockRaw, null, 2));
+        }
+
+        lines.push('');
+        lines.push('GET /items/AS7W11RAMW4CW:');
+        if (stockProbe.itemError !== null) {
+            lines.push(stockProbe.itemError);
+        } else {
+            lines.push(`stockCount: ${stockProbe.itemStockCount === null ? 'null' : stockProbe.itemStockCount}`);
+            lines.push(`available: ${stockProbe.itemAvailable === null ? 'null' : stockProbe.itemAvailable}`);
         }
     }
 

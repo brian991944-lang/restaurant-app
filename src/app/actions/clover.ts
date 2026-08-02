@@ -527,6 +527,40 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
+ * TEMPORARY read-only probe: inspects what Clover currently holds for the Inca
+ * Kola Diet item. Two GETs, no POST or PUT — writes nothing to Clover and
+ * nothing to the database.
+ */
+export async function probeCloverStockWrite(): Promise<{
+    itemStockRaw: any;
+    itemStockError: string | null;
+    itemStockCount: number | null;
+    itemAvailable: boolean | null;
+    itemError: string | null;
+}> {
+    let itemStockRaw: any = null;
+    let itemStockError: string | null = null;
+    try {
+        itemStockRaw = await cloverFetch('/item_stocks/AS7W11RAMW4CW');
+    } catch (e) {
+        itemStockError = e instanceof Error ? e.message : String(e);
+    }
+
+    let itemStockCount: number | null = null;
+    let itemAvailable: boolean | null = null;
+    let itemError: string | null = null;
+    try {
+        const item = await cloverFetch('/items/AS7W11RAMW4CW');
+        itemStockCount = typeof item?.stockCount === 'number' ? item.stockCount : null;
+        itemAvailable = typeof item?.available === 'boolean' ? item.available : null;
+    } catch (e) {
+        itemError = e instanceof Error ? e.message : String(e);
+    }
+
+    return { itemStockRaw, itemStockError, itemStockCount, itemAvailable, itemError };
+}
+
+/**
  * TEMPORARY read-only probe for the salon-debug page. Two GETs, nothing else:
  * writes nothing to Clover and nothing to the database. Each call is isolated
  * so one failing still reports the other. cloverFetch throws with the HTTP
