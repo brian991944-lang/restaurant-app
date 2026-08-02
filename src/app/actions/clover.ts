@@ -535,7 +535,7 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 export async function probeCocaColaStockReads(): Promise<{
     itemStockRaw: any;
     itemStockError: string | null;
-    itemStockCount: number | null;
+    itemRaw: any;
     itemError: string | null;
     expandRaw: any;
     expandError: string | null;
@@ -549,12 +549,11 @@ export async function probeCocaColaStockReads(): Promise<{
         itemStockError = e instanceof Error ? e.message : String(e);
     }
 
-    // b) stockCount as reported on the item itself
-    let itemStockCount: number | null = null;
+    // b) the bare item record
+    let itemRaw: any = null;
     let itemError: string | null = null;
     try {
-        const item = await cloverFetch('/items/2JJ8XPD1480JJ');
-        itemStockCount = typeof item?.stockCount === 'number' ? item.stockCount : null;
+        itemRaw = await cloverFetch('/items/2JJ8XPD1480JJ');
     } catch (e) {
         itemError = e instanceof Error ? e.message : String(e);
     }
@@ -568,7 +567,7 @@ export async function probeCocaColaStockReads(): Promise<{
         expandError = e instanceof Error ? e.message : String(e);
     }
 
-    return { itemStockRaw, itemStockError, itemStockCount, itemError, expandRaw, expandError };
+    return { itemStockRaw, itemStockError, itemRaw, itemError, expandRaw, expandError };
 }
 
 /**

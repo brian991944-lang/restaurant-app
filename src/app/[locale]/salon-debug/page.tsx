@@ -155,7 +155,7 @@ export default function SalonDebugPage() {
         if (colaProbe.itemError !== null) {
             lines.push(colaProbe.itemError);
         } else {
-            lines.push(`stockCount: ${colaProbe.itemStockCount === null ? 'null' : colaProbe.itemStockCount}`);
+            lines.push(JSON.stringify(colaProbe.itemRaw, null, 2));
         }
 
         lines.push('');
@@ -168,7 +168,7 @@ export default function SalonDebugPage() {
 
         // Which read path, if any, actually reports the dashboard number.
         const aCount = colaProbe.itemStockRaw?.stockCount;
-        const bCount = colaProbe.itemStockCount;
+        const bCount = colaProbe.itemRaw?.stockCount;
         const cCount = colaProbe.expandRaw?.itemStock?.stockCount;
         const matches: string[] = [];
         if (aCount === 44) matches.push('(a) /item_stocks');
