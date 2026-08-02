@@ -13,6 +13,26 @@ const head: React.CSSProperties = { padding: '0.9rem 1rem', fontSize: '0.95rem',
 const numericCell: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
 const numericHead: React.CSSProperties = { ...head, textAlign: 'right' };
 
+/**
+ * Sentence-case the first character only. CSS `capitalize` would title-case
+ * every word ("Domingo, 2 De Agosto De 2026"); Spanish wants the month and the
+ * connecting words left lowercase exactly as Intl produced them.
+ */
+const upperFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+/** Shared column widths so every shift table lines up with the others. */
+function ShiftColGroup() {
+    return (
+        <colgroup>
+            <col style={{ width: '22%' }} />
+            <col style={{ width: '16%' }} />
+            <col style={{ width: '20.66%' }} />
+            <col style={{ width: '20.66%' }} />
+            <col style={{ width: '20.66%' }} />
+        </colgroup>
+    );
+}
+
 /** One of the three money columns, resolved to cents for every entry. */
 type Column = {
     key: 'credit_tips' | 'service_charge' | 'cash';
@@ -91,8 +111,8 @@ export default async function TipsReviewsPage() {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', margin: 0 }}>
                     {t('subtitle')}
                 </p>
-                <p style={{ color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: 600, margin: '0.75rem 0 0 0', textTransform: 'capitalize' }}>
-                    {headerDate}
+                <p style={{ color: 'var(--text-primary)', fontSize: '1.25rem', fontWeight: 600, margin: '0.75rem 0 0 0' }}>
+                    {upperFirst(headerDate)}
                 </p>
             </div>
 
@@ -186,18 +206,38 @@ function TipDayView({ day, t }: { day: TipDay; t: Awaited<ReturnType<typeof getT
                 />
             </div>
 
+            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {columns.map(c => (
+                    <div
+                        key={c.key}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}
+                    >
+                        <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {c.label}
+                        </span>
+                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                            {formatMoney(distributed(c))} / {formatMoney(c.targetCents)}
+                        </span>
+                        <Reconciliation distributed={distributed(c)} target={c.targetCents} labels={labels} />
+                    </div>
+                ))}
+            </div>
+
             {day.shifts.map(shift => (
                 <div key={shift.id} className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
-                    <h2 style={{ margin: 0, padding: '1.25rem 1.5rem', fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                    {/* padding-left matches the first cell's, so the heading
+                        sits on the same vertical line as the Nombre column. */}
+                    <h2 style={{ margin: 0, padding: '1.25rem 1rem', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
                         {t('shift')} {shift.orderIndex + 1}
                     </h2>
 
                     {shift.entries.length === 0 ? (
-                        <p style={{ margin: 0, padding: '0 1.5rem 1.75rem 1.5rem', fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
+                        <p style={{ margin: 0, padding: '0 1rem 1.75rem 1rem', fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
                             {t('no_entries')}
                         </p>
                     ) : (
-                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '680px' }}>
+                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '680px', tableLayout: 'fixed' }}>
+                            <ShiftColGroup />
                             <thead>
                                 <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                     <th style={head}>{t('name')}</th>
@@ -263,22 +303,6 @@ function TipDayView({ day, t }: { day: TipDay; t: Awaited<ReturnType<typeof getT
                 </div>
             ))}
 
-            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {columns.map(c => (
-                    <div
-                        key={c.key}
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}
-                    >
-                        <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {c.label}
-                        </span>
-                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                            {formatMoney(distributed(c))} / {formatMoney(c.targetCents)}
-                        </span>
-                        <Reconciliation distributed={distributed(c)} target={c.targetCents} labels={labels} />
-                    </div>
-                ))}
-            </div>
         </>
     );
 }
