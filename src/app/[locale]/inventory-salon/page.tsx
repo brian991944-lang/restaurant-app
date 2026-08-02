@@ -53,6 +53,18 @@ function Field({ label, wide, children }: { label: string; wide?: boolean; child
     );
 }
 
+// Left-hand group label, spanning all of its group's rows.
+const groupCellStyle: React.CSSProperties = {
+    padding: '1rem 1.25rem',
+    fontSize: '1.1rem',
+    fontWeight: 700,
+    color: 'var(--accent-primary)',
+    verticalAlign: 'middle',
+    whiteSpace: 'nowrap',
+    borderRight: '1px solid var(--border)',
+    background: 'rgba(255,255,255,0.02)'
+};
+
 function Badge({ label, tone }: { label: string; tone: 'success' | 'warning' | 'danger' }) {
     const color = `var(--${tone})`;
     return (
@@ -508,6 +520,7 @@ function AdminSalonView() {
                         <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '760px' }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                                    <th style={headStyle} />
                                     <th style={headStyle}>Nombre</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Bodega</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Front</th>
@@ -522,32 +535,24 @@ function AdminSalonView() {
                                 {groupNames.map(groupName => {
                                     const rows = [...(grouped.get(groupName) ?? [])]
                                         .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-                                    const subtotal = rows.reduce(
-                                        (sum, r) => sum + (r.salonStock ? r.salonStock.qtyBodega + r.salonStock.qtyFront : 0),
+
+                                    // The group cell spans every <tr> the group emits, which is one
+                                    // per item plus one more wherever a push result is showing.
+                                    const trCount = rows.reduce(
+                                        (n, r) => n + ((editingId === r.id && draft) ? 1 : (pushResults[r.id] ? 2 : 1)),
                                         0
                                     );
 
                                     return (
                                         <Fragment key={groupName}>
-                                            <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                                                <td style={{ ...cellStyle, fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent-primary)' }}>
-                                                    {groupName}
-                                                </td>
-                                                <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--text-secondary)' }} />
-                                                <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--text-secondary)' }} />
-                                                <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                                    {subtotal}
-                                                </td>
-                                                <td colSpan={isAdmin ? 4 : 3} style={{ ...cellStyle }} />
-                                            </tr>
-
-                                            {rows.map(row => {
+                                            {rows.map((row, index) => {
                                                 const stock = row.salonStock;
                                                 const total = stock ? stock.qtyBodega + stock.qtyFront : null;
 
                                                 if (isAdmin && editingId === row.id && draft) {
                                                     return (
                                                         <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            {index === 0 && <td rowSpan={trCount} style={groupCellStyle}>{groupName}</td>}
                                                             <td colSpan={columnCount} style={{ padding: '1.25rem' }}>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                                                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -663,6 +668,7 @@ function AdminSalonView() {
                                                 return (
                                                     <Fragment key={row.id}>
                                                     <tr style={{ borderBottom: pushed ? 'none' : '1px solid var(--border)' }}>
+                                                        {index === 0 && <td rowSpan={trCount} style={groupCellStyle}>{groupName}</td>}
                                                         <td style={{ ...cellStyle, fontWeight: 500, color: 'var(--text-primary)' }}>
                                                             {row.name}
                                                             {!row.isActive && (
@@ -877,6 +883,7 @@ function WorkerSalonTable() {
                     <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '520px' }}>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                                <th style={headStyle} />
                                 <th style={headStyle}>Nombre</th>
                                 <th style={{ ...headStyle, textAlign: 'center' }}>Bodega</th>
                                 <th style={{ ...headStyle, textAlign: 'center' }}>Front</th>
@@ -887,29 +894,15 @@ function WorkerSalonTable() {
                             {groupNames.map(groupName => {
                                 const groupRows = [...(grouped.get(groupName) ?? [])]
                                     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-                                const subtotal = groupRows.reduce(
-                                    (sum, r) => sum + (r.salonStock ? r.salonStock.qtyBodega + r.salonStock.qtyFront : 0),
-                                    0
-                                );
 
                                 return (
                                     <Fragment key={groupName}>
-                                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                                            <td style={{ ...cellStyle, fontWeight: 700, fontSize: '1.1rem', color: 'var(--accent-primary)' }}>
-                                                {groupName}
-                                            </td>
-                                            <td style={{ ...cellStyle, textAlign: 'center' }} />
-                                            <td style={{ ...cellStyle, textAlign: 'center' }} />
-                                            <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                                {subtotal}
-                                            </td>
-                                        </tr>
-
-                                        {groupRows.map(row => {
+                                        {groupRows.map((row, index) => {
                                             const stock = row.salonStock;
                                             const total = stock ? stock.qtyBodega + stock.qtyFront : null;
                                             return (
                                                 <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    {index === 0 && <td rowSpan={groupRows.length} style={groupCellStyle}>{groupName}</td>}
                                                     <td style={{ ...cellStyle, fontWeight: 500, color: 'var(--text-primary)' }}>{row.name}</td>
                                                     <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyBodega)}</td>
                                                     <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyFront)}</td>
