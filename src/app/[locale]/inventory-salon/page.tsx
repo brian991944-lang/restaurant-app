@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
-import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover, syncSalonFromClover, probeCloverEmployeeRoles } from '@/app/actions/clover';
+import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover, syncSalonFromClover } from '@/app/actions/clover';
 import { getSalonStock, updateSalonStock } from '@/app/actions/inventory';
 
 type CloverResult = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
@@ -12,7 +12,6 @@ type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type ImportResult = Awaited<ReturnType<typeof importSalonDrinksFromClover>>;
 type PushResult = Awaited<ReturnType<typeof pushSalonItemToClover>>;
 type SyncResult = Awaited<ReturnType<typeof syncSalonFromClover>>;
-type RoleProbe = Awaited<ReturnType<typeof probeCloverEmployeeRoles>>;
 
 const NO_GROUP = 'Sin grupo';
 
@@ -83,10 +82,6 @@ export default function InventorySalonPage() {
 
     const [pushResults, setPushResults] = useState<Record<string, PushResult>>({});
 
-    // TEMPORARY role probe — remove with its action once the role field is known.
-    const [roleProbe, setRoleProbe] = useState<RoleProbe | null>(null);
-    const [roleProbeError, setRoleProbeError] = useState<string | null>(null);
-
     const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
@@ -138,15 +133,6 @@ export default function InventorySalonPage() {
     }, []);
 
     useEffect(() => { loadSalon(); }, [loadSalon]);
-
-    useEffect(() => {
-        if (!isAdmin) return;
-        let cancelled = false;
-        probeCloverEmployeeRoles()
-            .then(r => { if (!cancelled) setRoleProbe(r); })
-            .catch(e => { if (!cancelled) setRoleProbeError(e instanceof Error ? e.message : String(e)); });
-        return () => { cancelled = true; };
-    }, [isAdmin]);
 
     const handleToggleImport = () => {
         const next = !isImportOpen;
@@ -752,22 +738,6 @@ export default function InventorySalonPage() {
                     </div>
                 )}
             </div>
-
-            {/* TEMPORAL — sonda de roles de Clover. Borrar junto con probeCloverEmployeeRoles. */}
-            {isAdmin && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>
-                        TEMPORAL: roles de Clover
-                    </h2>
-                    <pre style={{ padding: '1rem', overflowX: 'auto', fontSize: '0.9rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-                        {roleProbeError
-                            ? `Fallo al llamar probeCloverEmployeeRoles: ${roleProbeError}`
-                            : roleProbe
-                                ? JSON.stringify(roleProbe, null, 2)
-                                : 'Cargando...'}
-                    </pre>
-                </div>
-            )}
 
             {/* Confirmación de sincronización desde Clover */}
             {isAdmin && isSyncConfirmOpen && (

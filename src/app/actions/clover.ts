@@ -560,95 +560,41 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
- * TEMPORARY read-only probe: one employee with roles expanded, the merchant's
- * role list, and a summary of how many employees carry a roles field — enough
- * to pin down how "Wait Staff" is represented.
+ * The merchant's wait staff, read from Clover.
  *
- * Three GETs, no POST or PUT. Nothing personal leaves the server: the single
- * employee is reduced to a whitelist, and the list call returns only counts and
- * name-plus-role-name for a few samples. pin, email and customId are never
- * returned.
+ * Read-only: one GET, nothing written to Clover or the database. Each returned
+ * object is constructed from scratch with exactly two fields, so no other part
+ * of the Clover employee record — pin, email, customId or anything Clover adds
+ * later — can reach the caller.
  */
-export async function probeCloverEmployeeRoles(): Promise<{
-    employee: any;
-    employeeError: string | null;
-    roles: any;
-    rolesError: string | null;
-    listSummary: {
-        totalEmployees: number;
-        withRoles: number;
-        samples: { name: string; roleNames: string[] }[];
-        note: string;
-    } | null;
-    listError: string | null;
+export async function getWaitStaff(): Promise<{
+    staff: { id: string; name: string }[];
+    error: string | null;
 }> {
-    let employee: any = null;
-    let employeeError: string | null = null;
-    try {
-        const raw = await cloverFetch('/employees/SQT9QH6JK9BMT?expand=roles');
-        // Whitelist, not blacklist: only these keys can ever escape, so a field
-        // added by Clover later cannot leak by default.
-        const safe: Record<string, any> = {
-            id: raw?.id ?? null,
-            name: raw?.name ?? null,
-            nickname: raw?.nickname ?? null,
-            role: raw?.role ?? null
-        };
-        for (const key of Object.keys(raw ?? {})) {
-            if (/role/i.test(key)) safe[key] = raw[key];
-        }
-        employee = safe;
-    } catch (e) {
-        employeeError = e instanceof Error ? e.message : String(e);
-    }
-
-    let roles: any = null;
-    let rolesError: string | null = null;
-    try {
-        roles = await cloverFetch('/roles?limit=100');
-    } catch (e) {
-        rolesError = e instanceof Error ? e.message : String(e);
-    }
-
-    // The raw list is never returned — only aggregate counts and a few
-    // name/role-name pairs, so no employee record leaves the server intact.
-    let listSummary: {
-        totalEmployees: number;
-        withRoles: number;
-        samples: { name: string; roleNames: string[] }[];
-        note: string;
-    } | null = null;
-    let listError: string | null = null;
     try {
         const data = await cloverFetch('/employees?limit=100&expand=roles');
-        const all: any[] = data?.elements || [];
+        const employees: any[] = data?.elements || [];
 
-        const roleNamesOf = (emp: any): string[] => {
-            const r = emp?.roles;
-            const list = Array.isArray(r) ? r : (Array.isArray(r?.elements) ? r.elements : []);
-            return list
-                .map((x: any) => (typeof x?.name === 'string' ? x.name : null))
-                .filter((n: string | null): n is string => n !== null);
-        };
+        const isWaitStaff = (emp: any) =>
+            (emp?.roles?.elements || []).some(
+                (r: any) => typeof r?.name === 'string' && r.name.trim().toLowerCase() === 'wait staff'
+            );
 
-        const withRolesList = all.filter(emp => roleNamesOf(emp).length > 0);
+        const staff = employees
+            .filter(isWaitStaff)
+            .map((emp: any) => ({
+                id: String(emp?.id ?? ''),
+                name: String(emp?.nickname || emp?.name || '')
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
-        listSummary = {
-            totalEmployees: all.length,
-            withRoles: withRolesList.length,
-            samples: withRolesList.slice(0, 3).map(emp => ({
-                name: emp?.name ?? 'null',
-                roleNames: roleNamesOf(emp)
-            })),
-            note: withRolesList.length === 0
-                ? 'Ningún empleado trae un campo roles con contenido.'
-                : `${withRolesList.length} de ${all.length} empleados traen roles.`
-        };
+        return { staff, error: null };
     } catch (e) {
-        listError = e instanceof Error ? e.message : String(e);
+        return {
+            staff: [],
+            error: `No se pudo obtener el personal de salón desde Clover: ${e instanceof Error ? e.message : String(e)}`
+        };
     }
-
-    return { employee, employeeError, roles, rolesError, listSummary, listError };
 }
 
 /**
