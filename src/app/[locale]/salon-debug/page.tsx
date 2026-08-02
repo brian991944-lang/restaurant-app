@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite, probeCocaColaStockReads, probeCloverStockWriteMethods } from '@/app/actions/clover';
+import { fetchCloverItemsForSalon, probeCloverStockEndpoints, probeCloverStockWrite, probeCocaColaStockReads, probeCloverStockWriteMethods, probeCloverEmployees } from '@/app/actions/clover';
 
 type Result = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type Probe = Awaited<ReturnType<typeof probeCloverStockEndpoints>>;
 type StockProbe = Awaited<ReturnType<typeof probeCloverStockWrite>>;
 type ColaProbe = Awaited<ReturnType<typeof probeCocaColaStockReads>>;
 type WriteProbe = Awaited<ReturnType<typeof probeCloverStockWriteMethods>>;
+type EmployeeProbe = Awaited<ReturnType<typeof probeCloverEmployees>>;
 
 const DRINK_WORDS = ['drink', 'bebida', 'beverage', 'soda', 'refresco'];
 
@@ -19,6 +20,8 @@ export default function SalonDebugPage() {
     const [stockProbeError, setStockProbeError] = useState<string | null>(null);
     const [colaProbe, setColaProbe] = useState<ColaProbe | null>(null);
     const [colaProbeError, setColaProbeError] = useState<string | null>(null);
+    const [empProbe, setEmpProbe] = useState<EmployeeProbe | null>(null);
+    const [empProbeError, setEmpProbeError] = useState<string | null>(null);
     // Section 7 writes to Clover, so it is never run on mount — only on click.
     const [writeProbe, setWriteProbe] = useState<WriteProbe | null>(null);
     const [writeProbeError, setWriteProbeError] = useState<string | null>(null);
@@ -51,6 +54,9 @@ export default function SalonDebugPage() {
         probeCocaColaStockReads()
             .then(r => { if (!cancelled) setColaProbe(r); })
             .catch(e => { if (!cancelled) setColaProbeError(e instanceof Error ? e.message : String(e)); });
+        probeCloverEmployees()
+            .then(r => { if (!cancelled) setEmpProbe(r); })
+            .catch(e => { if (!cancelled) setEmpProbeError(e instanceof Error ? e.message : String(e)); });
         return () => { cancelled = true; };
     }, []);
 
@@ -196,6 +202,68 @@ export default function SalonDebugPage() {
         lines.push('');
         lines.push(`valores leídos -> a: ${aCount ?? 'ausente'} | b: ${bCount ?? 'ausente'} | c: ${cCount ?? 'ausente'}`);
         lines.push(`devuelven 44: ${matches.length > 0 ? matches.join(', ') : 'ninguno'}`);
+    }
+
+    lines.push('');
+    if (empProbeError) {
+        lines.push(`Fallo al llamar probeCloverEmployees: ${empProbeError}`);
+    } else if (!empProbe) {
+        lines.push('Cargando sección 8...');
+    } else {
+        lines.push('--- SECTION 8: empleados de Clover ---');
+
+        if (empProbe.error !== null) {
+            lines.push(empProbe.error);
+        } else {
+            lines.push(`total: ${empProbe.total}`);
+
+            // Any key mentioning "role", so a custom field is found by name
+            // rather than guessed at.
+            const roleKeys = new Set<string>();
+            for (const emp of empProbe.employees) {
+                for (const key of Object.keys(emp ?? {})) {
+                    if (/role/i.test(key)) roleKeys.add(key);
+                }
+            }
+            lines.push(`campos que contienen "role": ${roleKeys.size > 0 ? [...roleKeys].join(', ') : 'ninguno'}`);
+
+            const roleValues = new Set<string>();
+            for (const emp of empProbe.employees) {
+                for (const key of roleKeys) {
+                    const v = emp?.[key];
+                    if (v == null) continue;
+                    roleValues.add(typeof v === 'object' ? `${key}=${JSON.stringify(v)}` : `${key}=${v}`);
+                }
+            }
+            lines.push(`valores distintos: ${roleValues.size > 0 ? [...roleValues].sort().join(' | ') : 'ninguno'}`);
+
+            lines.push('');
+            lines.push('primeros 5 completos:');
+            for (const emp of empProbe.employees.slice(0, 5)) {
+                lines.push(JSON.stringify(emp, null, 2));
+                lines.push('');
+            }
+
+            const rest = empProbe.employees.slice(5);
+            lines.push(`resto (${rest.length}):`);
+            if (rest.length === 0) {
+                lines.push('(ninguno)');
+            } else {
+                for (const emp of rest) {
+                    const roles = [...roleKeys]
+                        .map(k => {
+                            const v = emp?.[k];
+                            if (v == null) return null;
+                            return `${k}=${typeof v === 'object' ? JSON.stringify(v) : v}`;
+                        })
+                        .filter(Boolean)
+                        .join(' ');
+                    lines.push(
+                        `name=${emp?.name ?? 'null'} | nickname=${emp?.nickname ?? 'null'} | ${roles || 'sin campos role'}`
+                    );
+                }
+            }
+        }
     }
 
     lines.push('');

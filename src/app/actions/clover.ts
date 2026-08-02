@@ -560,6 +560,25 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 }
 
 /**
+ * TEMPORARY read-only probe: lists Clover employees so the role fields can be
+ * inspected. One GET, no POST or PUT — writes nothing to Clover and nothing to
+ * the database.
+ */
+export async function probeCloverEmployees(): Promise<{
+    total: number;
+    employees: any[];
+    error: string | null;
+}> {
+    try {
+        const data = await cloverFetch('/employees?limit=100');
+        const employees = data?.elements || [];
+        return { total: employees.length, employees, error: null };
+    } catch (e) {
+        return { total: 0, employees: [], error: e instanceof Error ? e.message : String(e) };
+    }
+}
+
+/**
  * TEMPORARY diagnostic: determines which HTTP method and body shape Clover
  * actually honours for a stock write. Targets ONLY Inca Kola Diet.
  *
