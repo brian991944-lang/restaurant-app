@@ -788,3 +788,109 @@ export async function importSalonDrinksFromClover(cloverIds: string[]): Promise<
 
     return { created, updated, skipped };
 }
+
+/**
+ * Refresh every linked salón item from Clover: name, front-of-house count and
+ * price. Clover is treated as the source of truth for those three fields only —
+ * qtyBodega, parFront, unitsPerPack and salonGroup are never written here,
+ * since they are managed in the app and have no Clover counterpart.
+ *
+ * Writes nothing to Clover.
+ */
+export async function syncSalonFromClover(): Promise<{
+    updated: number;
+    skipped: { name: string; reason: string }[];
+}> {
+    let updated = 0;
+    const skipped: { name: string; reason: string }[] = [];
+
+    const isDuplicateNameError = (e: any) =>
+        e?.code === 'P2002' && JSON.stringify(e?.meta?.target ?? '').includes('name');
+
+    const { items, error } = await fetchCloverItemsForSalon();
+    if (items.length === 0) {
+        return {
+            updated,
+            skipped: [{ name: 'Clover', reason: error ?? 'Clover no devolvió artículos' }]
+        };
+    }
+
+    let linked;
+    try {
+        linked = await prisma.ingredient.findMany({
+            where: { isSalonItem: true, cloverId: { not: null } },
+            include: { salonStock: true }
+        });
+    } catch (e) {
+        return {
+            updated,
+            skipped: [{ name: 'Base de datos', reason: `No se pudieron leer los productos del salón: ${e instanceof Error ? e.message : String(e)}` }]
+        };
+    }
+
+    const byId = new Map(items.map(i => [i.id, i]));
+
+    for (const ingredient of linked) {
+        try {
+            const item = byId.get(ingredient.cloverId as string);
+            if (!item) {
+                skipped.push({ name: ingredient.name, reason: 'No se encontró el artículo en Clover' });
+                continue;
+            }
+
+            try {
+                await prisma.ingredient.update({
+                    where: { id: ingredient.id },
+                    data: { name: item.name }
+                });
+            } catch (e) {
+                if (isDuplicateNameError(e)) {
+                    skipped.push({ name: ingredient.name, reason: 'Ya existe un ingrediente con ese nombre' });
+                    continue;
+                }
+                throw e;
+            }
+
+            // A null stockCount means Clover did not report a count; the stored
+            // qtyFront is left exactly as it is rather than being zeroed.
+            const hasCount = typeof item.stockCount === 'number';
+            if (!hasCount) {
+                skipped.push({
+                    name: item.name,
+                    reason: 'Clover no reportó stockCount; la cantidad de Front no se modificó'
+                });
+            }
+
+            if (ingredient.salonStock) {
+                await prisma.salonStock.update({
+                    where: { ingredientId: ingredient.id },
+                    data: {
+                        salePrice: item.price,
+                        ...(hasCount ? { qtyFront: item.stockCount as number } : {})
+                    }
+                });
+            } else {
+                await prisma.salonStock.create({
+                    data: {
+                        ingredientId: ingredient.id,
+                        qtyFront: hasCount ? (item.stockCount as number) : 0,
+                        qtyBodega: 0,
+                        parFront: 0,
+                        salePrice: item.price
+                    }
+                });
+            }
+
+            updated++;
+        } catch (e) {
+            skipped.push({
+                name: ingredient.name,
+                reason: isDuplicateNameError(e)
+                    ? 'Ya existe un ingrediente con ese nombre'
+                    : (e instanceof Error ? e.message : String(e))
+            });
+        }
+    }
+
+    return { updated, skipped };
+}

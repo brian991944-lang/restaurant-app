@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react';
 import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil, Upload } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
-import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover } from '@/app/actions/clover';
+import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover, syncSalonFromClover } from '@/app/actions/clover';
 import { getSalonStock, updateSalonStock } from '@/app/actions/inventory';
 
 type CloverResult = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
@@ -11,6 +11,7 @@ type CloverItem = CloverResult['items'][number];
 type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type ImportResult = Awaited<ReturnType<typeof importSalonDrinksFromClover>>;
 type PushResult = Awaited<ReturnType<typeof pushSalonItemToClover>>;
+type SyncResult = Awaited<ReturnType<typeof syncSalonFromClover>>;
 
 const NO_GROUP = 'Sin grupo';
 
@@ -81,6 +82,11 @@ export default function InventorySalonPage() {
     const [pushTarget, setPushTarget] = useState<SalonRow | null>(null);
     const [isPushing, setIsPushing] = useState(false);
     const [pushResults, setPushResults] = useState<Record<string, PushResult>>({});
+
+    const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+    const [syncError, setSyncError] = useState<string | null>(null);
 
     const [clover, setClover] = useState<CloverResult | null>(null);
     const [isLoadingClover, setIsLoadingClover] = useState(false);
@@ -265,6 +271,23 @@ export default function InventorySalonPage() {
         }
     };
 
+    const handleConfirmSync = async () => {
+        setIsSyncing(true);
+        setSyncError(null);
+        setSyncResult(null);
+        try {
+            const result = await syncSalonFromClover();
+            setSyncResult(result);
+            setIsSyncConfirmOpen(false);
+            await loadSalon();
+        } catch (e) {
+            setSyncError(e instanceof Error ? e.message : String(e));
+            setIsSyncConfirmOpen(false);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
     const drinks = (clover?.items ?? []).filter(i => i.categoryName === 'Drinks');
     const linkedIds = new Set(clover?.alreadyLinked ?? []);
 
@@ -309,19 +332,66 @@ export default function InventorySalonPage() {
 
             {/* SECTION A — Importar desde Clover */}
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <button
-                    onClick={handleToggleImport}
-                    className="btn-primary"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
-                        fontSize: '1.1rem', fontWeight: 600, alignSelf: 'flex-start'
-                    }}
-                >
-                    {isImportOpen ? <ChevronDown size={22} /> : <ChevronRight size={22} />}
-                    <Download size={20} />
-                    <span>Importar desde Clover</span>
-                </button>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    <button
+                        onClick={handleToggleImport}
+                        className="btn-primary"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
+                            fontSize: '1.1rem', fontWeight: 600
+                        }}
+                    >
+                        {isImportOpen ? <ChevronDown size={22} /> : <ChevronRight size={22} />}
+                        <Download size={20} />
+                        <span>Importar desde Clover</span>
+                    </button>
+
+                    {isAdmin && (
+                        <button
+                            onClick={() => setIsSyncConfirmOpen(true)}
+                            disabled={isSyncing}
+                            className="btn-secondary"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
+                                fontSize: '1.1rem', fontWeight: 600,
+                                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                opacity: isSyncing ? 0.5 : 1,
+                                cursor: isSyncing ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            <RefreshCw size={20} className={isSyncing ? 'spin-anim' : ''} />
+                            <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar con Clover'}</span>
+                        </button>
+                    )}
+                </div>
+
+                {syncError && (
+                    <p style={{ color: 'var(--danger)', fontSize: '1.05rem', margin: 0 }}>
+                        Error al sincronizar: {syncError}
+                    </p>
+                )}
+
+                {syncResult && (
+                    <div style={{ padding: '1.25rem', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <p style={{ margin: 0, fontSize: '1.1rem', color: 'var(--success)', fontWeight: 600 }}>
+                            Sincronizados: {syncResult.updated}
+                        </p>
+                        {syncResult.skipped.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                <p style={{ margin: 0, fontSize: '1rem', color: 'var(--warning)', fontWeight: 600 }}>
+                                    Avisos: {syncResult.skipped.length}
+                                </p>
+                                {syncResult.skipped.map((s, i) => (
+                                    <p key={`${s.name}-${i}`} style={{ margin: 0, fontSize: '1rem', color: 'var(--text-secondary)' }}>
+                                        {s.name} — {s.reason}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {isImportOpen && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -681,6 +751,81 @@ export default function InventorySalonPage() {
                     </div>
                 )}
             </div>
+
+            {/* Confirmación de sincronización desde Clover */}
+            {isAdmin && isSyncConfirmOpen && (
+                <div
+                    onClick={() => { if (!isSyncing) setIsSyncConfirmOpen(false); }}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 1000,
+                        background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '1.5rem'
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        className="glass-panel"
+                        style={{ padding: '2rem', maxWidth: '560px', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                    >
+                        <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            Sincronizar con Clover
+                        </h3>
+
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
+                            Se traerán los datos de Clover para todos los productos del salón que estén vinculados.
+                        </p>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1rem', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--warning)', fontWeight: 600 }}>
+                                Se sobrescribirán con los valores de Clover:
+                            </span>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                                Nombre, cantidad de Front y Precio
+                            </span>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--success)', fontWeight: 600, marginTop: '0.4rem' }}>
+                                No se modificarán:
+                            </span>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
+                                Bodega, Par, Unidades por paquete y Grupo
+                            </span>
+                        </div>
+
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                            Si Clover no reporta una cantidad para un producto, su Front se deja como está.
+                        </p>
+
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={handleConfirmSync}
+                                disabled={isSyncing}
+                                className="btn-primary"
+                                style={{
+                                    borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
+                                    fontSize: '1.1rem', fontWeight: 600,
+                                    opacity: isSyncing ? 0.5 : 1,
+                                    cursor: isSyncing ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {isSyncing ? 'Sincronizando...' : 'Confirmar'}
+                            </button>
+                            <button
+                                onClick={() => setIsSyncConfirmOpen(false)}
+                                disabled={isSyncing}
+                                className="btn-secondary"
+                                style={{
+                                    borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
+                                    fontSize: '1.1rem', fontWeight: 600,
+                                    background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                    cursor: isSyncing ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Confirmación de envío a Clover */}
             {isAdmin && pushTarget && (
