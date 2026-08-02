@@ -42,11 +42,14 @@ const inputStyle: React.CSSProperties = {
 function ShiftColGroup() {
     return (
         <colgroup>
-            <col style={{ width: '24%' }} />
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '19%' }} />
-            <col style={{ width: '19%' }} />
-            <col style={{ width: '20%' }} />
+            <col style={{ width: '23%' }} />
+            {/* Widest column: two side-by-side buttons whose labels are full
+                words. Sized so "Mesero" clears its button at tablet portrait
+                (768px) — see the money columns, which give up the room. */}
+            <col style={{ width: '26%' }} />
+            <col style={{ width: '17%' }} />
+            <col style={{ width: '17%' }} />
+            <col style={{ width: '17%' }} />
         </colgroup>
     );
 }
@@ -325,8 +328,8 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                                 onClick={() => patch(entry.id, { role: r })}
                                                                 title={roleLabel(r)}
                                                                 style={{
-                                                                    flex: 1, minHeight: '52px', padding: '0 0.35rem',
-                                                                    borderRadius: '8px', fontSize: '0.85rem', fontWeight: 600,
+                                                                    flex: 1, minHeight: '52px', padding: '0 0.5rem',
+                                                                    borderRadius: '8px', fontSize: '0.95rem', fontWeight: 600,
                                                                     whiteSpace: 'nowrap', cursor: 'pointer',
                                                                     color: d.role === r ? 'white' : 'var(--text-secondary)',
                                                                     background: d.role === r ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
