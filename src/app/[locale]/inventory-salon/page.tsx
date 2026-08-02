@@ -295,7 +295,7 @@ export default function InventorySalonPage() {
         else grouped.set(key, [row]);
     }
     const groupNames = [...grouped.keys()].sort((a, b) => a.localeCompare(b, 'es'));
-    const columnCount = isAdmin ? 7 : 6;
+    const columnCount = isAdmin ? 8 : 7;
 
     const cellStyle = { padding: '1rem 1.25rem', fontSize: '1.05rem' };
     const headStyle = { padding: '1rem 1.25rem', fontWeight: 500, fontSize: '0.95rem' };
@@ -514,6 +514,7 @@ export default function InventorySalonPage() {
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Total</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Par</th>
                                     <th style={{ ...headStyle, textAlign: 'right' }}>Precio</th>
+                                    <th style={{ ...headStyle, textAlign: 'center' }}>Stock</th>
                                     {isAdmin && <th style={{ ...headStyle, textAlign: 'right' }}>Acciones</th>}
                                 </tr>
                             </thead>
@@ -537,7 +538,7 @@ export default function InventorySalonPage() {
                                                 <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: 'var(--accent-primary)' }}>
                                                     {subtotal}
                                                 </td>
-                                                <td colSpan={isAdmin ? 3 : 2} style={{ ...cellStyle }} />
+                                                <td colSpan={isAdmin ? 4 : 3} style={{ ...cellStyle }} />
                                             </tr>
 
                                             {rows.map(row => {
@@ -675,6 +676,13 @@ export default function InventorySalonPage() {
                                                         <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700 }}>{num(total)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.parFront)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'right' }}>{money(stock?.salePrice)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>
+                                                            {!stock
+                                                                ? '—'
+                                                                : stock.autoManage
+                                                                    ? <span style={{ color: 'var(--text-secondary)' }}>Automático</span>
+                                                                    : <Badge label="Manual" tone="warning" />}
+                                                        </td>
                                                         {isAdmin && (
                                                             <td style={{ ...cellStyle, textAlign: 'right' }}>
                                                                 <button
