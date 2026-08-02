@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
-import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
 import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover, syncSalonFromClover } from '@/app/actions/clover';
 import { getSalonStock, updateSalonStock } from '@/app/actions/inventory';
@@ -79,8 +79,6 @@ export default function InventorySalonPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [editError, setEditError] = useState<string | null>(null);
 
-    const [pushTarget, setPushTarget] = useState<SalonRow | null>(null);
-    const [isPushing, setIsPushing] = useState(false);
     const [pushResults, setPushResults] = useState<Record<string, PushResult>>({});
 
     const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState(false);
@@ -235,39 +233,33 @@ export default function InventorySalonPage() {
                 ...(draft.salonGroup.trim() ? { salonGroup: draft.salonGroup.trim() } : {})
             });
             if (!result.success) {
+                // The push is deliberately not attempted when the save fails —
+                // Clover must never receive values the database rejected.
                 setEditError(result.error ?? 'Error al guardar los cambios.');
                 return;
             }
+
+            const savedId = editingId;
+            try {
+                const push = await pushSalonItemToClover(savedId);
+                setPushResults(prev => ({ ...prev, [savedId]: push }));
+            } catch (e) {
+                setPushResults(prev => ({
+                    ...prev,
+                    [savedId]: {
+                        success: false,
+                        error: e instanceof Error ? e.message : String(e),
+                        echo: null
+                    }
+                }));
+            }
+
             cancelEdit();
             await loadSalon();
         } catch (e) {
             setEditError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsSaving(false);
-        }
-    };
-
-    const handleConfirmPush = async () => {
-        if (!pushTarget) return;
-        const targetId = pushTarget.id;
-        setIsPushing(true);
-        try {
-            const result = await pushSalonItemToClover(targetId);
-            setPushResults(prev => ({ ...prev, [targetId]: result }));
-            setPushTarget(null);
-            if (result.success) await loadSalon();
-        } catch (e) {
-            setPushResults(prev => ({
-                ...prev,
-                [targetId]: {
-                    success: false,
-                    error: e instanceof Error ? e.message : String(e),
-                    echo: null
-                }
-            }));
-            setPushTarget(null);
-        } finally {
-            setIsPushing(false);
         }
     };
 
@@ -314,20 +306,6 @@ export default function InventorySalonPage() {
                     <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Inventario Salón</h1>
                     <p style={{ color: 'var(--text-secondary)' }}>Productos del salón y su stock actual.</p>
                 </div>
-                <button
-                    onClick={loadSalon}
-                    disabled={isLoadingSalon}
-                    className="btn-secondary"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        borderRadius: '8px', padding: '0.8rem 1.2rem', minHeight: '52px', fontSize: '1rem',
-                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                        cursor: isLoadingSalon ? 'not-allowed' : 'pointer'
-                    }}
-                >
-                    <RefreshCw size={20} className={isLoadingSalon ? 'spin-anim' : ''} />
-                    <span>Actualizar</span>
-                </button>
             </div>
 
             {/* SECTION A — Importar desde Clover */}
@@ -640,7 +618,7 @@ export default function InventorySalonPage() {
                                                                                 cursor: isSaving ? 'not-allowed' : 'pointer'
                                                                             }}
                                                                         >
-                                                                            {isSaving ? 'Guardando...' : 'Guardar'}
+                                                                            {isSaving ? 'Guardando...' : 'Guardar y enviar a Clover'}
                                                                         </button>
                                                                         <button
                                                                             onClick={cancelEdit}
@@ -682,36 +660,20 @@ export default function InventorySalonPage() {
                                                         <td style={{ ...cellStyle, textAlign: 'right' }}>{money(stock?.salePrice)}</td>
                                                         {isAdmin && (
                                                             <td style={{ ...cellStyle, textAlign: 'right' }}>
-                                                                <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                                                    <button
-                                                                        onClick={() => startEdit(row)}
-                                                                        className="btn-secondary"
-                                                                        style={{
-                                                                            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                                                                            borderRadius: '8px', padding: '0.7rem 1.1rem', minHeight: '48px',
-                                                                            fontSize: '1rem', fontWeight: 500,
-                                                                            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                                                                            cursor: 'pointer'
-                                                                        }}
-                                                                    >
-                                                                        <Pencil size={18} />
-                                                                        <span>Editar</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => setPushTarget(row)}
-                                                                        className="btn-secondary"
-                                                                        style={{
-                                                                            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                                                                            borderRadius: '8px', padding: '0.7rem 1.1rem', minHeight: '48px',
-                                                                            fontSize: '1rem', fontWeight: 500,
-                                                                            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                                                                            cursor: 'pointer'
-                                                                        }}
-                                                                    >
-                                                                        <Upload size={18} />
-                                                                        <span>Enviar a Clover</span>
-                                                                    </button>
-                                                                </div>
+                                                                <button
+                                                                    onClick={() => startEdit(row)}
+                                                                    className="btn-secondary"
+                                                                    style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                                                                        borderRadius: '8px', padding: '0.7rem 1.1rem', minHeight: '48px',
+                                                                        fontSize: '1rem', fontWeight: 500,
+                                                                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                                                        cursor: 'pointer'
+                                                                    }}
+                                                                >
+                                                                    <Pencil size={18} />
+                                                                    <span>Editar</span>
+                                                                </button>
                                                             </td>
                                                         )}
                                                     </tr>
@@ -827,77 +789,6 @@ export default function InventorySalonPage() {
                 </div>
             )}
 
-            {/* Confirmación de envío a Clover */}
-            {isAdmin && pushTarget && (
-                <div
-                    onClick={() => { if (!isPushing) setPushTarget(null); }}
-                    style={{
-                        position: 'fixed', inset: 0, zIndex: 1000,
-                        background: 'rgba(0,0,0,0.5)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        padding: '1.5rem'
-                    }}
-                >
-                    <div
-                        onClick={e => e.stopPropagation()}
-                        className="glass-panel"
-                        style={{ padding: '2rem', maxWidth: '520px', width: '100%', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
-                    >
-                        <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            Enviar a Clover
-                        </h3>
-
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
-                            Se enviarán estos datos a Clover para <strong style={{ color: 'var(--text-primary)' }}>{pushTarget.name}</strong>:
-                        </p>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1rem', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                                Nombre: <strong>{pushTarget.name}</strong>
-                            </span>
-                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                                Precio: <strong>{money(pushTarget.salonStock?.salePrice)}</strong>
-                            </span>
-                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                                Cantidad Front: <strong>{num(pushTarget.salonStock?.qtyFront)}</strong>
-                            </span>
-                        </div>
-
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-                            Solo se envía la cantidad de Front. La cantidad de Bodega no se envía a Clover.
-                        </p>
-
-                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                            <button
-                                onClick={handleConfirmPush}
-                                disabled={isPushing}
-                                className="btn-primary"
-                                style={{
-                                    borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
-                                    fontSize: '1.1rem', fontWeight: 600,
-                                    opacity: isPushing ? 0.5 : 1,
-                                    cursor: isPushing ? 'not-allowed' : 'pointer'
-                                }}
-                            >
-                                {isPushing ? 'Enviando...' : 'Confirmar'}
-                            </button>
-                            <button
-                                onClick={() => setPushTarget(null)}
-                                disabled={isPushing}
-                                className="btn-secondary"
-                                style={{
-                                    borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
-                                    fontSize: '1.1rem', fontWeight: 600,
-                                    background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                                    cursor: isPushing ? 'not-allowed' : 'pointer'
-                                }}
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

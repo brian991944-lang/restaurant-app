@@ -466,10 +466,11 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
         };
     }
 
-    // Step 2 — front-of-house count only.
+    // Step 2 — front-of-house count only. PUT, not POST: Clover only honours
+    // the stock write on PUT for this endpoint.
     try {
         await cloverFetch(`/item_stocks/${cloverId}`, {
-            method: 'POST',
+            method: 'PUT',
             body: JSON.stringify({ stockCount: stock.qtyFront })
         });
     } catch (e) {
