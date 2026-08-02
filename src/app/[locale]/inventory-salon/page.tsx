@@ -839,6 +839,23 @@ function WorkerRestockView() {
     const [customQty, setCustomQty] = useState<Record<string, string>>({});
     const [done, setDone] = useState<{ id: string; name: string; qty: number }[]>([]);
 
+    // `quiet` skips the loading state so a post-restock refresh does not blank
+    // the list out from under the worker.
+    const loadRows = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}) => {
+        if (!quiet) setIsLoading(true);
+        try {
+            setRows(await getSalonStock());
+            setLoadError(null);
+        } catch (e) {
+            // On a quiet refresh the restock itself already succeeded, so the
+            // optimistically-updated list is kept rather than replaced by an
+            // error that would misrepresent what happened.
+            if (!quiet) setLoadError(e instanceof Error ? e.message : String(e));
+        } finally {
+            if (!quiet) setIsLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         let cancelled = false;
         getWaitStaff()
@@ -849,13 +866,10 @@ function WorkerRestockView() {
             })
             .catch(e => { if (!cancelled) setStaffError(e instanceof Error ? e.message : String(e)); });
 
-        getSalonStock()
-            .then(r => { if (!cancelled) setRows(r); })
-            .catch(e => { if (!cancelled) setLoadError(e instanceof Error ? e.message : String(e)); })
-            .finally(() => { if (!cancelled) setIsLoading(false); });
+        loadRows();
 
         return () => { cancelled = true; };
-    }, []);
+    }, [loadRows]);
 
     const selected = staff.find(s => s.id === selectedId) ?? null;
 
@@ -908,9 +922,13 @@ function WorkerRestockView() {
                 return;
             }
 
+            // Drop the row immediately for instant feedback, then refetch so the
+            // list reflects the real state — including a partial restock, where
+            // the item should reappear with a smaller Sacar rather than vanish.
             setRows(prev => prev.filter(r => r.id !== row.id));
             setDone(prev => [...prev, { id: row.id, name: row.name, qty }]);
             setTimeout(() => setDone(prev => prev.filter(d => d.id !== row.id)), 5000);
+            await loadRows({ quiet: true });
         } catch (e) {
             setRowErrors(prev => ({ ...prev, [row.id]: e instanceof Error ? e.message : String(e) }));
         } finally {
