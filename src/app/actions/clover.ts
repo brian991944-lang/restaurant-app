@@ -397,6 +397,136 @@ export async function getLastSyncTime() {
 }
 
 /**
+ * Push one salón item's name, price and front-of-house count to Clover, then
+ * read both records back so the caller sees what Clover actually stored rather
+ * than what was sent.
+ *
+ * Only qtyFront is written to stockCount — the bodega count is deliberately
+ * excluded, since Clover tracks what is sellable on the floor.
+ */
+export async function pushSalonItemToClover(ingredientId: string): Promise<{
+    success: boolean;
+    error: string | null;
+    echo: {
+        name: string;
+        price: number;
+        stockCount: number | null;
+        available: boolean;
+        autoManage: boolean;
+    } | null;
+}> {
+    let ingredient;
+    try {
+        ingredient = await prisma.ingredient.findUnique({
+            where: { id: ingredientId },
+            include: { salonStock: true }
+        });
+    } catch (e) {
+        return {
+            success: false,
+            error: `No se pudo leer el ingrediente: ${e instanceof Error ? e.message : String(e)}`,
+            echo: null
+        };
+    }
+
+    if (!ingredient) {
+        return { success: false, error: 'No se encontró el ingrediente.', echo: null };
+    }
+    if (!ingredient.salonStock) {
+        return {
+            success: false,
+            error: 'Este producto no tiene fila de stock del salón. Guárdalo primero desde el salón.',
+            echo: null
+        };
+    }
+    if (!ingredient.cloverId) {
+        return {
+            success: false,
+            error: 'Este producto no está vinculado a Clover (falta el cloverId).',
+            echo: null
+        };
+    }
+
+    const cloverId = ingredient.cloverId;
+    const stock = ingredient.salonStock;
+
+    // Step 1 — name and price. salePrice is already integer cents, sent as-is.
+    try {
+        await cloverFetch(`/items/${cloverId}`, {
+            method: 'POST',
+            body: JSON.stringify({ name: ingredient.name, price: stock.salePrice })
+        });
+    } catch (e) {
+        return {
+            success: false,
+            error: `Falló el envío de nombre y precio a Clover: ${e instanceof Error ? e.message : String(e)}`,
+            echo: null
+        };
+    }
+
+    // Step 2 — front-of-house count only.
+    try {
+        await cloverFetch(`/item_stocks/${cloverId}`, {
+            method: 'POST',
+            body: JSON.stringify({ stockCount: stock.qtyFront })
+        });
+    } catch (e) {
+        return {
+            success: false,
+            error: `Falló el envío del stock a Clover: ${e instanceof Error ? e.message : String(e)}`,
+            echo: null
+        };
+    }
+
+    // Step 3 — read back the item.
+    let itemBack: any;
+    try {
+        itemBack = await cloverFetch(`/items/${cloverId}`);
+    } catch (e) {
+        return {
+            success: false,
+            error: `Los datos se enviaron, pero falló la lectura del artículo en Clover: ${e instanceof Error ? e.message : String(e)}`,
+            echo: null
+        };
+    }
+
+    // Step 4 — read back the stock record.
+    let stockBack: any;
+    try {
+        stockBack = await cloverFetch(`/item_stocks/${cloverId}`);
+    } catch (e) {
+        return {
+            success: false,
+            error: `Los datos se enviaron, pero falló la lectura del stock en Clover: ${e instanceof Error ? e.message : String(e)}`,
+            echo: null
+        };
+    }
+
+    const echo = {
+        name: itemBack?.name || '',
+        price: typeof itemBack?.price === 'number' ? itemBack.price : 0,
+        stockCount: typeof stockBack?.stockCount === 'number' ? stockBack.stockCount : null,
+        available: itemBack?.available === true,
+        autoManage: itemBack?.autoManage === true
+    };
+
+    try {
+        await prisma.salonStock.update({
+            where: { ingredientId },
+            data: { lastCloverSyncAt: new Date() }
+        });
+    } catch (e) {
+        return {
+            success: false,
+            error: `Clover se actualizó, pero no se pudo guardar la fecha de sincronización: ${e instanceof Error ? e.message : String(e)}`,
+            echo
+        };
+    }
+
+    return { success: true, error: null, echo };
+}
+
+/**
  * TEMPORARY read-only probe for the salon-debug page. Two GETs, nothing else:
  * writes nothing to Clover and nothing to the database. Each call is isolated
  * so one failing still reports the other. cloverFetch throws with the HTTP
