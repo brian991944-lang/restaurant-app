@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Package, Pencil, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
@@ -22,11 +22,10 @@ const NO_GROUP = 'Sin grupo';
  * Front-of-house restock view. Deliberately minimal: no prices, no bodega or
  * par numbers, no editing — just what to carry out and how many.
  */
-function RestockView() {
-    const [staff, setStaff] = useState<StaffMember[]>([]);
-    const [staffError, setStaffError] = useState<string | null>(null);
-    const [selectedId, setSelectedId] = useState('');
-
+function RestockView({ employeeId, employeeName }: {
+    employeeId: string | null;
+    employeeName: string | null;
+}) {
     const [rows, setRows] = useState<SalonRow[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
@@ -54,22 +53,11 @@ function RestockView() {
         }
     }, []);
 
-    useEffect(() => {
-        let cancelled = false;
-        getWaitStaff()
-            .then(r => {
-                if (cancelled) return;
-                setStaff(r.staff);
-                if (r.error) setStaffError(r.error);
-            })
-            .catch(e => { if (!cancelled) setStaffError(e instanceof Error ? e.message : String(e)); });
+    useEffect(() => { loadRows(); }, [loadRows]);
 
-        loadRows();
-
-        return () => { cancelled = true; };
-    }, [loadRows]);
-
-    const selected = staff.find(s => s.id === selectedId) ?? null;
+    // Who is doing the work comes from the section's staff pills now, not from
+    // a selector of its own.
+    const hasStaff = employeeId !== null;
 
     // Only items that are short on the floor AND have stock in the bodega to
     // cover it — anything else is not actionable by a worker.
@@ -100,7 +88,7 @@ function RestockView() {
     };
 
     const handleRestock = async (row: SalonRow, qty: number) => {
-        if (!selected) return;
+        if (!hasStaff) return;
         if (!Number.isInteger(qty) || qty <= 0) {
             setRowErrors(prev => ({ ...prev, [row.id]: 'La cantidad debe ser un número entero positivo.' }));
             return;
@@ -114,7 +102,7 @@ function RestockView() {
         });
 
         try {
-            const result = await restockSalonItem(row.id, qty, selected.id, selected.name);
+            const result = await restockSalonItem(row.id, qty, employeeId, employeeName);
             if (!result.success) {
                 setRowErrors(prev => ({ ...prev, [row.id]: result.error ?? 'No se pudo reponer.' }));
                 return;
@@ -137,29 +125,11 @@ function RestockView() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-            <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                <label style={{ fontSize: '1.1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                    ¿Quién eres?
-                </label>
-                <select
-                    value={selectedId}
-                    onChange={e => setSelectedId(e.target.value)}
-                    style={{
-                        padding: '0.9rem 1rem', minHeight: '64px', fontSize: '1.25rem',
-                        borderRadius: '8px', color: 'var(--text-primary)',
-                        background: 'var(--bg-primary)', border: '1px solid var(--border)',
-                        cursor: 'pointer', width: '100%'
-                    }}
-                >
-                    <option value="">¿Quién eres?</option>
-                    {staff.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                </select>
-                {staffError && (
-                    <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1rem' }}>{staffError}</p>
-                )}
-            </div>
+            {!hasStaff && (
+                <p style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-secondary)' }}>
+                    Selecciona quién hizo esta sección para poder reponer.
+                </p>
+            )}
 
             {done.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -179,13 +149,7 @@ function RestockView() {
                 </div>
             )}
 
-            {!selected ? (
-                <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center' }}>
-                    <p style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-secondary)' }}>
-                        Selecciona tu nombre para empezar
-                    </p>
-                </div>
-            ) : loadError ? (
+            {loadError ? (
                 <p style={{ color: 'var(--danger)', fontSize: '1.15rem' }}>Error al cargar: {loadError}</p>
             ) : isLoading ? (
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.15rem' }}>Cargando...</p>
@@ -209,6 +173,7 @@ function RestockView() {
                             {groupRows.map(row => {
                                 const suggested = suggestedFor(row);
                                 const isBusy = busyId === row.id;
+                                const isBlocked = isBusy || !hasStaff;
                                 const err = rowErrors[row.id];
                                 const isCustomOpen = customOpen[row.id] === true;
 
@@ -230,13 +195,13 @@ function RestockView() {
 
                                             <button
                                                 onClick={() => handleRestock(row, suggested)}
-                                                disabled={isBusy}
+                                                disabled={isBlocked}
                                                 className="btn-primary"
                                                 style={{
                                                     borderRadius: '10px', padding: '1rem 2rem', minHeight: '72px',
                                                     fontSize: '1.25rem', fontWeight: 700,
-                                                    opacity: isBusy ? 0.5 : 1,
-                                                    cursor: isBusy ? 'not-allowed' : 'pointer'
+                                                    opacity: isBlocked ? 0.5 : 1,
+                                                    cursor: isBlocked ? 'not-allowed' : 'pointer'
                                                 }}
                                             >
                                                 {isBusy ? 'Enviando...' : 'Repuesto'}
@@ -277,13 +242,13 @@ function RestockView() {
                                                 />
                                                 <button
                                                     onClick={() => handleRestock(row, Number(customQty[row.id]))}
-                                                    disabled={isBusy}
+                                                    disabled={isBlocked}
                                                     className="btn-primary"
                                                     style={{
                                                         borderRadius: '10px', padding: '0.9rem 1.6rem', minHeight: '64px',
                                                         fontSize: '1.15rem', fontWeight: 700,
-                                                        opacity: isBusy ? 0.5 : 1,
-                                                        cursor: isBusy ? 'not-allowed' : 'pointer'
+                                                        opacity: isBlocked ? 0.5 : 1,
+                                                        cursor: isBlocked ? 'not-allowed' : 'pointer'
                                                     }}
                                                 >
                                                     {isBusy ? 'Enviando...' : 'Confirmar'}
@@ -331,10 +296,14 @@ type ShiftList = Awaited<ReturnType<typeof getShiftList>>;
  * tasks. Every tap writes through immediately — there is no save step, so a
  * tablet closing mid-shift loses nothing.
  */
-function ShiftChecklist({ listType, staff, staffError }: {
+function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffChange }: {
     listType: ShiftListType;
     staff: StaffMember[];
     staffError: string | null;
+    /** Rendered between the task sections and the completion bar. */
+    footer?: React.ReactNode;
+    /** Reports the first person selected across the sections, in order. */
+    onSelectedStaffChange?: (person: { id: string; name: string } | null) => void;
 }) {
     const [data, setData] = useState<ShiftList | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -433,6 +402,27 @@ function ShiftChecklist({ listType, staff, staffError }: {
             setIsCompleting(false);
         }
     };
+
+    // First person selected, scanning sections in order. Cierre attributes the
+    // restock to them. Computed before the early returns so the hook below
+    // always runs.
+    let firstSelected: { id: string; name: string } | null = null;
+    for (const section of data?.sections ?? []) {
+        const ids = staffBySection[section.id] ?? [];
+        if (ids.length === 0) continue;
+        const person = staff.find(s => s.id === ids[0]);
+        if (person) { firstSelected = { id: person.id, name: person.name }; break; }
+    }
+
+    // Held in a ref so an inline callback from the parent does not re-fire the
+    // effect on every render.
+    const notifyRef = useRef(onSelectedStaffChange);
+    notifyRef.current = onSelectedStaffChange;
+    const selectedStaffId = firstSelected?.id ?? null;
+    const selectedStaffName = firstSelected?.name ?? null;
+    useEffect(() => {
+        notifyRef.current?.(selectedStaffId ? { id: selectedStaffId, name: selectedStaffName ?? '' } : null);
+    }, [selectedStaffId, selectedStaffName]);
 
     if (isLoading) {
         return <p style={{ color: 'var(--text-secondary)', fontSize: '1.15rem' }}>Cargando...</p>;
@@ -553,6 +543,8 @@ function ShiftChecklist({ listType, staff, staffError }: {
             {actionError && (
                 <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.1rem' }}>{actionError}</p>
             )}
+
+            {footer}
 
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <p style={{ margin: 0, fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -946,6 +938,11 @@ export default function ClosingListsPage() {
     const [staff, setStaff] = useState<StaffMember[]>([]);
     const [staffError, setStaffError] = useState<string | null>(null);
 
+    // Whoever the Cierre checklist reports as first-selected; the restock is
+    // attributed to them. setState is a stable identity, so passing it straight
+    // in as the callback is safe.
+    const [restockStaff, setRestockStaff] = useState<{ id: string; name: string } | null>(null);
+
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     // Bumped when the editor closes; remounts the checklist so it refetches.
     const [listVersion, setListVersion] = useState(0);
@@ -1029,14 +1026,24 @@ export default function ClosingListsPage() {
             )}
 
             {activeTab === 'CIERRE' && (
-                <>
-                    <ShiftChecklist key={`CIERRE-${listVersion}`} listType="CIERRE" staff={staff} staffError={staffError} />
-
-                    <h2 style={{ margin: '1rem 0 0 0', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        Sacar bebidas
-                    </h2>
-                    <RestockView />
-                </>
+                <ShiftChecklist
+                    key={`CIERRE-${listVersion}`}
+                    listType="CIERRE"
+                    staff={staff}
+                    staffError={staffError}
+                    onSelectedStaffChange={setRestockStaff}
+                    footer={
+                        <>
+                            <h2 style={{ margin: '1rem 0 0 0', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                Sacar bebidas
+                            </h2>
+                            <RestockView
+                                employeeId={restockStaff?.id ?? null}
+                                employeeName={restockStaff?.name ?? null}
+                            />
+                        </>
+                    }
+                />
             )}
 
             {isAdmin && isEditorOpen && (
