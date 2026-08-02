@@ -125,6 +125,13 @@ model SalonStock {
   updatedAt        DateTime   @updatedAt
 }
 
+model SalonGroup {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
 model SalonRestock {
   id             String   @id @default(cuid())
   ingredientId   String

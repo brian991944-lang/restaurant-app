@@ -158,6 +158,114 @@ export async function updateSalonStock(
 }
 
 /**
+ * The managed list of salón groups. On first use the table is seeded from the
+ * salonGroup values already stored on SalonStock, so groups created before this
+ * list existed are not lost.
+ */
+export async function getSalonGroups() {
+    const existing = await prisma.salonGroup.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
+    });
+    if (existing.length > 0) return existing;
+
+    const used = await prisma.salonStock.findMany({
+        select: { salonGroup: true },
+        distinct: ['salonGroup']
+    });
+    const names = used
+        .map(u => u.salonGroup?.trim())
+        .filter((n): n is string => !!n);
+
+    if (names.length === 0) return existing;
+
+    // skipDuplicates keeps a concurrent first call from failing on the unique
+    // name index rather than seeding twice.
+    await prisma.salonGroup.createMany({
+        data: names.map((name, i) => ({ name, sortOrder: i })),
+        skipDuplicates: true
+    });
+
+    return prisma.salonGroup.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
+    });
+}
+
+const isDuplicateGroupName = (e: any) => e?.code === 'P2002';
+
+export async function createSalonGroup(name: string): Promise<{ success: boolean; error?: string }> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+        return { success: false, error: 'El nombre del grupo no puede estar vacío.' };
+    }
+
+    try {
+        await prisma.salonGroup.create({ data: { name: trimmed } });
+        revalidatePath('/[locale]/inventory-salon');
+        return { success: true };
+    } catch (e: any) {
+        if (isDuplicateGroupName(e)) {
+            return { success: false, error: 'Ya existe un grupo con ese nombre.' };
+        }
+        console.error('Failed to create salon group:', e);
+        return { success: false, error: 'Error al crear el grupo.' };
+    }
+}
+
+export async function renameSalonGroup(id: string, name: string): Promise<{ success: boolean; error?: string }> {
+    const trimmed = name.trim();
+    if (!trimmed) {
+        return { success: false, error: 'El nombre del grupo no puede estar vacío.' };
+    }
+
+    try {
+        const group = await prisma.salonGroup.findUnique({ where: { id } });
+        if (!group) return { success: false, error: 'No se encontró el grupo.' };
+        if (group.name === trimmed) return { success: true };
+
+        // Rename and re-point the items in one transaction: an item must never
+        // be left pointing at a group name that no longer exists.
+        await prisma.$transaction([
+            prisma.salonGroup.update({ where: { id }, data: { name: trimmed } }),
+            prisma.salonStock.updateMany({
+                where: { salonGroup: group.name },
+                data: { salonGroup: trimmed }
+            })
+        ]);
+
+        revalidatePath('/[locale]/inventory-salon');
+        return { success: true };
+    } catch (e: any) {
+        if (isDuplicateGroupName(e)) {
+            return { success: false, error: 'Ya existe un grupo con ese nombre.' };
+        }
+        console.error('Failed to rename salon group:', e);
+        return { success: false, error: 'Error al renombrar el grupo.' };
+    }
+}
+
+export async function deleteSalonGroup(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const group = await prisma.salonGroup.findUnique({ where: { id } });
+        if (!group) return { success: false, error: 'No se encontró el grupo.' };
+
+        const inUse = await prisma.salonStock.count({ where: { salonGroup: group.name } });
+        if (inUse > 0) {
+            return {
+                success: false,
+                error: `No se puede borrar: ${inUse} producto${inUse === 1 ? '' : 's'} usa${inUse === 1 ? '' : 'n'} este grupo.`
+            };
+        }
+
+        await prisma.salonGroup.delete({ where: { id } });
+        revalidatePath('/[locale]/inventory-salon');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to delete salon group:', e);
+        return { success: false, error: 'Error al borrar el grupo.' };
+    }
+}
+
+/**
  * Move stock from the bodega to the front of house.
  *
  * Clover is updated BEFORE the database: the push is verified against Clover's

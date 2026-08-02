@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
-import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil, Tags, Trash2 } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
 import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover, syncSalonFromClover } from '@/app/actions/clover';
-import { getSalonStock, updateSalonStock } from '@/app/actions/inventory';
+import {
+    getSalonStock, updateSalonStock,
+    getSalonGroups, createSalonGroup, renameSalonGroup, deleteSalonGroup
+} from '@/app/actions/inventory';
 
 type CloverResult = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type CloverItem = CloverResult['items'][number];
@@ -12,6 +15,7 @@ type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type ImportResult = Awaited<ReturnType<typeof importSalonDrinksFromClover>>;
 type PushResult = Awaited<ReturnType<typeof pushSalonItemToClover>>;
 type SyncResult = Awaited<ReturnType<typeof syncSalonFromClover>>;
+type SalonGroupRow = Awaited<ReturnType<typeof getSalonGroups>>[number];
 
 const NO_GROUP = 'Sin grupo';
 
@@ -83,6 +87,172 @@ function Badge({ label, tone }: { label: string; tone: 'success' | 'warning' | '
     );
 }
 
+/**
+ * Manage the salón group list. Renames cascade to the items that use the group;
+ * deletes are refused while any item still references it.
+ */
+function GroupsModal({ groups, onChanged, onClose }: {
+    groups: SalonGroupRow[];
+    onChanged: () => Promise<void>;
+    onClose: () => void;
+}) {
+    const [drafts, setDrafts] = useState<Record<string, string>>({});
+    const [newName, setNewName] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [addError, setAddError] = useState<string | null>(null);
+
+    const nameFor = (g: SalonGroupRow) => drafts[g.id] ?? g.name;
+
+    const run = async (key: string, fn: () => Promise<{ success: boolean; error?: string }>) => {
+        setBusy(true);
+        setErrors(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+        setAddError(null);
+        try {
+            const result = await fn();
+            if (!result.success) {
+                const message = result.error ?? 'No se pudo completar la acción.';
+                if (key === 'new') setAddError(message);
+                else setErrors(prev => ({ ...prev, [key]: message }));
+                return false;
+            }
+            await onChanged();
+            return true;
+        } catch (e) {
+            const message = e instanceof Error ? e.message : String(e);
+            if (key === 'new') setAddError(message);
+            else setErrors(prev => ({ ...prev, [key]: message }));
+            return false;
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div
+            onClick={() => { if (!busy) onClose(); }}
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1000,
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '1.5rem'
+            }}
+        >
+            <div
+                onClick={e => e.stopPropagation()}
+                className="glass-panel"
+                style={{ padding: '2rem', maxWidth: '620px', width: '100%', maxHeight: '85vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+            >
+                <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Categorías del salón
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {groups.length === 0 && (
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
+                            Todavía no hay categorías.
+                        </p>
+                    )}
+
+                    {groups.map(g => (
+                        <div key={g.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <input
+                                    type="text"
+                                    value={nameFor(g)}
+                                    onChange={e => setDrafts(prev => ({ ...prev, [g.id]: e.target.value }))}
+                                    style={{ ...inputStyle, flex: '1 1 220px', width: 'auto' }}
+                                />
+                                <button
+                                    onClick={() => run(g.id, () => renameSalonGroup(g.id, nameFor(g)))}
+                                    disabled={busy || nameFor(g).trim() === g.name}
+                                    className="btn-primary"
+                                    style={{
+                                        borderRadius: '8px', padding: '0.7rem 1.2rem', minHeight: '52px',
+                                        fontSize: '1rem', fontWeight: 600,
+                                        opacity: busy || nameFor(g).trim() === g.name ? 0.5 : 1,
+                                        cursor: busy || nameFor(g).trim() === g.name ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Renombrar
+                                </button>
+                                <button
+                                    onClick={() => run(g.id, () => deleteSalonGroup(g.id))}
+                                    disabled={busy}
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                        borderRadius: '8px', padding: '0.7rem 1.1rem', minHeight: '52px',
+                                        fontSize: '1rem', fontWeight: 600, color: 'var(--danger)',
+                                        background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                                        border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
+                                        cursor: busy ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    <Trash2 size={18} />
+                                    <span>Borrar</span>
+                                </button>
+                            </div>
+                            {errors[g.id] && (
+                                <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1rem' }}>{errors[g.id]}</p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input
+                            type="text"
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            placeholder="Nueva categoría"
+                            style={{ ...inputStyle, flex: '1 1 220px', width: 'auto' }}
+                        />
+                        <button
+                            onClick={async () => {
+                                const ok = await run('new', () => createSalonGroup(newName));
+                                if (ok) setNewName('');
+                            }}
+                            disabled={busy || !newName.trim()}
+                            className="btn-primary"
+                            style={{
+                                borderRadius: '8px', padding: '0.7rem 1.4rem', minHeight: '52px',
+                                fontSize: '1rem', fontWeight: 600,
+                                opacity: busy || !newName.trim() ? 0.5 : 1,
+                                cursor: busy || !newName.trim() ? 'not-allowed' : 'pointer'
+                            }}
+                        >
+                            Añadir
+                        </button>
+                    </div>
+                    {addError && (
+                        <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1rem' }}>{addError}</p>
+                    )}
+                </div>
+
+                <button
+                    onClick={onClose}
+                    disabled={busy}
+                    className="btn-secondary"
+                    style={{
+                        alignSelf: 'flex-start',
+                        borderRadius: '8px', padding: '0.9rem 1.6rem', minHeight: '56px',
+                        fontSize: '1.1rem', fontWeight: 600,
+                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                        cursor: busy ? 'not-allowed' : 'pointer'
+                    }}
+                >
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    );
+}
+
 function AdminSalonView() {
     const { isAdmin } = useAdmin();
     const [isImportOpen, setIsImportOpen] = useState(false);
@@ -93,6 +263,9 @@ function AdminSalonView() {
     const [editError, setEditError] = useState<string | null>(null);
 
     const [pushResults, setPushResults] = useState<Record<string, PushResult>>({});
+
+    const [groups, setGroups] = useState<SalonGroupRow[]>([]);
+    const [isGroupsOpen, setIsGroupsOpen] = useState(false);
 
     const [isSyncConfirmOpen, setIsSyncConfirmOpen] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -144,7 +317,16 @@ function AdminSalonView() {
         }
     }, []);
 
+    const loadGroups = useCallback(async () => {
+        try {
+            setGroups(await getSalonGroups());
+        } catch (e) {
+            console.error('Failed to load salon groups:', e);
+        }
+    }, []);
+
     useEffect(() => { loadSalon(); }, [loadSalon]);
+    useEffect(() => { loadGroups(); }, [loadGroups]);
 
     const handleToggleImport = () => {
         const next = !isImportOpen;
@@ -358,6 +540,23 @@ function AdminSalonView() {
                             <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar con Clover'}</span>
                         </button>
                     )}
+
+                    {isAdmin && (
+                        <button
+                            onClick={() => setIsGroupsOpen(true)}
+                            className="btn-secondary"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
+                                fontSize: '1.1rem', fontWeight: 600,
+                                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <Tags size={20} />
+                            <span>Categorías</span>
+                        </button>
+                    )}
                 </div>
 
                 {syncError && (
@@ -565,13 +764,22 @@ function AdminSalonView() {
                                                                             />
                                                                         </Field>
                                                                         <Field label="Grupo" wide>
-                                                                            <input
-                                                                                type="text"
+                                                                            <select
                                                                                 value={draft.salonGroup}
                                                                                 onChange={e => setDraft({ ...draft, salonGroup: e.target.value })}
-                                                                                placeholder="Escribe un grupo nuevo si hace falta"
-                                                                                style={inputStyle}
-                                                                            />
+                                                                                style={{ ...inputStyle, cursor: 'pointer' }}
+                                                                            >
+                                                                                <option value="">Sin grupo</option>
+                                                                                {/* A stored group that is not in the managed list yet still
+                                                                                    needs to be selectable, or saving would silently move
+                                                                                    the item out of it. */}
+                                                                                {draft.salonGroup && !groups.some(g => g.name === draft.salonGroup) && (
+                                                                                    <option value={draft.salonGroup}>{draft.salonGroup}</option>
+                                                                                )}
+                                                                                {groups.map(g => (
+                                                                                    <option key={g.id} value={g.name}>{g.name}</option>
+                                                                                ))}
+                                                                            </select>
                                                                         </Field>
                                                                         <Field label="Bodega">
                                                                             <input
@@ -744,6 +952,17 @@ function AdminSalonView() {
                     </div>
                 )}
             </div>
+
+            {isAdmin && isGroupsOpen && (
+                <GroupsModal
+                    groups={groups}
+                    onChanged={loadGroups}
+                    onClose={async () => {
+                        setIsGroupsOpen(false);
+                        await Promise.all([loadGroups(), loadSalon()]);
+                    }}
+                />
+            )}
 
             {/* Confirmación de sincronización desde Clover */}
             {isAdmin && isSyncConfirmOpen && (
