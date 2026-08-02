@@ -116,6 +116,7 @@ model SalonStock {
   parFront         Int        @default(0)
   unitsPerPack     Int        @default(24)
   salePrice        Int        @default(0)   // sell price in integer cents, mirrors Clover's price format
+  salonGroup       String     @default("Refrescos")   // display grouping in the salon inventory table
   cloverItemId     String?
   lastCloverSyncAt DateTime?
   createdAt        DateTime   @default(now())
