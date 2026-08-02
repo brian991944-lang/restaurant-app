@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { getConversionFactor } from '@/lib/conversion';
 import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
+import { pushSalonItemToClover } from '@/app/actions/clover';
 
 async function translateToSpanish(text: string): Promise<string> {
     if (!text) return text;
@@ -154,6 +155,86 @@ export async function updateSalonStock(
         }
         return { success: false, error: 'Error al guardar los cambios.' };
     }
+}
+
+/**
+ * Move stock from the bodega to the front of house.
+ *
+ * Clover is updated BEFORE the database: the push is verified against Clover's
+ * read-back, and only a confirmed match commits the local move. A failed or
+ * mismatched push leaves the database completely untouched, so the app never
+ * claims a transfer Clover did not accept.
+ */
+export async function restockSalonItem(
+    ingredientId: string,
+    quantity: number,
+    employeeId: string | null,
+    employeeName: string | null
+): Promise<{ success: boolean; error: string | null }> {
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+        return { success: false, error: 'La cantidad debe ser un número entero positivo.' };
+    }
+
+    let stock;
+    try {
+        stock = await prisma.salonStock.findUnique({ where: { ingredientId } });
+    } catch (e) {
+        return {
+            success: false,
+            error: `No se pudo leer el stock del salón: ${e instanceof Error ? e.message : String(e)}`
+        };
+    }
+
+    if (!stock) {
+        return { success: false, error: 'Este producto no tiene fila de stock del salón.' };
+    }
+    if (quantity > stock.qtyBodega) {
+        return {
+            success: false,
+            error: `No hay suficiente en Bodega: se pidieron ${quantity} y hay ${stock.qtyBodega} disponibles.`
+        };
+    }
+
+    const qtyFrontAfter = stock.qtyFront + quantity;
+    const qtyBodegaAfter = stock.qtyBodega - quantity;
+
+    // Clover first. Nothing is written locally unless this confirms.
+    const push = await pushSalonItemToClover(ingredientId, qtyFrontAfter);
+    if (!push.success) {
+        return {
+            success: false,
+            error: push.error ?? 'Clover no confirmó el cambio; no se guardó nada.'
+        };
+    }
+
+    try {
+        await prisma.$transaction([
+            prisma.salonStock.update({
+                where: { ingredientId },
+                data: { qtyFront: qtyFrontAfter, qtyBodega: qtyBodegaAfter }
+            }),
+            prisma.salonRestock.create({
+                data: {
+                    ingredientId,
+                    quantity,
+                    qtyFrontBefore: stock.qtyFront,
+                    qtyFrontAfter,
+                    qtyBodegaBefore: stock.qtyBodega,
+                    qtyBodegaAfter,
+                    employeeId,
+                    employeeName
+                }
+            })
+        ]);
+    } catch (e) {
+        return {
+            success: false,
+            error: `Clover se actualizó, pero falló el guardado local: ${e instanceof Error ? e.message : String(e)}`
+        };
+    }
+
+    revalidatePath('/[locale]/inventory-salon');
+    return { success: true, error: null };
 }
 
 export async function getProviders() {

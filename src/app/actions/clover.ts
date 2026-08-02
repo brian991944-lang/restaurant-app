@@ -405,8 +405,12 @@ export async function getLastSyncTime() {
  *
  * Only qtyFront is written to stockCount — the bodega count is deliberately
  * excluded, since Clover tracks what is sellable on the floor.
+ *
+ * `stockCountOverride` lets a caller push a count the database does not hold
+ * yet — used by the restock flow, which must confirm Clover before committing
+ * locally. Omitted, the stored qtyFront is used and behaviour is unchanged.
  */
-export async function pushSalonItemToClover(ingredientId: string): Promise<{
+export async function pushSalonItemToClover(ingredientId: string, stockCountOverride?: number): Promise<{
     success: boolean;
     error: string | null;
     echo: {
@@ -451,6 +455,9 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
 
     const cloverId = ingredient.cloverId;
     const stock = ingredient.salonStock;
+    // The count actually sent and verified — the override when given, otherwise
+    // whatever the database currently holds.
+    const targetStockCount = stockCountOverride !== undefined ? stockCountOverride : stock.qtyFront;
 
     // Step 1 — name, price and stock-control mode. salePrice is already
     // integer cents, sent as-is.
@@ -476,7 +483,7 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
     try {
         await cloverFetch(`/item_stocks/${cloverId}`, {
             method: 'PUT',
-            body: JSON.stringify({ stockCount: stock.qtyFront })
+            body: JSON.stringify({ stockCount: targetStockCount })
         });
     } catch (e) {
         return {
@@ -528,8 +535,8 @@ export async function pushSalonItemToClover(ingredientId: string): Promise<{
     if (echo.price !== stock.salePrice) {
         mismatches.push(`precio (enviado ${stock.salePrice}, Clover devolvió ${echo.price})`);
     }
-    if (echo.stockCount !== stock.qtyFront) {
-        mismatches.push(`stock (enviado ${stock.qtyFront}, Clover devolvió ${echo.stockCount === null ? 'null' : echo.stockCount})`);
+    if (echo.stockCount !== targetStockCount) {
+        mismatches.push(`stock (enviado ${targetStockCount}, Clover devolvió ${echo.stockCount === null ? 'null' : echo.stockCount})`);
     }
     if (echo.autoManage !== stock.autoManage) {
         mismatches.push(`control de stock (enviado ${stock.autoManage}, Clover devolvió ${echo.autoManage})`);

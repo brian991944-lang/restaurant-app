@@ -84,6 +84,7 @@ model Ingredient {
 
   inventory         Inventory?
   salonStock        SalonStock?
+  salonRestocks     SalonRestock[]
   transactions      InventoryTransaction[]
   recipeIngredients RecipeIngredient[]
   prepAssignments   PrepAssignment[]
@@ -122,6 +123,20 @@ model SalonStock {
   lastCloverSyncAt DateTime?
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
+}
+
+model SalonRestock {
+  id             String   @id @default(cuid())
+  ingredientId   String
+  ingredient     Ingredient @relation(fields: [ingredientId], references: [id])
+  quantity       Int
+  qtyFrontBefore Int
+  qtyFrontAfter  Int
+  qtyBodegaBefore Int
+  qtyBodegaAfter Int
+  employeeId     String?
+  employeeName   String?
+  createdAt      DateTime @default(now())
 }
 
 model ProcessedCloverLineItem {
