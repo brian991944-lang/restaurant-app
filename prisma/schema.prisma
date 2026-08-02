@@ -17,11 +17,13 @@ model User {
   passwordHash String?
   role         String   @default("KITCHEN") // KITCHEN, SALON, ADMIN
   isActive     Boolean  @default(true)
+  cloverEmployeeId String? @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   prepAssignments      PrepAssignment[]
   completedAssignments PrepAssignmentCompletedBy[]
+  tipEntries           TipShiftEntry[]
 }
 
 model Provider {
@@ -565,4 +567,93 @@ model ShiftDeferral {
   plannedFor  String    // ESTA_NOCHE | PROXIMA_APERTURA
   resolvedAt  DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// ─────────────────────────────────────────────────────────────
+// Daily tip distribution
+// Worker identity is the Clover employeeId string, matching
+// ShiftRunStaff and SalonRestock. TipShiftEntry.userId is an
+// optional bridge to User for future payroll rollup.
+// ─────────────────────────────────────────────────────────────
+
+enum TipDayStatus {
+  BORRADOR
+  ENVIADO
+}
+
+enum TipEntryRole {
+  MESERO
+  BUSSER
+}
+
+enum TipTargetField {
+  CREDIT_TIPS
+  SERVICE_CHARGE
+  CASH_TIPS
+}
+
+model TipDay {
+  id                  String              @id @default(cuid())
+  businessDate        DateTime            @unique @db.Date
+  cloverCreditTips    Decimal?            @db.Decimal(10,2)
+  cloverServiceCharge Decimal?            @db.Decimal(10,2)
+  cloverSyncedAt      DateTime?
+  totalCreditTips     Decimal             @db.Decimal(10,2) @default(0)
+  totalServiceCharge  Decimal             @db.Decimal(10,2) @default(0)
+  totalCashTips       Decimal             @db.Decimal(10,2) @default(0)
+  status              TipDayStatus        @default(BORRADOR)
+  submittedAt         DateTime?
+  submittedByCloverId String?
+  submittedByName     String?
+  shifts              TipShift[]
+  overrides           TipTargetOverride[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  @@index([businessDate])
+}
+
+model TipTargetOverride {
+  id                String         @id @default(cuid())
+  tipDayId          String
+  tipDay            TipDay         @relation(fields: [tipDayId], references: [id], onDelete: Cascade)
+  field             TipTargetField
+  previousValue     Decimal        @db.Decimal(10,2)
+  newValue          Decimal        @db.Decimal(10,2)
+  reason            String?
+  changedByCloverId String
+  changedByName     String
+  createdAt         DateTime       @default(now())
+  @@index([tipDayId])
+}
+
+model TipShift {
+  id         String          @id @default(cuid())
+  tipDayId   String
+  tipDay     TipDay          @relation(fields: [tipDayId], references: [id], onDelete: Cascade)
+  orderIndex Int
+  entries    TipShiftEntry[]
+  createdAt  DateTime        @default(now())
+  @@unique([tipDayId, orderIndex])
+}
+
+model TipShiftEntry {
+  id                          String       @id @default(cuid())
+  tipShiftId                  String
+  tipShift                    TipShift     @relation(fields: [tipShiftId], references: [id], onDelete: Cascade)
+  cloverEmployeeId            String
+  employeeName                String
+  userId                      String?
+  user                        User?        @relation(fields: [userId], references: [id])
+  role                        TipEntryRole
+  creditTips                  Decimal      @db.Decimal(10,2) @default(0)
+  serviceCharge               Decimal      @db.Decimal(10,2) @default(0)
+  cashTips                    Decimal?     @db.Decimal(10,2)
+  cashZeroConfirmedByCloverId String?
+  cashZeroConfirmedByName     String?
+  cashZeroConfirmedAt         DateTime?
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
+  @@unique([tipShiftId, cloverEmployeeId])
+  @@index([cloverEmployeeId])
+  @@index([userId])
 }
