@@ -58,6 +58,23 @@ export async function getInventory(
     });
 }
 
+/**
+ * Salón stock list for the salón admin view. Deliberately unfiltered on
+ * isActive: disabled items still need to be visible and manageable there.
+ * salonStock is a nullable relation — an ingredient imported before its stock
+ * row existed comes back with salonStock null.
+ */
+export async function getSalonStock() {
+    return prisma.ingredient.findMany({
+        where: { isSalonItem: true },
+        orderBy: { name: 'asc' },
+        include: {
+            salonStock: true,
+            category: true
+        }
+    });
+}
+
 export async function getProviders() {
     return prisma.provider.findMany({
         include: {
