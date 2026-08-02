@@ -176,6 +176,11 @@
     "submitted": "Enviado",
     "submitted_by": "Enviado por",
     "no_entries": "No hay nadie registrado en este turno.",
-    "no_day_yet": "Todavía no se ha empezado el reparto de propinas de hoy."
+    "no_day_yet": "Todavía no se ha empezado el reparto de propinas de hoy.",
+    "save": "Guardar",
+    "saving": "Guardando...",
+    "unsaved": "Sin guardar",
+    "choose_person": "Elegir persona",
+    "unsaved_warning": "Hay filas sin guardar."
   }
 }

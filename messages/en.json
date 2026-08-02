@@ -176,6 +176,11 @@
     "submitted": "Submitted",
     "submitted_by": "Submitted by",
     "no_entries": "Nobody is recorded in this shift.",
-    "no_day_yet": "Today's tip distribution has not been started yet."
+    "no_day_yet": "Today's tip distribution has not been started yet.",
+    "save": "Save",
+    "saving": "Saving...",
+    "unsaved": "Unsaved",
+    "choose_person": "Choose person",
+    "unsaved_warning": "There are unsaved rows."
   }
 }
