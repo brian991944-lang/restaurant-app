@@ -7,6 +7,12 @@ interface DatePickerProps {
     value: string;
     onChange: (v: string) => void;
     locale: 'es' | 'en';
+    /**
+     * Latest selectable date, 'YYYY-MM-DD'. Omitted, the picker is unbounded
+     * and behaves exactly as it always has — prep is scheduled forward, so its
+     * callers must keep being able to pick future days.
+     */
+    max?: string;
 }
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -25,7 +31,7 @@ function parseYMD(s: string): Date {
     return new Date(`${s}T12:00:00`);
 }
 
-export function DatePicker({ value, onChange, locale }: DatePickerProps) {
+export function DatePicker({ value, onChange, locale, max }: DatePickerProps) {
     const [open, setOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const init = value ? parseYMD(value) : new Date();
@@ -72,6 +78,15 @@ export function DatePicker({ value, onChange, locale }: DatePickerProps) {
         else setViewMonth(m => m + 1);
     };
 
+    /** String comparison is safe here: 'YYYY-MM-DD' sorts chronologically. */
+    const beyondMax = (dateStr: string) => !!max && dateStr > max;
+    // The whole of next month is out of range exactly when its first day is.
+    const nextMonthDisabled = beyondMax(toYMD(new Date(viewYear, viewMonth + 1, 1)));
+    // toYMD reads the device's calendar date, which is not the same thing as a
+    // caller's business date — between midnight and the cutover the two differ,
+    // and the shortcut would emit a date the caller just said was too late.
+    const todayDisabled = beyondMax(todayStr);
+
     const formatDisplay = (v: string) => {
         if (!v) return locale === 'es' ? 'Seleccionar fecha' : 'Select date';
         const d = parseYMD(v);
@@ -105,7 +120,7 @@ export function DatePicker({ value, onChange, locale }: DatePickerProps) {
                         <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
                             {months[viewMonth]} {viewYear}
                         </span>
-                        <button onClick={nextMonth} style={{ padding: '0.3rem', borderRadius: '6px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center' }}>
+                        <button onClick={nextMonth} disabled={nextMonthDisabled} style={{ padding: '0.3rem', borderRadius: '6px', border: 'none', background: 'transparent', cursor: nextMonthDisabled ? 'not-allowed' : 'pointer', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', opacity: nextMonthDisabled ? 0.3 : undefined }}>
                             <ChevronRight size={18} />
                         </button>
                     </div>
@@ -124,13 +139,15 @@ export function DatePicker({ value, onChange, locale }: DatePickerProps) {
                             const dateStr = toYMD(cell.date);
                             const isSelected = dateStr === value;
                             const isToday = dateStr === todayStr;
+                            const outOfRange = beyondMax(dateStr);
                             return (
                                 <button
                                     key={i}
                                     onClick={() => { onChange(toYMD(cell.date!)); setOpen(false); }}
-                                    style={{ padding: '0.4rem', borderRadius: '6px', border: isToday && !isSelected ? '1.5px solid var(--accent-primary)' : '1.5px solid transparent', background: isSelected ? 'var(--accent-primary)' : 'transparent', color: isSelected ? '#fff' : 'var(--text-primary)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: isSelected ? 600 : 400, textAlign: 'center', transition: 'background 0.1s' }}
-                                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(59,130,246,0.15)'; }}
-                                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                                    disabled={outOfRange}
+                                    style={{ padding: '0.4rem', borderRadius: '6px', border: isToday && !isSelected ? '1.5px solid var(--accent-primary)' : '1.5px solid transparent', background: isSelected ? 'var(--accent-primary)' : 'transparent', color: isSelected ? '#fff' : 'var(--text-primary)', cursor: outOfRange ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: isSelected ? 600 : 400, textAlign: 'center', transition: 'background 0.1s', opacity: outOfRange ? 0.3 : undefined }}
+                                    onMouseEnter={e => { if (!isSelected && !outOfRange) e.currentTarget.style.background = 'rgba(59,130,246,0.15)'; }}
+                                    onMouseLeave={e => { if (!isSelected && !outOfRange) e.currentTarget.style.background = 'transparent'; }}
                                 >
                                     {cell.dayNum}
                                 </button>
@@ -140,7 +157,7 @@ export function DatePicker({ value, onChange, locale }: DatePickerProps) {
 
                     {/* Footer quick links */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-                        <button onClick={() => { onChange(todayStr); setOpen(false); }} style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+                        <button onClick={() => { onChange(todayStr); setOpen(false); }} disabled={todayDisabled} style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', background: 'transparent', border: 'none', cursor: todayDisabled ? 'not-allowed' : 'pointer', fontWeight: 500, opacity: todayDisabled ? 0.3 : undefined }}>
                             {locale === 'es' ? 'Hoy' : 'Today'}
                         </button>
                         <button onClick={() => { onChange(''); setOpen(false); }} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', background: 'transparent', border: 'none', cursor: 'pointer' }}>

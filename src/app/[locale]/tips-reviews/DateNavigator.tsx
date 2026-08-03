@@ -1,8 +1,9 @@
 'use client';
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { DatePicker } from '@/components/ui/DatePicker';
 
 /**
  * Move a 'YYYY-MM-DD' date by whole days.
@@ -28,6 +29,7 @@ const control: React.CSSProperties = {
 
 export default function DateNavigator({ date, today }: { date: string; today: string }) {
     const t = useTranslations('Tips');
+    const locale = useLocale();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -59,18 +61,15 @@ export default function DateNavigator({ date, today }: { date: string; today: st
                 <ChevronLeft size={18} />
             </button>
 
-            <input
-                type="date"
+            {/* The same picker the prep schedule uses, bounded: the business day
+                is as far forward as there is anything to look at, and a future
+                day could only ever be empty. Permanently visible — there is no
+                mode toggle here for it to hide behind. */}
+            <DatePicker
                 value={date}
-                // The business day is as far forward as there is anything to
-                // look at; a future day could only ever be empty.
+                onChange={go}
                 max={today}
-                onChange={e => go(e.target.value)}
-                style={{
-                    minHeight: '52px', padding: '0 0.8rem', borderRadius: '8px',
-                    fontSize: '1rem', color: 'var(--text-primary)',
-                    background: 'var(--bg-primary)', border: '1px solid var(--border)'
-                }}
+                locale={locale === 'es' ? 'es' : 'en'}
             />
 
             <button
