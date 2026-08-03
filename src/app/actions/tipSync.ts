@@ -100,13 +100,11 @@ async function mapWithConcurrency<T>(
  * Read one operational day's card tips and service charges out of Clover and
  * cache them against the TipDay.
  *
- * The sync PROPOSES. It writes the clover* columns and refreshes the
- * per-employee cache, and it never touches totalCreditTips,
- * totalServiceCharge or totalCashTips — those are the reconciliation targets
- * the distribution is checked against, and moving them from here would change
- * what the staff are being asked to account for without anybody deciding to.
- * Promoting a synced figure to a target goes through setTipTargets, which
- * writes an audit row.
+ * Clover is authoritative for the two card figures: this sets
+ * totalCreditTips and totalServiceCharge directly, so the day is reconciled
+ * against what the POS actually settled rather than against a number somebody
+ * typed. totalCashTips is never written here — cash does not pass through
+ * Clover, and the only people who know it are the ones counting it.
  */
 export async function syncCloverTips(businessDate?: string): Promise<{
     success: boolean;
@@ -297,7 +295,24 @@ export async function syncCloverTips(businessDate?: string): Promise<{
             cloverSyncedAt: syncedAt,
             cloverSyncDurationMs: durationMs,
             cloverOrdersScanned: orderIds.length,
-            cloverPaymentsScanned: payments.length
+            cloverPaymentsScanned: payments.length,
+
+            // Clover is AUTHORITATIVE for these two. Card tips and the service
+            // charge are what the POS settled; there is no version of them a
+            // person should be typing in, so the sync sets the reconciliation
+            // targets outright rather than proposing them.
+            //
+            // The manual "use this value" override was removed deliberately —
+            // it existed when these were proposals, and leaving it would have
+            // meant a hand-entered target that the next sync silently replaced.
+            // Editing a submitted day still goes through
+            // adminUpdateSubmittedDay, which audits.
+            //
+            // totalCashTips is NOT set here and must not be: cash never passes
+            // through Clover, so the only source for it is the people counting
+            // it. It is recorded per person and no longer reconciled at all.
+            totalCreditTips: money(cardTipsCents),
+            totalServiceCharge: money(serviceChargeCents)
         };
 
         await prisma.$transaction(async tx => {
@@ -310,8 +325,6 @@ export async function syncCloverTips(businessDate?: string): Promise<{
                     // least one shift, so the editor never opens empty.
                     shifts: { create: { orderIndex: 0 } }
                 },
-                // Only the clover* columns move. The totals are the targets and
-                // are not the sync's to set.
                 update: cloverFields,
                 select: { id: true }
             });

@@ -102,10 +102,9 @@ export default async function TipsReviewsPage() {
                             value={formatMoney(toCents(day.totalServiceCharge))}
                             note={day.cloverSyncedAt ? t('clover_synced') : undefined}
                         />
-                        <MetricCard
-                            label={t('total_cash')}
-                            value={formatMoney(toCents(day.totalCashTips))}
-                        />
+                        {/* No cash card: cash has no day total to show. It is
+                            recorded per person in the shift tables and is not
+                            reconciled against anything. */}
                     </div>
 
                     {staffError && (

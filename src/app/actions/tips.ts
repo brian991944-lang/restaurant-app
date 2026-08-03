@@ -62,11 +62,19 @@ async function findReconciliationError(
         return 'No hay ninguna persona registrada en el día.';
     }
 
+    // An uncounted row still blocks submission. This is not a reconciliation —
+    // there is nothing to reconcile cash against — it is the requirement that
+    // somebody actually answered the question for every person.
     const missing = entries.find(({ entry }) => entry.cashTips === null);
     if (missing) {
         return `Falta confirmar la propina en efectivo de ${missing.entry.employeeName} en ${shiftLabel(missing.shift.orderIndex)}.`;
     }
 
+    // Only the two card figures are reconciled. Both come from Clover, which
+    // settled them, so a mismatch means the distribution is wrong rather than
+    // that the target might be. Cash has no such counterpart — it never passes
+    // through the POS — so summing it against totalCashTips would only be
+    // checking the staff's arithmetic against their own number.
     const checks: { label: string; sum: number; target: number }[] = [
         {
             label: 'las propinas con tarjeta',
@@ -77,11 +85,6 @@ async function findReconciliationError(
             label: 'el cargo por servicio',
             sum: sumCents(entries.map(({ entry }) => toCents(dec(entry.serviceCharge)))),
             target: toCents(dec(day.totalServiceCharge))
-        },
-        {
-            label: 'las propinas en efectivo',
-            sum: sumCents(entries.map(({ entry }) => toCents(decOrNull(entry.cashTips) ?? 0))),
-            target: toCents(dec(day.totalCashTips))
         }
     ];
 

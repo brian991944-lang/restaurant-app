@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { saveShift, addShift, removeShift, setTipTargets } from '@/app/actions/tips';
+import { saveShift, addShift, removeShift } from '@/app/actions/tips';
 import { syncCloverTips } from '@/app/actions/tipSync';
 // Type-only: avoids shipping a client reference to an action never called here.
 import type { getTipDay } from '@/app/actions/tips';
@@ -155,17 +155,6 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
     const [syncing, setSyncing] = useState(false);
     const [syncError, setSyncError] = useState<string | null>(null);
     const [syncSummary, setSyncSummary] = useState<string | null>(null);
-
-    /**
-     * Who is adopting a Clover figure. setTipTargets writes an audit row and
-     * will not accept an anonymous change, and the per-shift filler cannot
-     * stand in for it — this is a day-level decision, and attributing it to
-     * whoever happened to fill shift 1 would put a name on something they did
-     * not do.
-     */
-    const [targetActor, setTargetActor] = useState('');
-    const [targetBusy, setTargetBusy] = useState<string | null>(null);
-    const [targetError, setTargetError] = useState<string | null>(null);
 
     const [breakdownOpen, setBreakdownOpen] = useState(false);
 
@@ -369,36 +358,29 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
         return toCents(d[field]);
     };
 
-    // `clover` is what the last sync reported, in cents, or null when Clover has
-    // nothing to say — it never reports cash.
-    const columns = [
-        {
-            key: 'credit' as const,
-            label: t('credit_tips'),
-            target: toCents(day.totalCreditTips),
-            clover: day.cloverCreditTips === null ? null : toCents(day.cloverCreditTips),
-            field: 'CREDIT_TIPS' as const
-        },
-        {
-            key: 'service' as const,
-            label: t('service_charge'),
-            target: toCents(day.totalServiceCharge),
-            clover: day.cloverServiceCharge === null ? null : toCents(day.cloverServiceCharge),
-            field: 'SERVICE_CHARGE' as const
-        },
-        {
-            key: 'cash' as const,
-            label: t('cash'),
-            target: toCents(day.totalCashTips),
-            clover: null,
-            field: 'CASH_TIPS' as const
-        }
+    /**
+     * The three money columns of a shift table. Cash is here because it is
+     * recorded per person — it is simply not reconciled against anything.
+     */
+    const moneyColumns = [
+        { key: 'credit' as const, label: t('credit_tips') },
+        { key: 'service' as const, label: t('service_charge') },
+        { key: 'cash' as const, label: t('cash') }
     ];
 
-    /** Columns where Clover disagrees with the target, and can be adopted. */
-    const adoptable = readOnly
-        ? []
-        : columns.filter(c => c.clover !== null && c.clover !== c.target);
+    /**
+     * What the day is reconciled against. Card tips and the service charge come
+     * from Clover, which settled them, so the target is not open to argument.
+     *
+     * Cash is deliberately absent: it never passes through Clover, so there is
+     * no independent figure to check the count against. It is recorded, and an
+     * uncounted row still blocks submission, but there is no total for it to
+     * fail to add up to.
+     */
+    const balanceColumns = [
+        { key: 'credit' as const, label: t('credit_tips'), target: toCents(day.totalCreditTips) },
+        { key: 'service' as const, label: t('service_charge'), target: toCents(day.totalServiceCharge) }
+    ];
 
     const handleSync = async () => {
         setSyncing(true);
@@ -429,39 +411,6 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
         }
     };
 
-    const handleUseClover = async (column: typeof columns[number]) => {
-        if (column.clover === null) return;
-        setTargetError(null);
-
-        const person = staff.find(s => s.id === targetActor);
-        if (!targetActor) {
-            setTargetError(t('changed_by_prompt'));
-            return;
-        }
-
-        setTargetBusy(column.key);
-        try {
-            const result = await setTipTargets(
-                day.id,
-                column.field,
-                // The action takes an amount, not cents.
-                column.clover / 100,
-                targetActor,
-                person?.name ?? '',
-                t('clover_says')
-            );
-            if (!result.success) {
-                setTargetError(result.error ?? t('sync_failed'));
-                return;
-            }
-            router.refresh();
-        } catch (e) {
-            setTargetError(e instanceof Error ? e.message : t('sync_failed'));
-        } finally {
-            setTargetBusy(null);
-        }
-    };
-
     const roleLabel = (role: Role) => (role === 'MESERO' ? t('mesero') : t('busser'));
 
     const allRows = day.shifts.flatMap(s => shiftRows(s.id));
@@ -472,94 +421,29 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
             {/* Balances sit above the shifts: they are what the day is judged on,
                 and they have to stay readable while rows are being typed. */}
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {columns.map(c => {
+                {balanceColumns.map(c => {
                     const distributed = sumCents(allRows.map(r => liveCents(r, c.key) ?? 0));
                     const diff = c.target - distributed;
-                    const cloverDiffers = c.clover !== null && c.clover !== c.target;
                     return (
-                        <div key={c.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.label}</span>
-                                <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                                    {formatMoney(distributed)} / {formatMoney(c.target)}
+                        <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.label}</span>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                                {formatMoney(distributed)} / {formatMoney(c.target)}
+                            </span>
+                            {diff === 0 ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)', fontWeight: 600 }}>
+                                    <CheckCircle2 size={18} />
+                                    {t('balanced')}
                                 </span>
-                                {diff === 0 ? (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)', fontWeight: 600 }}>
-                                        <CheckCircle2 size={18} />
-                                        {t('balanced')}
-                                    </span>
-                                ) : (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: diff < 0 ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>
-                                        <AlertTriangle size={18} />
-                                        {diff < 0 ? t('excess') : t('remaining')}: {formatMoney(Math.abs(diff))}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Clover's figure only appears when it disagrees with the
-                                target — agreement needs no comment, and adopting a
-                                value identical to the current one would write a
-                                pointless audit row. */}
-                            {cloverDiffers && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', paddingLeft: '0.1rem' }}>
-                                    <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                                        {t('clover_says')}: {formatMoney(c.clover as number)}
-                                    </span>
-                                    {!readOnly && (
-                                        <button
-                                            onClick={() => handleUseClover(c)}
-                                            disabled={targetBusy !== null}
-                                            style={{
-                                                minHeight: '40px', padding: '0 0.9rem', borderRadius: '8px',
-                                                fontSize: '0.95rem', fontWeight: 600,
-                                                color: 'var(--text-secondary)',
-                                                background: 'rgba(255,255,255,0.05)',
-                                                border: '1px solid var(--border)',
-                                                cursor: targetBusy !== null ? 'not-allowed' : 'pointer',
-                                                opacity: targetBusy === c.key ? 0.5 : 1
-                                            }}
-                                        >
-                                            {targetBusy === c.key ? t('saving') : t('use_clover_value')}
-                                        </button>
-                                    )}
-                                </div>
+                            ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: diff < 0 ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>
+                                    <AlertTriangle size={18} />
+                                    {diff < 0 ? t('excess') : t('remaining')}: {formatMoney(Math.abs(diff))}
+                                </span>
                             )}
                         </div>
                     );
                 })}
-
-                {/* Only asked for when there is actually something to adopt. */}
-                {adoptable.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                            {t('changed_by_prompt')}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                            {staff.map(person => {
-                                const isOn = targetActor === person.id;
-                                return (
-                                    <button
-                                        key={person.id}
-                                        onClick={() => setTargetActor(person.id)}
-                                        style={{
-                                            padding: '0.6rem 1.1rem', minHeight: '48px',
-                                            borderRadius: '999px', fontSize: '1rem', fontWeight: 600,
-                                            cursor: 'pointer',
-                                            color: isOn ? 'white' : 'var(--text-secondary)',
-                                            background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                                            border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
-                                        }}
-                                    >
-                                        {person.name}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                        {targetError && (
-                            <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1rem' }}>{targetError}</p>
-                        )}
-                    </div>
-                )}
 
                 {/* Sync sits with the balances because that is what it moves. */}
                 <div style={{
@@ -830,7 +714,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                         <td style={{ ...cell, fontWeight: 700, color: 'var(--text-primary)' }} colSpan={2}>
                                             {t('subtotal')}
                                         </td>
-                                        {columns.map(c => {
+                                        {moneyColumns.map(c => {
                                             const values = list.map(r => liveCents(r, c.key));
                                             const hasUncounted = values.some(v => v === null);
                                             const sum = sumCents(values.map(v => v ?? 0));
