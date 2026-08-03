@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { saveShift } from '@/app/actions/tips';
+import { AlertTriangle, CheckCircle2, Plus, Trash2 } from 'lucide-react';
+import { saveShift, addShift, removeShift } from '@/app/actions/tips';
 // Type-only: avoids shipping a client reference to an action never called here.
 import type { getTipDay } from '@/app/actions/tips';
 import { toCents, sumCents, formatMoney } from '@/lib/money';
@@ -14,8 +15,15 @@ type TipEntry = TipShift['entries'][number];
 type StaffMember = { id: string; name: string };
 type Role = TipEntry['role'];
 
-/** What the user is currently looking at for one row. Money stays as typed. */
+/**
+ * What the user is currently looking at for one row. Money stays as typed.
+ *
+ * `key` is a client-side identity, not a database one: a row exists on screen
+ * before it exists in the database, and saveShift matches on cloverEmployeeId
+ * rather than on an entry id, so nothing here needs the row's id.
+ */
 interface RowDraft {
+    key: string;
     cloverEmployeeId: string;
     employeeName: string;
     role: Role;
@@ -38,23 +46,36 @@ const inputStyle: React.CSSProperties = {
     border: '1px solid var(--border)'
 };
 
-/** Five columns in both states, so submitted and draft days align identically. */
-function ShiftColGroup() {
+/** Neutral pill used by every non-primary control on the page. */
+const quietButton: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+    minHeight: '52px', padding: '0 1.1rem', borderRadius: '8px',
+    fontSize: '1.05rem', fontWeight: 600, cursor: 'pointer',
+    color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)',
+    border: '1px solid var(--border)'
+};
+
+/**
+ * The five data columns are identical in both states, so a submitted day and a
+ * draft day line up. Editing adds a sixth, narrow column for the row's remove
+ * button; the money columns give up the room rather than the role column,
+ * which has to keep fitting "Mesero" on its button at tablet portrait (768px).
+ */
+function ShiftColGroup({ withActions }: { withActions: boolean }) {
     return (
         <colgroup>
-            <col style={{ width: '23%' }} />
-            {/* Widest column: two side-by-side buttons whose labels are full
-                words. Sized so "Mesero" clears its button at tablet portrait
-                (768px) — see the money columns, which give up the room. */}
+            <col style={{ width: withActions ? '21%' : '23%' }} />
             <col style={{ width: '26%' }} />
-            <col style={{ width: '17%' }} />
-            <col style={{ width: '17%' }} />
-            <col style={{ width: '17%' }} />
+            <col style={{ width: withActions ? '15%' : '17%' }} />
+            <col style={{ width: withActions ? '15%' : '17%' }} />
+            <col style={{ width: withActions ? '15%' : '17%' }} />
+            {withActions && <col style={{ width: '8%' }} />}
         </colgroup>
     );
 }
 
-const draftFromEntry = (e: TipEntry): RowDraft => ({
+const rowFromEntry = (e: TipEntry): RowDraft => ({
+    key: e.id,
     cloverEmployeeId: e.cloverEmployeeId,
     employeeName: e.employeeName,
     role: e.role,
@@ -68,9 +89,10 @@ const cashOf = (d: RowDraft): number | null => (d.cash.trim() === '' ? null : to
 
 /**
  * Comparable form of a row. Money is compared in cents, so re-typing '30' over
- * '30.00' does not mark the shift dirty — only a real change does.
+ * '30.00' does not mark the shift dirty — only a real change does. The key is
+ * left out: it identifies the row on screen, not its content.
  */
-const signature = (d: RowDraft) =>
+const rowSignature = (d: RowDraft) =>
     JSON.stringify([
         d.cloverEmployeeId,
         d.role,
@@ -79,20 +101,36 @@ const signature = (d: RowDraft) =>
         d.cash.trim() === '' ? null : toCents(d.cash)
     ]);
 
+/** Comparable form of a whole shift, so adding or removing a row counts too. */
+const shiftSignature = (rows: RowDraft[]) => JSON.stringify(rows.map(rowSignature));
+
+const isAmount = (raw: string) => raw.trim() !== '' && Number.isFinite(Number(raw.replace(/[$,\s]/g, '')));
+
 export default function TipDayEditor({ day, staff }: { day: TipDay; staff: StaffMember[] }) {
     const t = useTranslations('Tips');
+    const router = useRouter();
     const readOnly = day.status === 'ENVIADO';
 
-    const allEntries = useMemo(() => day.shifts.flatMap(s => s.entries), [day]);
+    // Keys for rows the database has never seen. A counter rather than a random
+    // id so the first render is identical on server and client.
+    const nextKey = useRef(0);
+    const blankRow = (): RowDraft => ({
+        key: `new-${nextKey.current++}`,
+        cloverEmployeeId: '',
+        employeeName: '',
+        role: 'MESERO',
+        credit: '0.00',
+        service: '0.00',
+        cash: ''
+    });
 
-    // Baseline is what the database holds; drafts are what the user sees. A
-    // shift is dirty when any of its rows' signatures differ, so there is no
-    // flag to forget to clear after a save.
-    const [baseline, setBaseline] = useState<Record<string, RowDraft>>(() =>
-        Object.fromEntries(allEntries.map(e => [e.id, draftFromEntry(e)]))
+    // Rows are the working copy; baseline is what the database holds. A shift is
+    // dirty when its signature differs, so there is no flag to forget to clear.
+    const [rows, setRows] = useState<Record<string, RowDraft[]>>(() =>
+        Object.fromEntries(day.shifts.map(s => [s.id, s.entries.map(rowFromEntry)]))
     );
-    const [drafts, setDrafts] = useState<Record<string, RowDraft>>(() =>
-        Object.fromEntries(allEntries.map(e => [e.id, draftFromEntry(e)]))
+    const [baseline, setBaseline] = useState<Record<string, string>>(() =>
+        Object.fromEntries(day.shifts.map(s => [s.id, shiftSignature(s.entries.map(rowFromEntry))]))
     );
 
     /** Who is filling each shift in, keyed by shift id. */
@@ -108,106 +146,207 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
         )
     );
 
-    const [busyShiftId, setBusyShiftId] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [structureBusy, setStructureBusy] = useState(false);
     const [shiftErrors, setShiftErrors] = useState<Record<string, string>>({});
+    const [notice, setNotice] = useState<string | null>(null);
 
-    const isShiftDirty = (shift: TipShift) =>
-        shift.entries.some(e => {
-            const d = drafts[e.id], b = baseline[e.id];
-            return !!d && !!b && signature(d) !== signature(b);
-        });
+    // Adding or removing a shift is a server write, so the new set of shifts
+    // arrives as a new `day` prop. Only shifts this component has never seen are
+    // initialised from it — edits in flight elsewhere survive the refresh.
+    useEffect(() => {
+        const sync = <T,>(prev: Record<string, T>, make: (s: TipShift) => T): Record<string, T> => {
+            let changed = Object.keys(prev).length !== day.shifts.length;
+            const next: Record<string, T> = {};
+            for (const s of day.shifts) {
+                if (s.id in prev) {
+                    next[s.id] = prev[s.id];
+                } else {
+                    next[s.id] = make(s);
+                    changed = true;
+                }
+            }
+            return changed ? next : prev;
+        };
 
-    const dirtyShiftCount = day.shifts.filter(isShiftDirty).length;
+        setRows(prev => sync(prev, s => s.entries.map(rowFromEntry)));
+        setBaseline(prev => sync(prev, s => shiftSignature(s.entries.map(rowFromEntry))));
+        setFiller(prev => sync(prev, s => s.filledByCloverId ?? ''));
+    }, [day.shifts]);
+
+    const shiftRows = (shiftId: string) => rows[shiftId] ?? [];
+
+    const isShiftDirty = (shiftId: string) =>
+        !readOnly && shiftSignature(shiftRows(shiftId)) !== (baseline[shiftId] ?? '[]');
+
+    const dirtyShifts = day.shifts.filter(s => isShiftDirty(s.id));
 
     // A dropped write here is somebody's money, so the browser warns rather
     // than the page trying to flush anything on the way out.
     useEffect(() => {
-        if (readOnly || dirtyShiftCount === 0) return;
+        if (readOnly || dirtyShifts.length === 0) return;
         const onBeforeUnload = (e: BeforeUnloadEvent) => {
             e.preventDefault();
             e.returnValue = '';
         };
         window.addEventListener('beforeunload', onBeforeUnload);
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
-    }, [readOnly, dirtyShiftCount]);
+    }, [readOnly, dirtyShifts.length]);
 
-    const patch = (id: string, change: Partial<RowDraft>) =>
-        setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...change } }));
+    const patchRow = (shiftId: string, key: string, change: Partial<RowDraft>) =>
+        setRows(prev => ({
+            ...prev,
+            [shiftId]: (prev[shiftId] ?? []).map(r => (r.key === key ? { ...r, ...change } : r))
+        }));
 
-    const handleSaveShift = async (shift: TipShift) => {
-        const fillerId = filler[shift.id];
-        const fillerPerson = staff.find(s => s.id === fillerId);
-        if (!fillerId) {
-            setShiftErrors(prev => ({ ...prev, [shift.id]: t('filled_by_prompt') }));
+    const addRow = (shiftId: string) =>
+        setRows(prev => ({ ...prev, [shiftId]: [...(prev[shiftId] ?? []), blankRow()] }));
+
+    // Dropping a row locally is enough to delete it: saveShift treats the array
+    // it receives as the shift's whole roster and removes anyone missing from it.
+    const removeRow = (shiftId: string, key: string) =>
+        setRows(prev => ({ ...prev, [shiftId]: (prev[shiftId] ?? []).filter(r => r.key !== key) }));
+
+    const handleSaveAll = async () => {
+        setNotice(null);
+        const targets = dirtyShifts;
+        if (targets.length === 0) return;
+
+        // Everything is checked before the first write, so a save either starts
+        // clean or reports back without having touched the day.
+        const errors: Record<string, string> = {};
+        for (const shift of targets) {
+            const list = shiftRows(shift.id);
+
+            if (!filler[shift.id]) {
+                errors[shift.id] = t('filled_by_prompt');
+                continue;
+            }
+
+            // Position is 1-based: it is read by someone looking at a numbered
+            // list of rows, not at an array.
+            for (let i = 0; i < list.length; i++) {
+                const d = list[i];
+                if (!d.cloverEmployeeId) continue; // Skipped rather than saved.
+                for (const [label, raw] of [[t('credit_tips'), d.credit], [t('service_charge'), d.service]] as const) {
+                    if (!isAmount(raw)) {
+                        errors[shift.id] = `Fila ${i + 1} — ${label}: el monto no es válido.`;
+                    }
+                }
+                if (d.cash.trim() !== '' && !isAmount(d.cash)) {
+                    errors[shift.id] = `Fila ${i + 1} — ${t('cash')}: el monto no es válido.`;
+                }
+            }
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setShiftErrors(errors);
             return;
         }
 
-        const rows = shift.entries.map(e => drafts[e.id]).filter(Boolean);
-        for (let i = 0; i < rows.length; i++) {
-            const d = rows[i];
-            for (const [label, raw] of [[t('credit_tips'), d.credit], [t('service_charge'), d.service]] as const) {
-                if (raw.trim() === '' || !Number.isFinite(Number(raw.replace(/[$,\s]/g, '')))) {
-                    setShiftErrors(prev => ({ ...prev, [shift.id]: `Fila ${i + 1} — ${label}: el monto no es válido.` }));
+        setShiftErrors({});
+        setBusy(true);
+
+        let skipped = 0;
+        try {
+            for (const shift of targets) {
+                const list = shiftRows(shift.id);
+                const named = list.filter(r => r.cloverEmployeeId);
+                const fillerId = filler[shift.id];
+                const fillerPerson = staff.find(s => s.id === fillerId);
+
+                const result = await saveShift(
+                    shift.id,
+                    named.map(d => ({
+                        cloverEmployeeId: d.cloverEmployeeId,
+                        employeeName: d.employeeName,
+                        role: d.role,
+                        creditTips: toCents(d.credit) / 100,
+                        serviceCharge: toCents(d.service) / 100,
+                        cashTips: cashOf(d)
+                    })),
+                    fillerId,
+                    fillerPerson?.name ?? ''
+                );
+
+                if (!result.success) {
+                    // Stop at the first failure rather than writing on past it,
+                    // so what did and did not land stays legible.
+                    setShiftErrors(prev => ({
+                        ...prev,
+                        [shift.id]: result.error ?? 'No se pudo guardar el turno.'
+                    }));
                     return;
                 }
-            }
-            if (d.cash.trim() !== '' && !Number.isFinite(Number(d.cash.replace(/[$,\s]/g, '')))) {
-                setShiftErrors(prev => ({ ...prev, [shift.id]: `Fila ${i + 1} — ${t('cash')}: el monto no es válido.` }));
-                return;
-            }
-        }
 
-        setBusyShiftId(shift.id);
-        setShiftErrors(prev => {
-            const next = { ...prev };
-            delete next[shift.id];
-            return next;
-        });
+                skipped += list.length - named.length;
 
-        try {
-            const result = await saveShift(
-                shift.id,
-                rows.map(d => ({
-                    cloverEmployeeId: d.cloverEmployeeId,
-                    employeeName: d.employeeName,
-                    role: d.role,
-                    creditTips: toCents(d.credit) / 100,
-                    serviceCharge: toCents(d.service) / 100,
-                    cashTips: cashOf(d)
-                })),
-                fillerId,
-                fillerPerson?.name ?? ''
-            );
-
-            if (!result.success) {
-                setShiftErrors(prev => ({ ...prev, [shift.id]: result.error ?? 'No se pudo guardar el turno.' }));
-                return;
+                // Baseline follows the rows on screen, including any personless
+                // row left behind: it stays for the user to finish, and picking
+                // a person for it makes the shift dirty again.
+                setBaseline(prev => ({ ...prev, [shift.id]: shiftSignature(list) }));
+                setFilled(prev => ({
+                    ...prev,
+                    [shift.id]: { name: fillerPerson?.name ?? '', at: new Date().toISOString() }
+                }));
             }
 
-            setBaseline(prev => {
-                const next = { ...prev };
-                for (const e of shift.entries) if (drafts[e.id]) next[e.id] = { ...drafts[e.id] };
-                return next;
-            });
-            setFilled(prev => ({
-                ...prev,
-                [shift.id]: { name: fillerPerson?.name ?? '', at: new Date().toISOString() }
-            }));
+            if (skipped > 0) setNotice(`${skipped} ${t('rows_skipped')}`);
+            router.refresh();
         } catch (e) {
-            setShiftErrors(prev => ({
-                ...prev,
-                [shift.id]: e instanceof Error ? e.message : String(e)
-            }));
+            setNotice(e instanceof Error ? e.message : String(e));
         } finally {
-            setBusyShiftId(null);
+            setBusy(false);
         }
     };
 
-    // Live figures come from the drafts, so the numbers track what the user is
-    // looking at rather than what was last written. Display only.
-    const liveCents = (id: string, field: 'credit' | 'service' | 'cash'): number | null => {
-        const d = drafts[id];
-        if (!d) return 0;
+    const handleAddShift = async () => {
+        setStructureBusy(true);
+        setNotice(null);
+        try {
+            const result = await addShift(day.id);
+            if (!result.success) {
+                setNotice(result.error ?? 'No se pudo añadir el turno.');
+                return;
+            }
+            router.refresh();
+        } finally {
+            setStructureBusy(false);
+        }
+    };
+
+    const handleRemoveShift = async (shift: TipShift) => {
+        if (!window.confirm(t('remove_shift_confirm'))) return;
+
+        setStructureBusy(true);
+        setNotice(null);
+        try {
+            const result = await removeShift(shift.id);
+            if (!result.success) {
+                setShiftErrors(prev => ({ ...prev, [shift.id]: result.error ?? 'No se pudo borrar el turno.' }));
+                return;
+            }
+
+            // Dropped locally as well as on the server so the panel does not
+            // flash the old shift while the refresh is in flight.
+            const drop = <T,>(prev: Record<string, T>) => {
+                const next = { ...prev };
+                delete next[shift.id];
+                return next;
+            };
+            setRows(drop);
+            setBaseline(drop);
+            setFiller(drop);
+            setShiftErrors(drop);
+            router.refresh();
+        } finally {
+            setStructureBusy(false);
+        }
+    };
+
+    // Live figures come from the rows on screen, so the numbers track what the
+    // user is looking at rather than what was last written. Display only.
+    const liveCents = (d: RowDraft, field: 'credit' | 'service' | 'cash'): number | null => {
         if (field === 'cash') return d.cash.trim() === '' ? null : toCents(d.cash);
         return toCents(d[field]);
     };
@@ -220,20 +359,85 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
 
     const roleLabel = (role: Role) => (role === 'MESERO' ? t('mesero') : t('busser'));
 
+    const allRows = day.shifts.flatMap(s => shiftRows(s.id));
+    const canSave = !readOnly && dirtyShifts.length > 0 && !busy;
+
     return (
         <>
+            {/* Balances sit above the shifts: they are what the day is judged on,
+                and they have to stay readable while rows are being typed. */}
+            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {columns.map(c => {
+                    const distributed = sumCents(allRows.map(r => liveCents(r, c.key) ?? 0));
+                    const diff = c.target - distributed;
+                    return (
+                        <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.label}</span>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                                {formatMoney(distributed)} / {formatMoney(c.target)}
+                            </span>
+                            {diff === 0 ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)', fontWeight: 600 }}>
+                                    <CheckCircle2 size={18} />
+                                    {t('balanced')}
+                                </span>
+                            ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: diff < 0 ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>
+                                    <AlertTriangle size={18} />
+                                    {diff < 0 ? t('excess') : t('remaining')}: {formatMoney(Math.abs(diff))}
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
+
+                {!readOnly && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+                        borderTop: '1px solid var(--border)', paddingTop: '1rem'
+                    }}>
+                        {/* One save for the whole day: every dirty shift is written
+                            in turn, so nobody has to remember which tables they
+                            touched. */}
+                        <button
+                            onClick={handleSaveAll}
+                            disabled={!canSave}
+                            style={{
+                                minHeight: '56px', padding: '0 1.6rem', borderRadius: '8px',
+                                fontSize: '1.1rem', fontWeight: 700,
+                                color: canSave ? 'white' : 'var(--text-secondary)',
+                                background: canSave ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                border: canSave ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
+                                opacity: busy ? 0.5 : 1,
+                                cursor: canSave ? 'pointer' : 'not-allowed'
+                            }}
+                        >
+                            {busy ? t('saving') : t('save_all')}
+                        </button>
+
+                        {dirtyShifts.length > 0 && (
+                            <span style={{ color: 'var(--warning)', fontSize: '1.05rem', fontWeight: 600 }}>
+                                {t('unsaved_warning')}
+                            </span>
+                        )}
+
+                        {notice && (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '1.05rem' }}>{notice}</span>
+                        )}
+                    </div>
+                )}
+            </div>
+
             {day.shifts.map(shift => {
-                const dirty = !readOnly && isShiftDirty(shift);
-                const busy = busyShiftId === shift.id;
+                const dirty = isShiftDirty(shift.id);
                 const err = shiftErrors[shift.id];
                 const fillerId = filler[shift.id] ?? '';
                 const done = filled[shift.id];
+                const list = shiftRows(shift.id);
 
                 // Someone already on another row of this shift cannot be picked
                 // again — the unique constraint would reject it.
-                const takenInShift = new Set(
-                    shift.entries.map(e => drafts[e.id]?.cloverEmployeeId).filter(Boolean)
-                );
+                const takenInShift = new Set(list.map(r => r.cloverEmployeeId).filter(Boolean));
 
                 return (
                     <div
@@ -246,17 +450,36 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                             borderLeft: dirty ? '4px solid var(--warning)' : undefined
                         }}
                     >
-                        <h2 style={{ margin: 0, padding: '1.25rem 1rem', fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                            {t('shift')} {shift.orderIndex + 1}
-                        </h2>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '1.25rem 1rem' }}>
+                            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                {t('shift')} {shift.orderIndex + 1}
+                            </h2>
 
-                        {shift.entries.length === 0 ? (
-                            <p style={{ margin: 0, padding: '0 1rem 1.75rem 1rem', fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
+                            {!readOnly && day.shifts.length > 1 && (
+                                <button
+                                    onClick={() => handleRemoveShift(shift)}
+                                    disabled={structureBusy}
+                                    title={t('remove_shift')}
+                                    aria-label={t('remove_shift')}
+                                    style={{
+                                        ...quietButton,
+                                        minWidth: '52px', padding: '0 0.9rem',
+                                        cursor: structureBusy ? 'not-allowed' : 'pointer',
+                                        opacity: structureBusy ? 0.5 : 1
+                                    }}
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            )}
+                        </div>
+
+                        {list.length === 0 ? (
+                            <p style={{ margin: 0, padding: '0 1rem 1.25rem 1rem', fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
                                 {t('no_entries')}
                             </p>
                         ) : (
-                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '560px', tableLayout: 'fixed' }}>
-                                <ShiftColGroup />
+                            <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: readOnly ? '560px' : '640px', tableLayout: 'fixed' }}>
+                                <ShiftColGroup withActions={!readOnly} />
                                 <thead>
                                     <tr style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                         <th style={head}>{t('name')}</th>
@@ -264,27 +487,26 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                         <th style={numericHead}>{t('credit_tips')}</th>
                                         <th style={numericHead}>{t('service_charge')}</th>
                                         <th style={numericHead}>{t('cash')}</th>
+                                        {!readOnly && <th style={head} aria-label={t('remove_row')} />}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {shift.entries.map(entry => {
-                                        const d = drafts[entry.id];
-
-                                        if (readOnly || !d) {
+                                    {list.map(d => {
+                                        if (readOnly) {
                                             return (
-                                                <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                                                    <td style={{ ...cell, fontWeight: 500, color: 'var(--text-primary)' }}>{entry.employeeName}</td>
-                                                    <td style={{ ...cell, color: 'var(--text-secondary)' }}>{roleLabel(entry.role)}</td>
-                                                    <td style={numericCell}>{formatMoney(toCents(entry.creditTips))}</td>
-                                                    <td style={numericCell}>{formatMoney(toCents(entry.serviceCharge))}</td>
+                                                <tr key={d.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <td style={{ ...cell, fontWeight: 500, color: 'var(--text-primary)' }}>{d.employeeName}</td>
+                                                    <td style={{ ...cell, color: 'var(--text-secondary)' }}>{roleLabel(d.role)}</td>
+                                                    <td style={numericCell}>{formatMoney(toCents(d.credit))}</td>
+                                                    <td style={numericCell}>{formatMoney(toCents(d.service))}</td>
                                                     <td style={numericCell}>
-                                                        {entry.cashTips === null ? (
+                                                        {d.cash.trim() === '' ? (
                                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'flex-end', color: 'var(--warning)', fontWeight: 600 }}>
                                                                 <AlertTriangle size={18} />
                                                                 — {t('not_counted')}
                                                             </span>
                                                         ) : (
-                                                            formatMoney(toCents(entry.cashTips))
+                                                            formatMoney(toCents(d.cash))
                                                         )}
                                                     </td>
                                                 </tr>
@@ -292,13 +514,13 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                         }
 
                                         return (
-                                            <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                            <tr key={d.key} style={{ borderBottom: '1px solid var(--border)' }}>
                                                 <td style={cell}>
                                                     <select
                                                         value={d.cloverEmployeeId}
                                                         onChange={e => {
                                                             const person = staff.find(s => s.id === e.target.value);
-                                                            patch(entry.id, {
+                                                            patchRow(shift.id, d.key, {
                                                                 cloverEmployeeId: e.target.value,
                                                                 employeeName: person?.name ?? d.employeeName
                                                             });
@@ -325,7 +547,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                         {(['MESERO', 'BUSSER'] as Role[]).map(r => (
                                                             <button
                                                                 key={r}
-                                                                onClick={() => patch(entry.id, { role: r })}
+                                                                onClick={() => patchRow(shift.id, d.key, { role: r })}
                                                                 title={roleLabel(r)}
                                                                 style={{
                                                                     flex: 1, minHeight: '52px', padding: '0 0.5rem',
@@ -347,7 +569,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                         type="text"
                                                         inputMode="decimal"
                                                         value={d.credit}
-                                                        onChange={e => patch(entry.id, { credit: e.target.value })}
+                                                        onChange={e => patchRow(shift.id, d.key, { credit: e.target.value })}
                                                         style={inputStyle}
                                                     />
                                                 </td>
@@ -356,7 +578,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                         type="text"
                                                         inputMode="decimal"
                                                         value={d.service}
-                                                        onChange={e => patch(entry.id, { service: e.target.value })}
+                                                        onChange={e => patchRow(shift.id, d.key, { service: e.target.value })}
                                                         style={inputStyle}
                                                     />
                                                 </td>
@@ -366,12 +588,29 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                         inputMode="decimal"
                                                         value={d.cash}
                                                         placeholder={t('not_counted')}
-                                                        onChange={e => patch(entry.id, { cash: e.target.value })}
+                                                        onChange={e => patchRow(shift.id, d.key, { cash: e.target.value })}
                                                         style={{
                                                             ...inputStyle,
                                                             borderColor: d.cash.trim() === '' ? 'var(--warning)' : 'var(--border)'
                                                         }}
                                                     />
+                                                </td>
+
+                                                <td style={{ ...cell, textAlign: 'center' }}>
+                                                    <button
+                                                        onClick={() => removeRow(shift.id, d.key)}
+                                                        title={t('remove_row')}
+                                                        aria-label={t('remove_row')}
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                            minWidth: '52px', minHeight: '52px', borderRadius: '8px',
+                                                            cursor: 'pointer', color: 'var(--danger)',
+                                                            background: 'rgba(255,255,255,0.05)',
+                                                            border: '1px solid var(--border)'
+                                                        }}
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         );
@@ -382,7 +621,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                             {t('subtotal')}
                                         </td>
                                         {columns.map(c => {
-                                            const values = shift.entries.map(e => liveCents(e.id, c.key));
+                                            const values = list.map(r => liveCents(r, c.key));
                                             const hasUncounted = values.some(v => v === null);
                                             const sum = sumCents(values.map(v => v ?? 0));
                                             return (
@@ -394,6 +633,7 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                                 </td>
                                             );
                                         })}
+                                        {!readOnly && <td style={cell} />}
                                     </tr>
                                 </tbody>
                             </table>
@@ -405,6 +645,13 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                 borderTop: '1px solid var(--border)',
                                 display: 'flex', flexDirection: 'column', gap: '0.75rem'
                             }}>
+                                <div>
+                                    <button onClick={() => addRow(shift.id)} style={quietButton}>
+                                        <Plus size={18} />
+                                        {t('add_person')}
+                                    </button>
+                                </div>
+
                                 <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                                     {t('filled_by_prompt')}
                                 </span>
@@ -441,66 +688,34 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                                     <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{err}</p>
                                 )}
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                    <button
-                                        onClick={() => handleSaveShift(shift)}
-                                        disabled={busy || !dirty || !fillerId}
-                                        style={{
-                                            minHeight: '56px', padding: '0 1.6rem', borderRadius: '8px',
-                                            fontSize: '1.1rem', fontWeight: 700,
-                                            color: dirty && fillerId ? 'white' : 'var(--text-secondary)',
-                                            background: dirty && fillerId ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                                            border: dirty && fillerId ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
-                                            opacity: busy ? 0.5 : 1,
-                                            cursor: busy || !dirty || !fillerId ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        {busy ? t('saving') : t('save_shift')}
-                                    </button>
-
-                                    {done && (
-                                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                                            {t('filled_by')} {done.name} · {new Date(done.at).toLocaleString('es')}
-                                        </span>
-                                    )}
-                                </div>
+                                {done && (
+                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
+                                        {t('filled_by')} {done.name} · {new Date(done.at).toLocaleString('es')}
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>
                 );
             })}
 
-            <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {!readOnly && dirtyShiftCount > 0 && (
-                    <p style={{ margin: 0, color: 'var(--warning)', fontSize: '1.05rem', fontWeight: 600 }}>
-                        {t('unsaved_warning')}
-                    </p>
-                )}
-
-                {columns.map(c => {
-                    const distributed = sumCents(allEntries.map(e => liveCents(e.id, c.key) ?? 0));
-                    const diff = c.target - distributed;
-                    return (
-                        <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.label}</span>
-                            <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                                {formatMoney(distributed)} / {formatMoney(c.target)}
-                            </span>
-                            {diff === 0 ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--success)', fontWeight: 600 }}>
-                                    <CheckCircle2 size={18} />
-                                    {t('balanced')}
-                                </span>
-                            ) : (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: diff < 0 ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>
-                                    <AlertTriangle size={18} />
-                                    {diff < 0 ? t('excess') : t('remaining')}: {formatMoney(Math.abs(diff))}
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+            {!readOnly && (
+                <div>
+                    <button
+                        onClick={handleAddShift}
+                        disabled={structureBusy}
+                        style={{
+                            ...quietButton,
+                            minHeight: '56px',
+                            cursor: structureBusy ? 'not-allowed' : 'pointer',
+                            opacity: structureBusy ? 0.5 : 1
+                        }}
+                    >
+                        <Plus size={18} />
+                        {t('add_shift')}
+                    </button>
+                </div>
+            )}
         </>
     );
 }

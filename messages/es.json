@@ -184,6 +184,13 @@
     "unsaved_warning": "Hay filas sin guardar.",
     "filled_by_prompt": "¿Quién llenó este turno?",
     "filled_by": "Llenado por",
-    "save_shift": "Guardar turno"
+    "save_shift": "Guardar turno",
+    "add_person": "+ Agregar persona",
+    "add_shift": "+ Agregar turno",
+    "remove_row": "Quitar fila",
+    "save_all": "Guardar todo",
+    "rows_skipped": "filas sin persona no se guardaron",
+    "remove_shift": "Quitar turno",
+    "remove_shift_confirm": "¿Quitar este turno y a todas las personas registradas en él?"
   }
 }

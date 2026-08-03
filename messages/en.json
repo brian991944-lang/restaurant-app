@@ -184,6 +184,13 @@
     "unsaved_warning": "There are unsaved rows.",
     "filled_by_prompt": "Who filled in this shift?",
     "filled_by": "Filled by",
-    "save_shift": "Save shift"
+    "save_shift": "Save shift",
+    "add_person": "+ Add person",
+    "add_shift": "+ Add shift",
+    "remove_row": "Remove row",
+    "save_all": "Save all",
+    "rows_skipped": "rows without a person were not saved",
+    "remove_shift": "Remove shift",
+    "remove_shift_confirm": "Remove this shift and everyone recorded in it?"
   }
 }
