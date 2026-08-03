@@ -97,7 +97,10 @@ async function findReconciliationError(
 
 /** Shape returned to the client — every Decimal already a number. */
 function serializeDay(day: Prisma.TipDayGetPayload<{
-    include: { shifts: { include: { entries: true } } };
+    include: {
+        shifts: { include: { entries: true } };
+        employeeTips: true;
+    };
 }>) {
     return {
         id: day.id,
@@ -105,6 +108,21 @@ function serializeDay(day: Prisma.TipDayGetPayload<{
         cloverCreditTips: decOrNull(day.cloverCreditTips),
         cloverServiceCharge: decOrNull(day.cloverServiceCharge),
         cloverSyncedAt: day.cloverSyncedAt,
+        cloverOrdersScanned: day.cloverOrdersScanned,
+        cloverPaymentsScanned: day.cloverPaymentsScanned,
+        cloverSyncDurationMs: day.cloverSyncDurationMs,
+        // What Clover reported per person on the last sync. A cache to compare
+        // against — never what anyone is owed. See TipDayEmployeeTip.
+        employeeTips: day.employeeTips.map(tip => ({
+            id: tip.id,
+            cloverEmployeeId: tip.cloverEmployeeId,
+            employeeName: tip.employeeName,
+            paymentCount: tip.paymentCount,
+            cardTips: dec(tip.cardTips),
+            serviceCharge: dec(tip.serviceCharge),
+            salesAmount: dec(tip.salesAmount),
+            syncedAt: tip.syncedAt
+        })),
         totalCreditTips: dec(day.totalCreditTips),
         totalServiceCharge: dec(day.totalServiceCharge),
         totalCashTips: dec(day.totalCashTips),
@@ -139,7 +157,9 @@ const DAY_INCLUDE = {
     shifts: {
         orderBy: { orderIndex: 'asc' },
         include: { entries: { orderBy: { createdAt: 'asc' } } }
-    }
+    },
+    // Biggest earner first: the breakdown is read top-down as a sanity check.
+    employeeTips: { orderBy: { cardTips: 'desc' } }
 } satisfies Prisma.TipDayInclude;
 
 /**

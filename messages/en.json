@@ -191,6 +191,22 @@
     "save_all": "Save all",
     "rows_skipped": "rows without a person were not saved",
     "remove_shift": "Remove shift",
-    "remove_shift_confirm": "Remove this shift and everyone recorded in it?"
+    "remove_shift_confirm": "Remove this shift and everyone recorded in it?",
+    "sync_clover": "Update from Clover",
+    "syncing": "Updating...",
+    "synced_at": "Updated from Clover",
+    "never_synced": "Never updated from Clover",
+    "clover_says": "Clover",
+    "use_clover_value": "Use this value",
+    "sync_summary": "Sync summary",
+    "employee_breakdown": "What Clover reported per person",
+    "employee": "Person",
+    "payments": "Payments",
+    "card_tips_col": "Card",
+    "sales": "Sales",
+    "sync_failed": "Could not update from Clover.",
+    "sync_blocked_submitted": "This day has already been submitted. It cannot be updated from Clover.",
+    "changed_by_prompt": "Who is making this change?",
+    "clover_not_owed": "This is what Clover reported, for comparison. It is not what anyone is owed."
   }
 }

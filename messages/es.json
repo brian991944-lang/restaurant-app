@@ -191,6 +191,22 @@
     "save_all": "Guardar todo",
     "rows_skipped": "filas sin persona no se guardaron",
     "remove_shift": "Quitar turno",
-    "remove_shift_confirm": "¿Quitar este turno y a todas las personas registradas en él?"
+    "remove_shift_confirm": "¿Quitar este turno y a todas las personas registradas en él?",
+    "sync_clover": "Actualizar desde Clover",
+    "syncing": "Actualizando...",
+    "synced_at": "Actualizado desde Clover",
+    "never_synced": "Nunca se ha actualizado desde Clover",
+    "clover_says": "Clover",
+    "use_clover_value": "Usar este valor",
+    "sync_summary": "Resumen de la actualización",
+    "employee_breakdown": "Lo que Clover reportó por persona",
+    "employee": "Persona",
+    "payments": "Pagos",
+    "card_tips_col": "Tarjeta",
+    "sales": "Ventas",
+    "sync_failed": "No se pudo actualizar desde Clover.",
+    "sync_blocked_submitted": "Este día ya fue enviado. No se puede actualizar desde Clover.",
+    "changed_by_prompt": "¿Quién hace el cambio?",
+    "clover_not_owed": "Esto es lo que Clover reportó, para comparar. No es lo que se le debe a nadie."
   }
 }
