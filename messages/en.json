@@ -20,7 +20,13 @@
     "sales": "Sales",
     "integrations": "Integrations",
     "raw_data": "Raw Data",
-    "recetario": "Recipe Book"
+    "recetario": "Recipe Book",
+    "management": "Management",
+    "finanzas": "Finance",
+    "inventory_salon": "Salon Inventory",
+    "tips_reviews": "Tips & Reviews",
+    "gift_cards": "Gift Cards",
+    "closing_lists": "Opening & Closing Lists"
   },
   "Dashboard": {
     "welcome": "Welcome back",

@@ -20,7 +20,13 @@
     "sales": "Ventas",
     "integrations": "Integraciones",
     "raw_data": "Datos Sin Procesar",
-    "recetario": "Recetario"
+    "recetario": "Recetario",
+    "management": "Gerencia",
+    "finanzas": "Finanzas",
+    "inventory_salon": "Inventario Salón",
+    "tips_reviews": "Propinas y Reseñas",
+    "gift_cards": "Tarjetas de Regalo",
+    "closing_lists": "Listas de Apertura y Cierre"
   },
   "Dashboard": {
     "welcome": "Bienvenido de nuevo",

@@ -4,10 +4,13 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee, Landmark } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee, Landmark, Briefcase } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
+
+/** The stations a nav item can belong to. Every item declares exactly one. */
+type Station = 'Cocina' | 'Salon' | 'Management';
 
 export default function Sidebar({ locale, isOpen, onClose }: { locale: string, isOpen?: boolean, onClose?: () => void }) {
     const t = useTranslations('Nav');
@@ -24,14 +27,15 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
     const [passwordInput, setPasswordInput] = useState('');
     const [loginError, setLoginError] = useState(false);
 
-    const switchStation = (newStation: 'Cocina' | 'Salon') => {
+    const switchStation = (newStation: Station) => {
         setStation(newStation);
         if (!isAdmin) {
             if (newStation === 'Cocina') {
                 router.push(`/${locale}/inventory`);
-            } else {
+            } else if (newStation === 'Salon') {
                 router.push(`/${locale}/inventory-salon`);
             }
+            // Management is admin-only, so a non-admin never lands here.
         }
     };
 
@@ -39,43 +43,67 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         setMounted(true);
     }, []);
 
+    // Leaving admin takes the Management pill away with it, so a station that
+    // no longer has a pill has to move somewhere that does. Guarded, so it
+    // settles in one pass rather than looping.
+    useEffect(() => {
+        if (!isAdmin && station === 'Management') setStation('Salon');
+    }, [isAdmin, station, setStation]);
+
     const toggleLanguage = () => {
         const nextLocale = locale === 'en' ? 'es' : 'en';
         const newPath = pathname.replace(`/${locale}`, `/${nextLocale}`);
         router.push(newPath || `/${nextLocale}`);
     };
 
-    const navItems = [
-        { name: t('dashboard'), href: `/${locale}/dashboard`, icon: LayoutDashboard },
-        { name: t('inventory'), href: `/${locale}/inventory`, icon: Package },
-        { name: locale === 'es' ? 'Compras' : 'Shopping List', href: `/${locale}/compras`, icon: ShoppingCart },
-        { name: t('menu'), href: `/${locale}/menu`, icon: ChefHat },
-        { name: t('recetario'), href: `/${locale}/recetario`, icon: BookOpen },
-        { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar },
-        { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp },
-        { name: t('raw_data'), href: `/${locale}/data`, icon: Database },
-        { name: 'Finanzas', href: `/${locale}/finanzas`, icon: Landmark },
-        { name: 'Inventory Salon', href: `/${locale}/inventory-salon`, icon: Package },
-        { name: 'Tips & Reviews', href: `/${locale}/tips-reviews`, icon: TrendingUp },
-        { name: 'Gift Cards', href: `/${locale}/gift-cards`, icon: Tags },
-        { name: 'Opening & Closing Lists', href: `/${locale}/closing-lists`, icon: LayoutDashboard },
+    // Each item names its own station. Matching on href substrings needed
+    // endsWith('/inventory') so the salón page could not leak into Cocina; a
+    // declared station cannot be near-missed like that in the first place.
+    const navItems: { name: string; href: string; icon: typeof Package; station: Station }[] = [
+        { name: t('dashboard'), href: `/${locale}/dashboard`, icon: LayoutDashboard, station: 'Cocina' },
+        { name: t('inventory'), href: `/${locale}/inventory`, icon: Package, station: 'Cocina' },
+        { name: t('purchases'), href: `/${locale}/compras`, icon: ShoppingCart, station: 'Cocina' },
+        { name: t('recetario'), href: `/${locale}/recetario`, icon: BookOpen, station: 'Cocina' },
+        { name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar, station: 'Cocina' },
+
+        { name: t('inventory_salon'), href: `/${locale}/inventory-salon`, icon: Package, station: 'Salon' },
+        { name: t('tips_reviews'), href: `/${locale}/tips-reviews`, icon: TrendingUp, station: 'Salon' },
+        { name: t('gift_cards'), href: `/${locale}/gift-cards`, icon: Tags, station: 'Salon' },
+        { name: t('closing_lists'), href: `/${locale}/closing-lists`, icon: LayoutDashboard, station: 'Salon' },
+
+        { name: t('menu'), href: `/${locale}/menu`, icon: ChefHat, station: 'Management' },
+        { name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp, station: 'Management' },
+        { name: t('raw_data'), href: `/${locale}/data`, icon: Database, station: 'Management' },
+        { name: t('finanzas'), href: `/${locale}/finanzas`, icon: Landmark, station: 'Management' },
     ];
 
-    const filteredNavItems = isAdmin
-        ? navItems
-        : station === 'Cocina'
-            ? navItems
-                .filter(item => {
-                    const h = item.href;
-                    return (h.includes('/dashboard') || h.endsWith('/inventory') || h.includes('/prep-schedule') || h.includes('/recetario') || h.includes('/compras'));
-                })
-                .map(item => item.href === `/${locale}/dashboard` ? { ...item, name: locale === 'es' ? 'Resumen' : 'Summary' } : item)
-            : station === 'Salon'
-                ? navItems.filter(item => {
-                    const h = item.href;
-                    return (h.includes('/inventory-salon') || h.includes('/tips-reviews') || h.includes('/gift-cards') || h.includes('/closing-lists'));
-                })
-                : [];
+    /**
+     * A station is always in effect, for admins too — admin no longer bypasses
+     * the filter, it just unlocks a third station.
+     *
+     * Null resolves to Salón, which covers a tablet that has never chosen one
+     * and the first render before localStorage has been read. Management also
+     * resolves to Salón without admin, so the one render before the effect
+     * above fires cannot flash items that should not be visible.
+     */
+    const activeStation: Station =
+        station === 'Cocina' ? 'Cocina'
+            : station === 'Management' && isAdmin ? 'Management'
+                : 'Salon';
+
+    const filteredNavItems = navItems
+        .filter(item => item.station === activeStation)
+        // The kitchen reads the dashboard as their shift summary, not as a
+        // management overview, and it is named for them.
+        .map(item => activeStation === 'Cocina' && item.href === `/${locale}/dashboard`
+            ? { ...item, name: locale === 'es' ? 'Resumen' : 'Summary' }
+            : item);
+
+    const stationPills = [
+        { key: 'Cocina' as const, label: 'Cocina', Icon: ChefHat, tint: 'rgba(168, 85, 247, 0.1)', accent: 'var(--accent-primary)' },
+        { key: 'Salon' as const, label: 'Salón', Icon: Coffee, tint: 'rgba(56, 189, 248, 0.1)', accent: 'var(--accent-secondary)' },
+        { key: 'Management' as const, label: t('management'), Icon: Briefcase, tint: 'rgba(34, 197, 94, 0.1)', accent: 'var(--success)' }
+    ].filter(pill => pill.key !== 'Management' || isAdmin);
 
     return (
         <>
@@ -194,18 +222,21 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                 {/* WORKSTATION TOGGLE HERE */}
                 {!isCollapsed && (
                     <div className="sidebar-hide-tablet" style={{ display: 'flex', background: 'var(--bg-primary)', borderRadius: '12px', padding: '0.25rem', border: '1px solid var(--glass-border)' }}>
-                        <button
-                            onClick={() => switchStation('Cocina')}
-                            style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', background: station === 'Cocina' ? 'rgba(168, 85, 247, 0.1)' : 'transparent', color: station === 'Cocina' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: station === 'Cocina' ? 600 : 400, transition: 'all 0.2s', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                            <ChefHat size={16} color={station === 'Cocina' ? 'var(--accent-primary)' : 'currentColor'} />
-                            Cocina
-                        </button>
-                        <button
-                            onClick={() => switchStation('Salon')}
-                            style={{ flex: 1, padding: '0.6rem', borderRadius: '8px', border: 'none', background: station === 'Salon' ? 'rgba(56, 189, 248, 0.1)' : 'transparent', color: station === 'Salon' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: station === 'Salon' ? 600 : 400, transition: 'all 0.2s', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                            <Coffee size={16} color={station === 'Salon' ? 'var(--accent-secondary)' : 'currentColor'} />
-                            Salón
-                        </button>
+                        {stationPills.map(pill => {
+                            // Highlighted against the station actually in force,
+                            // so an unset one reads as Salón rather than as
+                            // nothing being selected.
+                            const isOn = activeStation === pill.key;
+                            return (
+                                <button
+                                    key={pill.key}
+                                    onClick={() => switchStation(pill.key)}
+                                    style={{ flex: 1, padding: '0.6rem 0.4rem', borderRadius: '8px', border: 'none', background: isOn ? pill.tint : 'transparent', color: isOn ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: isOn ? 600 : 400, fontSize: '0.85rem', whiteSpace: 'nowrap', transition: 'all 0.2s', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
+                                    <pill.Icon size={16} color={isOn ? pill.accent : 'currentColor'} />
+                                    {pill.label}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
 

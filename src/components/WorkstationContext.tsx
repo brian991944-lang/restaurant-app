@@ -2,7 +2,14 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Workstation = 'Cocina' | 'Salon' | null;
+/**
+ * 'Management' is admin-only: its pill is hidden without admin, and the sidebar
+ * moves a persisted 'Management' back to 'Salon' when admin is left. It is
+ * still a real stored value, so it has to survive a reload in between.
+ */
+type Workstation = 'Cocina' | 'Salon' | 'Management' | null;
+
+const STORED_STATIONS = ['Cocina', 'Salon', 'Management'] as const;
 
 interface WorkstationContextType {
     station: Workstation;
@@ -22,7 +29,7 @@ export const WorkstationProvider = ({ children }: { children: React.ReactNode })
 
     useEffect(() => {
         const stored = localStorage.getItem('fusionista_workstation');
-        if (stored === 'Cocina' || stored === 'Salon') {
+        if (STORED_STATIONS.includes(stored as typeof STORED_STATIONS[number])) {
             setStationState(stored as Workstation);
         }
         setIsLoaded(true);
