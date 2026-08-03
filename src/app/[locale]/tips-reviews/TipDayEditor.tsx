@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, RefreshCw, Trash2, Unlock } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
-import { saveShift, addShift, removeShift } from '@/app/actions/tips';
+import { saveShift, addShift, removeShift, reopenTipDay } from '@/app/actions/tips';
 import { syncCloverTips } from '@/app/actions/tipSync';
 // Type-only: avoids shipping a client reference to an action never called here.
 import type { getTipDay } from '@/app/actions/tips';
@@ -179,6 +179,18 @@ export default function TipDayEditor({
     const [syncSummary, setSyncSummary] = useState<string | null>(null);
 
     const [breakdownOpen, setBreakdownOpen] = useState(false);
+
+    /**
+     * Reopening a submitted day. reopenTipDay writes a TipTargetOverride and
+     * refuses an anonymous change, and this component has no idea who the admin
+     * is — useAdmin() answers whether, never who. So the person is chosen from
+     * the staff list, and the modal says what that choice means.
+     */
+    const [reopenOpen, setReopenOpen] = useState(false);
+    const [reopenActor, setReopenActor] = useState('');
+    const [reopenReason, setReopenReason] = useState('');
+    const [reopenBusy, setReopenBusy] = useState(false);
+    const [reopenError, setReopenError] = useState<string | null>(null);
 
     // Adding or removing a shift is a server write, so the new set of shifts
     // arrives as a new `day` prop. Only shifts this component has never seen are
@@ -439,8 +451,195 @@ export default function TipDayEditor({
     const canSave = !readOnly && dirtyShifts.length > 0 && !busy;
     const canSync = !syncing && !readOnly && !isHistorical;
 
+    // Not gated on isHistorical: today can be submitted too, and a day sent by
+    // mistake an hour ago is the likeliest thing anyone needs to undo.
+    const canOfferReopen = submitted && isAdmin;
+    const canConfirmReopen = !!reopenActor && !reopenBusy && staff.length > 0;
+
+    const handleReopen = async () => {
+        if (!canConfirmReopen) return;
+        const person = staff.find(s => s.id === reopenActor);
+
+        setReopenBusy(true);
+        setReopenError(null);
+        try {
+            const result = await reopenTipDay(
+                day.id,
+                reopenActor,
+                person?.name ?? '',
+                reopenReason.trim() || undefined
+            );
+            if (!result.success) {
+                // Kept open: the message belongs next to the thing it refused.
+                setReopenError(result.error ?? t('reopen_failed'));
+                return;
+            }
+            setReopenOpen(false);
+            setReopenActor('');
+            setReopenReason('');
+            router.refresh();
+        } catch (e) {
+            setReopenError(e instanceof Error ? e.message : t('reopen_failed'));
+        } finally {
+            setReopenBusy(false);
+        }
+    };
+
     return (
         <>
+            {/* Matches the informational submitted banner on the page, which is
+                a server component and cannot hold a button. */}
+            {canOfferReopen && (
+                <div style={{
+                    padding: '1.25rem 1.5rem', borderRadius: '12px',
+                    background: 'color-mix(in srgb, var(--success) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)',
+                    display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap'
+                }}>
+                    <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+                        {t('day_submitted_locked')}
+                    </span>
+                    <button
+                        onClick={() => { setReopenError(null); setReopenOpen(true); }}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+                            minHeight: '52px', padding: '0 1.2rem', borderRadius: '8px',
+                            fontSize: '1.05rem', fontWeight: 700, cursor: 'pointer',
+                            color: 'white', background: 'var(--warning)',
+                            border: '1px solid var(--warning)'
+                        }}
+                    >
+                        <Unlock size={18} />
+                        {t('reopen_day')}
+                    </button>
+                </div>
+            )}
+
+            {reopenOpen && (
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={() => { if (!reopenBusy) setReopenOpen(false); }}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 1000,
+                        // Plain translucent black. No backdrop-filter: it would
+                        // make this a containing block for its own children and
+                        // is the usual reason a modal lands in the wrong place.
+                        background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '1.5rem'
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto',
+                            padding: '1.75rem', borderRadius: '12px',
+                            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                            boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
+                            display: 'flex', flexDirection: 'column', gap: '1rem'
+                        }}
+                    >
+                        <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {t('reopen_confirm_title')}
+                        </h2>
+
+                        <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            {t('reopen_confirm_body')}
+                        </p>
+
+                        {/* Said before the picker, not after it. */}
+                        <p style={{
+                            margin: 0, fontSize: '1.05rem', lineHeight: 1.5,
+                            color: 'var(--warning)', fontWeight: 600
+                        }}>
+                            {t('reopen_attribution_note')}
+                        </p>
+
+                        {staff.length === 0 ? (
+                            <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--danger)', lineHeight: 1.5 }}>
+                                {t('reopen_no_staff')}
+                            </p>
+                        ) : (
+                            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                {staff.map(person => {
+                                    const isOn = reopenActor === person.id;
+                                    return (
+                                        <button
+                                            key={person.id}
+                                            onClick={() => setReopenActor(person.id)}
+                                            style={{
+                                                padding: '0.8rem 1.3rem', minHeight: '56px',
+                                                borderRadius: '999px', fontSize: '1.1rem', fontWeight: 600,
+                                                cursor: 'pointer',
+                                                color: isOn ? 'white' : 'var(--text-secondary)',
+                                                background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                            }}
+                                        >
+                                            {person.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                {t('reopen_reason')}
+                            </span>
+                            <textarea
+                                value={reopenReason}
+                                onChange={e => setReopenReason(e.target.value)}
+                                rows={3}
+                                style={{
+                                    width: '100%', padding: '0.7rem', borderRadius: '8px',
+                                    fontSize: '1.05rem', fontFamily: 'inherit', resize: 'vertical',
+                                    color: 'var(--text-primary)', background: 'var(--bg-primary)',
+                                    border: '1px solid var(--border)'
+                                }}
+                            />
+                        </label>
+
+                        {reopenError && (
+                            <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{reopenError}</p>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setReopenOpen(false)}
+                                disabled={reopenBusy}
+                                style={{
+                                    ...quietButton,
+                                    minHeight: '56px',
+                                    cursor: reopenBusy ? 'not-allowed' : 'pointer',
+                                    opacity: reopenBusy ? 0.5 : 1
+                                }}
+                            >
+                                {t('reopen_cancel')}
+                            </button>
+                            <button
+                                onClick={handleReopen}
+                                disabled={!canConfirmReopen}
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+                                    minHeight: '56px', padding: '0 1.4rem', borderRadius: '8px',
+                                    fontSize: '1.05rem', fontWeight: 700,
+                                    color: canConfirmReopen ? 'white' : 'var(--text-secondary)',
+                                    background: canConfirmReopen ? 'var(--warning)' : 'rgba(255,255,255,0.05)',
+                                    border: canConfirmReopen ? '1px solid var(--warning)' : '1px solid var(--border)',
+                                    cursor: canConfirmReopen ? 'pointer' : 'not-allowed',
+                                    opacity: reopenBusy ? 0.5 : 1
+                                }}
+                            >
+                                <Unlock size={18} />
+                                {reopenBusy ? t('saving') : t('reopen_confirm')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {isHistorical && (
                 <div
                     className="glass-panel"
