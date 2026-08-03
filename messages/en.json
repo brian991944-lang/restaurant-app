@@ -206,6 +206,15 @@
     "sales": "Sales",
     "sync_failed": "Could not update from Clover.",
     "sync_blocked_submitted": "This day has already been submitted. It cannot be updated from Clover.",
+    "historical_view": "You are viewing a past day",
+    "no_record_for_date": "There is no tip record for this day.",
+    "today": "Today",
+    "previous_day": "Previous day",
+    "next_day": "Next day",
+    "edit_record": "Edit",
+    "editing_enabled": "Editing enabled",
+    "viewing_history": "A past day cannot be updated from Clover.",
+    "day_submitted_locked": "This day has already been submitted. An administrator must reopen it before it can be edited.",
     "changed_by_prompt": "Who is making this change?",
     "clover_not_owed": "This is what Clover reported, for comparison. It is not what anyone is owed."
   }

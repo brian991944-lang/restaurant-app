@@ -2,9 +2,12 @@ import { getTranslations } from 'next-intl/server';
 import { CheckCircle2 } from 'lucide-react';
 import { getTipDay, ensureTipDay } from '@/app/actions/tips';
 import { getWaitStaff } from '@/app/actions/clover';
-import { formatBusinessDateEs } from '@/lib/businessDay';
+import { formatBusinessDateEs, getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { toCents, formatMoney } from '@/lib/money';
 import TipDayEditor from './TipDayEditor';
+import DateNavigator from './DateNavigator';
+
+const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 /**
  * Sentence-case the first character only. CSS `capitalize` would title-case
@@ -28,21 +31,38 @@ function MetricCard({ label, value, note }: { label: string; value: string; note
     );
 }
 
-export default async function TipsReviewsPage() {
+export default async function TipsReviewsPage({
+    searchParams
+}: {
+    searchParams: Promise<{ date?: string | string[] }>;
+}) {
     const t = await getTranslations('Tips');
 
-    // Reading never creates. Arriving on this page is the intent to work on the
-    // day, so this is the one place a day is brought into existence.
-    let day = await getTipDay();
+    const { date: rawDate } = await searchParams;
+    const requested = Array.isArray(rawDate) ? rawDate[0] : rawDate;
+    const today = getBusinessDate();
+
+    // Anything unusable falls back to today rather than erroring: a mistyped or
+    // hand-edited URL should land somewhere sensible. A future date is treated
+    // the same way — there is nothing there to look at yet.
+    const viewDate =
+        requested && isBusinessDate(requested) && requested <= today ? requested : today;
+    const isHistorical = viewDate !== today;
+    const dateValue = businessDateToUtcDate(viewDate);
+
+    // Reading never creates. Opening TODAY is the intent to work on it, so that
+    // is the one case a day is brought into existence — looking at a past day
+    // must never manufacture a record that never existed.
+    let day = await getTipDay(dateValue);
     let openError: string | null = null;
-    if (!day) {
-        const opened = await ensureTipDay();
+    if (!day && !isHistorical) {
+        const opened = await ensureTipDay(dateValue);
         if (opened.success) day = opened.day;
         else openError = opened.error;
     }
 
     const { staff, error: staffError } = await getWaitStaff();
-    const headerDate = formatBusinessDateEs(day ? new Date(day.businessDate) : new Date());
+    const headerDate = formatBusinessDateEs(dateValue);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1100px', margin: '0 auto', padding: '1.5rem' }}>
@@ -59,9 +79,21 @@ export default async function TipsReviewsPage() {
                 </p>
             </div>
 
+            <DateNavigator date={viewDate} today={today} />
+
             {openError && (
                 <div className="glass-panel" style={{ padding: '1.5rem' }}>
                     <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.1rem' }}>{openError}</p>
+                </div>
+            )}
+
+            {/* A past day with no record is a normal answer, not a failure —
+                the restaurant simply did not record tips that day. */}
+            {!day && isHistorical && (
+                <div className="glass-panel" style={{ padding: '1.5rem' }}>
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.1rem' }}>
+                        {t('no_record_for_date')}
+                    </p>
                 </div>
             )}
 
@@ -111,7 +143,7 @@ export default async function TipsReviewsPage() {
                         <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{staffError}</p>
                     )}
 
-                    <TipDayEditor day={day} staff={staff} />
+                    <TipDayEditor day={day} staff={staff} isHistorical={isHistorical} />
                 </>
             )}
         </div>

@@ -152,7 +152,18 @@ export function getBusinessDayOfWeek(businessDate: string): number {
  * Pinned to 00:00:00.000Z so it stores cleanly in a Prisma @db.Date column.
  */
 export function getBusinessDateAsDate(now: Date = new Date()): Date {
-    const [y, m, d] = getBusinessDate(now).split('-').map(Number);
+    return businessDateToUtcDate(getBusinessDate(now));
+}
+
+/**
+ * A 'YYYY-MM-DD' business date as the Date a @db.Date column stores.
+ *
+ * Pinned to UTC midnight. Every caller that turns a date string into a row key
+ * must come through here: two converters that disagree by an hour would look up
+ * two different days, and the bug would only show at the edges of a month.
+ */
+export function businessDateToUtcDate(businessDate: string): Date {
+    const [y, m, d] = businessDate.split('-').map(Number);
     return new Date(Date.UTC(y, m - 1, d));
 }
 

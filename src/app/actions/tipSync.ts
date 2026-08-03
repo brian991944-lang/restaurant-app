@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { TipDayStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { cloverFetch } from '@/lib/clover';
-import { getBusinessDate, getBusinessDayWindowUtc } from '@/lib/businessDay';
+import { getBusinessDate, getBusinessDayWindowUtc, businessDateToUtcDate } from '@/lib/businessDay';
 
 const TIPS_ROUTE = '/[locale]/tips-reviews';
 
@@ -53,17 +53,6 @@ export type CloverTipSyncSummary = {
 };
 
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
-
-/**
- * 'YYYY-MM-DD' as the Date a @db.Date column stores.
- *
- * Pinned to UTC midnight, exactly as getBusinessDateAsDate does — the two must
- * agree or a synced day and an edited day would be different rows.
- */
-function businessDateToUtcDate(businessDate: string): Date {
-    const [y, m, d] = businessDate.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d));
-}
 
 /**
  * Clover sends money as integer cents. Anything else reads as zero rather than

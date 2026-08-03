@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { useAdmin } from '@/components/AdminContext';
 import { saveShift, addShift, removeShift } from '@/app/actions/tips';
 import { syncCloverTips } from '@/app/actions/tipSync';
 // Type-only: avoids shipping a client reference to an action never called here.
@@ -107,10 +108,31 @@ const shiftSignature = (rows: RowDraft[]) => JSON.stringify(rows.map(rowSignatur
 
 const isAmount = (raw: string) => raw.trim() !== '' && Number.isFinite(Number(raw.replace(/[$,\s]/g, '')));
 
-export default function TipDayEditor({ day, staff }: { day: TipDay; staff: StaffMember[] }) {
+export default function TipDayEditor({
+    day,
+    staff,
+    isHistorical = false
+}: {
+    day: TipDay;
+    staff: StaffMember[];
+    isHistorical?: boolean;
+}) {
     const t = useTranslations('Tips');
     const router = useRouter();
-    const readOnly = day.status === 'ENVIADO';
+    const { isAdmin } = useAdmin();
+
+    const submitted = day.status === 'ENVIADO';
+
+    /**
+     * A past day opens locked. An admin can unlock a draft one; nobody can
+     * unlock a submitted one from here, because every writer goes through
+     * assertEditable and would reject the save — offering a toggle that
+     * produces a server error is worse than not offering it. Reopening is the
+     * admin path for that, and it audits.
+     */
+    const [editing, setEditing] = useState(false);
+    const canToggleEdit = isHistorical && isAdmin && !submitted;
+    const readOnly = submitted || (isHistorical && !(canToggleEdit && editing));
 
     // Keys for rows the database has never seen. A counter rather than a random
     // id so the first render is identical on server and client.
@@ -415,9 +437,50 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
 
     const allRows = day.shifts.flatMap(s => shiftRows(s.id));
     const canSave = !readOnly && dirtyShifts.length > 0 && !busy;
+    const canSync = !syncing && !readOnly && !isHistorical;
 
     return (
         <>
+            {isHistorical && (
+                <div
+                    className="glass-panel"
+                    style={{
+                        padding: '1.25rem 1.5rem',
+                        display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+                        borderLeft: `4px solid ${editing ? 'var(--warning)' : 'var(--border)'}`
+                    }}
+                >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        <Lock size={18} />
+                        {t('historical_view')}
+                    </span>
+
+                    {submitted && (
+                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+                            {t('day_submitted_locked')}
+                        </span>
+                    )}
+
+                    {canToggleEdit && (
+                        <button
+                            onClick={() => setEditing(on => !on)}
+                            aria-pressed={editing}
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.45rem',
+                                minHeight: '52px', padding: '0 1.1rem', borderRadius: '8px',
+                                fontSize: '1.05rem', fontWeight: 600, cursor: 'pointer',
+                                color: editing ? 'white' : 'var(--text-secondary)',
+                                background: editing ? 'var(--warning)' : 'rgba(255,255,255,0.05)',
+                                border: editing ? '1px solid var(--warning)' : '1px solid var(--border)'
+                            }}
+                        >
+                            <Pencil size={18} />
+                            {editing ? t('editing_enabled') : t('edit_record')}
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Balances sit above the shifts: they are what the day is judged on,
                 and they have to stay readable while rows are being typed. */}
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -453,12 +516,20 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                         <button
                             onClick={handleSync}
-                            disabled={syncing || readOnly}
+                            // Historical days are excluded whatever the admin
+                            // state: the sync sets the targets outright, so
+                            // re-running it would move the figures a finished
+                            // day was reconciled against. It also always syncs
+                            // today, since the action is called without a date.
+                            disabled={syncing || readOnly || isHistorical}
                             style={{
                                 ...quietButton,
                                 minHeight: '52px',
-                                cursor: syncing || readOnly ? 'not-allowed' : 'pointer',
-                                opacity: syncing || readOnly ? 0.5 : 1
+                                color: canSync ? 'white' : 'var(--text-secondary)',
+                                background: canSync ? 'var(--success)' : 'rgba(255,255,255,0.05)',
+                                border: canSync ? '1px solid var(--success)' : '1px solid var(--border)',
+                                cursor: canSync ? 'pointer' : 'not-allowed',
+                                opacity: canSync ? 1 : 0.5
                             }}
                         >
                             <RefreshCw size={18} />
@@ -472,7 +543,11 @@ export default function TipDayEditor({ day, staff }: { day: TipDay; staff: Staff
                         </span>
                     </div>
 
-                    {readOnly && (
+                    {isHistorical ? (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
+                            {t('viewing_history')}
+                        </span>
+                    ) : submitted && (
                         <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
                             {t('sync_blocked_submitted')}
                         </span>

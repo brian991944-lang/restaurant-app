@@ -206,6 +206,15 @@
     "sales": "Ventas",
     "sync_failed": "No se pudo actualizar desde Clover.",
     "sync_blocked_submitted": "Este día ya fue enviado. No se puede actualizar desde Clover.",
+    "historical_view": "Estás viendo un día anterior",
+    "no_record_for_date": "No hay registro de propinas para este día.",
+    "today": "Hoy",
+    "previous_day": "Día anterior",
+    "next_day": "Día siguiente",
+    "edit_record": "Editar",
+    "editing_enabled": "Edición activada",
+    "viewing_history": "No se puede actualizar desde Clover en un día anterior.",
+    "day_submitted_locked": "Este día ya fue enviado. Un administrador debe reabrirlo para poder editarlo.",
     "changed_by_prompt": "¿Quién hace el cambio?",
     "clover_not_owed": "Esto es lo que Clover reportó, para comparar. No es lo que se le debe a nadie."
   }
