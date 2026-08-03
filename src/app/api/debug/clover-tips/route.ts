@@ -63,6 +63,41 @@ const SHIFT_LIMIT = 500;
 /** How many known-working people to try the per-employee endpoint with. */
 const SHIFT_EMPLOYEE_SAMPLE = 3;
 
+/** Page size for the unfiltered shape probe. Small — it only needs examples. */
+const SHIFT_SHAPE_LIMIT = 100;
+
+/**
+ * Candidate clock-in and clock-out fields, most-corrected first.
+ *
+ * Clover's own list of filterable fields on /shifts names both a plain and an
+ * override form for each side, which means a punch fixed by hand is stored
+ * apart from the one the clock recorded. The user corrects bad clock-ins by
+ * hand, so reading the wrong one would silently pay the wrong hours. Nothing
+ * here is assumed to exist: the probe reports which are actually populated.
+ */
+const IN_FIELDS = ['in_and_override_time', 'override_in_time', 'in_time', 'inTime'] as const;
+const OUT_FIELDS = ['out_and_override_time', 'override_out_time', 'out_time', 'outTime'] as const;
+
+/** Base field paired with the override that would supersede it. */
+const OVERRIDE_PAIRS = [
+    { base: 'in_time', override: 'override_in_time' },
+    { base: 'in_time', override: 'in_and_override_time' },
+    { base: 'out_time', override: 'override_out_time' },
+    { base: 'out_time', override: 'out_and_override_time' }
+] as const;
+
+const numberField = (obj: any, field: string): number | null =>
+    typeof obj?.[field] === 'number' && Number.isFinite(obj[field]) ? obj[field] : null;
+
+/** First candidate actually present on the shift, with the name it went by. */
+function pickTimeField(shift: any, fields: readonly string[]): { field: string; value: number } | null {
+    for (const field of fields) {
+        const value = numberField(shift, field);
+        if (value !== null) return { field, value };
+    }
+    return null;
+}
+
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 /**
@@ -279,7 +314,10 @@ export async function GET(req: NextRequest) {
         };
 
         try {
-            const timeFilter = `filter=inTime>=${weekStartMs}&filter=inTime<=${weekEndMs}`;
+            // in_time, not inTime. Clover rejected the camelCase form and named
+            // its supported filter fields, which are snake_case on this endpoint
+            // even though the JSON body is not.
+            const timeFilter = `filter=in_time>=${weekStartMs}&filter=in_time<=${weekEndMs}`;
             const attempts: {
                 label: string;
                 path: string;
@@ -352,6 +390,16 @@ export async function GET(req: NextRequest) {
                 if (raw) perEmployeeRaw.push(raw);
             }
 
+            // --- 4: unfiltered, purely to see the shape ----------------------
+            // If range filtering misbehaves the first three come back empty and
+            // tell us nothing about what a shift looks like. This one asks for
+            // shifts with no filter at all, so there is always something to
+            // read. It is NOT part of the week and never feeds the totals.
+            const unfilteredRaw = await attempt(
+                'UNFILTERED /shifts (shape probe, NOT the week window)',
+                `/shifts?limit=${SHIFT_SHAPE_LIMIT}`
+            );
+
             // --- Whatever came back, from whichever endpoint answered --------
             const collected: any[] = [
                 ...(merchantShifts?.elements ?? []),
@@ -367,8 +415,59 @@ export async function GET(req: NextRequest) {
                 shifts.push(s);
             }
 
+            const unfilteredShifts: any[] = unfilteredRaw?.elements ?? [];
+
+            // Field discovery reads the window when it has something, and falls
+            // back to the unfiltered sample when it does not — the shape of a
+            // shift is worth knowing either way.
+            const shapeShifts = shifts.length > 0 ? shifts : unfilteredShifts;
+            const shapeSource = shifts.length > 0 ? 'window' : 'unfiltered';
+
             const shiftKeys = new Set<string>();
-            for (const s of shifts) for (const k of Object.keys(s ?? {})) shiftKeys.add(k);
+            for (const s of shapeShifts) for (const k of Object.keys(s ?? {})) shiftKeys.add(k);
+
+            // Which of the candidate clock fields are actually populated, and on
+            // how many shifts. Reported rather than assumed: the supported-filter
+            // list names both a plain and an override form for each side, and
+            // which one carries a hand-corrected punch is exactly what we need
+            // to learn before hours are computed from any of them.
+            const fieldPresence: Record<string, number> = {};
+            for (const s of shapeShifts) {
+                for (const f of [...IN_FIELDS, ...OUT_FIELDS]) {
+                    if (numberField(s, f) !== null) fieldPresence[f] = (fieldPresence[f] ?? 0) + 1;
+                }
+            }
+
+            // Where a base field and its override disagree, the override is a
+            // correction somebody made by hand. These are the rows that decide
+            // which field hours must be read from.
+            const overrideDivergences: {
+                shiftId: string | null;
+                baseField: string;
+                overrideField: string;
+                base: number;
+                baseIso: string;
+                override: number;
+                overrideIso: string;
+                deltaMinutes: number;
+            }[] = [];
+            for (const s of shapeShifts) {
+                for (const pair of OVERRIDE_PAIRS) {
+                    const base = numberField(s, pair.base);
+                    const override = numberField(s, pair.override);
+                    if (base === null || override === null || base === override) continue;
+                    overrideDivergences.push({
+                        shiftId: s?.id ? String(s.id) : null,
+                        baseField: pair.base,
+                        overrideField: pair.override,
+                        base,
+                        baseIso: new Date(base).toISOString(),
+                        override,
+                        overrideIso: new Date(override).toISOString(),
+                        deltaMinutes: Math.round((override - base) / 60000)
+                    });
+                }
+            }
 
             // Names for the summary. Best effort — a failure here costs labels,
             // not numbers.
@@ -390,7 +489,18 @@ export async function GET(req: NextRequest) {
                 openShiftCount: number;
             };
             const byEmployee = new Map<string, ClockSummary>();
-            const openShifts: { shiftId: string | null; employeeId: string; inTime: number | null; inTimeIso: string | null }[] = [];
+            const openShifts: {
+                shiftId: string | null;
+                employeeId: string;
+                inField: string | null;
+                inTime: number | null;
+                inTimeIso: string | null;
+                reason: string;
+            }[] = [];
+            // Which field each side's minutes were actually read from, counted,
+            // so the derivation is auditable instead of implied.
+            const inFieldsUsed: Record<string, number> = {};
+            const outFieldsUsed: Record<string, number> = {};
 
             for (const s of shifts) {
                 const employeeId = s?.employee?.id ? String(s.employee.id) : '(missing)';
@@ -407,44 +517,68 @@ export async function GET(req: NextRequest) {
                 }
                 row.shiftCount++;
 
-                const inTime = typeof s?.inTime === 'number' ? s.inTime : null;
-                const outTime = typeof s?.outTime === 'number' ? s.outTime : null;
+                // Whatever field is actually there, in the documented priority.
+                const inPick = pickTimeField(s, IN_FIELDS);
+                const outPick = pickTimeField(s, OUT_FIELDS);
 
-                // An open shift is somebody who never clocked out. Counting it as
-                // zero would quietly understate their week, so it is called out
-                // rather than folded into the total.
-                if (inTime === null || outTime === null) {
+                // No out field of any name is somebody who never clocked out.
+                // Counting it as zero would quietly understate their week, so it
+                // is called out rather than folded into the total.
+                if (inPick === null || outPick === null) {
                     row.openShiftCount++;
                     openShifts.push({
                         shiftId: s?.id ? String(s.id) : null,
                         employeeId,
-                        inTime,
-                        inTimeIso: inTime === null ? null : new Date(inTime).toISOString()
+                        inField: inPick?.field ?? null,
+                        inTime: inPick?.value ?? null,
+                        inTimeIso: inPick ? new Date(inPick.value).toISOString() : null,
+                        reason: inPick === null ? 'no in field present' : 'no out field present'
                     });
                     continue;
                 }
 
-                row.clockedMinutes += Math.round((outTime - inTime) / 60000);
+                inFieldsUsed[inPick.field] = (inFieldsUsed[inPick.field] ?? 0) + 1;
+                outFieldsUsed[outPick.field] = (outFieldsUsed[outPick.field] ?? 0) + 1;
+                row.clockedMinutes += Math.round((outPick.value - inPick.value) / 60000);
             }
 
             return NextResponse.json({
                 mode: 'shifts',
                 window: weekWindow,
-                filters: [`inTime>=${weekStartMs}`, `inTime<=${weekEndMs}`],
+                filters: [`in_time>=${weekStartMs}`, `in_time<=${weekEndMs}`],
                 // Every endpoint tried, with whatever it actually answered.
                 attempts,
                 employeesProbed: tipPeople,
                 shiftCount: shifts.length,
+                unfilteredShiftCount: unfilteredShifts.length,
+                clockFields: {
+                    // Where the field analysis below was read from.
+                    shapeSource,
+                    inCandidates: IN_FIELDS,
+                    outCandidates: OUT_FIELDS,
+                    // Populated on how many shifts. A candidate absent here does
+                    // not exist on this merchant's records.
+                    presence: fieldPresence,
+                    inFieldsUsedForMinutes: inFieldsUsed,
+                    outFieldsUsedForMinutes: outFieldsUsed,
+                    overrideDivergenceCount: overrideDivergences.length,
+                    overrideDivergences: overrideDivergences.slice(0, 20),
+                    note: overrideDivergences.length > 0
+                        ? 'A base field and its override disagree on the shifts listed. The override is the hand-corrected punch, and hours must be read from it.'
+                        : 'No base/override disagreement observed. Either no punch has been corrected in this sample, or the override fields are not populated at all — see presence.'
+                },
                 distinctTopLevelKeys: [...shiftKeys].sort(),
                 perEmployee: [...byEmployee.values()].sort((a, b) => b.clockedMinutes - a.clockedMinutes),
                 openShiftCount: openShifts.length,
                 openShifts,
                 lookupErrors,
                 note: shifts.length === 0
-                    ? 'NO SHIFTS RETURNED by any endpoint. Check the attempts array: a 401 or 404 means the time clock is not exposed to this token, an empty elements array means it is exposed but holds nothing for this window.'
+                    ? 'NO SHIFTS IN THE WINDOW from any filtered endpoint. Check the attempts array: a 401 or 404 means the time clock is not exposed to this token, an empty elements array means it is exposed but holds nothing for this window. The unfiltered probe below shows the shape regardless.'
                     : `${shifts.length} shift(s) across ${byEmployee.size} employee(s); ${openShifts.length} never clocked out.`,
-                // Raw and unmodified.
-                sampleRaw: shifts.slice(0, 3)
+                // Raw and unmodified — every top-level key with its value.
+                sampleRaw: shifts.slice(0, 3),
+                // Also raw, and deliberately separate: these are NOT in the week.
+                unfilteredSampleRaw: unfilteredShifts.slice(0, 3)
             });
         } catch (e) {
             return NextResponse.json(
