@@ -595,22 +595,29 @@ enum TipTargetField {
 }
 
 model TipDay {
-  id                  String              @id @default(cuid())
-  businessDate        DateTime            @unique @db.Date
-  cloverCreditTips    Decimal?            @db.Decimal(10,2)
-  cloverServiceCharge Decimal?            @db.Decimal(10,2)
-  cloverSyncedAt      DateTime?
-  totalCreditTips     Decimal             @db.Decimal(10,2) @default(0)
-  totalServiceCharge  Decimal             @db.Decimal(10,2) @default(0)
-  totalCashTips       Decimal             @db.Decimal(10,2) @default(0)
-  status              TipDayStatus        @default(BORRADOR)
-  submittedAt         DateTime?
-  submittedByCloverId String?
-  submittedByName     String?
-  shifts              TipShift[]
-  overrides           TipTargetOverride[]
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  id                    String              @id @default(cuid())
+  businessDate          DateTime            @unique @db.Date
+  cloverCreditTips      Decimal?            @db.Decimal(10,2)
+  cloverServiceCharge   Decimal?            @db.Decimal(10,2)
+  cloverCashTips        Decimal?            @db.Decimal(10,2)
+  cloverSyncedAt        DateTime?
+  // What the last sync did. Diagnostics for a run that came back wrong, not
+  // figures anyone is paid from.
+  cloverSyncDurationMs  Int?
+  cloverOrdersScanned   Int?
+  cloverPaymentsScanned Int?
+  totalCreditTips       Decimal             @db.Decimal(10,2) @default(0)
+  totalServiceCharge    Decimal             @db.Decimal(10,2) @default(0)
+  totalCashTips         Decimal             @db.Decimal(10,2) @default(0)
+  status                TipDayStatus        @default(BORRADOR)
+  submittedAt           DateTime?
+  submittedByCloverId   String?
+  submittedByName       String?
+  shifts                TipShift[]
+  overrides             TipTargetOverride[]
+  employeeTips          TipDayEmployeeTip[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
   @@index([businessDate])
 }
 
@@ -668,4 +675,23 @@ model TipShiftEntry {
   @@unique([tipShiftId, cloverEmployeeId])
   @@index([cloverEmployeeId])
   @@index([userId])
+}
+
+// A cache of what Clover reported per employee, refreshed wholesale on every
+// sync. It is never edited by hand and it is NOT the authoritative
+// distribution — TipShiftEntry is, and stays so. Nothing here is what anyone is
+// owed; it exists to be compared against what the staff entered.
+model TipDayEmployeeTip {
+  id               String   @id @default(cuid())
+  tipDayId         String
+  tipDay           TipDay   @relation(fields: [tipDayId], references: [id], onDelete: Cascade)
+  cloverEmployeeId String
+  employeeName     String
+  paymentCount     Int      @default(0)
+  cardTips         Decimal  @db.Decimal(10,2) @default(0)
+  serviceCharge    Decimal  @db.Decimal(10,2) @default(0)
+  salesAmount      Decimal  @db.Decimal(10,2) @default(0)
+  syncedAt         DateTime @default(now())
+  @@unique([tipDayId, cloverEmployeeId])
+  @@index([tipDayId])
 }
