@@ -13,6 +13,7 @@
  *
  *   GET /api/debug/clover-tips            → current business date
  *   GET /api/debug/clover-tips?date=2026-08-01
+ *   GET /api/debug/clover-tips?employees=1 → employee roster only, no scan
  *
  * Delete once the sync lands.
  */
@@ -44,7 +45,36 @@ const ORDER_CONCURRENCY = 3;
  *  function's timeout. Reported when it bites. */
 const MAX_ORDERS = 500;
 
+/** Roster page size. Larger than the merchant's staff has ever been. */
+const ROSTER_LIMIT = 200;
+
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+type RosterEmployee = {
+    id: string;
+    name: string;
+    nickname: string;
+    roles: string[];
+    /** Which query returned this row, not a field copied off the record. */
+    source: 'active' | 'deleted-filter';
+};
+
+/**
+ * An employee record reduced to the four things a name-mapping exercise needs.
+ * Built field by field so nothing else Clover holds — pin, email, customId, or
+ * anything it adds later — can reach the response.
+ */
+function toRoster(raw: any, source: RosterEmployee['source']): RosterEmployee {
+    return {
+        id: String(raw?.id ?? ''),
+        name: String(raw?.name ?? ''),
+        nickname: String(raw?.nickname ?? ''),
+        roles: (raw?.roles?.elements ?? [])
+            .map((r: any) => (typeof r?.name === 'string' ? r.name : ''))
+            .filter(Boolean),
+        source
+    };
+}
 
 /** Run `worker` over `items`, never more than `limit` at once, preserving order. */
 async function mapWithConcurrency<T, R>(
@@ -128,6 +158,57 @@ export async function GET(req: NextRequest) {
     // window is computed and long before Clover is contacted.
     if (!isAdminRequest(req)) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Roster mode. A name off a January spreadsheet has to be matched to a
+    // Clover id, and nothing in the payment scan below helps with that — so it
+    // is skipped entirely rather than run and discarded.
+    if (req.nextUrl.searchParams.get('employees')) {
+        try {
+            const byId = new Map<string, RosterEmployee>();
+            const lookupErrors: Record<string, string> = {};
+
+            const active = await cloverFetch(`/employees?limit=${ROSTER_LIMIT}&expand=roles`);
+            const activeRows: any[] = active?.elements ?? [];
+            for (const emp of activeRows) {
+                const row = toRoster(emp, 'active');
+                if (row.id) byId.set(row.id, row);
+            }
+
+            // Best effort. Clover omits deleted employees from /employees and
+            // documents no way to ask for them, so this may simply be rejected;
+            // the error is reported rather than thrown, because the active
+            // roster is worth having either way. Anyone already returned above
+            // keeps their 'active' source.
+            try {
+                const gone = await cloverFetch(
+                    `/employees?limit=${ROSTER_LIMIT}&expand=roles&filter=deleted=true`
+                );
+                for (const emp of gone?.elements ?? []) {
+                    const row = toRoster(emp, 'deleted-filter');
+                    if (row.id && !byId.has(row.id)) byId.set(row.id, row);
+                }
+            } catch (e) {
+                lookupErrors.deletedFilter = e instanceof Error ? e.message : String(e);
+            }
+
+            return NextResponse.json({
+                mode: 'employees',
+                limit: ROSTER_LIMIT,
+                truncated: activeRows.length >= ROSTER_LIMIT,
+                employeeCount: byId.size,
+                employees: [...byId.values()].sort((a, b) => a.name.localeCompare(b.name, 'es')),
+                lookupErrors,
+                note: 'A name with no match here probably belongs to a deleted employee. '
+                    + 'Clover hides those from /employees; the id can still be recovered from '
+                    + 'employee.id on one of that person\'s payments in a day they worked.'
+            });
+        } catch (e) {
+            return NextResponse.json(
+                { mode: 'employees', error: e instanceof Error ? e.message : String(e) },
+                { status: 502 }
+            );
+        }
     }
 
     const requested = req.nextUrl.searchParams.get('date');
