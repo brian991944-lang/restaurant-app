@@ -4,9 +4,9 @@
  * Exists to answer, before the tip sync is written: what a payment object
  * actually looks like, whether tips come back as tipAmount, how payments split
  * across tenders, whether Clover attributes a sale to the server who rang it or
- * to one shared terminal login, and where a service charge lives — which is on
- * the order, not the payment, so a few orders are pulled expanded. It writes
- * nothing, anywhere.
+ * to one shared terminal login, and where a service charge lives — which is not
+ * on the payment, so every order in the window is pulled expanded and checked
+ * in all four places one could sit. It writes nothing, anywhere.
  *
  * Runs on Vercel rather than locally because CLOVER_MERCHANT_ID and
  * CLOVER_API_TOKEN only exist in the deployed environment.
@@ -31,10 +31,97 @@ const MAX_PAGES = 50;
 /** Group key for a payment that carries no tender or no employee at all. */
 const MISSING = '(missing)';
 
-/** How many payments' orders to pull, for the service-charge question. */
+/** How many orders to probe with the dedicated service-charge sub-resource. */
 const ORDER_SAMPLE_SIZE = 5;
 
+/**
+ * Orders are fetched a few at a time. cloverFetch already backs off on a 429,
+ * but three in flight keeps a busy day from provoking one in the first place.
+ */
+const ORDER_CONCURRENCY = 3;
+
+/** Ceiling on the order scan, so one very long day cannot run past the
+ *  function's timeout. Reported when it bites. */
+const MAX_ORDERS = 500;
+
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+/** Run `worker` over `items`, never more than `limit` at once, preserving order. */
+async function mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    worker: (item: T) => Promise<R>
+): Promise<R[]> {
+    const results = new Array<R>(items.length);
+    let cursor = 0;
+    const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (true) {
+            const i = cursor++;
+            if (i >= items.length) return;
+            results[i] = await worker(items[i]);
+        }
+    });
+    await Promise.all(runners);
+    return results;
+}
+
+const asCents = (v: any): number | null => (typeof v === 'number' ? v : null);
+
+/** Amount on a service-charge node, which Clover may send bare or wrapped in elements. */
+function chargeAmountCents(node: any): number {
+    if (!node) return 0;
+    if (Array.isArray(node.elements)) {
+        return node.elements.reduce(
+            (sum: number, el: any) => sum + (asCents(el?.amount) ?? asCents(el?.price) ?? 0),
+            0
+        );
+    }
+    return asCents(node.amount) ?? asCents(node.price) ?? 0;
+}
+
+const looksLikeServiceName = (name: any) =>
+    typeof name === 'string' && /service|surcharge/i.test(name);
+
+/**
+ * Look for a service charge in all four places it could plausibly sit, and
+ * report which ones hit rather than stopping at the first.
+ *
+ * The amount is taken from a single source to avoid counting the same money
+ * twice: a top-level field when there is one, otherwise the matching line
+ * items, unioned by id so a line item that is both an order fee and named
+ * "service" is only added once.
+ */
+function detectServiceCharge(order: any): { hits: string[]; amountCents: number } {
+    const hits: string[] = [];
+
+    const hasServiceCharge = order?.serviceCharge != null;
+    const hasServiceCharges = order?.serviceCharges != null;
+    if (hasServiceCharge) hits.push('order.serviceCharge');
+    if (hasServiceCharges) hits.push('order.serviceCharges');
+
+    const lineItems: any[] = order?.lineItems?.elements ?? [];
+    const feeItems = lineItems.filter(li => li?.isOrderFee === true);
+    const namedItems = lineItems.filter(li => looksLikeServiceName(li?.name));
+    if (feeItems.length > 0) hits.push('lineItem.isOrderFee');
+    if (namedItems.length > 0) hits.push('lineItem.name~service|surcharge');
+
+    let amountCents = 0;
+    if (hasServiceCharge) {
+        amountCents = chargeAmountCents(order.serviceCharge);
+    } else if (hasServiceCharges) {
+        amountCents = chargeAmountCents(order.serviceCharges);
+    } else {
+        const seen = new Set<any>();
+        for (const li of [...feeItems, ...namedItems]) {
+            const id = li?.id ?? li;
+            if (seen.has(id)) continue;
+            seen.add(id);
+            amountCents += asCents(li?.price) ?? asCents(li?.amount) ?? 0;
+        }
+    }
+
+    return { hits, amountCents };
+}
 
 export async function GET(req: NextRequest) {
     // Same cookie gate as every other admin-only surface. Checked before the
@@ -177,28 +264,73 @@ export async function GET(req: NextRequest) {
         }
 
         // --- Orders behind the first few payments -----------------------------
-        // Fetched one at a time and expanded, because a service charge does not
-        // travel on the payment. Deduplicated: two payments can settle one
-        // order, and fetching it twice would only pad the sample.
-        const sampleOrderIds = [...new Set(
-            payments.slice(0, ORDER_SAMPLE_SIZE).map(p => p?.order?.id).filter(Boolean).map(String)
+        // A service charge does not travel on the payment, so every order behind
+        // the window's payments is fetched and inspected. Deduplicated: two
+        // payments can settle one order.
+        const allOrderIds = [...new Set(
+            payments.map(p => p?.order?.id).filter(Boolean).map(String)
         )];
+        const orderIds = allOrderIds.slice(0, MAX_ORDERS);
+        const orderScanTruncated = allOrderIds.length > orderIds.length;
 
-        const sampleOrdersRaw: any[] = [];
-        const sampleOrderErrors: { orderId: string; error: string }[] = [];
-        for (const orderId of sampleOrderIds) {
+        const scanStartedAt = Date.now();
+        const scanned = await mapWithConcurrency(orderIds, ORDER_CONCURRENCY, async orderId => {
             try {
-                sampleOrdersRaw.push(
-                    await cloverFetch(`/orders/${orderId}?expand=lineItems,serviceCharge,payments`)
-                );
+                const order = await cloverFetch(`/orders/${orderId}?expand=serviceCharge,lineItems`);
+                return { orderId, order, error: null as string | null };
             } catch (e) {
-                sampleOrderErrors.push({ orderId, error: e instanceof Error ? e.message : String(e) });
+                // Returned rather than thrown: one unreadable order must not
+                // abandon the scan of all the others.
+                return { orderId, order: null, error: e instanceof Error ? e.message : String(e) };
             }
+        });
+        const scanElapsedMs = Date.now() - scanStartedAt;
+
+        const orderFetchErrors = scanned
+            .filter(r => r.error !== null)
+            .map(r => ({ orderId: r.orderId, error: r.error as string }));
+        const orders = scanned.filter(r => r.order !== null).map(r => r.order);
+
+        const found = scanned
+            .filter(r => r.order !== null)
+            .map(r => ({ orderId: r.orderId, order: r.order, detection: detectServiceCharge(r.order) }))
+            .filter(r => r.detection.hits.length > 0);
+
+        const serviceChargeTotalCents = found.reduce((sum, r) => sum + r.detection.amountCents, 0);
+
+        // Which of the four places actually carried the charge, counted across
+        // the day. This is the answer the sync pass needs.
+        const hitCounts: Record<string, number> = {};
+        for (const r of found) {
+            for (const hit of r.detection.hits) hitCounts[hit] = (hitCounts[hit] ?? 0) + 1;
         }
 
         const orderKeySet = new Set<string>();
-        for (const o of sampleOrdersRaw) {
+        for (const o of orders) {
             for (const k of Object.keys(o ?? {})) orderKeySet.add(k);
+        }
+
+        // The dedicated sub-resource, tried separately because it is the most
+        // likely home for the charge and may simply not be enabled.
+        const serviceChargeEndpointProbe: {
+            orderId: string;
+            raw: any;
+            error: string | null;
+        }[] = [];
+        for (const orderId of orderIds.slice(0, ORDER_SAMPLE_SIZE)) {
+            try {
+                serviceChargeEndpointProbe.push({
+                    orderId,
+                    raw: await cloverFetch(`/orders/${orderId}/service_charges`),
+                    error: null
+                });
+            } catch (e) {
+                serviceChargeEndpointProbe.push({
+                    orderId,
+                    raw: null,
+                    error: e instanceof Error ? e.message : String(e)
+                });
+            }
         }
 
         return NextResponse.json({
@@ -232,16 +364,40 @@ export async function GET(req: NextRequest) {
                     }))
                     .sort((a, b) => b.paymentCount - a.paymentCount)
             },
-            orders: {
-                orderIdsProbed: sampleOrderIds,
-                expand: 'lineItems,serviceCharge,payments',
-                distinctTopLevelKeys: [...orderKeySet].sort(),
-                fetchErrors: sampleOrderErrors
+            serviceCharges: {
+                expand: 'serviceCharge,lineItems',
+                concurrency: ORDER_CONCURRENCY,
+                ordersScanned: orders.length,
+                orderIdsSeen: allOrderIds.length,
+                scanTruncated: orderScanTruncated,
+                scanElapsedMs,
+                ordersWithServiceCharge: found.length,
+                serviceChargeTotalCents,
+                serviceChargeTotalDollars: serviceChargeTotalCents / 100,
+                // Which of the four checked locations hit, and how often.
+                hitsByLocation: hitCounts,
+                found: found.map(r => ({
+                    orderId: r.orderId,
+                    where: r.detection.hits,
+                    amountCents: r.detection.amountCents
+                })),
+                distinctOrderTopLevelKeys: [...orderKeySet].sort(),
+                fetchErrors: orderFetchErrors,
+                // Said plainly rather than left to be inferred from an empty array.
+                note: found.length === 0
+                    ? 'NO SERVICE CHARGE FOUND in any of the four checked locations across every order in the window. sampleOrdersRaw holds the first order scanned so the real shape is still visible.'
+                    : `Service charge found on ${found.length} of ${orders.length} orders.`
             },
+            // The dedicated sub-resource, probed separately.
+            serviceChargeEndpointProbe,
             // Raw and unmodified, on purpose: this is the whole point of the
             // route. Nothing is stripped, renamed or flattened.
             sampleRaw: payments.slice(0, 3),
-            sampleOrdersRaw,
+            // The first two orders that actually carry a charge — or, if none do,
+            // the first order scanned, so there is always something to read.
+            sampleOrdersRaw: found.length > 0
+                ? found.slice(0, 2).map(r => r.order)
+                : orders.slice(0, 1),
             lookupErrors: errors
         });
     } catch (e) {
