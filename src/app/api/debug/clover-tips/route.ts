@@ -14,14 +14,22 @@
  *   GET /api/debug/clover-tips            → current business date
  *   GET /api/debug/clover-tips?date=2026-08-01
  *   GET /api/debug/clover-tips?employees=1 → employee roster only, no scan
+ *   GET /api/debug/clover-tips?shifts=1    → time clock for the week ending on
+ *                                            ?date, no scan
  *
  * Delete once the sync lands.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { isAdminRequest } from '@/lib/adminGuard';
 import { cloverFetch } from '@/lib/clover';
-import { getBusinessDate, getBusinessDayWindowUtc, BUSINESS_DAY_CUTOVER_HOUR } from '@/lib/businessDay';
+import {
+    getBusinessDate,
+    getBusinessDayWindowUtc,
+    businessDateToUtcDate,
+    BUSINESS_DAY_CUTOVER_HOUR
+} from '@/lib/businessDay';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,7 +56,28 @@ const MAX_ORDERS = 500;
 /** Roster page size. Larger than the merchant's staff has ever been. */
 const ROSTER_LIMIT = 200;
 
+/** Hours are a weekly question, so the time-clock probe spans seven days. */
+const SHIFT_WEEK_DAYS = 7;
+const SHIFT_LIMIT = 500;
+
+/** How many known-working people to try the per-employee endpoint with. */
+const SHIFT_EMPLOYEE_SAMPLE = 3;
+
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+/**
+ * Move a 'YYYY-MM-DD' business date by whole days.
+ *
+ * Pure UTC calendar arithmetic — the cutover is applied by
+ * getBusinessDayWindowUtc when the string is turned into instants, so counting
+ * days here must not involve a timezone at all.
+ */
+function shiftBusinessDate(date: string, days: number): string {
+    const [y, m, d] = date.split('-').map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d + days));
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
 
 type RosterEmployee = {
     id: string;
@@ -225,6 +254,205 @@ export async function GET(req: NextRequest) {
     const { start, end } = getBusinessDayWindowUtc(businessDate);
     const startMs = start.getTime();
     const endMs = end.getTime();
+
+    // Time-clock mode. Hours are a weekly question, so this one spans the seven
+    // operational days ending on the requested date, and the payment and order
+    // scan below is skipped entirely.
+    if (req.nextUrl.searchParams.get('shifts')) {
+        const weekStartDate = shiftBusinessDate(businessDate, -(SHIFT_WEEK_DAYS - 1));
+        // First day's cutover through the last day's — both edges from the same
+        // helper, so a week crossing a DST change is still seven real days.
+        const weekStart = getBusinessDayWindowUtc(weekStartDate).start;
+        const weekEnd = end;
+        const weekStartMs = weekStart.getTime();
+        const weekEndMs = weekEnd.getTime();
+
+        const weekWindow = {
+            businessDateStart: weekStartDate,
+            businessDateEnd: businessDate,
+            days: SHIFT_WEEK_DAYS,
+            cutoverHourNy: BUSINESS_DAY_CUTOVER_HOUR,
+            startIso: weekStart.toISOString(),
+            endIso: weekEnd.toISOString(),
+            startMs: weekStartMs,
+            endMs: weekEndMs
+        };
+
+        try {
+            const timeFilter = `filter=inTime>=${weekStartMs}&filter=inTime<=${weekEndMs}`;
+            const attempts: {
+                label: string;
+                path: string;
+                ok: boolean;
+                raw: any;
+                error: string | null;
+            }[] = [];
+
+            const attempt = async (label: string, path: string) => {
+                try {
+                    const raw = await cloverFetch(path);
+                    attempts.push({ label, path, ok: true, raw, error: null });
+                    return raw;
+                } catch (e) {
+                    attempts.push({
+                        label,
+                        path,
+                        ok: false,
+                        raw: null,
+                        error: e instanceof Error ? e.message : String(e)
+                    });
+                    return null;
+                }
+            };
+
+            // --- 1: the merchant-wide shifts collection ----------------------
+            const merchantShifts = await attempt(
+                'merchant /shifts',
+                `/shifts?${timeFilter}&limit=${SHIFT_LIMIT}`
+            );
+
+            // --- 2: per employee, for whoever actually appears in the tips ---
+            // Read from the tip records rather than the roster: these are people
+            // known to have worked, so an empty result means the endpoint is
+            // unavailable rather than that nobody was on.
+            const tipPeople: { id: string; name: string }[] = [];
+            const lookupErrors: Record<string, string> = {};
+            try {
+                const entries = await prisma.tipShiftEntry.findMany({
+                    where: {
+                        tipShift: {
+                            tipDay: {
+                                businessDate: {
+                                    gte: businessDateToUtcDate(weekStartDate),
+                                    lte: businessDateToUtcDate(businessDate)
+                                }
+                            }
+                        }
+                    },
+                    select: { cloverEmployeeId: true, employeeName: true },
+                    orderBy: { createdAt: 'asc' }
+                });
+                const seen = new Set<string>();
+                for (const e of entries) {
+                    if (seen.has(e.cloverEmployeeId)) continue;
+                    seen.add(e.cloverEmployeeId);
+                    tipPeople.push({ id: e.cloverEmployeeId, name: e.employeeName });
+                    if (tipPeople.length >= SHIFT_EMPLOYEE_SAMPLE) break;
+                }
+            } catch (e) {
+                lookupErrors.tipPeople = e instanceof Error ? e.message : String(e);
+            }
+
+            const perEmployeeRaw: any[] = [];
+            for (const person of tipPeople) {
+                const raw = await attempt(
+                    `employee /shifts (${person.name})`,
+                    `/employees/${person.id}/shifts?${timeFilter}&limit=${SHIFT_LIMIT}`
+                );
+                if (raw) perEmployeeRaw.push(raw);
+            }
+
+            // --- Whatever came back, from whichever endpoint answered --------
+            const collected: any[] = [
+                ...(merchantShifts?.elements ?? []),
+                ...perEmployeeRaw.flatMap(r => r?.elements ?? [])
+            ];
+            // One shift can arrive from both endpoints; identity is the shift id.
+            const shifts: any[] = [];
+            const seenShiftIds = new Set<string>();
+            for (const s of collected) {
+                const id = s?.id ? String(s.id) : null;
+                if (id && seenShiftIds.has(id)) continue;
+                if (id) seenShiftIds.add(id);
+                shifts.push(s);
+            }
+
+            const shiftKeys = new Set<string>();
+            for (const s of shifts) for (const k of Object.keys(s ?? {})) shiftKeys.add(k);
+
+            // Names for the summary. Best effort — a failure here costs labels,
+            // not numbers.
+            const names = new Map<string, string>(tipPeople.map(p => [p.id, p.name]));
+            try {
+                const roster = await cloverFetch(`/employees?limit=${ROSTER_LIMIT}`);
+                for (const emp of roster?.elements ?? []) {
+                    if (emp?.id) names.set(String(emp.id), String(emp.name || emp.nickname || ''));
+                }
+            } catch (e) {
+                lookupErrors.employeeNames = e instanceof Error ? e.message : String(e);
+            }
+
+            type ClockSummary = {
+                employeeId: string;
+                name: string | null;
+                shiftCount: number;
+                clockedMinutes: number;
+                openShiftCount: number;
+            };
+            const byEmployee = new Map<string, ClockSummary>();
+            const openShifts: { shiftId: string | null; employeeId: string; inTime: number | null; inTimeIso: string | null }[] = [];
+
+            for (const s of shifts) {
+                const employeeId = s?.employee?.id ? String(s.employee.id) : '(missing)';
+                let row = byEmployee.get(employeeId);
+                if (!row) {
+                    row = {
+                        employeeId,
+                        name: names.get(employeeId) ?? null,
+                        shiftCount: 0,
+                        clockedMinutes: 0,
+                        openShiftCount: 0
+                    };
+                    byEmployee.set(employeeId, row);
+                }
+                row.shiftCount++;
+
+                const inTime = typeof s?.inTime === 'number' ? s.inTime : null;
+                const outTime = typeof s?.outTime === 'number' ? s.outTime : null;
+
+                // An open shift is somebody who never clocked out. Counting it as
+                // zero would quietly understate their week, so it is called out
+                // rather than folded into the total.
+                if (inTime === null || outTime === null) {
+                    row.openShiftCount++;
+                    openShifts.push({
+                        shiftId: s?.id ? String(s.id) : null,
+                        employeeId,
+                        inTime,
+                        inTimeIso: inTime === null ? null : new Date(inTime).toISOString()
+                    });
+                    continue;
+                }
+
+                row.clockedMinutes += Math.round((outTime - inTime) / 60000);
+            }
+
+            return NextResponse.json({
+                mode: 'shifts',
+                window: weekWindow,
+                filters: [`inTime>=${weekStartMs}`, `inTime<=${weekEndMs}`],
+                // Every endpoint tried, with whatever it actually answered.
+                attempts,
+                employeesProbed: tipPeople,
+                shiftCount: shifts.length,
+                distinctTopLevelKeys: [...shiftKeys].sort(),
+                perEmployee: [...byEmployee.values()].sort((a, b) => b.clockedMinutes - a.clockedMinutes),
+                openShiftCount: openShifts.length,
+                openShifts,
+                lookupErrors,
+                note: shifts.length === 0
+                    ? 'NO SHIFTS RETURNED by any endpoint. Check the attempts array: a 401 or 404 means the time clock is not exposed to this token, an empty elements array means it is exposed but holds nothing for this window.'
+                    : `${shifts.length} shift(s) across ${byEmployee.size} employee(s); ${openShifts.length} never clocked out.`,
+                // Raw and unmodified.
+                sampleRaw: shifts.slice(0, 3)
+            });
+        } catch (e) {
+            return NextResponse.json(
+                { mode: 'shifts', window: weekWindow, error: e instanceof Error ? e.message : String(e) },
+                { status: 502 }
+            );
+        }
+    }
 
     const window = {
         businessDate,
