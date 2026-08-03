@@ -108,6 +108,24 @@ export function getScheduleWindowUtc(businessDate: string): { start: Date; end: 
 }
 
 /**
+ * UTC instants spanning an *operational* day: [cutover NY on the business
+ * date, cutover NY the next day - 1ms]. With the cutover at 5 AM this is
+ * 05:00:00.000 through 04:59:59.999 the following morning.
+ *
+ * This is the window to use against an external system that timestamps
+ * activity as it happens — a POS, say — because it is the same day boundary
+ * getBusinessDate() applies. getScheduleWindowUtc is NOT interchangeable with
+ * it: that one is midnight-to-midnight, and late-night activity would land in
+ * the wrong day. Both derive from BUSINESS_DAY_CUTOVER_HOUR rather than from a
+ * second calendar, and DST is handled by nyWallToUtc on each edge.
+ */
+export function getBusinessDayWindowUtc(businessDate: string): { start: Date; end: Date } {
+    const start = nyWallToUtc(businessDate, BUSINESS_DAY_CUTOVER_HOUR, 0);
+    const nextCutover = nyWallToUtc(addDays(businessDate, 1), BUSINESS_DAY_CUTOVER_HOUR, 0);
+    return { start, end: new Date(nextCutover.getTime() - 1) };
+}
+
+/**
  * Noon New York time on the given date, as a UTC Date. Used as the canonical
  * Schedule.date anchor — noon is safely inside the day's window regardless of
  * DST, matching the existing noon-anchor convention.

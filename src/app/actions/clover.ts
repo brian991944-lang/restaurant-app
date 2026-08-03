@@ -1,14 +1,9 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-
-function requireCloverEnv(name: 'CLOVER_MERCHANT_ID' | 'CLOVER_API_TOKEN'): string {
-    const value = process.env[name];
-    if (!value) {
-        throw new Error('Faltan las credenciales de Clover (CLOVER_MERCHANT_ID / CLOVER_API_TOKEN) en las variables de entorno');
-    }
-    return value;
-}
+// Moved to lib so route handlers can use the same client: this file is
+// 'use server', and anything it exports would become a callable action.
+import { requireCloverEnv, cloverFetch } from '@/lib/clover';
 
 async function depleteInventory(ingredientId: string, quantity: number, note: string) {
     const inv = await prisma.inventory.findUnique({ where: { ingredientId: ingredientId } });
@@ -49,23 +44,6 @@ async function depleteInventory(ingredientId: string, quantity: number, note: st
     await prisma.inventoryTransaction.create({
         data: { ingredientId: ingredientId, type: 'SALES_DEDUCT_CLOVER', qty: quantity, note: expandedNote }
     }).catch(() => null);
-}
-
-async function cloverFetch(path: string, opts: RequestInit = {}) {
-    const CLOVER_MERCHANT_ID = requireCloverEnv('CLOVER_MERCHANT_ID');
-    const CLOVER_TOKEN = requireCloverEnv('CLOVER_API_TOKEN');
-    const url = `https://api.clover.com/v3/merchants/${CLOVER_MERCHANT_ID}${path}`;
-    const headers = { 'Authorization': `Bearer ${CLOVER_TOKEN}`, 'Content-Type': 'application/json' };
-    for (let attempt = 1; attempt <= 4; attempt++) {
-        const res = await fetch(url, { ...opts, headers });
-        if (res.status === 429) {
-            await new Promise(r => setTimeout(r, attempt * 2000));
-            continue;
-        }
-        if (!res.ok) throw new Error(`Clover ${opts.method || 'GET'} ${path} -> ${res.status}: ${await res.text()}`);
-        return res.json();
-    }
-    throw new Error(`Clover ${path}: rate limited (429) after retries`);
 }
 
 /**
