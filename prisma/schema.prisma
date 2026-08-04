@@ -695,3 +695,89 @@ model TipDayEmployeeTip {
   @@unique([tipDayId, cloverEmployeeId])
   @@index([tipDayId])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Weekly payroll and retention
+// Worker identity is the Clover employeeId string, as in the tip
+// models. PayrollEntry.role reuses TipEntryRole rather than
+// declaring a second copy of the same two roles.
+// ─────────────────────────────────────────────────────────────
+
+enum PayrollWeekStatus {
+  BORRADOR
+  CERRADO
+}
+
+enum RetentionKind {
+  RETENCION
+  ENTREGA
+}
+
+model PayrollRateConfig {
+  id            String   @id @default("singleton")
+  serverRate    Decimal  @db.Decimal(6,2)
+  busserRate    Decimal  @db.Decimal(6,2)
+  minimumWage   Decimal  @db.Decimal(6,2)
+  cushionAmount Decimal  @db.Decimal(6,2) @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model PayrollWeek {
+  id            String            @id @default(cuid())
+  weekEnding    DateTime          @unique @db.Date
+  status        PayrollWeekStatus @default(BORRADOR)
+  hoursSyncedAt DateTime?
+  entries       PayrollEntry[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  @@index([weekEnding])
+}
+
+model PayrollEntry {
+  id               String       @id @default(cuid())
+  payrollWeekId    String
+  payrollWeek      PayrollWeek  @relation(fields: [payrollWeekId], references: [id], onDelete: Cascade)
+  cloverEmployeeId String
+  employeeName     String
+  role             TipEntryRole
+  hoursWorked      Decimal      @db.Decimal(7,2) @default(0)
+  hourlyRate       Decimal      @db.Decimal(6,2) @default(0)
+  tipsTotal        Decimal      @db.Decimal(10,2) @default(0)
+  adpTips          Decimal      @db.Decimal(10,2) @default(0)
+  checkTips        Decimal      @db.Decimal(10,2) @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  @@unique([payrollWeekId, cloverEmployeeId])
+  @@index([cloverEmployeeId])
+}
+
+model RetentionSetting {
+  cloverEmployeeId String   @id
+  employeeName     String
+  isActive         Boolean  @default(false)
+  percentage       Decimal  @db.Decimal(5,2) @default(0)
+  updatedAt        DateTime @updatedAt
+}
+
+// Signed ledger. amount is ALWAYS stored positive; kind carries the direction.
+// A RETENCION is money held, an ENTREGA is money paid back out in their name,
+// so the balance held is the sum of RETENCION minus the sum of ENTREGA — any
+// query that adds the rows without subtracting ENTREGA reports the wrong
+// figure. The balance is never stored: a running total that can be edited
+// independently of the rows that produced it will drift.
+// payrollWeekId is a loose reference with no relation, deliberately — deleting
+// a week must not cascade away the record of money held.
+model RetentionLedger {
+  id               String        @id @default(cuid())
+  cloverEmployeeId String
+  employeeName     String
+  kind             RetentionKind
+  amount           Decimal       @db.Decimal(10,2)
+  percentageUsed   Decimal?      @db.Decimal(5,2)
+  payrollWeekId    String?
+  note             String?
+  recordedByName   String?
+  createdAt        DateTime      @default(now())
+  @@index([cloverEmployeeId])
+  @@index([payrollWeekId])
+}
