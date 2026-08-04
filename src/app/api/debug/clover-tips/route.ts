@@ -15,7 +15,8 @@
  *   GET /api/debug/clover-tips?date=2026-08-01
  *   GET /api/debug/clover-tips?employees=1 → employee roster only, no scan
  *   GET /api/debug/clover-tips?shifts=1    → time clock for the week ending on
- *                                            ?date, no scan
+ *                                            ?date, plus a hunt for the resource
+ *                                            that backs Timesheets, no scan
  *
  * Delete once the sync lands.
  */
@@ -65,6 +66,9 @@ const SHIFT_EMPLOYEE_SAMPLE = 3;
 
 /** Page size for the unfiltered shape probe. Small — it only needs examples. */
 const SHIFT_SHAPE_LIMIT = 100;
+
+/** Page size for the timesheet resource-discovery probes. */
+const TIMESHEET_PROBE_LIMIT = 100;
 
 /**
  * Candidate clock-in and clock-out fields, most-corrected first.
@@ -318,30 +322,42 @@ export async function GET(req: NextRequest) {
             // its supported filter fields, which are snake_case on this endpoint
             // even though the JSON body is not.
             const timeFilter = `filter=in_time>=${weekStartMs}&filter=in_time<=${weekEndMs}`;
-            const attempts: {
+            type Attempt = {
                 label: string;
                 path: string;
                 ok: boolean;
                 raw: any;
                 error: string | null;
-            }[] = [];
+            };
+            const attempts: Attempt[] = [];
 
-            const attempt = async (label: string, path: string) => {
+            /**
+             * One endpoint, tried and recorded whatever it answers.
+             *
+             * Never throws: a probe that stopped at the first 404 would report
+             * that one name is wrong instead of which name is right.
+             */
+            const attemptRecord = async (label: string, path: string): Promise<Attempt> => {
+                // The merchant root is reached with no sub-path at all; say so
+                // rather than reporting an empty string.
+                const shown = path === '' ? '(merchant root, no sub-path)' : path;
+                let record: Attempt;
                 try {
-                    const raw = await cloverFetch(path);
-                    attempts.push({ label, path, ok: true, raw, error: null });
-                    return raw;
+                    record = { label, path: shown, ok: true, raw: await cloverFetch(path), error: null };
                 } catch (e) {
-                    attempts.push({
+                    record = {
                         label,
-                        path,
+                        path: shown,
                         ok: false,
                         raw: null,
                         error: e instanceof Error ? e.message : String(e)
-                    });
-                    return null;
+                    };
                 }
+                attempts.push(record);
+                return record;
             };
+
+            const attempt = async (label: string, path: string) => (await attemptRecord(label, path)).raw;
 
             // --- 1: the merchant-wide shifts collection ----------------------
             const merchantShifts = await attempt(
@@ -400,6 +416,105 @@ export async function GET(req: NextRequest) {
                 `/shifts?limit=${SHIFT_SHAPE_LIMIT}`
             );
 
+            // --- 5: which resource actually backs Timesheets -----------------
+            // The dashboard shows this merchant 46 time cards and 352.76 hours
+            // for a week that /shifts reports as empty even unfiltered, so the
+            // clock data exists and the legacy collection is simply not where it
+            // lives. Every plausible resource name is tried and every answer is
+            // reported: a 404 rules a name out, a 401 says the token lacks the
+            // scope rather than that the name is wrong, and an empty elements
+            // array says the resource exists and genuinely holds nothing. None
+            // of these is filtered by time — except the last, which uses
+            // Clover's own documented has_in_time flag — so an empty result
+            // cannot be blamed on a bad filter.
+            const probeEmployee = tipPeople[0] ?? null;
+            const discoveryPaths: { label: string; path: string }[] = [
+                { label: 'time_cards', path: `/time_cards?limit=${TIMESHEET_PROBE_LIMIT}` },
+                { label: 'timecards', path: `/timecards?limit=${TIMESHEET_PROBE_LIMIT}` },
+                ...(probeEmployee
+                    ? [{
+                        label: `employee time_cards (${probeEmployee.name})`,
+                        path: `/employees/${probeEmployee.id}/time_cards?limit=${TIMESHEET_PROBE_LIMIT}`
+                    }]
+                    : []),
+                { label: 'timesheets', path: `/timesheets?limit=${TIMESHEET_PROBE_LIMIT}` },
+                { label: 'labor/shifts', path: `/labor/shifts?limit=${TIMESHEET_PROBE_LIMIT}` },
+                {
+                    label: 'shifts has_in_time=true',
+                    path: `/shifts?limit=${TIMESHEET_PROBE_LIMIT}&filter=has_in_time=true`
+                }
+            ];
+
+            type DiscoveryResult = {
+                label: string;
+                path: string;
+                ok: boolean;
+                error: string | null;
+                /** null when the response was not a collection at all. */
+                elementCount: number | null;
+                distinctTopLevelKeys: string[];
+                sampleRaw: any[];
+                /** A 200 that is not a collection is itself an answer. */
+                nonCollectionRaw: any;
+            };
+            const discovery: DiscoveryResult[] = [];
+            // Kept out of the response: the full sets exist only so the field
+            // analysis below has something to read when /shifts gave nothing.
+            const discoveryElementSets: { path: string; elements: any[] }[] = [];
+
+            for (const probe of discoveryPaths) {
+                const record = await attemptRecord(`DISCOVERY ${probe.label}`, probe.path);
+                const elements: any[] | null = Array.isArray(record.raw?.elements)
+                    ? record.raw.elements
+                    : null;
+                const keys = new Set<string>();
+                for (const el of elements ?? []) for (const k of Object.keys(el ?? {})) keys.add(k);
+                discovery.push({
+                    label: probe.label,
+                    path: probe.path,
+                    ok: record.ok,
+                    error: record.error,
+                    elementCount: elements?.length ?? null,
+                    distinctTopLevelKeys: [...keys].sort(),
+                    // Raw and unmodified.
+                    sampleRaw: (elements ?? []).slice(0, 3),
+                    nonCollectionRaw: record.ok && elements === null ? record.raw : null
+                });
+                if (elements && elements.length > 0) {
+                    discoveryElementSets.push({ path: probe.path, elements });
+                }
+            }
+            if (!probeEmployee) {
+                lookupErrors.employeeTimeCards =
+                    'skipped /employees/{id}/time_cards — no employee found in the tip records for this window';
+            }
+
+            // --- 6: the merchant record itself -------------------------------
+            // Which time-clock product is enabled is a property of the merchant,
+            // so its own record may name the one the dashboard is showing.
+            const merchantRecord = await attemptRecord(
+                'GET /v3/merchants/{mid} (merchant root)',
+                ''
+            );
+            const merchantFields: {
+                keys: string[];
+                flags: Record<string, boolean | number>;
+                nestedKeys: Record<string, string[]>;
+            } = { keys: [], flags: {}, nestedKeys: {} };
+            if (merchantRecord.raw && typeof merchantRecord.raw === 'object') {
+                merchantFields.keys = Object.keys(merchantRecord.raw).sort();
+                for (const [k, v] of Object.entries(merchantRecord.raw as Record<string, unknown>)) {
+                    // Booleans and numbers are what flag an enabled product.
+                    // The string fields are the merchant's own name, address and
+                    // phone; they cannot say anything about the time clock, so
+                    // they are named but not printed.
+                    if (typeof v === 'boolean' || typeof v === 'number') merchantFields.flags[k] = v;
+                    else if (v && typeof v === 'object' && !Array.isArray(v)) {
+                        merchantFields.nestedKeys[k] = Object.keys(v as object).sort();
+                    }
+                }
+            }
+
             // --- Whatever came back, from whichever endpoint answered --------
             const collected: any[] = [
                 ...(merchantShifts?.elements ?? []),
@@ -417,11 +532,20 @@ export async function GET(req: NextRequest) {
 
             const unfilteredShifts: any[] = unfilteredRaw?.elements ?? [];
 
-            // Field discovery reads the window when it has something, and falls
-            // back to the unfiltered sample when it does not — the shape of a
-            // shift is worth knowing either way.
-            const shapeShifts = shifts.length > 0 ? shifts : unfilteredShifts;
-            const shapeSource = shifts.length > 0 ? 'window' : 'unfiltered';
+            // Field discovery reads the window when it has something, falls back
+            // to the unfiltered sample, and failing that reads whichever
+            // discovery probe actually returned records — the shape of a time
+            // card is worth knowing whichever resource turns out to hold it.
+            const firstDiscoverySet = discoveryElementSets[0] ?? null;
+            const shapeShifts =
+                shifts.length > 0 ? shifts
+                    : unfilteredShifts.length > 0 ? unfilteredShifts
+                        : firstDiscoverySet?.elements ?? [];
+            const shapeSource =
+                shifts.length > 0 ? 'window'
+                    : unfilteredShifts.length > 0 ? 'unfiltered'
+                        : firstDiscoverySet ? `discovery ${firstDiscoverySet.path}`
+                            : 'nothing returned records';
 
             const shiftKeys = new Set<string>();
             for (const s of shapeShifts) for (const k of Object.keys(s ?? {})) shiftKeys.add(k);
@@ -551,6 +675,21 @@ export async function GET(req: NextRequest) {
                 employeesProbed: tipPeople,
                 shiftCount: shifts.length,
                 unfilteredShiftCount: unfilteredShifts.length,
+                // Which resource backs the Timesheets screen. Unfiltered by
+                // time, so an empty elementCount means empty, not mis-filtered.
+                timesheetDiscovery: {
+                    note: 'The dashboard shows time cards for this merchant, so the data exists somewhere. An elementCount of null means the response was not a collection at all; see nonCollectionRaw. A 404 rules the resource name out; a 401 means the token lacks the scope for a resource that may well exist.',
+                    resourceWithRecords: firstDiscoverySet?.path ?? null,
+                    probes: discovery
+                },
+                // May name the time-clock product that is enabled. Boolean and
+                // numeric fields only; the string fields are the merchant's own
+                // contact details and say nothing about the clock.
+                merchant: {
+                    ok: merchantRecord.ok,
+                    error: merchantRecord.error,
+                    fields: merchantFields
+                },
                 clockFields: {
                     // Where the field analysis below was read from.
                     shapeSource,
@@ -573,7 +712,7 @@ export async function GET(req: NextRequest) {
                 openShifts,
                 lookupErrors,
                 note: shifts.length === 0
-                    ? 'NO SHIFTS IN THE WINDOW from any filtered endpoint. Check the attempts array: a 401 or 404 means the time clock is not exposed to this token, an empty elements array means it is exposed but holds nothing for this window. The unfiltered probe below shows the shape regardless.'
+                    ? 'NO SHIFTS IN THE WINDOW from any filtered endpoint. /shifts is known to answer empty for this merchant even unfiltered while the dashboard shows time cards, so read timesheetDiscovery first — it is looking for the resource that actually holds them.'
                     : `${shifts.length} shift(s) across ${byEmployee.size} employee(s); ${openShifts.length} never clocked out.`,
                 // Raw and unmodified — every top-level key with its value.
                 sampleRaw: shifts.slice(0, 3),
