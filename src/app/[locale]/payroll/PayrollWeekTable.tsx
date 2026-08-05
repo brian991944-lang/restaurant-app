@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { AlertTriangle, ChevronLeft, ChevronRight, CornerDownLeft } from 'lucide-react';
@@ -32,6 +32,23 @@ const wageCents = (hours: number, rate: number) => Math.round(hours * rate * 100
 
 type Draft = { adp: string; retActive: boolean; retPct: string };
 
+/**
+ * A row's draft as it starts life, from whatever is already saved for it.
+ *
+ * The single definition used by the initial seed, the week-change rebuild and
+ * the defensive read below — three copies of this would be three chances for a
+ * row to start out different depending on which path reached it.
+ */
+function draftFromRow(r: PayrollRow): Draft {
+    return {
+        // Never prefilled with the suggestion — a typed figure and a suggested
+        // one must not be indistinguishable.
+        adp: r.savedAdpTips !== null ? r.savedAdpTips.toFixed(2) : '',
+        retActive: r.retentionActive,
+        retPct: r.retentionPercentage.toFixed(2),
+    };
+}
+
 export default function PayrollWeekTable({
     view,
     maxSelectableDate,
@@ -47,22 +64,77 @@ export default function PayrollWeekTable({
     const searchParams = useSearchParams();
 
     const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
-        Object.fromEntries(view.rows.map(r => [r.key, {
-            // Never prefilled with the suggestion — a typed figure and a
-            // suggested one must not be indistinguishable.
-            adp: r.savedAdpTips !== null ? r.savedAdpTips.toFixed(2) : '',
-            retActive: r.retentionActive,
-            retPct: r.retentionPercentage.toFixed(2),
-        }]))
+        Object.fromEntries(view.rows.map(r => [r.key, draftFromRow(r)]))
     );
 
     const [savingKey, setSavingKey] = useState<string | null>(null);
     const [rowError, setRowError] = useState<Record<string, string>>({});
     const [savedKeys, setSavedKeys] = useState<Record<string, boolean>>({});
 
-    const patch = (key: string, next: Partial<Draft>) => {
-        setDrafts(d => ({ ...d, [key]: { ...d[key], ...next } }));
-        setSavedKeys(s => ({ ...s, [key]: false }));
+    /** The week the current drafts belong to, to tell navigation from a refresh. */
+    const draftWeek = useRef(view.weekEnding);
+
+    /**
+     * Rebuild the drafts when the view changes.
+     *
+     * A useState initializer runs once for the life of the component, and
+     * navigating between weeks re-renders it with a new `view` rather than
+     * remounting — so without this the drafts stay keyed to the week you came
+     * from, and any person not in both weeks reads back undefined.
+     *
+     * Within ONE week the merge follows TipDayEditor: rows already known keep
+     * their unsaved edits, unseen rows get a fresh draft, and rows no longer
+     * present are dropped by only iterating the new list. That is what makes the
+     * router.refresh() after a save non-destructive.
+     *
+     * Across weeks everything is rebuilt instead. row.key is the Clover employee
+     * id, which is the SAME key in every week — unlike TipDayEditor's globally
+     * unique shift ids — so preserving by key would carry an ADP figure typed
+     * for one week into another, where saving it would write it against the
+     * wrong week. A stale draft here is somebody's money in the wrong column.
+     */
+    useEffect(() => {
+        const weekChanged = draftWeek.current !== view.weekEnding;
+        draftWeek.current = view.weekEnding;
+
+        setDrafts(prev => {
+            let changed = weekChanged || Object.keys(prev).length !== view.rows.length;
+            const next: Record<string, Draft> = {};
+            for (const r of view.rows) {
+                if (!weekChanged && r.key in prev) {
+                    next[r.key] = prev[r.key];
+                } else {
+                    next[r.key] = draftFromRow(r);
+                    changed = true;
+                }
+            }
+            // Returning prev unchanged keeps a new `view.rows` identity on every
+            // server render from causing a pointless re-render.
+            return changed ? next : prev;
+        });
+
+        // Per-row status belongs to the week it was earned in: a "Guardado" badge
+        // or an error message must not follow a person across the picker.
+        if (weekChanged) {
+            setSavedKeys(prev => (Object.keys(prev).length ? {} : prev));
+            setRowError(prev => (Object.keys(prev).length ? {} : prev));
+            setSavingKey(prev => (prev === null ? prev : null));
+        }
+    }, [view.weekEnding, view.rows]);
+
+    /**
+     * A row's draft, or one derived from the row itself.
+     *
+     * The effect above should always have seeded it, but this is read during
+     * render — including the render that happens BEFORE an effect runs. Seeding
+     * correctly is not enough on its own; the default is what makes a missing
+     * draft impossible to crash on.
+     */
+    const draftFor = (row: PayrollRow): Draft => drafts[row.key] ?? draftFromRow(row);
+
+    const patch = (row: PayrollRow, next: Partial<Draft>) => {
+        setDrafts(d => ({ ...d, [row.key]: { ...(d[row.key] ?? draftFromRow(row)), ...next } }));
+        setSavedKeys(s => ({ ...s, [row.key]: false }));
     };
 
     /**
@@ -94,7 +166,7 @@ export default function PayrollWeekTable({
 
     const handleSave = async (row: PayrollRow) => {
         if (!row.cloverEmployeeId) return;
-        const draft = drafts[row.key];
+        const draft = draftFor(row);
 
         setSavingKey(row.key);
         setRowError(e => ({ ...e, [row.key]: '' }));
@@ -188,7 +260,7 @@ export default function PayrollWeekTable({
                         </thead>
                         <tbody>
                             {view.rows.map(row => {
-                                const draft = drafts[row.key];
+                                const draft = draftFor(row);
                                 const wageC = wageCents(row.hoursWorked, row.hourlyRate);
                                 const tipsC = Math.round(row.tipsTotal * 100);
                                 const adpC = toCents(draft.adp);
@@ -244,7 +316,7 @@ export default function PayrollWeekTable({
                                                 inputMode="decimal"
                                                 value={draft.adp}
                                                 disabled={unlinked}
-                                                onChange={e => patch(row.key, { adp: e.target.value })}
+                                                onChange={e => patch(row, { adp: e.target.value })}
                                                 style={{ ...smallInput, opacity: unlinked ? 0.5 : 1 }}
                                             />
                                             <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'flex-end' }}>
@@ -252,7 +324,7 @@ export default function PayrollWeekTable({
                                                     {t('suggested')}: {formatMoney(suggestedC)}
                                                 </span>
                                                 <button
-                                                    onClick={() => patch(row.key, { adp: (suggestedC / 100).toFixed(2) })}
+                                                    onClick={() => patch(row, { adp: (suggestedC / 100).toFixed(2) })}
                                                     disabled={unlinked}
                                                     title={t('use_suggested')}
                                                     aria-label={t('use_suggested')}
@@ -274,7 +346,7 @@ export default function PayrollWeekTable({
                                                     type="checkbox"
                                                     checked={draft.retActive}
                                                     disabled={unlinked}
-                                                    onChange={e => patch(row.key, { retActive: e.target.checked })}
+                                                    onChange={e => patch(row, { retActive: e.target.checked })}
                                                     style={{ width: '22px', height: '22px', cursor: unlinked ? 'not-allowed' : 'pointer' }}
                                                 />
                                                 <input
@@ -285,7 +357,7 @@ export default function PayrollWeekTable({
                                                     inputMode="decimal"
                                                     value={draft.retPct}
                                                     disabled={unlinked || !draft.retActive}
-                                                    onChange={e => patch(row.key, { retPct: e.target.value })}
+                                                    onChange={e => patch(row, { retPct: e.target.value })}
                                                     style={{ ...smallInput, width: '84px', opacity: (unlinked || !draft.retActive) ? 0.5 : 1 }}
                                                 />
                                                 <span style={{ color: 'var(--text-secondary)' }}>%</span>
