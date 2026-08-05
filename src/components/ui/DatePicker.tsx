@@ -13,6 +13,13 @@ interface DatePickerProps {
      * callers must keep being able to pick future days.
      */
     max?: string;
+    /**
+     * Trigger text, replacing the formatted `value`. For callers whose
+     * selection stands for something wider than the single day it holds — a
+     * week, say — where showing that one date would misdescribe the selection.
+     * Omitted, the trigger formats `value` exactly as it always has.
+     */
+    label?: string;
 }
 
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -31,7 +38,7 @@ function parseYMD(s: string): Date {
     return new Date(`${s}T12:00:00`);
 }
 
-export function DatePicker({ value, onChange, locale, max }: DatePickerProps) {
+export function DatePicker({ value, onChange, locale, max, label }: DatePickerProps) {
     const [open, setOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
     const init = value ? parseYMD(value) : new Date();
@@ -105,7 +112,7 @@ export function DatePicker({ value, onChange, locale, max }: DatePickerProps) {
                 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 1rem', borderRadius: '8px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: 'pointer', minWidth: '220px', userSelect: 'none', fontSize: '0.95rem' }}
             >
                 <Calendar size={16} color="var(--accent-primary)" />
-                <span style={{ flex: 1 }}>{formatDisplay(value)}</span>
+                <span style={{ flex: 1 }}>{label ?? formatDisplay(value)}</span>
                 <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>▼</span>
             </div>
 

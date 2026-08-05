@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
 import { AlertTriangle, ChevronLeft, ChevronRight, CornerDownLeft } from 'lucide-react';
 import {
     savePayrollEntry,
@@ -10,6 +10,7 @@ import {
     type PayrollWeekView,
     type PayrollRow,
 } from '@/app/actions/payroll';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { toCents, formatMoney } from '@/lib/money';
 
 const cell: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '1.02rem', verticalAlign: 'top' };
@@ -32,14 +33,37 @@ function addDays(dateStr: string, days: number): string {
     return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
 }
 
+/**
+ * Monday of the week containing `dateStr`.
+ *
+ * Pure UTC arithmetic, deliberately: a device-local `new Date(y, m, d)` would
+ * resolve the weekday against the viewer's timezone and could snap to the wrong
+ * Monday for anyone not on the restaurant's clock.
+ */
+function mondayOf(dateStr: string): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();   // 0 = Sunday
+    return addDays(dateStr, -((dow + 6) % 7));
+}
+
 /** Hours × rate, rounded to whole cents once. */
 const wageCents = (hours: number, rate: number) => Math.round(hours * rate * 100);
 
 type Draft = { adp: string; retActive: boolean; retPct: string };
 
-export default function PayrollWeekTable({ view }: { view: PayrollWeekView }) {
+export default function PayrollWeekTable({
+    view,
+    maxWeekStart,
+}: {
+    view: PayrollWeekView;
+    /** Monday of the most recent complete week; the picker's upper bound. */
+    maxWeekStart: string;
+}) {
     const t = useTranslations('Payroll');
+    const locale = useLocale();
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
 
     const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
         Object.fromEntries(view.rows.map(r => [r.key, {
@@ -60,8 +84,31 @@ export default function PayrollWeekTable({ view }: { view: PayrollWeekView }) {
         setSavedKeys(s => ({ ...s, [key]: false }));
     };
 
-    const goWeek = (delta: number) => {
-        router.push(`?week=${addDays(view.weekEnding, delta * 7)}`);
+    /**
+     * Navigation goes through the URL rather than local state, so a week is
+     * linkable and the back button walks the weeks you actually looked at.
+     * The existing params are cloned rather than replaced — pushing a bare
+     * `?week=` would silently drop anything else on the query string.
+     */
+    const go = (weekEnding: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('week', weekEnding);
+        const query = params.toString();
+        router.push(query ? `${pathname}?${query}` : pathname);
+    };
+
+    const goWeek = (delta: number) => go(addDays(view.weekEnding, delta * 7));
+
+    /**
+     * Any picked day resolves to the week containing it: snap to that Monday,
+     * then address the week by its Sunday, which is what `?week=` holds.
+     *
+     * The empty-string guard is for the picker's "Limpiar" button, which fires
+     * onChange('') — snapping that would produce NaN and navigate nowhere good.
+     */
+    const pickWeek = (picked: string) => {
+        if (!picked) return;
+        go(addDays(mondayOf(picked), 6));
     };
 
     const handleSave = async (row: PayrollRow) => {
@@ -108,11 +155,18 @@ export default function PayrollWeekTable({ view }: { view: PayrollWeekView }) {
                     <span>{t('prev_week')}</span>
                 </button>
 
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <span style={{ fontSize: '0.92rem', color: 'var(--text-secondary)' }}>{t('week')}</span>
-                    <span style={{ fontSize: '1.25rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                        {view.weekStart} — {view.weekEnding}
-                    </span>
+                    {/* The picker's value is the Monday, but the trigger shows the
+                        whole range: the selection stands for a week, and naming
+                        one day of it would misdescribe what is on screen. */}
+                    <DatePicker
+                        value={view.weekStart}
+                        label={`${view.weekStart} — ${view.weekEnding}`}
+                        onChange={pickWeek}
+                        locale={locale as 'es' | 'en'}
+                        max={maxWeekStart}
+                    />
                 </div>
 
                 <button
