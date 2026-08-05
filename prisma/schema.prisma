@@ -781,3 +781,41 @@ model RetentionLedger {
   @@index([cloverEmployeeId])
   @@index([payrollWeekId])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Imported timesheet punches
+// ─────────────────────────────────────────────────────────────
+
+enum PunchSource {
+  IMPORTADO
+  MANUAL
+}
+
+// One clock-in/clock-out pair, as recorded by the time clock.
+//
+// Worker identity here is the NAME as the timesheet export gives it, because
+// the export carries no employee id. cloverEmployeeId is resolved on import
+// where the name matches the Clover roster and left null where it does not —
+// an unmatched name is surfaced at import time, never silently dropped.
+//
+// businessDate is derived from clockIn under the 5 AM cutover, so a shift that
+// ends after midnight belongs entirely to the evening it started.
+model PayrollPunch {
+  id               String      @id @default(cuid())
+  businessDate     DateTime    @db.Date
+  employeeName     String
+  cloverEmployeeId String?
+  clockIn          DateTime
+  clockOut         DateTime?
+  hours            Decimal     @db.Decimal(7,2) @default(0)
+  source           PunchSource @default(IMPORTADO)
+  isFlagged        Boolean     @default(false)
+  flagReason       String?
+  importBatchId    String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  @@index([businessDate])
+  @@index([employeeName])
+  @@index([cloverEmployeeId])
+  @@index([importBatchId])
+}
