@@ -62,6 +62,7 @@ export type ParsedPunch = {
     clockOut: Date | null;
     hours: number;
     isFlagged: boolean;
+    /** Comma-separated PunchFlag CODES for storage — not prose, not localised. */
     flagReason: string | null;
     flags: PunchFlag[];
     /** 1-based line in the source file, so a flag can be traced back to it. */
@@ -217,13 +218,17 @@ export function buildRosterIndex(roster: RosterEntry[]): Map<string, string> {
 // Parse
 // ─────────────────────────────────────────────────────────────
 
-const FLAG_TEXT: Record<PunchFlag, string> = {
-    SIN_SALIDA: 'Sin salida registrada',
-    SALIDA_ANTES_DE_ENTRADA: 'La salida es anterior a la entrada',
-    HORAS_MINIMAS: `Menos de ${MIN_PLAUSIBLE_HOURS} h (posible marcaje por error)`,
-    HORAS_MAXIMAS: `Más de ${MAX_PLAUSIBLE_HOURS} h (posible falta de salida)`,
-    SIN_ID_CLOVER: 'El nombre no coincide con ningún empleado de Clover',
-};
+/**
+ * Flags as a storable string: the CODES, comma-separated — never prose.
+ *
+ * This module emits no human language. Translating here would bake one locale
+ * into both the UI and the database column, so the codes travel and the caller
+ * renders them (`t('flag_' + code)`). PayrollPunch.flagReason therefore holds
+ * something a future locale change cannot invalidate.
+ */
+function flagsToStored(flags: PunchFlag[]): string | null {
+    return flags.length ? flags.join(',') : null;
+}
 
 /**
  * Parse a Homebase timesheet export into the punches an import would write.
@@ -325,7 +330,7 @@ export function parseTimesheetCsv(
             clockOut,
             hours,
             isFlagged: flags.length > 0,
-            flagReason: flags.length ? flags.map(f => FLAG_TEXT[f]).join('; ') : null,
+            flagReason: flagsToStored(flags),
             flags,
             csvLine: line,
         });

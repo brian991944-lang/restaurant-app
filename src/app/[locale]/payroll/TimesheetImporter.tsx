@@ -261,7 +261,10 @@ export default function TimesheetImporter() {
                                                 {p.clockOut ? nyTime(p.clockOut) : t('no_clock_out')}
                                             </td>
                                             <td style={numericCell}>{p.hours.toFixed(2)}</td>
-                                            <td style={{ ...cell, color: 'var(--warning)' }}>{p.flagReason}</td>
+                                            {/* The parser emits codes, not prose — the locale is chosen here. */}
+                                            <td style={{ ...cell, color: 'var(--warning)' }}>
+                                                {p.flags.map(f => t(`flag_${f}`)).join('; ')}
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
