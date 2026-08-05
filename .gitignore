@@ -54,3 +54,7 @@ scripts/timesheet-import.csv
 
 scripts/importPunches.ts
 scripts/timesheet-fixture.csv
+
+scripts/importHistoricalTips.ts
+scripts/seedTipDay.ts
+scripts/deleteTipSeed.ts
