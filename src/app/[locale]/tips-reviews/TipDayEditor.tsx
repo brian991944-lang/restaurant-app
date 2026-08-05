@@ -40,6 +40,17 @@ const head: React.CSSProperties = { padding: '0.9rem 1rem', fontSize: '0.95rem',
 const numericCell: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums' };
 const numericHead: React.CSSProperties = { ...head, textAlign: 'right' };
 
+/**
+ * Tapping a money field highlights what is in it, so the first keystroke
+ * replaces the whole amount instead of landing beside it.
+ *
+ * Selecting rather than blanking on focus deliberately: clearing the field
+ * would leave a tap-and-leave-without-typing showing an empty box, and for cash
+ * that empty box means "not counted" rather than "zero". Select-all reads the
+ * same to the thumb without inventing that state.
+ */
+const selectAllOnFocus = (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select();
+
 const inputStyle: React.CSSProperties = {
     width: '100%', padding: '0.6rem 0.7rem', minHeight: '52px',
     fontSize: '1.05rem', borderRadius: '8px', textAlign: 'right',
@@ -937,6 +948,7 @@ export default function TipDayEditor({
                                                         type="text"
                                                         inputMode="decimal"
                                                         value={d.credit}
+                                                        onFocus={selectAllOnFocus}
                                                         onChange={e => patchRow(shift.id, d.key, { credit: e.target.value })}
                                                         style={inputStyle}
                                                     />
@@ -946,6 +958,7 @@ export default function TipDayEditor({
                                                         type="text"
                                                         inputMode="decimal"
                                                         value={d.service}
+                                                        onFocus={selectAllOnFocus}
                                                         onChange={e => patchRow(shift.id, d.key, { service: e.target.value })}
                                                         style={inputStyle}
                                                     />
@@ -956,6 +969,7 @@ export default function TipDayEditor({
                                                         inputMode="decimal"
                                                         value={d.cash}
                                                         placeholder={t('not_counted')}
+                                                        onFocus={selectAllOnFocus}
                                                         onChange={e => patchRow(shift.id, d.key, { cash: e.target.value })}
                                                         style={{
                                                             ...inputStyle,

@@ -19,6 +19,14 @@ const head: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '0.92rem
 const numCell: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const numHead: React.CSSProperties = { ...head, textAlign: 'right' };
 
+/**
+ * Tapping a money field highlights what is in it, so the first keystroke
+ * replaces the whole amount instead of landing beside it. Selecting rather than
+ * blanking on focus: clearing would leave a tap-and-leave-without-typing
+ * showing an empty box that reads as a deliberate zero.
+ */
+const selectAllOnFocus = (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select();
+
 const smallInput: React.CSSProperties = {
     width: '110px', padding: '0.5rem 0.6rem', minHeight: '48px',
     fontSize: '1.02rem', borderRadius: '8px', textAlign: 'right',
@@ -316,6 +324,7 @@ export default function PayrollWeekTable({
                                                 inputMode="decimal"
                                                 value={draft.adp}
                                                 disabled={unlinked}
+                                                onFocus={selectAllOnFocus}
                                                 onChange={e => patch(row, { adp: e.target.value })}
                                                 style={{ ...smallInput, opacity: unlinked ? 0.5 : 1 }}
                                             />
@@ -357,6 +366,7 @@ export default function PayrollWeekTable({
                                                     inputMode="decimal"
                                                     value={draft.retPct}
                                                     disabled={unlinked || !draft.retActive}
+                                                    onFocus={selectAllOnFocus}
                                                     onChange={e => patch(row, { retPct: e.target.value })}
                                                     style={{ ...smallInput, width: '84px', opacity: (unlinked || !draft.retActive) ? 0.5 : 1 }}
                                                 />

@@ -40,6 +40,8 @@ export default function RateConfigPanel({ config }: { config: RateConfig }) {
         setSaving(false);
     };
 
+    // Tapping a rate highlights it, so the first keystroke replaces the whole
+    // figure rather than appending to it. One helper renders all four fields.
     const field = (label: string, value: string, onChange: (v: string) => void) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: '1 1 180px' }}>
             <label style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{label}</label>
@@ -49,6 +51,7 @@ export default function RateConfigPanel({ config }: { config: RateConfig }) {
                 min="0"
                 inputMode="decimal"
                 value={value}
+                onFocus={e => e.currentTarget.select()}
                 onChange={e => { onChange(e.target.value); setSaved(false); }}
                 style={inputStyle}
             />
