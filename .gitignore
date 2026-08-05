@@ -49,3 +49,8 @@ next-env.d.ts
 .claude/
 
 scripts/tips-import.csv
+
+scripts/timesheet-import.csv
+
+scripts/importPunches.ts
+scripts/timesheet-fixture.csv
