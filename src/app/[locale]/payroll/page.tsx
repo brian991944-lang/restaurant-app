@@ -1,29 +1,10 @@
 import { getTranslations } from 'next-intl/server';
 import { getPayrollWeek } from '@/app/actions/payroll';
-import { getBusinessDate, getBusinessDayOfWeek } from '@/lib/businessDay';
+import { lastCompleteWeekEnding } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import PayrollWeekTable from './PayrollWeekTable';
 import CollapsibleSection from './CollapsibleSection';
 import TimesheetImporter from './TimesheetImporter';
-
-/**
- * Monday of the most recent COMPLETE week — the week picker's upper bound.
- *
- * Computed here rather than on the client because it depends on the BUSINESS
- * date, which the 5 AM cutover can put a day behind the device's calendar date;
- * a client-side `new Date()` would offer a week the server considers unfinished.
- *
- * This mirrors lastCompleteWeekEnding() in actions/payroll.ts, which cannot be
- * imported: 'use server' turns every export in that file into a callable action.
- */
-function latestSelectableWeekStart(): string {
-    const today = getBusinessDate();
-    const dow = getBusinessDayOfWeek(today);          // 0 = Sunday
-    const [y, m, d] = today.split('-').map(Number);
-    // Back to the Sunday ending the last complete week, then back to its Monday.
-    const t = new Date(Date.UTC(y, m - 1, d - (dow === 0 ? 7 : dow) - 6));
-    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
-}
 
 export default async function PayrollPage({
     searchParams
@@ -51,7 +32,12 @@ export default async function PayrollPage({
 
             <RateConfigPanel config={view.rateConfig} />
 
-            <PayrollWeekTable view={view} maxWeekStart={latestSelectableWeekStart()} />
+            {/* The bound is the SUNDAY ending the last complete week, so every
+                day of every finished week is clickable while the week still in
+                progress stays out of reach. Computed on the server: it depends
+                on the BUSINESS date, and a client `new Date()` would offer a
+                week the server considers unfinished during the pre-cutover hours. */}
+            <PayrollWeekTable view={view} maxSelectableDate={lastCompleteWeekEnding()} />
 
             <CollapsibleSection title={t('importer_section')}>
                 <TimesheetImporter />

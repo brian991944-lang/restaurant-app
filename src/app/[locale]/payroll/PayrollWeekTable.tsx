@@ -11,6 +11,7 @@ import {
     type PayrollRow,
 } from '@/app/actions/payroll';
 import { DatePicker } from '@/components/ui/DatePicker';
+import { addDays, sundayOf } from '@/lib/payrollWeek';
 import { toCents, formatMoney } from '@/lib/money';
 
 const cell: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '1.02rem', verticalAlign: 'top' };
@@ -26,26 +27,6 @@ const smallInput: React.CSSProperties = {
     border: '1px solid var(--border)',
 };
 
-/** Whole-day arithmetic on a 'YYYY-MM-DD' string. No timezone involved. */
-function addDays(dateStr: string, days: number): string {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const t = new Date(Date.UTC(y, m - 1, d + days));
-    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
-}
-
-/**
- * Monday of the week containing `dateStr`.
- *
- * Pure UTC arithmetic, deliberately: a device-local `new Date(y, m, d)` would
- * resolve the weekday against the viewer's timezone and could snap to the wrong
- * Monday for anyone not on the restaurant's clock.
- */
-function mondayOf(dateStr: string): string {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();   // 0 = Sunday
-    return addDays(dateStr, -((dow + 6) % 7));
-}
-
 /** Hours × rate, rounded to whole cents once. */
 const wageCents = (hours: number, rate: number) => Math.round(hours * rate * 100);
 
@@ -53,11 +34,11 @@ type Draft = { adp: string; retActive: boolean; retPct: string };
 
 export default function PayrollWeekTable({
     view,
-    maxWeekStart,
+    maxSelectableDate,
 }: {
     view: PayrollWeekView;
-    /** Monday of the most recent complete week; the picker's upper bound. */
-    maxWeekStart: string;
+    /** Sunday ending the most recent complete week; the picker's upper bound. */
+    maxSelectableDate: string;
 }) {
     const t = useTranslations('Payroll');
     const locale = useLocale();
@@ -108,7 +89,7 @@ export default function PayrollWeekTable({
      */
     const pickWeek = (picked: string) => {
         if (!picked) return;
-        go(addDays(mondayOf(picked), 6));
+        go(sundayOf(picked));
     };
 
     const handleSave = async (row: PayrollRow) => {
@@ -165,7 +146,7 @@ export default function PayrollWeekTable({
                         label={`${view.weekStart} — ${view.weekEnding}`}
                         onChange={pickWeek}
                         locale={locale as 'es' | 'en'}
-                        max={maxWeekStart}
+                        max={maxSelectableDate}
                     />
                 </div>
 

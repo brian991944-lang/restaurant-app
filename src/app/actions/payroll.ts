@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 import { Prisma, TipEntryRole } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
-import { getBusinessDate, getBusinessDayOfWeek, businessDateToUtcDate } from '@/lib/businessDay';
+import { businessDateToUtcDate } from '@/lib/businessDay';
+import { addDays, lastCompleteWeekEnding } from '@/lib/payrollWeek';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
 
@@ -23,25 +24,6 @@ const RATE_DEFAULTS = {
 } as const;
 
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
-
-/** Whole-day arithmetic on a 'YYYY-MM-DD' string. No timezone involved. */
-function addDays(dateStr: string, days: number): string {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const t = new Date(Date.UTC(y, m - 1, d + days));
-    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}`;
-}
-
-/**
- * The Sunday that ends the most recent COMPLETE week.
- *
- * The week in progress is deliberately excluded: on a Sunday the day itself is
- * not over, so the answer is the Sunday before. Payroll for a week nobody has
- * finished working would be wrong every time it was opened.
- */
-function lastCompleteWeekEnding(today = getBusinessDate()): string {
-    const dow = getBusinessDayOfWeek(today);   // 0 = Sunday
-    return addDays(today, -(dow === 0 ? 7 : dow));
-}
 
 // ─────────────────────────────────────────────────────────────
 // Rate config
