@@ -744,7 +744,10 @@ model PayrollEntry {
   payrollWeek      PayrollWeek  @relation(fields: [payrollWeekId], references: [id], onDelete: Cascade)
   cloverEmployeeId String
   employeeName     String
-  role             TipEntryRole
+  // Nullable: TipEntryRole describes a TIPPED shift, and kitchen staff work
+  // none. Defaulting them to MESERO would put a role in a settled record that
+  // the person never held.
+  role             TipEntryRole?
   hoursWorked      Decimal      @db.Decimal(7,2) @default(0)
   // A BLEND when the person worked more than one role that week: the weighted
   // average of the daily rates. It is a rounded 2dp summary, so
@@ -755,8 +758,23 @@ model PayrollEntry {
   // figures before any rounding to a rate. This is the authoritative amount.
   wageTotal        Decimal      @db.Decimal(10,2) @default(0)
   tipsTotal        Decimal      @db.Decimal(10,2) @default(0)
+  // ── How the week was PAID OUT, in two independent pairs ──
+  //
+  // adpTips / checkTips  — how TIPS were divided.
+  //   Salón only. Zero for kitchen, who receive no tips at all.
+  //
+  // adpWage / checkWage  — how WAGES were divided.
+  //   Kitchen only, from their configured adpHours x adpRate. For salón the
+  //   whole wage goes through ADP, so adpWage = wageTotal and checkWage = 0.
+  //
+  // The pairs are independent: within each, the two columns sum to that side's
+  // total (tipsTotal, wageTotal). Adding across the pairs is what someone
+  // reconstructing a paycheck does — adpTips + adpWage is the ADP side,
+  // checkTips + checkWage is the check side.
   adpTips          Decimal      @db.Decimal(10,2) @default(0)
   checkTips        Decimal      @db.Decimal(10,2) @default(0)
+  adpWage          Decimal      @db.Decimal(10,2) @default(0)
+  checkWage        Decimal      @db.Decimal(10,2) @default(0)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   @@unique([payrollWeekId, cloverEmployeeId])

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { addDays, lastCompleteWeekEnding } from '@/lib/payrollWeek';
+import { calcPaySplit } from '@/lib/payrollCalc';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
 
@@ -427,14 +428,23 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
 /**
  * Settle one person's week.
  *
- * hoursWorked, hourlyRate and tipsTotal are RECOMPUTED here rather than taken
- * from the client, and stored alongside the typed figures. A punch corrected
- * next month therefore changes the live view but not this settled row — the
- * numbers someone was actually paid against stay recoverable.
+ * hoursWorked, hourlyRate, tipsTotal and the whole wage split are RECOMPUTED
+ * here rather than taken from the client, and stored alongside the one typed
+ * figure (adpTips). A punch corrected next month therefore changes the live
+ * view but not this settled row — the numbers someone was actually paid against
+ * stay recoverable.
  *
- * checkTips is derived from the same snapshot (tipsTotal - adpTips) rather than
- * trusted from the caller, so the three stored figures can never contradict
- * one another.
+ * Which pair of money columns gets written depends on the department:
+ *
+ *   SALÓN  — tips are split by hand into adpTips / checkTips. The wage all goes
+ *            through ADP, so adpWage = wageTotal and checkWage = 0.
+ *   COCINA — there are no tips, so both tip columns are zero. The WAGE is split
+ *            by the person's configured adpHours x adpRate.
+ *
+ * The kitchen split is recomputed from EmployeeRate here rather than trusted
+ * from the screen. That can briefly disagree with what the tablet is showing if
+ * the configuration changed since the page rendered; the caller refreshes after
+ * a successful save so the row re-renders from the same config the server used.
  */
 export async function savePayrollEntry(
     weekEnding: string,
@@ -469,8 +479,37 @@ export async function savePayrollEntry(
             return { success: false, error: 'Esta persona no tiene tarifa configurada. Configúrala antes de guardar su nómina.' };
         }
 
-        const checkTips = Math.max(0, row.tipsTotal - adpTips);
         const end = businessDateToUtcDate(weekEnding);
+
+        // A row with no department belongs to neither side, so there is no
+        // correct pair of columns to write. Settling it would record a split
+        // that was never decided.
+        if (row.department === null) {
+            return { success: false, error: 'Esta persona no tiene departamento configurado. Configúralo antes de guardar su nómina.' };
+        }
+
+        const isKitchen = row.department === Department.COCINA;
+
+        // Kitchen: the WAGE is split by configuration, recomputed here from the
+        // person's own adpHours / adpRate rather than from anything the client
+        // sent. Salón: the wage all goes through ADP.
+        const split = isKitchen
+            ? calcPaySplit({
+                hours: row.hoursWorked,
+                hourlyRate: row.hourlyRate,
+                adpHours: row.adpHours,
+                adpRate: row.adpRate,
+            })
+            : null;
+
+        const wageCents = row.weekWageCents ?? 0;
+        const adpWageCents = isKitchen ? split!.adpTotalCents : wageCents;
+        const checkWageCents = isKitchen ? split!.checkTotalCents : 0;
+
+        // Kitchen staff receive no tips, so both tip columns are zero rather
+        // than carrying whatever the shared save handler happened to send.
+        const storedAdpTips = isKitchen ? 0 : adpTips;
+        const checkTips = isKitchen ? 0 : Math.max(0, row.tipsTotal - adpTips);
 
         // The stored rate is a BLEND when the week spanned more than one role:
         // the weighted average of the daily rates, rounded to 2dp for the
@@ -494,32 +533,29 @@ export async function savePayrollEntry(
             select: { id: true },
         });
 
+        // Written identically on create and update — one object, so the two
+        // branches cannot drift apart as columns are added.
+        const figures = {
+            employeeName: row.employeeName,
+            // Null, not MESERO: someone who worked no tipped shift never held a
+            // tip role, and a settled record should not claim one.
+            role: row.role,
+            hoursWorked: row.hoursWorked.toFixed(2),
+            hourlyRate: storedRate.toFixed(2),
+            wageTotal: wageTotal.toFixed(2),
+            tipsTotal: row.tipsTotal.toFixed(2),
+            adpTips: storedAdpTips.toFixed(2),
+            checkTips: checkTips.toFixed(2),
+            adpWage: (adpWageCents / 100).toFixed(2),
+            checkWage: (checkWageCents / 100).toFixed(2),
+        };
+
         await prisma.payrollEntry.upsert({
             where: {
                 payrollWeekId_cloverEmployeeId: { payrollWeekId: week.id, cloverEmployeeId },
             },
-            create: {
-                payrollWeekId: week.id,
-                cloverEmployeeId,
-                employeeName: row.employeeName,
-                role: row.role ?? TipEntryRole.MESERO,
-                hoursWorked: row.hoursWorked.toFixed(2),
-                hourlyRate: storedRate.toFixed(2),
-                wageTotal: wageTotal.toFixed(2),
-                tipsTotal: row.tipsTotal.toFixed(2),
-                adpTips: adpTips.toFixed(2),
-                checkTips: checkTips.toFixed(2),
-            },
-            update: {
-                employeeName: row.employeeName,
-                role: row.role ?? TipEntryRole.MESERO,
-                hoursWorked: row.hoursWorked.toFixed(2),
-                hourlyRate: storedRate.toFixed(2),
-                wageTotal: wageTotal.toFixed(2),
-                tipsTotal: row.tipsTotal.toFixed(2),
-                adpTips: adpTips.toFixed(2),
-                checkTips: checkTips.toFixed(2),
-            },
+            create: { payrollWeekId: week.id, cloverEmployeeId, ...figures },
+            update: figures,
         });
 
         revalidatePath(PAYROLL_ROUTE);
