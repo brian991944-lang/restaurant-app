@@ -269,15 +269,21 @@ export default function PayrollWeekTable({
                         <tbody>
                             {view.rows.map(row => {
                                 const draft = draftFor(row);
-                                const wageC = wageCents(row.hoursWorked, row.hourlyRate);
+
+                                // No resolved rate means no wage, and everything
+                                // derived from a wage is unknown rather than zero.
+                                // A $0.00 in these cells would read as a computed
+                                // figure; a dash reads as the absence of one.
+                                const noRate = row.hourlyRate === null;
+                                const wageC = noRate ? null : wageCents(row.hoursWorked, row.hourlyRate!);
                                 const tipsC = Math.round(row.tipsTotal * 100);
                                 const adpC = toCents(draft.adp);
-                                const adpTotalC = wageC + adpC;
+                                const adpTotalC = wageC === null ? null : wageC + adpC;
                                 const checkC = tipsC - adpC;
 
                                 // (hours × minimum wage) − wage + cushion. Never
                                 // written anywhere; it is a number to read.
-                                const suggestedC = Math.max(
+                                const suggestedC = wageC === null ? null : Math.max(
                                     0,
                                     Math.round(row.hoursWorked * view.rateConfig.minimumWage * 100)
                                     - wageC
@@ -288,6 +294,9 @@ export default function PayrollWeekTable({
                                 const retainedC = draft.retActive ? Math.round(checkC * pct / 100) : null;
 
                                 const unlinked = !row.cloverEmployeeId;
+                                // Both conditions make the row unsettleable, so
+                                // one flag drives every disabled state below.
+                                const locked = unlinked || noRate;
 
                                 return (
                                     <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -300,21 +309,43 @@ export default function PayrollWeekTable({
                                             )}
                                             {row.flags.length > 0 && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.35rem' }}>
-                                                    {row.flags.map(f => (
-                                                        <span key={f} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--warning)', fontSize: '0.88rem' }}>
-                                                            <AlertTriangle size={14} />
-                                                            {t(`rowflag_${f}`)}
-                                                        </span>
-                                                    ))}
+                                                    {row.flags.map(f => {
+                                                        const label = (
+                                                            <>
+                                                                <AlertTriangle size={14} />
+                                                                {t(`rowflag_${f}`)}
+                                                            </>
+                                                        );
+                                                        const style: React.CSSProperties = {
+                                                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                                            color: 'var(--warning)', fontSize: '0.88rem',
+                                                        };
+                                                        // The missing rate is fixable on this same page, so the
+                                                        // flag carries the user there instead of describing a
+                                                        // problem and leaving them to find the panel.
+                                                        return f === 'SIN_TARIFA' ? (
+                                                            <a key={f} href="#employee-config" style={{ ...style, textDecoration: 'underline' }}>
+                                                                {label}
+                                                            </a>
+                                                        ) : (
+                                                            <span key={f} style={style}>{label}</span>
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                         </td>
 
                                         <td style={numCell}>{row.hoursWorked.toFixed(2)}</td>
-                                        <td style={numCell}>{formatMoney(Math.round(row.hourlyRate * 100))}</td>
-                                        <td style={numCell}>{formatMoney(wageC)}</td>
+                                        <td style={numCell}>
+                                            {row.hourlyRate === null
+                                                ? <span style={{ color: 'var(--warning)' }}>—</span>
+                                                : formatMoney(Math.round(row.hourlyRate * 100))}
+                                        </td>
+                                        <td style={numCell}>{wageC === null ? '—' : formatMoney(wageC)}</td>
                                         <td style={numCell}>{formatMoney(tipsC)}</td>
-                                        <td style={{ ...numCell, fontWeight: 700 }}>{formatMoney(wageC + tipsC)}</td>
+                                        <td style={{ ...numCell, fontWeight: 700 }}>
+                                            {wageC === null ? '—' : formatMoney(wageC + tipsC)}
+                                        </td>
 
                                         <td style={numCell}>
                                             <input
@@ -323,28 +354,28 @@ export default function PayrollWeekTable({
                                                 min="0"
                                                 inputMode="decimal"
                                                 value={draft.adp}
-                                                disabled={unlinked}
+                                                disabled={locked}
                                                 onFocus={selectAllOnFocus}
                                                 onChange={e => patch(row, { adp: e.target.value })}
-                                                style={{ ...smallInput, opacity: unlinked ? 0.5 : 1 }}
+                                                style={{ ...smallInput, opacity: locked ? 0.5 : 1 }}
                                             />
                                             <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'flex-end' }}>
                                                 <span style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
-                                                    {t('suggested')}: {formatMoney(suggestedC)}
+                                                    {t('suggested')}: {suggestedC === null ? '—' : formatMoney(suggestedC)}
                                                 </span>
                                                 <button
-                                                    onClick={() => patch(row, { adp: (suggestedC / 100).toFixed(2) })}
-                                                    disabled={unlinked}
+                                                    onClick={() => suggestedC !== null && patch(row, { adp: (suggestedC / 100).toFixed(2) })}
+                                                    disabled={locked || suggestedC === null}
                                                     title={t('use_suggested')}
                                                     aria-label={t('use_suggested')}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.3rem', borderRadius: '6px', cursor: unlinked ? 'not-allowed' : 'pointer', color: 'var(--text-primary)', background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', padding: '0.3rem', borderRadius: '6px', cursor: (locked || suggestedC === null) ? 'not-allowed' : 'pointer', color: 'var(--text-primary)', background: 'var(--bg-primary)', border: '1px solid var(--border)' }}
                                                 >
                                                     <CornerDownLeft size={14} />
                                                 </button>
                                             </div>
                                         </td>
 
-                                        <td style={numCell}>{formatMoney(adpTotalC)}</td>
+                                        <td style={numCell}>{adpTotalC === null ? '—' : formatMoney(adpTotalC)}</td>
                                         <td style={{ ...numCell, color: checkC < 0 ? 'var(--danger)' : 'var(--text-primary)' }}>
                                             {formatMoney(checkC)}
                                         </td>
@@ -354,9 +385,9 @@ export default function PayrollWeekTable({
                                                 <input
                                                     type="checkbox"
                                                     checked={draft.retActive}
-                                                    disabled={unlinked}
+                                                    disabled={locked}
                                                     onChange={e => patch(row, { retActive: e.target.checked })}
-                                                    style={{ width: '22px', height: '22px', cursor: unlinked ? 'not-allowed' : 'pointer' }}
+                                                    style={{ width: '22px', height: '22px', cursor: locked ? 'not-allowed' : 'pointer' }}
                                                 />
                                                 <input
                                                     type="number"
@@ -365,10 +396,10 @@ export default function PayrollWeekTable({
                                                     max="100"
                                                     inputMode="decimal"
                                                     value={draft.retPct}
-                                                    disabled={unlinked || !draft.retActive}
+                                                    disabled={locked || !draft.retActive}
                                                     onFocus={selectAllOnFocus}
                                                     onChange={e => patch(row, { retPct: e.target.value })}
-                                                    style={{ ...smallInput, width: '84px', opacity: (unlinked || !draft.retActive) ? 0.5 : 1 }}
+                                                    style={{ ...smallInput, width: '84px', opacity: (locked || !draft.retActive) ? 0.5 : 1 }}
                                                 />
                                                 <span style={{ color: 'var(--text-secondary)' }}>%</span>
                                             </div>
@@ -394,11 +425,19 @@ export default function PayrollWeekTable({
                                             <button
                                                 onClick={() => handleSave(row)}
                                                 className="btn-primary"
-                                                disabled={unlinked || savingKey === row.key}
-                                                style={{ borderRadius: '8px', minHeight: '48px', whiteSpace: 'nowrap', opacity: (unlinked || savingKey === row.key) ? 0.55 : 1 }}
+                                                disabled={locked || savingKey === row.key}
+                                                style={{ borderRadius: '8px', minHeight: '48px', whiteSpace: 'nowrap', opacity: (locked || savingKey === row.key) ? 0.55 : 1 }}
                                             >
                                                 {savingKey === row.key ? t('saving') : savedKeys[row.key] ? t('saved') : t('save')}
                                             </button>
+                                            {noRate && !unlinked && (
+                                                <a
+                                                    href="#employee-config"
+                                                    style={{ display: 'block', fontSize: '0.86rem', color: 'var(--warning)', marginTop: '0.3rem', maxWidth: '160px', textDecoration: 'underline' }}
+                                                >
+                                                    {t('no_rate_cannot_save')}
+                                                </a>
+                                            )}
                                             {unlinked && (
                                                 <div style={{ fontSize: '0.86rem', color: 'var(--warning)', marginTop: '0.3rem', maxWidth: '160px' }}>
                                                     {t('unlinked_cannot_save')}

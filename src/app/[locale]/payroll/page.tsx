@@ -1,7 +1,8 @@
 import { getTranslations } from 'next-intl/server';
-import { getPayrollWeek } from '@/app/actions/payroll';
+import { getPayrollWeek, getEmployeeConfigs } from '@/app/actions/payroll';
 import { lastCompleteWeekEnding } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
+import EmployeeConfigPanel from './EmployeeConfigPanel';
 import PayrollWeekTable from './PayrollWeekTable';
 import CollapsibleSection from './CollapsibleSection';
 import TimesheetImporter from './TimesheetImporter';
@@ -17,7 +18,10 @@ export default async function PayrollPage({
     // Anything unusable falls back to the most recent complete week rather than
     // erroring: a hand-edited URL should land somewhere sensible.
     const requested = Array.isArray(rawWeek) ? rawWeek[0] : rawWeek;
-    const view = await getPayrollWeek(requested);
+    const [view, configs] = await Promise.all([
+        getPayrollWeek(requested),
+        getEmployeeConfigs(),
+    ]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1400px', margin: '0 auto', padding: '1.5rem' }}>
@@ -31,6 +35,8 @@ export default async function PayrollPage({
             </div>
 
             <RateConfigPanel config={view.rateConfig} />
+
+            <EmployeeConfigPanel configs={configs} />
 
             {/* The bound is the SUNDAY ending the last complete week, so every
                 day of every finished week is clickable while the week still in

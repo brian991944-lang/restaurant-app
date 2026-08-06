@@ -1,10 +1,10 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { Prisma, TipEntryRole } from '@prisma/client';
+import { Prisma, TipEntryRole, Department } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
-import { businessDateToUtcDate } from '@/lib/businessDay';
+import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { addDays, lastCompleteWeekEnding } from '@/lib/payrollWeek';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
@@ -96,7 +96,8 @@ export type PayrollRowFlag =
     | 'HORAS_SIN_PROPINAS'
     | 'PROPINAS_SIN_HORAS'
     | 'MARCAJE_MARCADO'
-    | 'SIN_ID_CLOVER';
+    | 'SIN_ID_CLOVER'
+    | 'SIN_TARIFA';
 
 export type PayrollRow = {
     /** Stable row identity: the Clover id, or `name:<name>` when unmatched. */
@@ -109,7 +110,14 @@ export type PayrollRow = {
     roles: TipEntryRole[];
     /** The role the rate is taken from. Null only when nothing indicated one. */
     role: TipEntryRole | null;
-    hourlyRate: number;
+    /**
+     * Null when no rate could be resolved — no EmployeeRate row AND no tip role
+     * to fall back on. Deliberately not zero: a wage of $0.00 reads as a
+     * calculated figure, and this is the absence of one.
+     */
+    hourlyRate: number | null;
+    /** True when hourlyRate came from the person's own EmployeeRate row. */
+    rateFromConfig: boolean;
     savedAdpTips: number | null;
     savedCheckTips: number | null;
     retentionActive: boolean;
@@ -126,8 +134,12 @@ export type PayrollWeekView = {
     rateConfig: RateConfig;
 };
 
-/** Which configured rate a role is paid at. */
-function rateFor(role: TipEntryRole | null, cfg: RateConfig): number {
+/**
+ * The role-based fallback rate. Takes a known role only — the old signature
+ * accepted null and quietly returned serverRate, which is how a Line Cook with
+ * no tip role ended up priced as a server.
+ */
+function rateForRole(role: TipEntryRole, cfg: RateConfig): number {
     return role === TipEntryRole.BUSSER ? cfg.busserRate : cfg.serverRate;
 }
 
@@ -147,7 +159,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
     const start = businessDateToUtcDate(startStr);
     const end = businessDateToUtcDate(endStr);
 
-    const [rateConfig, punches, tipEntries, week, retentions] = await Promise.all([
+    const [rateConfig, punches, tipEntries, week, retentions, employeeRates] = await Promise.all([
         getRateConfig(),
         prisma.payrollPunch.findMany({
             where: { businessDate: { gte: start, lte: end } },
@@ -167,6 +179,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             include: { entries: true },
         }),
         prisma.retentionSetting.findMany(),
+        prisma.employeeRate.findMany(),
     ]);
 
     type Acc = {
@@ -222,6 +235,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
 
     const savedByEmployee = new Map((week?.entries ?? []).map(e => [e.cloverEmployeeId, e]));
     const retentionByEmployee = new Map(retentions.map(r => [r.cloverEmployeeId, r]));
+    const rateByEmployee = new Map(employeeRates.map(r => [r.cloverEmployeeId, r]));
 
     const result: PayrollRow[] = [...rows.entries()].map(([key, acc]) => {
         const roles = [...acc.roleCounts.keys()];
@@ -245,12 +259,23 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         const saved = acc.cloverEmployeeId ? savedByEmployee.get(acc.cloverEmployeeId) : undefined;
         const retention = acc.cloverEmployeeId ? retentionByEmployee.get(acc.cloverEmployeeId) : undefined;
 
+        // Rate resolution, most specific first: the person's own configured
+        // rate, then the role-based fallback, then nothing. Falling through to
+        // serverRate for someone with no role at all is what priced kitchen
+        // staff as servers; an unresolved rate is now reported as unresolved.
+        const configured = acc.cloverEmployeeId ? rateByEmployee.get(acc.cloverEmployeeId) : undefined;
+        const hourlyRate =
+            configured ? dec(configured.hourlyRate)
+                : role ? rateForRole(role, rateConfig)
+                    : null;
+
         const flags: PayrollRowFlag[] = [];
         if (roles.length > 1) flags.push('AMBOS_ROLES');
         if (acc.sawPunch && !acc.sawTip) flags.push('HORAS_SIN_PROPINAS');
         if (acc.sawTip && !acc.sawPunch) flags.push('PROPINAS_SIN_HORAS');
         if (acc.hasFlaggedPunch) flags.push('MARCAJE_MARCADO');
         if (!acc.cloverEmployeeId) flags.push('SIN_ID_CLOVER');
+        if (hourlyRate === null) flags.push('SIN_TARIFA');
 
         return {
             key,
@@ -260,7 +285,8 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             tipsTotal: acc.tips,
             roles,
             role,
-            hourlyRate: rateFor(role, rateConfig),
+            hourlyRate,
+            rateFromConfig: !!configured,
             savedAdpTips: saved ? dec(saved.adpTips) : null,
             savedCheckTips: saved ? dec(saved.checkTips) : null,
             retentionActive: retention?.isActive ?? false,
@@ -316,6 +342,13 @@ export async function savePayrollEntry(
             return { success: false, error: 'No se encontró a esta persona en la semana.' };
         }
 
+        // Refusing rather than storing 0: a settled entry records the rate the
+        // person was paid at, and a zero there is indistinguishable from a real
+        // wage of nothing once the week is closed.
+        if (row.hourlyRate === null) {
+            return { success: false, error: 'Esta persona no tiene tarifa configurada. Configúrala antes de guardar su nómina.' };
+        }
+
         const checkTips = Math.max(0, row.tipsTotal - adpTips);
         const end = businessDateToUtcDate(weekEnding);
 
@@ -356,6 +389,150 @@ export async function savePayrollEntry(
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la nómina: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Per-person configuration
+// ─────────────────────────────────────────────────────────────
+
+/** How far back to look for people who have worked but are not configured. */
+const CONFIG_LOOKBACK_DAYS = 90;
+
+export type EmployeeConfigRow = {
+    cloverEmployeeId: string;
+    employeeName: string;
+    hourlyRate: number | null;
+    department: Department | null;
+    adpHours: number | null;
+    adpRate: number | null;
+    /** False for someone active in the window with no EmployeeRate row yet. */
+    hasRow: boolean;
+    /** Every tip role seen in the lookback window. */
+    rolesSeen: TipEntryRole[];
+    /**
+     * True when the person has worked under more than one role recently, so the
+     * role-based fallback would price them differently week to week. Configuring
+     * them is what removes that swing.
+     */
+    roleVaries: boolean;
+};
+
+/**
+ * Everyone who needs a payroll configuration, configured or not.
+ *
+ * Anyone with punches or tips in the last CONFIG_LOOKBACK_DAYS days is included
+ * even with no EmployeeRate row — those people are the entire point of the
+ * screen, and listing only existing rows would hide exactly the ones that need
+ * attention.
+ */
+export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
+    const since = businessDateToUtcDate(addDays(getBusinessDate(), -CONFIG_LOOKBACK_DAYS));
+
+    const [rates, punches, tipEntries] = await Promise.all([
+        prisma.employeeRate.findMany(),
+        prisma.payrollPunch.groupBy({
+            by: ['cloverEmployeeId', 'employeeName'],
+            where: { businessDate: { gte: since }, cloverEmployeeId: { not: null } },
+        }),
+        prisma.tipShiftEntry.findMany({
+            where: { tipShift: { tipDay: { businessDate: { gte: since } } } },
+            select: { cloverEmployeeId: true, employeeName: true, role: true },
+        }),
+    ]);
+
+    const names = new Map<string, string>();
+    const rolesById = new Map<string, Set<TipEntryRole>>();
+
+    for (const p of punches) {
+        if (p.cloverEmployeeId) names.set(p.cloverEmployeeId, p.employeeName);
+    }
+    for (const e of tipEntries) {
+        names.set(e.cloverEmployeeId, e.employeeName);
+        if (!rolesById.has(e.cloverEmployeeId)) rolesById.set(e.cloverEmployeeId, new Set());
+        rolesById.get(e.cloverEmployeeId)!.add(e.role);
+    }
+    // A configured person stays listed even after 90 quiet days — their row is
+    // still what payroll reads, so it must remain editable.
+    for (const r of rates) names.set(r.cloverEmployeeId, r.employeeName);
+
+    const byId = new Map(rates.map(r => [r.cloverEmployeeId, r]));
+
+    return [...names.entries()]
+        .map(([cloverEmployeeId, employeeName]) => {
+            const row = byId.get(cloverEmployeeId);
+            const rolesSeen = [...(rolesById.get(cloverEmployeeId) ?? [])];
+            return {
+                cloverEmployeeId,
+                employeeName: row?.employeeName ?? employeeName,
+                hourlyRate: row ? dec(row.hourlyRate) : null,
+                department: row?.department ?? null,
+                adpHours: row?.adpHours ? dec(row.adpHours) : null,
+                adpRate: row?.adpRate ? dec(row.adpRate) : null,
+                hasRow: !!row,
+                rolesSeen,
+                roleVaries: rolesSeen.length > 1,
+            };
+        })
+        // Unconfigured first — they are what the screen exists to fix — then by
+        // name within each group.
+        .sort((a, b) =>
+            a.hasRow === b.hasRow
+                ? a.employeeName.localeCompare(b.employeeName, 'es')
+                : (a.hasRow ? 1 : -1)
+        );
+}
+
+/**
+ * Save one person's payroll configuration.
+ *
+ * adpHours and adpRate accept null and MUST keep accepting it: null is not
+ * "unset pending a real value", it is the meaningful default — all hours worked,
+ * and their real rate respectively.
+ */
+export async function saveEmployeeConfig(
+    cloverEmployeeId: string,
+    employeeName: string,
+    hourlyRate: number,
+    department: Department | null,
+    adpHours: number | null,
+    adpRate: number | null
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para cambiar la configuración.' };
+    }
+    if (!cloverEmployeeId) {
+        return { success: false, error: 'Falta identificar a la persona.' };
+    }
+    if (!Number.isFinite(hourlyRate) || hourlyRate <= 0) {
+        return { success: false, error: 'La tarifa real debe ser mayor que cero.' };
+    }
+    if (adpHours !== null && (!Number.isFinite(adpHours) || adpHours < 0)) {
+        return { success: false, error: 'Las horas de ADP deben ser un número positivo, o vacío para todas las horas.' };
+    }
+    if (adpRate !== null && (!Number.isFinite(adpRate) || adpRate < 0)) {
+        return { success: false, error: 'La tarifa de ADP debe ser un número positivo, o vacío para usar la tarifa real.' };
+    }
+
+    try {
+        const data = {
+            employeeName,
+            hourlyRate: hourlyRate.toFixed(2),
+            department,
+            adpHours: adpHours === null ? null : adpHours.toFixed(2),
+            adpRate: adpRate === null ? null : adpRate.toFixed(2),
+        };
+
+        await prisma.employeeRate.upsert({
+            where: { cloverEmployeeId },
+            create: { cloverEmployeeId, ...data },
+            update: data,
+        });
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo guardar la configuración: ${e instanceof Error ? e.message : String(e)}` };
     }
 }
 
