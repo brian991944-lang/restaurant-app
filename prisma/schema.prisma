@@ -711,6 +711,11 @@ enum PayrollWeekStatus {
 enum RetentionKind {
   RETENCION
   ENTREGA
+  // An advance handed to the worker, and a repayment deducted from a later
+  // check. A DESCUENTO carries the advanceId of the ADELANTO it pays down, so
+  // the two are joinable without a stored balance sitting between them.
+  ADELANTO
+  DESCUENTO
 }
 
 model PayrollRateConfig {
@@ -775,11 +780,70 @@ model RetentionLedger {
   amount           Decimal       @db.Decimal(10,2)
   percentageUsed   Decimal?      @db.Decimal(5,2)
   payrollWeekId    String?
+  // Which SalaryAdvance a DESCUENTO row pays down. No relation, deliberately,
+  // for the same reason as payrollWeekId — deleting an advance must not cascade
+  // away the record that the money was repaid.
+  advanceId        String?
   note             String?
   recordedByName   String?
   createdAt        DateTime      @default(now())
   @@index([cloverEmployeeId])
   @@index([payrollWeekId])
+  @@index([advanceId])
+}
+
+enum Department {
+  SALON
+  COCINA
+}
+
+// Per-person payroll configuration.
+//
+// hourlyRate is the person's REAL rate and takes precedence; PayrollRateConfig
+// stays the role-based fallback for anyone without a row here. That is what
+// lets a Line Cook be paid a cook's rate rather than the server rate their
+// absent tip role would otherwise imply.
+//
+// The ADP portion of a week is adpHours x adpRate, and the check covers total
+// earned minus that. Each is null-means-default: adpHours null means all hours
+// worked, adpRate null means hourlyRate. With both null the person is entirely
+// on ADP at their real rate and the check is zero.
+//
+// Two nullable fields rather than a mode enum: a mode would need a value for
+// every combination these already express, and the two could then disagree.
+model EmployeeRate {
+  cloverEmployeeId String      @id
+  employeeName     String
+  hourlyRate       Decimal     @db.Decimal(6,2)
+  department       Department? // null derives the department from the Clover role
+  adpHours         Decimal?    @db.Decimal(5,2)
+  adpRate          Decimal?    @db.Decimal(6,2)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+// An advance paid to a worker, repaid by weekly deductions from their check.
+//
+// Repayments are RetentionLedger rows with kind DESCUENTO carrying this
+// advance's id in advanceId, so the outstanding balance is principalAmount
+// minus the sum of those rows. The balance is never stored: a running total
+// that can be edited independently of the rows that produced it will drift,
+// and the rows are the record of what actually changed hands.
+//
+// Repayment begins the week AFTER startWeekEnding — that week is when the money
+// is handed over, not when it starts coming back.
+model SalaryAdvance {
+  id               String   @id @default(cuid())
+  cloverEmployeeId String
+  employeeName     String
+  principalAmount  Decimal  @db.Decimal(10,2)
+  weeklyDeduction  Decimal  @db.Decimal(10,2)
+  startWeekEnding  DateTime @db.Date
+  note             String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  @@index([cloverEmployeeId])
 }
 
 // ─────────────────────────────────────────────────────────────
