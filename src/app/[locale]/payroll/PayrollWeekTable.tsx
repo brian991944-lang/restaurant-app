@@ -12,7 +12,21 @@ import {
 } from '@/app/actions/payroll';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { addDays, sundayOf } from '@/lib/payrollWeek';
+import { calcPaySplit } from '@/lib/payrollCalc';
 import { toCents, formatMoney } from '@/lib/money';
+
+/** Which sub-tab is showing. Mirrored in the URL so a view is linkable. */
+type Tab = 'salon' | 'cocina';
+
+/**
+ * Rows for a tab. A row with no resolved department belongs to NEITHER, so it
+ * is shown under BOTH — vanishing from the tab someone expected to find it in
+ * is how an unpaid person goes unnoticed. SIN_DEPARTAMENTO prompts the fix.
+ */
+function rowsForTab(rows: PayrollRow[], tab: Tab): PayrollRow[] {
+    const want = tab === 'salon' ? 'SALON' : 'COCINA';
+    return rows.filter(r => r.department === null || r.department === want);
+}
 
 const cell: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '1.02rem', verticalAlign: 'top' };
 const head: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '0.92rem', fontWeight: 500, whiteSpace: 'nowrap' };
@@ -46,6 +60,49 @@ function breakdownText(parts: { hours: number; rate: number }[]): string {
     const term = (p: { hours: number; rate: number }) => `${p.hours.toFixed(2)} h x $${p.rate.toFixed(2)}`;
     if (parts.length <= 2) return parts.map(term).join(' + ');
     return `${parts.slice(0, 2).map(term).join(' + ')} + …`;
+}
+
+/**
+ * Flags that name something fixable on the configuration panel below, so the
+ * flag carries the user there instead of describing a problem and leaving them
+ * to go and find the screen.
+ */
+const LINKED_FLAGS = new Set(['SIN_TARIFA', 'SIN_DEPARTAMENTO']);
+
+/** A row's role line and warning flags. Shared by both tabs. */
+function RowFlags({ row, t }: { row: PayrollRow; t: (k: string) => string }) {
+    return (
+        <>
+            {row.roles.length > 0 && (
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                    {row.roles.map(r => t(`role_${r}`)).join(' + ')}
+                </div>
+            )}
+            {row.flags.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.35rem' }}>
+                    {row.flags.map(f => {
+                        const label = (
+                            <>
+                                <AlertTriangle size={14} />
+                                {t(`rowflag_${f}`)}
+                            </>
+                        );
+                        const style: React.CSSProperties = {
+                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                            color: 'var(--warning)', fontSize: '0.88rem',
+                        };
+                        return LINKED_FLAGS.has(f) ? (
+                            <a key={f} href="#employee-config" style={{ ...style, textDecoration: 'underline' }}>
+                                {label}
+                            </a>
+                        ) : (
+                            <span key={f} style={style}>{label}</span>
+                        );
+                    })}
+                </div>
+            )}
+        </>
+    );
 }
 
 type Draft = { adp: string; retActive: boolean; retPct: string };
@@ -170,6 +227,54 @@ export default function PayrollWeekTable({
 
     const goWeek = (delta: number) => go(addDays(view.weekEnding, delta * 7));
 
+    // The tab lives in the URL beside ?week, so a specific view can be sent to
+    // someone rather than described to them.
+    const tab: Tab = searchParams.get('dept') === 'cocina' ? 'cocina' : 'salon';
+    const setTab = (next: Tab) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('dept', next);
+        router.push(`${pathname}?${params.toString()}`);
+    };
+
+    const salonRows = rowsForTab(view.rows, 'salon');
+    const cocinaRows = rowsForTab(view.rows, 'cocina');
+    const shownRows = tab === 'salon' ? salonRows : cocinaRows;
+
+    /** Per-tab totals, summed from what each row actually renders. */
+    const totals = shownRows.reduce(
+        (t, row) => {
+            const d = draftFor(row);
+            const wage = row.weekWageCents ?? 0;
+            const tips = Math.round(row.tipsTotal * 100);
+            const adp = toCents(d.adp);
+            if (tab === 'salon') {
+                return {
+                    hours: t.hours + row.hoursWorked,
+                    wage: t.wage + wage,
+                    tips: t.tips + tips,
+                    adp: t.adp + wage + adp,
+                    check: t.check + (tips - adp),
+                };
+            }
+            // Kitchen has no tips: the split comes from their configured ADP
+            // hours and rate, not from anything typed into the row.
+            const split = row.hourlyRate === null ? null : calcPaySplit({
+                hours: row.hoursWorked,
+                hourlyRate: row.hourlyRate,
+                adpHours: row.adpHours,
+                adpRate: row.adpRate,
+            });
+            return {
+                hours: t.hours + row.hoursWorked,
+                wage: t.wage + wage,
+                tips: t.tips,
+                adp: t.adp + (split?.adpTotalCents ?? 0),
+                check: t.check + (split?.checkTotalCents ?? 0),
+            };
+        },
+        { hours: 0, wage: 0, tips: 0, adp: 0, check: 0 }
+    );
+
     /**
      * Any picked day resolves to the week containing it: snap to that Monday,
      * then address the week by its Sunday, which is what `?week=` holds.
@@ -255,8 +360,173 @@ export default function PayrollWeekTable({
                 )}
             </div>
 
-            {view.rows.length === 0 ? (
+            {/* ── Sub-tabs ── */}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {([['salon', t('tab_salon'), salonRows.length], ['cocina', t('tab_cocina'), cocinaRows.length]] as const).map(
+                    ([key, label, count]) => (
+                        <button
+                            key={key}
+                            onClick={() => setTab(key)}
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                                minHeight: '52px', padding: '0 1.2rem', borderRadius: '8px',
+                                fontSize: '1.05rem', fontWeight: 600, cursor: 'pointer',
+                                color: tab === key ? '#fff' : 'var(--text-primary)',
+                                background: tab === key ? 'var(--accent-primary)' : 'var(--bg-primary)',
+                                border: '1px solid var(--border)',
+                            }}
+                        >
+                            <span>{label}</span>
+                            <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.85 }}>({count})</span>
+                        </button>
+                    )
+                )}
+            </div>
+
+            {shownRows.length === 0 ? (
                 <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: 0 }}>{t('no_rows')}</p>
+            ) : tab === 'cocina' ? (
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1120px' }}>
+                        <thead>
+                            <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
+                                <th style={head}>{t('name')}</th>
+                                <th style={numHead}>{t('hours')}</th>
+                                <th style={numHead}>{t('rate')}</th>
+                                <th style={numHead}>{t('total_earned')}</th>
+                                <th style={numHead}>{t('adp_hours')}</th>
+                                <th style={numHead}>{t('adp_rate')}</th>
+                                <th style={numHead}>{t('adp_total')}</th>
+                                <th style={numHead}>{t('check')}</th>
+                                <th style={head}>{t('retention')}</th>
+                                <th style={numHead}>{t('retained')}</th>
+                                <th style={head}></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {shownRows.map(row => {
+                                const draft = draftFor(row);
+                                const unlinked = !row.cloverEmployeeId;
+                                const noRate = row.hourlyRate === null;
+                                const locked = unlinked || noRate;
+
+                                // The kitchen split is entirely configuration-driven:
+                                // their ADP hours and rate come from EmployeeRate, so
+                                // nothing on this row is typed except retention.
+                                const split = noRate ? null : calcPaySplit({
+                                    hours: row.hoursWorked,
+                                    hourlyRate: row.hourlyRate!,
+                                    adpHours: row.adpHours,
+                                    adpRate: row.adpRate,
+                                });
+
+                                const pct = Number(draft.retPct) || 0;
+                                const retainedC = draft.retActive && split
+                                    ? Math.round(split.checkTotalCents * pct / 100)
+                                    : null;
+
+                                return (
+                                    <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <td style={cell}>
+                                            <div style={{ fontWeight: 600 }}>{row.employeeName}</div>
+                                            <RowFlags row={row} t={t} />
+                                        </td>
+                                        <td style={numCell}>{row.hoursWorked.toFixed(2)}</td>
+                                        <td style={numCell}>
+                                            {noRate
+                                                ? <span style={{ color: 'var(--warning)' }}>—</span>
+                                                : formatMoney(Math.round((row.effectiveRate ?? row.hourlyRate!) * 100))}
+                                        </td>
+                                        <td style={{ ...numCell, fontWeight: 700 }}>
+                                            {row.weekWageCents === null ? '—' : formatMoney(row.weekWageCents)}
+                                        </td>
+                                        <td style={numCell}>
+                                            {split === null ? '—' : split.effectiveAdpHours.toFixed(2)}
+                                            {row.adpHours === null && (
+                                                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('adp_hours_placeholder')}</div>
+                                            )}
+                                        </td>
+                                        <td style={numCell}>
+                                            {split === null ? '—' : formatMoney(Math.round(split.effectiveAdpRate * 100))}
+                                            {row.adpRate === null && (
+                                                <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('adp_rate_placeholder')}</div>
+                                            )}
+                                        </td>
+                                        <td style={numCell}>{split === null ? '—' : formatMoney(split.adpTotalCents)}</td>
+                                        <td style={numCell}>{split === null ? '—' : formatMoney(split.checkTotalCents)}</td>
+                                        <td style={cell}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={draft.retActive}
+                                                    disabled={locked}
+                                                    onChange={e => patch(row, { retActive: e.target.checked })}
+                                                    style={{ width: '22px', height: '22px', cursor: locked ? 'not-allowed' : 'pointer' }}
+                                                />
+                                                <input
+                                                    type="number" step="0.01" min="0" max="100" inputMode="decimal"
+                                                    value={draft.retPct}
+                                                    disabled={locked || !draft.retActive}
+                                                    onFocus={selectAllOnFocus}
+                                                    onChange={e => patch(row, { retPct: e.target.value })}
+                                                    style={{ ...smallInput, width: '84px', opacity: (locked || !draft.retActive) ? 0.5 : 1 }}
+                                                />
+                                                <span style={{ color: 'var(--text-secondary)' }}>%</span>
+                                            </div>
+                                        </td>
+                                        <td style={numCell}>
+                                            {retainedC === null ? (
+                                                <span style={{ color: 'var(--text-secondary)' }}>—</span>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                                    <span style={{ fontWeight: 700 }}>{formatMoney(retainedC)}</span>
+                                                    <span style={{ fontSize: '0.84rem', color: 'var(--warning)' }}>
+                                                        {t('retained_not_recorded')}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td style={cell}>
+                                            <button
+                                                onClick={() => handleSave(row)}
+                                                className="btn-primary"
+                                                disabled={locked || savingKey === row.key}
+                                                style={{ borderRadius: '8px', minHeight: '48px', whiteSpace: 'nowrap', opacity: (locked || savingKey === row.key) ? 0.55 : 1 }}
+                                            >
+                                                {savingKey === row.key ? t('saving') : savedKeys[row.key] ? t('saved') : t('save')}
+                                            </button>
+                                            {noRate && !unlinked && (
+                                                <a href="#employee-config" style={{ display: 'block', fontSize: '0.86rem', color: 'var(--warning)', marginTop: '0.3rem', maxWidth: '160px', textDecoration: 'underline' }}>
+                                                    {t('no_rate_cannot_save')}
+                                                </a>
+                                            )}
+                                            {rowError[row.key] && (
+                                                <div style={{ fontSize: '0.86rem', color: 'var(--danger)', marginTop: '0.3rem', maxWidth: '160px' }}>
+                                                    {rowError[row.key]}
+                                                </div>
+                                            )}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                        <tfoot>
+                            <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
+                                <td style={cell}>{t('totals')}</td>
+                                <td style={numCell}>{totals.hours.toFixed(2)}</td>
+                                <td style={numCell}></td>
+                                <td style={numCell}>{formatMoney(totals.wage)}</td>
+                                <td style={numCell}></td>
+                                <td style={numCell}></td>
+                                <td style={numCell}>{formatMoney(totals.adp)}</td>
+                                <td style={numCell}>{formatMoney(totals.check)}</td>
+                                <td style={cell}></td>
+                                <td style={numCell}></td>
+                                <td style={cell}></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
             ) : (
                 <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1320px' }}>
@@ -277,7 +547,7 @@ export default function PayrollWeekTable({
                             </tr>
                         </thead>
                         <tbody>
-                            {view.rows.map(row => {
+                            {shownRows.map(row => {
                                 const draft = draftFor(row);
 
                                 // No resolved rate means no wage, and everything
@@ -315,37 +585,7 @@ export default function PayrollWeekTable({
                                     <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
                                         <td style={cell}>
                                             <div style={{ fontWeight: 600 }}>{row.employeeName}</div>
-                                            {row.roles.length > 0 && (
-                                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                                    {row.roles.map(r => t(`role_${r}`)).join(' + ')}
-                                                </div>
-                                            )}
-                                            {row.flags.length > 0 && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.35rem' }}>
-                                                    {row.flags.map(f => {
-                                                        const label = (
-                                                            <>
-                                                                <AlertTriangle size={14} />
-                                                                {t(`rowflag_${f}`)}
-                                                            </>
-                                                        );
-                                                        const style: React.CSSProperties = {
-                                                            display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-                                                            color: 'var(--warning)', fontSize: '0.88rem',
-                                                        };
-                                                        // The missing rate is fixable on this same page, so the
-                                                        // flag carries the user there instead of describing a
-                                                        // problem and leaving them to find the panel.
-                                                        return f === 'SIN_TARIFA' ? (
-                                                            <a key={f} href="#employee-config" style={{ ...style, textDecoration: 'underline' }}>
-                                                                {label}
-                                                            </a>
-                                                        ) : (
-                                                            <span key={f} style={style}>{label}</span>
-                                                        );
-                                                    })}
-                                                </div>
-                                            )}
+                                            <RowFlags row={row} t={t} />
                                         </td>
 
                                         <td style={numCell}>{row.hoursWorked.toFixed(2)}</td>
@@ -488,6 +728,22 @@ export default function PayrollWeekTable({
                                 );
                             })}
                         </tbody>
+                        <tfoot>
+                            <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
+                                <td style={cell}>{t('totals')}</td>
+                                <td style={numCell}>{totals.hours.toFixed(2)}</td>
+                                <td style={numCell}></td>
+                                <td style={numCell}>{formatMoney(totals.wage)}</td>
+                                <td style={numCell}>{formatMoney(totals.tips)}</td>
+                                <td style={numCell}>{formatMoney(totals.wage + totals.tips)}</td>
+                                <td style={numCell}></td>
+                                <td style={numCell}>{formatMoney(totals.adp)}</td>
+                                <td style={numCell}>{formatMoney(totals.check)}</td>
+                                <td style={cell}></td>
+                                <td style={numCell}></td>
+                                <td style={cell}></td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             )}

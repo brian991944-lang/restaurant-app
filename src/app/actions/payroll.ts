@@ -98,7 +98,9 @@ export type PayrollRowFlag =
     | 'PROPINAS_SIN_HORAS'
     | 'MARCAJE_MARCADO'
     | 'SIN_ID_CLOVER'
-    | 'SIN_TARIFA';
+    | 'SIN_TARIFA'
+    /** No department resolved, so the row is shown under both tabs. */
+    | 'SIN_DEPARTAMENTO';
 
 export type PayrollRow = {
     /** Stable row identity: the Clover id, or `name:<name>` when unmatched. */
@@ -119,6 +121,15 @@ export type PayrollRow = {
     hourlyRate: number | null;
     /** True when hourlyRate came from the person's own EmployeeRate row. */
     rateFromConfig: boolean;
+    /**
+     * Which tab the row belongs under. Null means unresolved, and an unresolved
+     * row appears under BOTH tabs rather than vanishing from the one it should
+     * have been in — with SIN_DEPARTAMENTO prompting someone to set it.
+     */
+    department: Department | null;
+    /** From EmployeeRate. Null means all hours / their real rate respectively. */
+    adpHours: number | null;
+    adpRate: number | null;
     /**
      * One entry per distinct role worked that week, hours summed. A day that
      * contained BOTH roles contributes all its hours to the dominant one —
@@ -357,6 +368,17 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         const effectiveRate =
             weekWageCents !== null && acc.hours > 0 ? weekWageCents / 100 / acc.hours : null;
 
+        // Department, database-only. No Clover call: this action must render
+        // without depending on Clover being up, and an outage that reclassified
+        // every server as kitchen would be worse than leaving someone unset.
+        //
+        // Tier 2 is local and reliable — the tip sheet only ever records MESERO
+        // and BUSSER, so anyone with a tip entry this week is salon by
+        // definition. It says nothing about someone with no tips, who is left
+        // unresolved rather than guessed at.
+        const department: Department | null =
+            configured?.department ?? (acc.sawTip ? Department.SALON : null);
+
         const flags: PayrollRowFlag[] = [];
         // A week containing both roles is no longer an approximation — it is
         // priced correctly day by day. Only a single DAY holding both is still
@@ -367,6 +389,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         if (acc.hasFlaggedPunch) flags.push('MARCAJE_MARCADO');
         if (!acc.cloverEmployeeId) flags.push('SIN_ID_CLOVER');
         if (hourlyRate === null) flags.push('SIN_TARIFA');
+        if (department === null) flags.push('SIN_DEPARTAMENTO');
 
         return {
             key,
@@ -378,6 +401,9 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             role,
             hourlyRate,
             rateFromConfig: !!configured,
+            department,
+            adpHours: configured?.adpHours ? dec(configured.adpHours) : null,
+            adpRate: configured?.adpRate ? dec(configured.adpRate) : null,
             rateBreakdown,
             weekWageCents,
             effectiveRate,
