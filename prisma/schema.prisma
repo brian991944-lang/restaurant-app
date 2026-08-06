@@ -746,7 +746,14 @@ model PayrollEntry {
   employeeName     String
   role             TipEntryRole
   hoursWorked      Decimal      @db.Decimal(7,2) @default(0)
+  // A BLEND when the person worked more than one role that week: the weighted
+  // average of the daily rates. It is a rounded 2dp summary, so
+  // hoursWorked x hourlyRate does NOT reliably reproduce wageTotal — that is
+  // why wageTotal is stored rather than derived.
   hourlyRate       Decimal      @db.Decimal(6,2) @default(0)
+  // What was actually earned in wages that week, summed from the per-day
+  // figures before any rounding to a rate. This is the authoritative amount.
+  wageTotal        Decimal      @db.Decimal(10,2) @default(0)
   tipsTotal        Decimal      @db.Decimal(10,2) @default(0)
   adpTips          Decimal      @db.Decimal(10,2) @default(0)
   checkTips        Decimal      @db.Decimal(10,2) @default(0)

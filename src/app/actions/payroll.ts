@@ -92,7 +92,8 @@ export async function saveRateConfig(
 // ─────────────────────────────────────────────────────────────
 
 export type PayrollRowFlag =
-    | 'AMBOS_ROLES'
+    /** A single DAY carried both roles, so its hours could not be attributed. */
+    | 'DIA_AMBOS_ROLES'
     | 'HORAS_SIN_PROPINAS'
     | 'PROPINAS_SIN_HORAS'
     | 'MARCAJE_MARCADO'
@@ -118,6 +119,25 @@ export type PayrollRow = {
     hourlyRate: number | null;
     /** True when hourlyRate came from the person's own EmployeeRate row. */
     rateFromConfig: boolean;
+    /**
+     * One entry per distinct role worked that week, hours summed. A day that
+     * contained BOTH roles contributes all its hours to the dominant one —
+     * nothing in the data says how to divide them, so the DIA_AMBOS_ROLES flag
+     * carries that signal instead of an invented split.
+     */
+    rateBreakdown: { role: TipEntryRole; hours: number; rate: number }[];
+    /**
+     * Wages earned, summed from the per-day figures. AUTHORITATIVE — the table
+     * renders this rather than multiplying hours by a rate, because a blended
+     * rate is a repeating decimal and the two would disagree by cents.
+     */
+    weekWageCents: number | null;
+    /**
+     * weekWage / hours: the weighted average actually paid. DISPLAY ONLY. Never
+     * multiply by it — that is what weekWageCents is for. Null when no hours
+     * were worked, since there is nothing to average.
+     */
+    effectiveRate: number | null;
     savedAdpTips: number | null;
     savedCheckTips: number | null;
     retentionActive: boolean;
@@ -163,15 +183,20 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         getRateConfig(),
         prisma.payrollPunch.findMany({
             where: { businessDate: { gte: start, lte: end } },
-            select: { cloverEmployeeId: true, employeeName: true, hours: true, isFlagged: true },
+            select: {
+                cloverEmployeeId: true, employeeName: true, hours: true,
+                isFlagged: true, businessDate: true,
+            },
         }),
         // TipShiftEntry carries no date of its own — the business date lives two
-        // relations up, on TipDay.
+        // relations up, on TipDay, and is selected through that path so each
+        // entry can be attributed to the day it was earned.
         prisma.tipShiftEntry.findMany({
             where: { tipShift: { tipDay: { businessDate: { gte: start, lte: end } } } },
             select: {
                 cloverEmployeeId: true, employeeName: true, role: true,
                 creditTips: true, serviceCharge: true,
+                tipShift: { select: { tipDay: { select: { businessDate: true } } } },
             },
         }),
         prisma.payrollWeek.findUnique({
@@ -188,6 +213,10 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         hours: number;
         tips: number;
         roleCounts: Map<TipEntryRole, number>;
+        /** Hours worked, keyed by business date — the basis for a per-day rate. */
+        hoursByDate: Map<string, number>;
+        /** Tip-entry counts per role, keyed by business date. */
+        rolesByDate: Map<string, Map<TipEntryRole, number>>;
         hasFlaggedPunch: boolean;
         sawPunch: boolean;
         sawTip: boolean;
@@ -200,11 +229,23 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             acc = {
                 cloverEmployeeId, employeeName,
                 hours: 0, tips: 0, roleCounts: new Map(),
+                hoursByDate: new Map(), rolesByDate: new Map(),
                 hasFlaggedPunch: false, sawPunch: false, sawTip: false,
             };
             rows.set(key, acc);
         }
         return acc;
+    };
+
+    /** A @db.Date value as the 'YYYY-MM-DD' key both sides group by. */
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+
+    /** Whichever role appears on more entries. Ties to MESERO, as before. */
+    const dominant = (counts: Map<TipEntryRole, number>): TipEntryRole | null => {
+        if (counts.size === 0) return null;
+        const mesero = counts.get(TipEntryRole.MESERO) ?? 0;
+        const busser = counts.get(TipEntryRole.BUSSER) ?? 0;
+        return busser > mesero ? TipEntryRole.BUSSER : TipEntryRole.MESERO;
     };
 
     // Punches. A punch whose name never matched the Clover roster has no id, so
@@ -214,7 +255,10 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
     for (const p of punches) {
         const key = p.cloverEmployeeId ?? `name:${p.employeeName}`;
         const acc = touch(key, p.cloverEmployeeId, p.employeeName);
-        acc.hours += dec(p.hours);
+        const hrs = dec(p.hours);
+        const day = dayKey(p.businessDate);
+        acc.hours += hrs;
+        acc.hoursByDate.set(day, (acc.hoursByDate.get(day) ?? 0) + hrs);
         acc.sawPunch = true;
         if (p.isFlagged) acc.hasFlaggedPunch = true;
     }
@@ -225,6 +269,11 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         acc.tips += dec(e.creditTips) + dec(e.serviceCharge);
         acc.sawTip = true;
         acc.roleCounts.set(e.role, (acc.roleCounts.get(e.role) ?? 0) + 1);
+
+        const day = dayKey(e.tipShift.tipDay.businessDate);
+        if (!acc.rolesByDate.has(day)) acc.rolesByDate.set(day, new Map());
+        const dayRoles = acc.rolesByDate.get(day)!;
+        dayRoles.set(e.role, (dayRoles.get(e.role) ?? 0) + 1);
     }
 
     // Anyone already saved for this week stays on screen even if their punches
@@ -240,19 +289,13 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
     const result: PayrollRow[] = [...rows.entries()].map(([key, acc]) => {
         const roles = [...acc.roleCounts.keys()];
 
-        // Dominant role: whichever appears on more tip entries this week, ties
-        // to MESERO. PayrollEntry.role holds exactly one, so a person who
-        // worked both is reported as both here and flagged, while the rate is
-        // taken from the dominant one.
-        let role: TipEntryRole | null = null;
-        if (roles.length) {
-            const mesero = acc.roleCounts.get(TipEntryRole.MESERO) ?? 0;
-            const busser = acc.roleCounts.get(TipEntryRole.BUSSER) ?? 0;
-            role = busser > mesero ? TipEntryRole.BUSSER : TipEntryRole.MESERO;
-        } else {
+        // The week's dominant role, used as the per-day fallback and as the one
+        // value PayrollEntry.role can hold.
+        let role: TipEntryRole | null = dominant(acc.roleCounts);
+        if (role === null) {
             // No tips this week means no role was indicated. Fall back to the
-            // last settled role if there is one; otherwise the server rate
-            // applies and HORAS_SIN_PROPINAS marks the row for a human to check.
+            // last settled role if there is one; otherwise nothing resolves and
+            // HORAS_SIN_PROPINAS marks the row for a human to check.
             role = savedByEmployee.get(acc.cloverEmployeeId ?? '')?.role ?? null;
         }
 
@@ -269,8 +312,56 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
                 : role ? rateForRole(role, rateConfig)
                     : null;
 
+        // ── Per-day wage ──
+        //
+        // A configured rate is the person's rate, full stop: it does not vary by
+        // what they happened to do on a given day, so their week is one bucket.
+        //
+        // Everyone else is priced day by day. Someone who bussed Tuesday and
+        // served Friday earned two different rates that week, and pricing the
+        // whole week at whichever role happened to dominate over- or under-pays
+        // every hour of the other one.
+        const hoursByRole = new Map<TipEntryRole, number>();
+        let weekWageCents: number | null = null;
+        let mixedDay = false;
+
+        if (hourlyRate !== null) {
+            if (configured) {
+                weekWageCents = Math.round(acc.hours * hourlyRate * 100);
+                if (role) hoursByRole.set(role, acc.hours);
+            } else {
+                let total = 0;
+                for (const [day, dayHours] of acc.hoursByDate) {
+                    const dayCounts = acc.rolesByDate.get(day);
+                    if (dayCounts && dayCounts.size > 1) mixedDay = true;
+                    // The role recorded that day, or the week's dominant role
+                    // when the day carried no tips at all.
+                    const dayRole = dominant(dayCounts ?? new Map()) ?? role!;
+                    total += dayHours * rateForRole(dayRole, rateConfig);
+                    hoursByRole.set(dayRole, (hoursByRole.get(dayRole) ?? 0) + dayHours);
+                }
+                // Summed first, rounded ONCE. Rounding each day and adding the
+                // results compounds rounding across steps — it shifts a week by
+                // a cent or two for no reason, and nobody is paid daily here, so
+                // the week total is the only figure that has to be exact.
+                weekWageCents = Math.round(total * 100);
+            }
+        }
+
+        const rateBreakdown = [...hoursByRole.entries()]
+            .map(([r, hours]) => ({ role: r, hours, rate: configured ? hourlyRate! : rateForRole(r, rateConfig) }))
+            .sort((a, b) => b.hours - a.hours);
+
+        // Display only. Deliberately not rounded here — the table formats it,
+        // and nothing multiplies by it.
+        const effectiveRate =
+            weekWageCents !== null && acc.hours > 0 ? weekWageCents / 100 / acc.hours : null;
+
         const flags: PayrollRowFlag[] = [];
-        if (roles.length > 1) flags.push('AMBOS_ROLES');
+        // A week containing both roles is no longer an approximation — it is
+        // priced correctly day by day. Only a single DAY holding both is still
+        // unresolvable, because those hours cannot be split.
+        if (mixedDay) flags.push('DIA_AMBOS_ROLES');
         if (acc.sawPunch && !acc.sawTip) flags.push('HORAS_SIN_PROPINAS');
         if (acc.sawTip && !acc.sawPunch) flags.push('PROPINAS_SIN_HORAS');
         if (acc.hasFlaggedPunch) flags.push('MARCAJE_MARCADO');
@@ -287,6 +378,9 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             role,
             hourlyRate,
             rateFromConfig: !!configured,
+            rateBreakdown,
+            weekWageCents,
+            effectiveRate,
             savedAdpTips: saved ? dec(saved.adpTips) : null,
             savedCheckTips: saved ? dec(saved.checkTips) : null,
             retentionActive: retention?.isActive ?? false,
@@ -352,6 +446,21 @@ export async function savePayrollEntry(
         const checkTips = Math.max(0, row.tipsTotal - adpTips);
         const end = businessDateToUtcDate(weekEnding);
 
+        // The stored rate is a BLEND when the week spanned more than one role:
+        // the weighted average of the daily rates, rounded to 2dp for the
+        // column. hoursWorked x hourlyRate therefore does not reliably
+        // reproduce wageTotal, which is why the wage is stored rather than
+        // implied — wageTotal is what was actually earned, summed per day before
+        // any rate rounding. row.rateBreakdown is the detail behind the blend;
+        // it is not persisted, so a settled row records the amount, not its
+        // derivation.
+        //
+        // effectiveRate is null only when no hours were worked, and then there
+        // is nothing to average — the nominal resolved rate stands in, matching
+        // the old behaviour for a tips-only week.
+        const storedRate = row.effectiveRate ?? row.hourlyRate;
+        const wageTotal = (row.weekWageCents ?? 0) / 100;
+
         const week = await prisma.payrollWeek.upsert({
             where: { weekEnding: end },
             create: { weekEnding: end },
@@ -369,7 +478,8 @@ export async function savePayrollEntry(
                 employeeName: row.employeeName,
                 role: row.role ?? TipEntryRole.MESERO,
                 hoursWorked: row.hoursWorked.toFixed(2),
-                hourlyRate: row.hourlyRate.toFixed(2),
+                hourlyRate: storedRate.toFixed(2),
+                wageTotal: wageTotal.toFixed(2),
                 tipsTotal: row.tipsTotal.toFixed(2),
                 adpTips: adpTips.toFixed(2),
                 checkTips: checkTips.toFixed(2),
@@ -378,7 +488,8 @@ export async function savePayrollEntry(
                 employeeName: row.employeeName,
                 role: row.role ?? TipEntryRole.MESERO,
                 hoursWorked: row.hoursWorked.toFixed(2),
-                hourlyRate: row.hourlyRate.toFixed(2),
+                hourlyRate: storedRate.toFixed(2),
+                wageTotal: wageTotal.toFixed(2),
                 tipsTotal: row.tipsTotal.toFixed(2),
                 adpTips: adpTips.toFixed(2),
                 checkTips: checkTips.toFixed(2),

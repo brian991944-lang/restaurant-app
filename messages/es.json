@@ -239,7 +239,7 @@
     "unlinked_cannot_save": "Sin vincular a Clover: no se puede guardar.",
     "role_MESERO": "Mesero",
     "role_BUSSER": "Busser",
-    "rowflag_AMBOS_ROLES": "Trabajó como mesero y busser esta semana",
+    "rowflag_DIA_AMBOS_ROLES": "Un mismo día tiene mesero y busser: esas horas no se pueden separar",
     "rowflag_HORAS_SIN_PROPINAS": "Tiene horas pero no propinas",
     "rowflag_PROPINAS_SIN_HORAS": "Tiene propinas pero no horas",
     "rowflag_MARCAJE_MARCADO": "Tiene marcajes marcados para revisión",

@@ -35,8 +35,18 @@ const smallInput: React.CSSProperties = {
     border: '1px solid var(--border)',
 };
 
-/** Hours × rate, rounded to whole cents once. */
-const wageCents = (hours: number, rate: number) => Math.round(hours * rate * 100);
+/**
+ * "27.00 h x $6.05 + 8.20 h x $8.50" — the roles behind a blended rate.
+ *
+ * Capped at two terms. Three roles cannot occur today (there are only two), but
+ * a third would push the line past the column rather than wrapping it, so the
+ * remainder is summarised instead.
+ */
+function breakdownText(parts: { hours: number; rate: number }[]): string {
+    const term = (p: { hours: number; rate: number }) => `${p.hours.toFixed(2)} h x $${p.rate.toFixed(2)}`;
+    if (parts.length <= 2) return parts.map(term).join(' + ');
+    return `${parts.slice(0, 2).map(term).join(' + ')} + …`;
+}
 
 type Draft = { adp: string; retActive: boolean; retPct: string };
 
@@ -275,7 +285,10 @@ export default function PayrollWeekTable({
                                 // A $0.00 in these cells would read as a computed
                                 // figure; a dash reads as the absence of one.
                                 const noRate = row.hourlyRate === null;
-                                const wageC = noRate ? null : wageCents(row.hoursWorked, row.hourlyRate!);
+                                // Straight from the action: the sum of per-day
+                                // wages. Multiplying hours by the blended rate
+                                // here would disagree with it by cents.
+                                const wageC = row.weekWageCents;
                                 const tipsC = Math.round(row.tipsTotal * 100);
                                 const adpC = toCents(draft.adp);
                                 const adpTotalC = wageC === null ? null : wageC + adpC;
@@ -337,9 +350,31 @@ export default function PayrollWeekTable({
 
                                         <td style={numCell}>{row.hoursWorked.toFixed(2)}</td>
                                         <td style={numCell}>
-                                            {row.hourlyRate === null
-                                                ? <span style={{ color: 'var(--warning)' }}>—</span>
-                                                : formatMoney(Math.round(row.hourlyRate * 100))}
+                                            {row.hourlyRate === null ? (
+                                                <span style={{ color: 'var(--warning)' }}>—</span>
+                                            ) : (
+                                                <>
+                                                    {formatMoney(Math.round((row.effectiveRate ?? row.hourlyRate) * 100))}
+                                                    {/* Always visible, never a tooltip: this runs on a tablet,
+                                                        where there is no hover to reveal it. One line, clipped
+                                                        rather than wrapped — a wrapping cell breaks the row
+                                                        alignment the whole table is read across. */}
+                                                    {row.rateBreakdown.length > 1 && (
+                                                        <div
+                                                            title={breakdownText(row.rateBreakdown)}
+                                                            style={{
+                                                                fontSize: '0.82rem', color: 'var(--text-secondary)',
+                                                                fontWeight: 400, marginTop: '0.15rem',
+                                                                whiteSpace: 'nowrap', overflow: 'hidden',
+                                                                textOverflow: 'ellipsis', maxWidth: '190px',
+                                                                marginLeft: 'auto',
+                                                            }}
+                                                        >
+                                                            {breakdownText(row.rateBreakdown)}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
                                         </td>
                                         <td style={numCell}>{wageC === null ? '—' : formatMoney(wageC)}</td>
                                         <td style={numCell}>{formatMoney(tipsC)}</td>

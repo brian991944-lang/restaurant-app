@@ -239,7 +239,7 @@
     "unlinked_cannot_save": "Not linked to Clover: cannot save.",
     "role_MESERO": "Server",
     "role_BUSSER": "Busser",
-    "rowflag_AMBOS_ROLES": "Worked as both server and busser this week",
+    "rowflag_DIA_AMBOS_ROLES": "A single day has both server and busser: those hours cannot be separated",
     "rowflag_HORAS_SIN_PROPINAS": "Has hours but no tips",
     "rowflag_PROPINAS_SIN_HORAS": "Has tips but no hours",
     "rowflag_MARCAJE_MARCADO": "Has punches flagged for review",
