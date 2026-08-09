@@ -2,14 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
-import { AlertTriangle } from 'lucide-react';
-import { saveEmployeeConfig, type EmployeeConfigRow } from '@/app/actions/payroll';
+import { useTranslations, useLocale } from 'next-intl';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { saveEmployeeConfig, syncCloverRoles, type EmployeeConfigRow, type RoleSyncResult } from '@/app/actions/payroll';
 import { calcPaySplit } from '@/lib/payrollCalc';
 import { formatMoney } from '@/lib/money';
 
 /** The week used for the preview. A round number, so the split reads at a glance. */
 const PREVIEW_HOURS = 40;
+
+/**
+ * The sync time is rendered in the restaurant's own zone, not the reader's.
+ * Fixing it also keeps the server and the client producing the same string: a
+ * phone set to another timezone would otherwise mismatch on hydration.
+ */
+const SYNC_TIME_ZONE = 'America/New_York';
 
 const cell: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '1.02rem', verticalAlign: 'top' };
 const head: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '0.92rem', fontWeight: 500, whiteSpace: 'nowrap' };
@@ -50,7 +57,15 @@ function draftFromRow(r: EmployeeConfigRow): Draft {
 
 export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConfigRow[] }) {
     const t = useTranslations('Payroll');
+    const locale = useLocale();
     const router = useRouter();
+
+    const formatSyncTime = (iso: string) =>
+        new Date(iso).toLocaleString(locale, {
+            timeZone: SYNC_TIME_ZONE,
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
 
     const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
         Object.fromEntries(configs.map(r => [r.cloverEmployeeId, draftFromRow(r)]))
@@ -58,6 +73,10 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
     const [savingKey, setSavingKey] = useState<string | null>(null);
     const [rowError, setRowError] = useState<Record<string, string>>({});
     const [savedKeys, setSavedKeys] = useState<Record<string, boolean>>({});
+
+    const [syncing, setSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<RoleSyncResult | null>(null);
+    const [syncError, setSyncError] = useState('');
 
     const seenKeys = useRef(configs.map(r => r.cloverEmployeeId).join('|'));
 
@@ -116,16 +135,103 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
         setSavingKey(null);
     };
 
+    const handleSyncRoles = async () => {
+        setSyncing(true);
+        setSyncError('');
+        setSyncResult(null);
+
+        const res = await syncCloverRoles();
+
+        if (res.success) {
+            setSyncResult(res);
+            router.refresh();
+        } else {
+            setSyncError(res.error ?? t('config_sync_failed'));
+        }
+        setSyncing(false);
+    };
+
     const unconfigured = configs.filter(c => !c.hasRow).length;
+
+    // The most recent refresh across everyone. Rows are written with one
+    // timestamp per run, so the newest is when the last sync happened.
+    const lastSyncedAt = configs.reduce<string | null>(
+        (latest, r) => (r.cloverRoleAt && (latest === null || r.cloverRoleAt > latest) ? r.cloverRoleAt : latest),
+        null
+    );
 
     return (
         <div id="employee-config" className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-                <h2 style={{ fontSize: '1.3rem', margin: 0 }}>{t('config_title')}</h2>
-                <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '1rem' }}>
-                    {t('config_subtitle')}
-                </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.3rem', margin: 0 }}>{t('config_title')}</h2>
+                    <p style={{ margin: '0.35rem 0 0', color: 'var(--text-secondary)', fontSize: '1rem' }}>
+                        {t('config_subtitle')}
+                    </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
+                        {lastSyncedAt ? t('config_sync_last', { when: formatSyncTime(lastSyncedAt) }) : t('config_sync_never')}
+                    </span>
+                    <button
+                        onClick={handleSyncRoles}
+                        disabled={syncing}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            minHeight: '48px', padding: '0.6rem 1.1rem', borderRadius: '8px',
+                            border: 'none', fontSize: '1rem', fontWeight: 500, color: 'white',
+                            background: 'var(--success)', cursor: syncing ? 'default' : 'pointer',
+                            opacity: syncing ? 0.6 : 1, whiteSpace: 'nowrap',
+                        }}
+                    >
+                        <RefreshCw size={18} />
+                        {syncing ? t('config_syncing') : t('config_sync_roles')}
+                    </button>
+                </div>
             </div>
+
+            {syncError && (
+                <div style={{ color: 'var(--danger)', fontSize: '1rem' }}>{syncError}</div>
+            )}
+
+            {syncResult && (
+                <div style={{
+                    display: 'flex', flexDirection: 'column', gap: '0.3rem',
+                    padding: '0.9rem 1rem', borderRadius: '8px',
+                    border: '1px solid var(--success)', background: 'rgba(16, 185, 129, 0.08)',
+                    fontSize: '1rem',
+                }}>
+                    <span>{t('config_sync_summary', { checked: syncResult.checked, changed: syncResult.changed.length })}</span>
+                    {syncResult.created > 0 && (
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
+                            {t('config_sync_created', { count: syncResult.created })}
+                        </span>
+                    )}
+                    {syncResult.withoutRole > 0 && (
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
+                            {t('config_sync_norole', { count: syncResult.withoutRole })}
+                        </span>
+                    )}
+                    {syncResult.changed.length === 0 ? (
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
+                            {t('config_sync_no_changes')}
+                        </span>
+                    ) : (
+                        <ul style={{ margin: '0.2rem 0 0', paddingLeft: '1.2rem' }}>
+                            {syncResult.changed.map(c => (
+                                <li key={c.employeeName} style={{ fontSize: '0.96rem' }}>
+                                    {t('config_sync_moved', {
+                                        name: c.employeeName,
+                                        from: c.from ? t(`dept_${c.from}`) : t('dept_none'),
+                                        to: c.to ? t(`dept_${c.to}`) : t('dept_none'),
+                                    })}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
 
             {unconfigured > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--warning)', fontSize: '1.02rem' }}>
@@ -135,10 +241,11 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
             )}
 
             <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1120px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1280px' }}>
                     <thead>
                         <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left' }}>
                             <th style={head}>{t('name')}</th>
+                            <th style={head}>{t('clover_role')}</th>
                             <th style={head}>{t('department')}</th>
                             <th style={numHead}>{t('real_rate')}</th>
                             <th style={numHead}>{t('adp_hours')}</th>
@@ -152,6 +259,12 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                             const d = draftFor(r);
                             const rate = Number(d.rate);
                             const hasRate = d.rate.trim() !== '' && Number.isFinite(rate) && rate > 0;
+
+                            // Compared against the DRAFT, not the saved value, so the
+                            // warning appears while the choice is being made rather
+                            // than one save later.
+                            const deptConflict =
+                                d.dept !== '' && r.departmentFromRole !== null && d.dept !== r.departmentFromRole;
 
                             const split = hasRate
                                 ? calcPaySplit({
@@ -185,6 +298,19 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                                     </td>
 
                                     <td style={cell}>
+                                        {r.cloverRole ? (
+                                            <>
+                                                <div>{r.cloverRole}</div>
+                                                <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
+                                                    {r.departmentFromRole ? t(`dept_${r.departmentFromRole}`) : t('dept_none')}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <span style={{ color: 'var(--text-secondary)' }}>{t('config_role_never_synced')}</span>
+                                        )}
+                                    </td>
+
+                                    <td style={cell}>
                                         <select
                                             value={d.dept}
                                             onChange={e => patch(r, { dept: e.target.value })}
@@ -194,6 +320,26 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                                             <option value="SALON">{t('dept_SALON')}</option>
                                             <option value="COCINA">{t('dept_COCINA')}</option>
                                         </select>
+
+                                        {/* Not an error — an override is allowed to disagree with
+                                            Clover, and sometimes should. It is shown so the
+                                            disagreement is a decision somebody can see, rather
+                                            than one buried in a column nobody compares. */}
+                                        {deptConflict && (
+                                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem', fontSize: '0.84rem', color: 'var(--warning)' }}>
+                                                <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+                                                <span>
+                                                    {t('config_dept_conflict', {
+                                                        clover: t(`dept_${r.departmentFromRole!}`),
+                                                    })}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {r.department === null && r.resolvedDepartment !== null && (
+                                            <div style={{ fontSize: '0.84rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
+                                                {t('config_dept_resolved', { dept: t(`dept_${r.resolvedDepartment}`) })}
+                                            </div>
+                                        )}
                                     </td>
 
                                     <td style={{ ...cell, textAlign: 'right' }}>

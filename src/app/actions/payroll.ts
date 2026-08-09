@@ -7,6 +7,7 @@ import { isAdminSession } from '@/lib/adminGuard';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { addDays, lastCompleteWeekEnding } from '@/lib/payrollWeek';
 import { calcPaySplit } from '@/lib/payrollCalc';
+import { cloverFetch } from '@/lib/clover';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
 
@@ -175,6 +176,41 @@ function rateForRole(role: TipEntryRole, cfg: RateConfig): number {
     return role === TipEntryRole.BUSSER ? cfg.busserRate : cfg.serverRate;
 }
 
+/** The one Clover role that means salon. Everything else the merchant uses is kitchen. */
+const WAIT_STAFF_ROLE = 'wait staff';
+
+/**
+ * Which department a person belongs to, most trustworthy source first.
+ *
+ * Still database-only — cloverRole is the CACHED role, read from the row like
+ * everything else here. Nothing in this function reaches Clover, so a payroll
+ * screen still renders during a Clover outage.
+ *
+ * 1. department, the manual override. A human said so; nothing outranks that.
+ * 2. The cached Clover role. Wait Staff is the merchant's only salon role, so
+ *    any other role they have configured is kitchen by elimination.
+ * 3. A tip entry this week. The tip sheet only ever records MESERO and BUSSER,
+ *    so having one is proof of salon — but its absence proves nothing, which is
+ *    why this is the last resort rather than a reason to guess kitchen.
+ * 4. Null, reported as SIN_DEPARTAMENTO rather than assumed.
+ *
+ * Shared with syncCloverRoles so the summary it reports after a refresh is the
+ * same resolution the payroll screen will actually show.
+ */
+function resolveDepartment(
+    configured: { department: Department | null; cloverRole: string | null } | undefined | null,
+    sawTip: boolean
+): Department | null {
+    if (configured?.department) return configured.department;
+
+    const cached = configured?.cloverRole?.trim();
+    if (cached) {
+        return cached.toLowerCase() === WAIT_STAFF_ROLE ? Department.SALON : Department.COCINA;
+    }
+
+    return sawTip ? Department.SALON : null;
+}
+
 /**
  * One week of payroll, computed fresh from punches and tips.
  *
@@ -318,9 +354,17 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         // rate, then the role-based fallback, then nothing. Falling through to
         // serverRate for someone with no role at all is what priced kitchen
         // staff as servers; an unresolved rate is now reported as unresolved.
+        //
+        // A row can now exist with NO rate: the Clover role sync creates one so
+        // a cached role has somewhere to live, and refuses to invent a wage to
+        // do it. So the test is whether the rate itself is set, not whether the
+        // row exists — treating any row as a configured rate would price those
+        // people at null and flag SIN_TARIFA even when their tip role could
+        // have answered.
         const configured = acc.cloverEmployeeId ? rateByEmployee.get(acc.cloverEmployeeId) : undefined;
+        const configuredRate = configured?.hourlyRate != null ? dec(configured.hourlyRate) : null;
         const hourlyRate =
-            configured ? dec(configured.hourlyRate)
+            configuredRate !== null ? configuredRate
                 : role ? rateForRole(role, rateConfig)
                     : null;
 
@@ -338,7 +382,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         let mixedDay = false;
 
         if (hourlyRate !== null) {
-            if (configured) {
+            if (configuredRate !== null) {
                 weekWageCents = Math.round(acc.hours * hourlyRate * 100);
                 if (role) hoursByRole.set(role, acc.hours);
             } else {
@@ -361,7 +405,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         }
 
         const rateBreakdown = [...hoursByRole.entries()]
-            .map(([r, hours]) => ({ role: r, hours, rate: configured ? hourlyRate! : rateForRole(r, rateConfig) }))
+            .map(([r, hours]) => ({ role: r, hours, rate: configuredRate !== null ? configuredRate : rateForRole(r, rateConfig) }))
             .sort((a, b) => b.hours - a.hours);
 
         // Display only. Deliberately not rounded here — the table formats it,
@@ -369,16 +413,10 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         const effectiveRate =
             weekWageCents !== null && acc.hours > 0 ? weekWageCents / 100 / acc.hours : null;
 
-        // Department, database-only. No Clover call: this action must render
-        // without depending on Clover being up, and an outage that reclassified
-        // every server as kitchen would be worse than leaving someone unset.
-        //
-        // Tier 2 is local and reliable — the tip sheet only ever records MESERO
-        // and BUSSER, so anyone with a tip entry this week is salon by
-        // definition. It says nothing about someone with no tips, who is left
-        // unresolved rather than guessed at.
-        const department: Department | null =
-            configured?.department ?? (acc.sawTip ? Department.SALON : null);
+        // Department. Still database-only — resolveDepartment reads the CACHED
+        // Clover role off the row and never calls Clover, so this action keeps
+        // rendering during an outage. See resolveDepartment for the order.
+        const department = resolveDepartment(configured, acc.sawTip);
 
         const flags: PayrollRowFlag[] = [];
         // A week containing both roles is no longer an approximation — it is
@@ -401,7 +439,7 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             roles,
             role,
             hourlyRate,
-            rateFromConfig: !!configured,
+            rateFromConfig: configuredRate !== null,
             department,
             adpHours: configured?.adpHours ? dec(configured.adpHours) : null,
             adpRate: configured?.adpRate ? dec(configured.adpRate) : null,
@@ -576,7 +614,21 @@ export type EmployeeConfigRow = {
     cloverEmployeeId: string;
     employeeName: string;
     hourlyRate: number | null;
+    /** The manual override only. Null means the row derives it — see resolveDepartment. */
     department: Department | null;
+    /** The cached Clover role, exactly as Clover named it. Null means never synced. */
+    cloverRole: string | null;
+    /** ISO, or null. A Date would cross the server boundary as one; this is explicit. */
+    cloverRoleAt: string | null;
+    /** What the row actually resolves to, override and cached role together. */
+    resolvedDepartment: Department | null;
+    /**
+     * What the cached Clover role ALONE would say, ignoring any override. Null
+     * when never synced. Computed here rather than in the panel so the Wait
+     * Staff rule lives in exactly one place — a second copy in the client would
+     * be free to disagree with the one payroll actually pays people by.
+     */
+    departmentFromRole: Department | null;
     adpHours: number | null;
     adpRate: number | null;
     /** False for someone active in the window with no EmployeeRate row yet. */
@@ -638,8 +690,16 @@ export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
             return {
                 cloverEmployeeId,
                 employeeName: row?.employeeName ?? employeeName,
-                hourlyRate: row ? dec(row.hourlyRate) : null,
+                hourlyRate: row?.hourlyRate != null ? dec(row.hourlyRate) : null,
                 department: row?.department ?? null,
+                cloverRole: row?.cloverRole ?? null,
+                cloverRoleAt: row?.cloverRoleAt ? row.cloverRoleAt.toISOString() : null,
+                // Tip evidence here spans the whole lookback window, not one
+                // week, so this can resolve SALON for someone a quiet week
+                // would leave unset. That is the right bias for a config
+                // screen: it answers "what do we know about this person".
+                resolvedDepartment: resolveDepartment(row, rolesSeen.length > 0),
+                departmentFromRole: resolveDepartment({ department: null, cloverRole: row?.cloverRole ?? null }, false),
                 adpHours: row?.adpHours ? dec(row.adpHours) : null,
                 adpRate: row?.adpRate ? dec(row.adpRate) : null,
                 hasRow: !!row,
@@ -706,6 +766,159 @@ export async function saveEmployeeConfig(
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la configuración: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Clover role sync
+// ─────────────────────────────────────────────────────────────
+
+export type RoleSyncResult = {
+    success: boolean;
+    error?: string;
+    /** Employees Clover returned. */
+    checked: number;
+    /** Of those, how many carried a usable role name. */
+    withRole: number;
+    /** Returned with no role at all. Their cached role is left untouched, not cleared. */
+    withoutRole: number;
+    /** EmployeeRate rows created for people who had none. */
+    created: number;
+    /** Everyone whose resolved department moved, and where it moved to. */
+    changed: { employeeName: string; from: Department | null; to: Department | null }[];
+};
+
+const EMPTY_SYNC = { checked: 0, withRole: 0, withoutRole: 0, created: 0, changed: [] };
+
+/**
+ * Refresh every cached Clover role. Explicit user action only — nothing calls
+ * this on render, which is the whole reason the role is cached at all.
+ *
+ * Clover is read through cloverFetch directly rather than through getWaitStaff,
+ * for two reasons: getWaitStaff filters by SalonStaffVisibility, so anyone an
+ * admin hid there would come back looking like they had no wait-staff role and
+ * be reclassified as kitchen; and it returns only Wait Staff, so the kitchen —
+ * the people this sync exists for — would never appear.
+ *
+ * What it does NOT write is department. That column is the manual override and
+ * stays the exclusive record of what a human decided; the derivation happens at
+ * read time in resolveDepartment. Freezing a derived value into the override
+ * would mean a later role change in Clover never took effect, and would leave
+ * nothing to compare a manual choice against.
+ */
+export async function syncCloverRoles(): Promise<RoleSyncResult> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para sincronizar los roles.', ...EMPTY_SYNC };
+    }
+
+    // Clover is read FIRST and in full, before a single write. A failure here
+    // returns with the database untouched: a sync that half-applied, or that
+    // cleared cached roles because Clover was unreachable, would be worse than
+    // one that did nothing at all.
+    let employees: any[];
+    try {
+        const data = await cloverFetch('/employees?limit=200&expand=roles');
+        employees = data?.elements ?? [];
+    } catch (e) {
+        return {
+            success: false,
+            error: `No se pudieron leer los roles desde Clover, así que no se cambió nada: ${e instanceof Error ? e.message : String(e)}`,
+            ...EMPTY_SYNC,
+        };
+    }
+
+    /**
+     * The one role name worth caching for this person.
+     *
+     * Wait Staff wins outright when someone holds several, because it is the
+     * role that decides the department. Otherwise the first name alphabetically,
+     * so the cached value stays put instead of shifting with Clover's ordering.
+     */
+    const roleOf = (emp: any): string | null => {
+        const names: string[] = (emp?.roles?.elements ?? [])
+            .map((r: any) => (typeof r?.name === 'string' ? r.name.trim() : ''))
+            .filter((n: string) => n !== '');
+        if (names.length === 0) return null;
+        return names.find(n => n.toLowerCase() === WAIT_STAFF_ROLE)
+            ?? names.sort((a, b) => a.localeCompare(b, 'es'))[0];
+    };
+
+    const parsed = employees
+        .map((emp: any) => ({
+            id: String(emp?.id ?? ''),
+            name: String(emp?.nickname || emp?.name || ''),
+            role: roleOf(emp),
+        }))
+        .filter(e => e.id !== '');
+
+    try {
+        const [existing, tipEntries] = await Promise.all([
+            prisma.employeeRate.findMany({ where: { cloverEmployeeId: { in: parsed.map(e => e.id) } } }),
+            // Tip evidence, so the summary reports the department each person
+            // will actually resolve to rather than the cached role alone.
+            prisma.tipShiftEntry.findMany({
+                where: {
+                    tipShift: { tipDay: { businessDate: { gte: businessDateToUtcDate(addDays(getBusinessDate(), -CONFIG_LOOKBACK_DAYS)) } } },
+                },
+                select: { cloverEmployeeId: true },
+                distinct: ['cloverEmployeeId'],
+            }),
+        ]);
+
+        const byId = new Map(existing.map(r => [r.cloverEmployeeId, r]));
+        const tipped = new Set(tipEntries.map(e => e.cloverEmployeeId));
+
+        const now = new Date();
+        const ops = [];
+        const changed: RoleSyncResult['changed'] = [];
+        let created = 0;
+        let withoutRole = 0;
+
+        for (const e of parsed) {
+            const row = byId.get(e.id);
+
+            // Someone Clover returns with no role keeps whatever is cached. An
+            // expand that silently stopped expanding looks exactly like every
+            // employee losing their role at once, and that must not be able to
+            // wipe the cache.
+            if (e.role === null) { withoutRole++; continue; }
+
+            const displayName = e.name || row?.employeeName || e.id;
+            const sawTip = tipped.has(e.id);
+
+            const before = resolveDepartment(row, sawTip);
+            const after = resolveDepartment({ department: row?.department ?? null, cloverRole: e.role }, sawTip);
+            if (before !== after) changed.push({ employeeName: displayName, from: before, to: after });
+
+            if (!row) created++;
+
+            ops.push(prisma.employeeRate.upsert({
+                where: { cloverEmployeeId: e.id },
+                // No hourlyRate and no department: a rate would have to be
+                // invented, and the department is derived from the role being
+                // written right here.
+                create: { cloverEmployeeId: e.id, employeeName: displayName, cloverRole: e.role, cloverRoleAt: now },
+                update: { employeeName: displayName, cloverRole: e.role, cloverRoleAt: now },
+            }));
+        }
+
+        await prisma.$transaction(ops);
+        revalidatePath(PAYROLL_ROUTE);
+
+        return {
+            success: true,
+            checked: parsed.length,
+            withRole: parsed.length - withoutRole,
+            withoutRole,
+            created,
+            changed: changed.sort((a, b) => a.employeeName.localeCompare(b.employeeName, 'es')),
+        };
+    } catch (e) {
+        return {
+            success: false,
+            error: `No se pudieron guardar los roles: ${e instanceof Error ? e.message : String(e)}`,
+            ...EMPTY_SYNC,
+        };
     }
 }
 

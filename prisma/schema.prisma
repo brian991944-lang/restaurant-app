@@ -839,8 +839,18 @@ enum Department {
 model EmployeeRate {
   cloverEmployeeId String      @id
   employeeName     String
-  hourlyRate       Decimal     @db.Decimal(6,2)
+  // Null means nobody has set a rate yet, which is NOT zero — a wage of $0.00
+  // reads as a calculated figure and this is the absence of one. The role sync
+  // creates rows for people it has never seen so their Clover role has a home,
+  // and it will not invent a rate to do it. saveEmployeeConfig still refuses
+  // anything at or below zero, so no rate entered by hand can land here null.
+  hourlyRate       Decimal?    @db.Decimal(6,2)
   department       Department? // null derives the department from the Clover role
+  // The role as Clover last reported it, cached so the payroll page never
+  // depends on Clover being reachable. Refreshed only by an explicit user
+  // action, never on render.
+  cloverRole       String?
+  cloverRoleAt     DateTime?
   adpHours         Decimal?    @db.Decimal(5,2)
   adpRate          Decimal?    @db.Decimal(6,2)
   createdAt        DateTime    @default(now())
