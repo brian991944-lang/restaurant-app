@@ -46,26 +46,38 @@ export default async function PayrollPage({
 
             <PayrollTabs active={tab} />
 
-            {/* Only the selected tab is rendered, rather than both with one
-                hidden. A hidden PayrollWeekTable would still mount, seed a
-                draft per row and hold unsaved edits nobody can see. */}
-            {tab === 'config' ? (
+            {/* ONLY the selected tab is rendered, never all of them with the
+                others hidden. A hidden PayrollWeekTable would still mount, seed
+                a draft per row and hold unsaved edits nobody can see.
+
+                Each tab is tested explicitly rather than by a final `else`.
+                While there were two tabs a binary ternary agreed with readTab by
+                coincidence; with three, "not config" would have swept adelantos
+                into the reports branch — a highlighted tab above another tab's
+                content. readTab decides what a URL means and this only obeys. */}
+            {tab === 'config' && (
                 <>
                     <RateConfigPanel config={view.rateConfig} />
                     <EmployeeConfigPanel configs={configs} />
-                    {/* The picker offers the same people the panel above lists,
-                        so an advance cannot be opened against somebody who is
-                        not on the screen the rate would have to be set on. */}
-                    <AdvancesPanel
-                        advances={advances}
-                        people={configs.map(c => ({
-                            cloverEmployeeId: c.cloverEmployeeId,
-                            employeeName: c.employeeName,
-                        }))}
-                        defaultWeekEnding={lastCompleteWeekEnding()}
-                    />
                 </>
-            ) : (
+            )}
+
+            {tab === 'adelantos' && (
+                /* The picker offers the same people the CONFIG panel lists, so
+                   an advance cannot be opened against somebody who is not on the
+                   screen their rate would have to be set on. That is why configs
+                   is still fetched for this tab. */
+                <AdvancesPanel
+                    advances={advances}
+                    people={configs.map(c => ({
+                        cloverEmployeeId: c.cloverEmployeeId,
+                        employeeName: c.employeeName,
+                    }))}
+                    defaultWeekEnding={lastCompleteWeekEnding()}
+                />
+            )}
+
+            {tab === 'reportes' && (
                 <>
                     {/* The bound is the SUNDAY ending the last complete week, so every
                         day of every finished week is clickable while the week still in

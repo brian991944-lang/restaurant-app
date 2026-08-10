@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type { PayrollTab } from '@/lib/payrollTab';
+import { PAYROLL_TABS, type PayrollTab } from '@/lib/payrollTab';
 
 /**
  * `PayrollTab` and `readTab` deliberately live in @/lib/payrollTab, which has no
@@ -11,8 +11,16 @@ import type { PayrollTab } from '@/lib/payrollTab';
  * component. Re-exporting either of them from here would rebuild that trap.
  */
 
+/** The label key for each tab. Exhaustive by type: a new tab will not compile
+ *  until it has one, which is what stops a tab rendering as a blank button. */
+const TAB_LABEL_KEY: Record<PayrollTab, string> = {
+    reportes: 'tab_reportes',
+    config: 'tab_config',
+    adelantos: 'tab_adelantos',
+};
+
 /**
- * The top-level Configuración / Reportes switch.
+ * The top-level Reportes / Configuración / Adelantos switch.
  *
  * A client component only because it has to preserve the REST of the query
  * string: ?week and ?dept must survive a tab change, so that coming back to
@@ -34,7 +42,7 @@ export default function PayrollTabs({ active }: { active: PayrollTab }) {
 
     return (
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-            {([['reportes', t('tab_reportes')], ['config', t('tab_config')]] as const).map(([key, label]) => (
+            {PAYROLL_TABS.map(key => (
                 <button
                     key={key}
                     onClick={() => go(key)}
@@ -47,7 +55,7 @@ export default function PayrollTabs({ active }: { active: PayrollTab }) {
                         border: '1px solid var(--border)',
                     }}
                 >
-                    {label}
+                    {t(TAB_LABEL_KEY[key])}
                 </button>
             ))}
         </div>

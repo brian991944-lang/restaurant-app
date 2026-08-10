@@ -74,6 +74,11 @@ export default function AdvancesPanel({
     const totalMissed = active.reduce((s, a) => s + a.status.missedWeeks.length, 0);
 
     return (
+        // #advances only exists while the ADELANTOS tab is selected — this panel
+        // is not mounted otherwise. Anything linking here must carry
+        // ?tab=adelantos#advances; a bare #advances, or one pointing at
+        // ?tab=config, silently does nothing. Same trap the payroll table's
+        // configHref was written to avoid.
         <div id="advances" className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div>

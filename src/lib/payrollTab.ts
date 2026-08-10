@@ -18,16 +18,31 @@
  */
 
 /** Which top-level section is showing. Mirrored in the URL as ?tab. */
-export type PayrollTab = 'config' | 'reportes';
+export type PayrollTab = 'reportes' | 'config' | 'adelantos';
 
 /**
- * Reports is the default, and anything unrecognised falls back to it.
+ * Every tab, in the order the bar shows them. The bar maps over this rather
+ * than repeating the list, so a tab cannot exist in the type and be missing
+ * from the UI.
+ */
+export const PAYROLL_TABS = ['reportes', 'config', 'adelantos'] as const;
+
+/** Reports is the default, and anything unrecognised falls back to it. */
+export const DEFAULT_PAYROLL_TAB: PayrollTab = 'reportes';
+
+/**
+ * Which tab a `?tab=` value addresses.
+ *
+ * An allow-list rather than a chain of `===` comparisons: with three tabs a
+ * chain has to be extended in lockstep with the type, and forgetting silently
+ * routes the new tab to the default instead of failing. Membership of
+ * PAYROLL_TABS is the single rule.
  *
  * Shared so the server page and the tab bar agree on what a given URL means —
  * two copies of the fallback would be free to disagree, and the failure would
- * be a highlighted tab sitting above the other tab's content.
+ * be a highlighted tab sitting above another tab's content.
  */
 export function readTab(raw: string | string[] | undefined): PayrollTab {
     const value = Array.isArray(raw) ? raw[0] : raw;
-    return value === 'config' ? 'config' : 'reportes';
+    return PAYROLL_TABS.includes(value as PayrollTab) ? (value as PayrollTab) : DEFAULT_PAYROLL_TAB;
 }

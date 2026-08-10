@@ -257,6 +257,7 @@
     "tab_cocina": "Cocina",
     "tab_config": "Configuración",
     "tab_reportes": "Reportes",
+    "tab_adelantos": "Adelantos",
     "unassigned_notice": "{count} persona(s) sin departamento no aparecen en estos reportes",
     "unassigned_notice_action": "Asignar en Configuración",
     "totals": "Totales",

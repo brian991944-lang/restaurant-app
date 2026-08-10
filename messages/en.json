@@ -257,6 +257,7 @@
     "tab_cocina": "Kitchen",
     "tab_config": "Setup",
     "tab_reportes": "Reports",
+    "tab_adelantos": "Advances",
     "unassigned_notice": "{count} person(s) with no department do not appear in these reports",
     "unassigned_notice_action": "Assign in Setup",
     "totals": "Totals",
