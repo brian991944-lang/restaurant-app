@@ -1,8 +1,9 @@
 import { getTranslations } from 'next-intl/server';
-import { getPayrollWeek, getEmployeeConfigs } from '@/app/actions/payroll';
+import { getPayrollWeek, getEmployeeConfigs, getAdvances } from '@/app/actions/payroll';
 import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import EmployeeConfigPanel from './EmployeeConfigPanel';
+import AdvancesPanel from './AdvancesPanel';
 import PayrollWeekTable from './PayrollWeekTable';
 import PayrollTabs from './PayrollTabs';
 import { readTab } from '@/lib/payrollTab';
@@ -26,9 +27,10 @@ export default async function PayrollPage({
     // parallel; the alternative was a waterfall for one string.
     const week = resolveWeekRange(requested);
 
-    const [view, configs] = await Promise.all([
+    const [view, configs, advances] = await Promise.all([
         getPayrollWeek(requested),
         getEmployeeConfigs(week),
+        getAdvances(),
     ]);
 
     return (
@@ -51,6 +53,17 @@ export default async function PayrollPage({
                 <>
                     <RateConfigPanel config={view.rateConfig} />
                     <EmployeeConfigPanel configs={configs} />
+                    {/* The picker offers the same people the panel above lists,
+                        so an advance cannot be opened against somebody who is
+                        not on the screen the rate would have to be set on. */}
+                    <AdvancesPanel
+                        advances={advances}
+                        people={configs.map(c => ({
+                            cloverEmployeeId: c.cloverEmployeeId,
+                            employeeName: c.employeeName,
+                        }))}
+                        defaultWeekEnding={lastCompleteWeekEnding()}
+                    />
                 </>
             ) : (
                 <>

@@ -109,7 +109,14 @@ export type AdvanceStatus = {
      */
     weeksRemaining: number | null;
     isPaidOff: boolean;
-    /** Payroll weeks in the repayment window with no deduction recorded. */
+    /**
+     * Payroll weeks where a payment was genuinely owed and none was recorded.
+     *
+     * The walk STOPS once the balance reaches zero, so a settled advance reports
+     * no missed weeks rather than one more every Sunday forever. Without that,
+     * an advance repaid months ago would be the loudest thing on the screen
+     * permanently and bury the real signal: somebody forgot to deduct.
+     */
     missedWeeks: string[];
 };
 
@@ -140,13 +147,36 @@ export function advanceStatus({
     );
     const outstandingCents = Math.max(0, Math.round(principalCents) - paidCents);
 
-    const paidWeeks = new Set(deductions.map(d => sundayOf(d.weekEnding)));
+    // Deductions summed per week. A week can hold more than one — a correction
+    // recorded alongside the regular payment is still that week's repayment.
+    const byWeek = new Map<string, number>();
+    for (const d of deductions) {
+        const w = sundayOf(d.weekEnding);
+        const amt = Number.isFinite(d.amountCents) ? Math.round(d.amountCents) : 0;
+        byWeek.set(w, (byWeek.get(w) ?? 0) + amt);
+    }
+
+    const startWeek = sundayOf(startWeekEnding);
+    const lastWeek = sundayOf(throughWeekEnding);
+
+    // Anything repaid in or before the hand-over week already reduces what is
+    // owed, even though that week is never itself expected to carry a payment.
+    let balance = Math.round(principalCents);
+    for (const [w, amt] of byWeek) {
+        if (w <= startWeek) balance -= amt;
+    }
 
     const missedWeeks: string[] = [];
-    const lastWeek = sundayOf(throughWeekEnding);
-    let week = addDays(sundayOf(startWeekEnding), 7);
+    let week = addDays(startWeek, 7);
     for (let i = 0; week <= lastWeek && i < MAX_WEEKS_WALKED; i++) {
-        if (!paidWeeks.has(week)) missedWeeks.push(week);
+        // Nothing is owed once the balance is cleared, so no later week can be
+        // "missed". This is what stops a settled advance accruing false alarms.
+        if (balance <= 0) break;
+
+        const amt = byWeek.get(week) ?? 0;
+        if (amt === 0) missedWeeks.push(week);
+        balance -= amt;
+
         week = addDays(week, 7);
     }
 

@@ -1,12 +1,12 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { Prisma, TipEntryRole, Department } from '@prisma/client';
+import { Prisma, TipEntryRole, Department, RetentionKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
-import { addDays, lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
-import { calcPaySplit } from '@/lib/payrollCalc';
+import { addDays, lastCompleteWeekEnding, resolveWeekRange, sundayOf } from '@/lib/payrollWeek';
+import { calcPaySplit, advanceStatus, type AdvanceStatus } from '@/lib/payrollCalc';
 import { cloverFetch } from '@/lib/clover';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
@@ -1140,5 +1140,310 @@ export async function saveRetentionSetting(
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la retención: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Salary advances
+// ─────────────────────────────────────────────────────────────
+
+/** Dollars to whole cents. Money crosses this boundary once, here. */
+const toCentsExact = (amount: number): number =>
+    !Number.isFinite(amount) ? 0 : Math.round(amount * 100);
+
+/** A single repayment already recorded against an advance. */
+export type AdvanceDeductionRow = {
+    /** RetentionLedger id — what deleteDeduction takes. */
+    id: string;
+    weekEnding: string;
+    amountCents: number;
+    recordedByName: string | null;
+    createdAt: string;
+};
+
+export type AdvanceRow = {
+    id: string;
+    cloverEmployeeId: string;
+    employeeName: string;
+    principalCents: number;
+    weeklyDeductionCents: number;
+    startWeekEnding: string;
+    note: string | null;
+    isActive: boolean;
+    /** Straight from advanceStatus — paid, outstanding, weeks left, missed weeks. */
+    status: AdvanceStatus;
+    deductions: AdvanceDeductionRow[];
+};
+
+/** A Date column read back as the business-date string the rest of payroll uses. */
+const dateToBusinessString = (d: Date): string => d.toISOString().slice(0, 10);
+
+/**
+ * Every advance with its computed repayment status.
+ *
+ * Deductions come from RetentionLedger rows carrying this advance's id, which is
+ * why no running balance is stored anywhere: the ledger IS the record, and a
+ * cached total would be a second source of truth free to disagree with it.
+ *
+ * Gaps are looked for up to the last COMPLETE week. Including the week in
+ * progress would report every active advance as missing a payment for the week
+ * nobody has finished working yet.
+ */
+export async function getAdvances(): Promise<AdvanceRow[]> {
+    const through = lastCompleteWeekEnding();
+
+    const [advances, ledger, weeks] = await Promise.all([
+        prisma.salaryAdvance.findMany(),
+        prisma.retentionLedger.findMany({
+            where: { kind: RetentionKind.DESCUENTO, advanceId: { not: null } },
+            orderBy: { createdAt: 'asc' },
+        }),
+        prisma.payrollWeek.findMany({ select: { id: true, weekEnding: true } }),
+    ]);
+
+    // payrollWeekId holds a PayrollWeek id, so the week a repayment belongs to
+    // is resolved through that row rather than parsed out of the column.
+    const weekById = new Map(weeks.map(w => [w.id, dateToBusinessString(w.weekEnding)]));
+
+    const byAdvance = new Map<string, AdvanceDeductionRow[]>();
+    for (const l of ledger) {
+        if (!l.advanceId) continue;
+        if (!byAdvance.has(l.advanceId)) byAdvance.set(l.advanceId, []);
+        byAdvance.get(l.advanceId)!.push({
+            id: l.id,
+            weekEnding: (l.payrollWeekId && weekById.get(l.payrollWeekId)) || '',
+            amountCents: toCentsExact(dec(l.amount)),
+            recordedByName: l.recordedByName,
+            createdAt: l.createdAt.toISOString(),
+        });
+    }
+
+    return advances
+        .map(a => {
+            const deductions = (byAdvance.get(a.id) ?? []).filter(d => d.weekEnding !== '');
+            const principalCents = toCentsExact(dec(a.principalAmount));
+            const weeklyDeductionCents = toCentsExact(dec(a.weeklyDeduction));
+            const startWeekEnding = dateToBusinessString(a.startWeekEnding);
+
+            return {
+                id: a.id,
+                cloverEmployeeId: a.cloverEmployeeId,
+                employeeName: a.employeeName,
+                principalCents,
+                weeklyDeductionCents,
+                startWeekEnding,
+                note: a.note,
+                isActive: a.isActive,
+                status: advanceStatus({
+                    principalCents,
+                    weeklyDeductionCents,
+                    startWeekEnding,
+                    deductions: deductions.map(d => ({ weekEnding: d.weekEnding, amountCents: d.amountCents })),
+                    throughWeekEnding: through,
+                }),
+                deductions: deductions.sort((x, y) => x.weekEnding.localeCompare(y.weekEnding)),
+            };
+        })
+        // Active first — an outstanding debt is the thing to act on — then by name.
+        .sort((a, b) =>
+            a.isActive === b.isActive
+                ? a.employeeName.localeCompare(b.employeeName, 'es')
+                : (a.isActive ? -1 : 1)
+        );
+}
+
+/**
+ * Record a new advance handed to a worker.
+ *
+ * Deliberately writes NO ledger row. The SalaryAdvance record IS the money going
+ * out; an ADELANTO row beside it would record the same event twice, and any
+ * query summing a person's ledger would have to know to exclude it. Repayments
+ * are the only thing the ledger carries for an advance.
+ */
+export async function createAdvance(
+    cloverEmployeeId: string,
+    employeeName: string,
+    principalAmount: number,
+    weeklyDeduction: number,
+    startWeekEnding: string,
+    note?: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para registrar adelantos.' };
+    }
+    if (!cloverEmployeeId) {
+        return { success: false, error: 'Falta identificar a la persona.' };
+    }
+    if (!Number.isFinite(principalAmount) || principalAmount <= 0) {
+        return { success: false, error: 'El monto del adelanto debe ser mayor que cero.' };
+    }
+    if (!Number.isFinite(weeklyDeduction) || weeklyDeduction <= 0) {
+        return { success: false, error: 'El descuento semanal debe ser mayor que cero.' };
+    }
+    // A weekly deduction above the principal would collect more than was lent on
+    // the very first payment.
+    if (toCentsExact(weeklyDeduction) > toCentsExact(principalAmount)) {
+        return { success: false, error: 'El descuento semanal no puede ser mayor que el monto del adelanto.' };
+    }
+    if (!isBusinessDate(startWeekEnding)) {
+        return { success: false, error: 'La semana de inicio no es una fecha válida.' };
+    }
+
+    try {
+        await prisma.salaryAdvance.create({
+            data: {
+                cloverEmployeeId,
+                employeeName,
+                principalAmount: principalAmount.toFixed(2),
+                weeklyDeduction: weeklyDeduction.toFixed(2),
+                // Normalised to the week's Sunday so the status walk lines up
+                // with a date picked anywhere inside the week.
+                startWeekEnding: businessDateToUtcDate(sundayOf(startWeekEnding)),
+                note: note?.trim() ? note.trim() : null,
+            },
+        });
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo registrar el adelanto: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/**
+ * Record one week's repayment against an advance.
+ *
+ * An amount equal to the outstanding balance is ALLOWED — that is the final
+ * payment, and rejecting it would make an advance impossible to close. Only an
+ * amount strictly greater is refused, because collecting more than was lent is
+ * not a repayment.
+ */
+export async function recordDeduction(
+    advanceId: string,
+    weekEnding: string,
+    amountCents: number,
+    recordedByName?: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para registrar descuentos.' };
+    }
+    if (!advanceId) {
+        return { success: false, error: 'Falta identificar el adelanto.' };
+    }
+    if (!Number.isFinite(amountCents) || Math.round(amountCents) <= 0) {
+        return { success: false, error: 'El descuento debe ser mayor que cero.' };
+    }
+    if (!isBusinessDate(weekEnding)) {
+        return { success: false, error: 'La semana no es una fecha válida.' };
+    }
+
+    const amount = Math.round(amountCents);
+
+    try {
+        const advance = await prisma.salaryAdvance.findUnique({ where: { id: advanceId } });
+        if (!advance) {
+            return { success: false, error: 'No se encontró el adelanto.' };
+        }
+
+        const existing = await prisma.retentionLedger.findMany({
+            where: { kind: RetentionKind.DESCUENTO, advanceId },
+            select: { amount: true },
+        });
+        const paid = existing.reduce((t, l) => t + toCentsExact(dec(l.amount)), 0);
+        const outstanding = toCentsExact(dec(advance.principalAmount)) - paid;
+
+        if (outstanding <= 0) {
+            return { success: false, error: 'Este adelanto ya está pagado por completo.' };
+        }
+        // Strictly greater only: an exact payoff is the whole point of the last
+        // payment and must go through.
+        if (amount > outstanding) {
+            return {
+                success: false,
+                error: `El descuento excede el saldo pendiente de $${(outstanding / 100).toFixed(2)}.`,
+            };
+        }
+
+        // The week row is upserted rather than required to exist: a deduction
+        // can be recorded for a week nobody has settled payroll for yet, and
+        // failing on that would make the common case the broken one. Same upsert
+        // savePayrollEntry uses, so the two share one row per week.
+        const week = sundayOf(weekEnding);
+        const weekRow = await prisma.payrollWeek.upsert({
+            where: { weekEnding: businessDateToUtcDate(week) },
+            create: { weekEnding: businessDateToUtcDate(week) },
+            update: {},
+            select: { id: true },
+        });
+
+        await prisma.retentionLedger.create({
+            data: {
+                cloverEmployeeId: advance.cloverEmployeeId,
+                employeeName: advance.employeeName,
+                kind: RetentionKind.DESCUENTO,
+                amount: (amount / 100).toFixed(2),
+                advanceId,
+                payrollWeekId: weekRow.id,
+                recordedByName: recordedByName?.trim() ? recordedByName.trim() : null,
+            },
+        });
+
+        // Closed exactly when nothing is left, so the panel can show a paid-off
+        // state without recomputing the balance to find out.
+        if (amount === outstanding) {
+            await prisma.salaryAdvance.update({ where: { id: advanceId }, data: { isActive: false } });
+        }
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo registrar el descuento: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/**
+ * Remove a deduction recorded by mistake.
+ *
+ * Reopens the advance if removing this payment leaves a balance, because an
+ * advance closed by that payment is no longer settled once it is gone.
+ */
+export async function deleteDeduction(ledgerId: string): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para borrar descuentos.' };
+    }
+    if (!ledgerId) {
+        return { success: false, error: 'Falta identificar el descuento.' };
+    }
+
+    try {
+        const row = await prisma.retentionLedger.findUnique({ where: { id: ledgerId } });
+        if (!row) {
+            return { success: false, error: 'No se encontró el descuento.' };
+        }
+        if (row.kind !== RetentionKind.DESCUENTO || !row.advanceId) {
+            return { success: false, error: 'Ese registro no es un descuento de adelanto.' };
+        }
+
+        const advanceId = row.advanceId;
+        await prisma.retentionLedger.delete({ where: { id: ledgerId } });
+
+        const advance = await prisma.salaryAdvance.findUnique({ where: { id: advanceId } });
+        if (advance) {
+            const remaining = await prisma.retentionLedger.findMany({
+                where: { kind: RetentionKind.DESCUENTO, advanceId },
+                select: { amount: true },
+            });
+            const paid = remaining.reduce((t, l) => t + toCentsExact(dec(l.amount)), 0);
+            const outstanding = toCentsExact(dec(advance.principalAmount)) - paid;
+
+            if (outstanding > 0 && !advance.isActive) {
+                await prisma.salaryAdvance.update({ where: { id: advanceId }, data: { isActive: true } });
+            }
+        }
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo borrar el descuento: ${e instanceof Error ? e.message : String(e)}` };
     }
 }
