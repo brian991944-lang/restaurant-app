@@ -157,13 +157,12 @@ export default function RecetarioPage() {
     const activeMultiplier = typeof batchMultiplier === 'number' && batchMultiplier >= 1 ? batchMultiplier : 1;
 
     const tOptions = useTranslations('Options');
+    // Absent key = show the raw name. Most values here are user-created category
+    // names, which are already in the user's language and were never meant to be
+    // translated; `has` asks instead of provoking a MISSING_MESSAGE error.
     const getOptName = (name: string) => {
         if (!name) return name;
-        try {
-            const translated = tOptions(name as any);
-            if (translated && translated.includes('Options.')) return name;
-            return translated || name;
-        } catch { return name; }
+        return tOptions.has(name as any) ? tOptions(name as any) : name;
     };
 
     const [selectedRecipe, setSelectedRecipe] = useState<any>(null);

@@ -208,7 +208,20 @@ export async function ensureTipDay(businessDate?: Date) {
             include: DAY_INCLUDE
         });
 
-        revalidatePath(TIPS_ROUTE);
+        // Deliberately does NOT revalidate, unlike every other writer here.
+        //
+        // Its only caller is the tips page, which calls it DURING RENDER to open
+        // today. Revalidating from there is the route invalidating itself while
+        // it is still rendering — circular, and unsupported by Next.js, which
+        // rejected it outright:
+        //
+        //   Route /[locale]/tips-reviews used "revalidatePath /[locale]/tips-reviews"
+        //   during render which is unsupported.
+        //
+        // It also bought nothing even in principle: the caller receives the
+        // fresh day below and renders it directly, so there is no stale cache
+        // left to clear. If this ever gains an INTERACTIVE caller, that caller
+        // revalidates — not this function.
         return { success: true as const, day: serializeDay(day) };
     } catch (e) {
         console.error('Failed to ensure tip day:', e);

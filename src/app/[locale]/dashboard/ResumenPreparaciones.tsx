@@ -148,13 +148,16 @@ export default function ResumenPreparaciones({ data }: { data: ResumenData }) {
     // Resolve unit label the same way getOptName does on the inventory page:
     // translate the raw metric via the Options namespace; fall back to the raw
     // string on a missing key. (Do NOT use the server-provided unitLabel.)
+    //
+    // `has` is checked FIRST rather than translating and inspecting the result.
+    // Calling t() on an absent key reports a MISSING_MESSAGE error — it does not
+    // throw, so the try/catch never caught it and the page rendered fine while
+    // logging thousands of errors in production. Most values arriving here are
+    // user-created names (categories, ad-hoc units) that were never meant to
+    // have keys, so an absent key is the normal case, not a fault.
     const resolveUnit = (metric: string) => {
         if (!metric) return metric;
-        try {
-            const translated = tOptions(metric as any);
-            if (translated && translated.includes('Options.')) return metric;
-            return translated || metric;
-        } catch { return metric; }
+        return tOptions.has(metric as any) ? tOptions(metric as any) : metric;
     };
 
     const sortedCooks = useMemo(

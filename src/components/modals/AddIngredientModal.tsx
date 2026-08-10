@@ -279,7 +279,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
         if (!isTranslated) {
             return (locale === 'es' && nameEs) ? nameEs : name;
         }
-        try { return tOptions(name as any) || name; } catch { return name; }
+        // Absent key = show the raw name, rather than reporting a missing message
+        // for values that were never meant to have one.
+        return tOptions.has(name as any) ? tOptions(name as any) : name;
     };
 
     let costPerPortionPreview = 0;
@@ -667,14 +669,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                             onChange={(e) => setPackUnit(e.target.value)}
                                             required={isPacked}
                                         >
-                                            {ALLOWED_METRICS.map(m => {
-                                                let translated = m;
-                                                try {
-                                                    const tStr = tOptions(m as any);
-                                                    if (tStr && !tStr.includes('Options.')) translated = tStr;
-                                                } catch { }
-                                                return <option key={m} value={m}>{translated}</option>;
-                                            })}
+                                            {ALLOWED_METRICS.map(m => (
+                                                <option key={m} value={m}>
+                                                    {tOptions.has(m as any) ? tOptions(m as any) : m}
+                                                </option>
+                                            ))}
                                         </select>
                                     </div>
                                 </div>
