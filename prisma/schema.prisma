@@ -853,6 +853,19 @@ model EmployeeRate {
   cloverRoleAt     DateTime?
   adpHours         Decimal?    @db.Decimal(5,2)
   adpRate          Decimal?    @db.Decimal(6,2)
+  // Hides the person from the CONFIG panel only. It must NEVER remove them from
+  // a payroll report: someone with hours that week still appears there and still
+  // gets paid. Hiding is decluttering, not exclusion — getPayrollWeek does not
+  // read this column, and must not start.
+  isHidden         Boolean     @default(false)
+  // A human explicitly asked for this person in the config panel, so they are
+  // listed even with no rate and no recent work.
+  //
+  // This exists because isHidden cannot carry that meaning: it defaults to false
+  // on all 56 rows, so "not hidden" is indistinguishable from "nobody has ever
+  // touched this row". Without a separate flag, adding someone back would clear
+  // isHidden, change nothing the relevance rule reads, and silently no-op.
+  isPinned         Boolean     @default(false)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 }

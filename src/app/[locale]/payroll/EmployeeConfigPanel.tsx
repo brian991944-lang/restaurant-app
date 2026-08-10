@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Users } from 'lucide-react';
 import { saveEmployeeConfig, syncCloverRoles, type EmployeeConfigRow, type RoleSyncResult } from '@/app/actions/payroll';
+import ManagePeopleModal from './ManagePeopleModal';
 import { calcPaySplit } from '@/lib/payrollCalc';
 import { formatMoney } from '@/lib/money';
 
@@ -77,6 +78,7 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
     const [syncing, setSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<RoleSyncResult | null>(null);
     const [syncError, setSyncError] = useState('');
+    const [managingPeople, setManagingPeople] = useState(false);
 
     const seenKeys = useRef(configs.map(r => r.cloverEmployeeId).join('|'));
 
@@ -174,6 +176,19 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.92rem' }}>
                         {lastSyncedAt ? t('config_sync_last', { when: formatSyncTime(lastSyncedAt) }) : t('config_sync_never')}
                     </span>
+                    <button
+                        onClick={() => setManagingPeople(true)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            minHeight: '48px', padding: '0.6rem 1.1rem', borderRadius: '8px',
+                            fontSize: '1rem', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+                            color: 'var(--text-primary)', background: 'var(--bg-primary)',
+                            border: '1px solid var(--border)',
+                        }}
+                    >
+                        <Users size={18} />
+                        {t('manage_people')}
+                    </button>
                     <button
                         onClick={handleSyncRoles}
                         disabled={syncing}
@@ -422,6 +437,12 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                     </tbody>
                 </table>
             </div>
+
+            {/* Mounted inside the panel, which is safe: the ancestor chain up to
+                <main> sets no transform, filter, backdrop-filter, perspective,
+                will-change or contain, so the modal's position:fixed still
+                resolves against the viewport. */}
+            {managingPeople && <ManagePeopleModal onClose={() => setManagingPeople(false)} />}
         </div>
     );
 }

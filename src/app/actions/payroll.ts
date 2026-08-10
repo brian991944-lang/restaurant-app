@@ -670,11 +670,17 @@ export type EmployeeConfigRow = {
  *
  *   - they have punches or tips in the lookback window, OR
  *   - they appear in the week being viewed, however old that week is, OR
- *   - their row has an hourlyRate, meaning a human configured them deliberately
+ *   - their row has an hourlyRate, meaning a human configured them deliberately, OR
+ *   - isPinned: a human picked them out of the "add people" modal by hand
  *
  * A sync-created row with no rate and no recent work is none of those, so it is
  * not listed. It is emphatically NOT deleted — the cached role is still what
  * resolves this person's department the day they do start working.
+ *
+ * isHidden overrides ALL of the above. It is the one way to take somebody off
+ * this screen who would otherwise qualify, and it is decluttering only: nothing
+ * here feeds getPayrollWeek, so a hidden person with hours still appears in the
+ * report for that week and still gets paid.
  *
  * `week` is the range the page is currently showing. Passing it is what keeps
  * the SIN_DEPARTAMENTO notice honest: that notice names people and links here,
@@ -722,9 +728,17 @@ export async function getEmployeeConfigs(week?: { start: string; end: string }):
     }
     // A CONFIGURED person stays listed even after 90 quiet days — their row is
     // still what payroll reads, so it must remain editable. A rate is what marks
-    // them as configured; a bare sync-created row does not qualify.
+    // them as configured; a bare sync-created row does not qualify. isPinned is
+    // the other deliberate signal: somebody added them by hand and has not
+    // entered a rate yet, which is exactly the state the panel exists to fix.
     for (const r of rates) {
-        if (r.hourlyRate != null) names.set(r.cloverEmployeeId, r.employeeName);
+        if (r.hourlyRate != null || r.isPinned) names.set(r.cloverEmployeeId, r.employeeName);
+    }
+
+    // Applied LAST so it beats every rule above, including hours worked. This is
+    // the only subtraction in the function.
+    for (const r of rates) {
+        if (r.isHidden) names.delete(r.cloverEmployeeId);
     }
 
     const byId = new Map(rates.map(r => [r.cloverEmployeeId, r]));
@@ -812,6 +826,138 @@ export async function saveEmployeeConfig(
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la configuración: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Who appears on the config panel
+// ─────────────────────────────────────────────────────────────
+
+export type CloverEmployeeRow = {
+    cloverEmployeeId: string;
+    employeeName: string;
+    /** The cached Clover role, exactly as Clover named it. Null means never synced. */
+    cloverRole: string | null;
+    /** A rate is what marks someone as deliberately configured. */
+    hasRate: boolean;
+    isHidden: boolean;
+    isPinned: boolean;
+    /** Punches or tips inside CONFIG_LOOKBACK_DAYS. Drives the hide warning. */
+    hasRecentActivity: boolean;
+};
+
+/**
+ * Everyone the config panel COULD list — the modal's source list.
+ *
+ * Unlike getEmployeeConfigs this applies no relevance rule and no isHidden
+ * filter: the whole point of the modal is to see the people the panel is
+ * deliberately not showing you, so filtering here would hide the thing being
+ * managed.
+ *
+ * Reads EmployeeRate only. The role sync creates a row for every Clover
+ * employee, so in practice that is everyone; anyone who somehow has punches
+ * without a row is already surfaced by getEmployeeConfigs' activity rules.
+ */
+export async function getAllCloverEmployees(): Promise<CloverEmployeeRow[]> {
+    const since = businessDateToUtcDate(addDays(getBusinessDate(), -CONFIG_LOOKBACK_DAYS));
+
+    const [rates, punches, tipEntries] = await Promise.all([
+        prisma.employeeRate.findMany(),
+        prisma.payrollPunch.groupBy({
+            by: ['cloverEmployeeId'],
+            where: { businessDate: { gte: since }, cloverEmployeeId: { not: null } },
+        }),
+        prisma.tipShiftEntry.findMany({
+            where: { tipShift: { tipDay: { businessDate: { gte: since } } } },
+            select: { cloverEmployeeId: true },
+            distinct: ['cloverEmployeeId'],
+        }),
+    ]);
+
+    const active = new Set<string>();
+    for (const p of punches) if (p.cloverEmployeeId) active.add(p.cloverEmployeeId);
+    for (const e of tipEntries) active.add(e.cloverEmployeeId);
+
+    return rates
+        .map(r => ({
+            cloverEmployeeId: r.cloverEmployeeId,
+            employeeName: r.employeeName,
+            cloverRole: r.cloverRole,
+            hasRate: r.hourlyRate != null,
+            isHidden: r.isHidden,
+            isPinned: r.isPinned,
+            hasRecentActivity: active.has(r.cloverEmployeeId),
+        }))
+        .sort((a, b) => a.employeeName.localeCompare(b.employeeName, 'es'));
+}
+
+/**
+ * Hide or unhide one person on the config panel.
+ *
+ * Hiding is decluttering, never exclusion: getPayrollWeek does not read
+ * isHidden, so a hidden person who worked still appears in that week's report
+ * and is still paid. The modal says so on the button rather than leaving the
+ * user to infer it.
+ *
+ * Unhiding also pins, because clearing isHidden alone would leave someone with
+ * no rate and no recent work failing every relevance rule — the row would
+ * silently fail to come back.
+ */
+export async function setEmployeeHidden(
+    cloverEmployeeId: string,
+    isHidden: boolean
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para cambiar la configuración.' };
+    }
+    if (!cloverEmployeeId) {
+        return { success: false, error: 'Falta identificar a la persona.' };
+    }
+
+    try {
+        await prisma.employeeRate.update({
+            where: { cloverEmployeeId },
+            data: isHidden ? { isHidden: true } : { isHidden: false, isPinned: true },
+        });
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo actualizar a la persona: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/**
+ * Put someone on the config panel by hand.
+ *
+ * Sets isPinned and clears isHidden. It deliberately does NOT set a rate: the
+ * panel is where a rate is entered, and inventing one here would be the same
+ * mistake as defaulting to zero — an invented figure is indistinguishable from
+ * a real one once it is in the column.
+ *
+ * isPinned is what actually makes them appear. See getEmployeeConfigs: without
+ * it, a person with no rate and no recent work still matches nothing.
+ */
+export async function addEmployeeToConfig(
+    cloverEmployeeId: string
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para cambiar la configuración.' };
+    }
+    if (!cloverEmployeeId) {
+        return { success: false, error: 'Falta identificar a la persona.' };
+    }
+
+    try {
+        await prisma.employeeRate.update({
+            where: { cloverEmployeeId },
+            data: { isPinned: true, isHidden: false },
+        });
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo agregar a la persona: ${e instanceof Error ? e.message : String(e)}` };
     }
 }
 
