@@ -57,3 +57,23 @@ export function lastCompleteWeekEnding(today: string = getBusinessDate()): strin
     const dow = getBusinessDayOfWeek(today);     // 0 = Sunday
     return addDays(today, -(dow === 0 ? 7 : dow));
 }
+
+const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+/**
+ * Which week a `?week=` parameter actually addresses.
+ *
+ * Anything unusable falls back to the most recent complete week rather than
+ * erroring: a hand-edited URL should land somewhere sensible.
+ *
+ * Extracted because the payroll page now needs the SAME week in two independent
+ * queries — the weekly view and the configuration list, which must include
+ * anyone appearing in the week being viewed. Recomputing the fallback beside
+ * each caller is how the two would end up looking at different weeks, and the
+ * one place that would show is a person missing from the list that is supposed
+ * to explain why they are missing.
+ */
+export function resolveWeekRange(weekEnding?: string): { start: string; end: string } {
+    const end = weekEnding && isBusinessDate(weekEnding) ? weekEnding : lastCompleteWeekEnding();
+    return { start: addDays(end, -6), end };
+}

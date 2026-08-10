@@ -151,7 +151,7 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
         setSyncing(false);
     };
 
-    const unconfigured = configs.filter(c => !c.hasRow).length;
+    const unconfigured = configs.filter(c => !c.isConfigured).length;
 
     // The most recent refresh across everyone. Rows are written with one
     // timestamp per run, so the newest is when the last sync happened.
@@ -281,13 +281,13 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                                     style={{
                                         borderBottom: '1px solid var(--border)',
                                         // Unconfigured rows are the job in front of the user.
-                                        borderLeft: r.hasRow ? '3px solid transparent' : '3px solid var(--warning)',
-                                        background: r.hasRow ? 'transparent' : 'rgba(234, 179, 8, 0.06)',
+                                        borderLeft: r.isConfigured ? '3px solid transparent' : '3px solid var(--warning)',
+                                        background: r.isConfigured ? 'transparent' : 'rgba(234, 179, 8, 0.06)',
                                     }}
                                 >
                                     <td style={cell}>
                                         <div style={{ fontWeight: 600 }}>{r.employeeName}</div>
-                                        {!r.hasRow && (
+                                        {!r.isConfigured && (
                                             <div style={{ fontSize: '0.88rem', color: 'var(--warning)' }}>{t('config_missing')}</div>
                                         )}
                                         {r.roleVaries && (

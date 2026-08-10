@@ -1,26 +1,33 @@
 import { getTranslations } from 'next-intl/server';
 import { getPayrollWeek, getEmployeeConfigs } from '@/app/actions/payroll';
-import { lastCompleteWeekEnding } from '@/lib/payrollWeek';
+import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import EmployeeConfigPanel from './EmployeeConfigPanel';
 import PayrollWeekTable from './PayrollWeekTable';
+import PayrollTabs, { readTab } from './PayrollTabs';
 import CollapsibleSection from './CollapsibleSection';
 import TimesheetImporter from './TimesheetImporter';
 
 export default async function PayrollPage({
     searchParams
 }: {
-    searchParams: Promise<{ week?: string | string[] }>;
+    searchParams: Promise<{ week?: string | string[]; tab?: string | string[] }>;
 }) {
     const t = await getTranslations('Payroll');
 
-    const { week: rawWeek } = await searchParams;
-    // Anything unusable falls back to the most recent complete week rather than
-    // erroring: a hand-edited URL should land somewhere sensible.
+    const { week: rawWeek, tab: rawTab } = await searchParams;
     const requested = Array.isArray(rawWeek) ? rawWeek[0] : rawWeek;
+    const tab = readTab(rawTab);
+
+    // The week is resolved HERE as well as inside getPayrollWeek, from the same
+    // helper, so the configuration list can be scoped to the week on screen
+    // without waiting on the weekly view first. Both queries still run in
+    // parallel; the alternative was a waterfall for one string.
+    const week = resolveWeekRange(requested);
+
     const [view, configs] = await Promise.all([
         getPayrollWeek(requested),
-        getEmployeeConfigs(),
+        getEmployeeConfigs(week),
     ]);
 
     return (
@@ -34,20 +41,30 @@ export default async function PayrollPage({
                 </p>
             </div>
 
-            <RateConfigPanel config={view.rateConfig} />
+            <PayrollTabs active={tab} />
 
-            <EmployeeConfigPanel configs={configs} />
+            {/* Only the selected tab is rendered, rather than both with one
+                hidden. A hidden PayrollWeekTable would still mount, seed a
+                draft per row and hold unsaved edits nobody can see. */}
+            {tab === 'config' ? (
+                <>
+                    <RateConfigPanel config={view.rateConfig} />
+                    <EmployeeConfigPanel configs={configs} />
+                </>
+            ) : (
+                <>
+                    {/* The bound is the SUNDAY ending the last complete week, so every
+                        day of every finished week is clickable while the week still in
+                        progress stays out of reach. Computed on the server: it depends
+                        on the BUSINESS date, and a client `new Date()` would offer a
+                        week the server considers unfinished during the pre-cutover hours. */}
+                    <PayrollWeekTable view={view} maxSelectableDate={lastCompleteWeekEnding()} />
 
-            {/* The bound is the SUNDAY ending the last complete week, so every
-                day of every finished week is clickable while the week still in
-                progress stays out of reach. Computed on the server: it depends
-                on the BUSINESS date, and a client `new Date()` would offer a
-                week the server considers unfinished during the pre-cutover hours. */}
-            <PayrollWeekTable view={view} maxSelectableDate={lastCompleteWeekEnding()} />
-
-            <CollapsibleSection title={t('importer_section')}>
-                <TimesheetImporter />
-            </CollapsibleSection>
+                    <CollapsibleSection title={t('importer_section')}>
+                        <TimesheetImporter />
+                    </CollapsibleSection>
+                </>
+            )}
         </div>
     );
 }

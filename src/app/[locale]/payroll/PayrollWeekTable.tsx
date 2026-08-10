@@ -19,13 +19,19 @@ import { toCents, formatMoney } from '@/lib/money';
 type Tab = 'salon' | 'cocina';
 
 /**
- * Rows for a tab. A row with no resolved department belongs to NEITHER, so it
- * is shown under BOTH — vanishing from the tab someone expected to find it in
- * is how an unpaid person goes unnoticed. SIN_DEPARTAMENTO prompts the fix.
+ * Rows for a tab. A row with no resolved department belongs to NEITHER and is
+ * shown in neither: leaving somebody unassigned is how they are deliberately
+ * kept out of payroll, and showing them under both tabs made that impossible to
+ * express — a back-office role appeared in the kitchen report and got paid like
+ * a cook.
+ *
+ * Because this HIDES people rather than duplicating them, it is only safe
+ * alongside the notice below, which counts and names everyone it excluded.
+ * Never make this filter stricter without checking that notice still fires.
  */
 function rowsForTab(rows: PayrollRow[], tab: Tab): PayrollRow[] {
     const want = tab === 'salon' ? 'SALON' : 'COCINA';
-    return rows.filter(r => r.department === null || r.department === want);
+    return rows.filter(r => r.department === want);
 }
 
 const cell: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '1.02rem', verticalAlign: 'top' };
@@ -63,14 +69,14 @@ function breakdownText(parts: { hours: number; rate: number }[]): string {
 }
 
 /**
- * Flags that name something fixable on the configuration panel below, so the
- * flag carries the user there instead of describing a problem and leaving them
- * to go and find the screen.
+ * Flags that name something fixable on the configuration panel, so the flag
+ * carries the user there instead of describing a problem and leaving them to go
+ * and find the screen.
  */
 const LINKED_FLAGS = new Set(['SIN_TARIFA', 'SIN_DEPARTAMENTO']);
 
 /** A row's role line and warning flags. Shared by both tabs. */
-function RowFlags({ row, t }: { row: PayrollRow; t: (k: string) => string }) {
+function RowFlags({ row, t, configHref }: { row: PayrollRow; t: (k: string) => string; configHref: string }) {
     return (
         <>
             {row.roles.length > 0 && (
@@ -92,7 +98,7 @@ function RowFlags({ row, t }: { row: PayrollRow; t: (k: string) => string }) {
                             color: 'var(--warning)', fontSize: '0.88rem',
                         };
                         return LINKED_FLAGS.has(f) ? (
-                            <a key={f} href="#employee-config" style={{ ...style, textDecoration: 'underline' }}>
+                            <a key={f} href={configHref} style={{ ...style, textDecoration: 'underline' }}>
                                 {label}
                             </a>
                         ) : (
@@ -236,9 +242,35 @@ export default function PayrollWeekTable({
         router.push(`${pathname}?${params.toString()}`);
     };
 
+    /**
+     * Link into the configuration tab, anchored at the employee panel.
+     *
+     * It carries the CURRENT params, so ?week and ?dept survive the trip and
+     * coming back lands on the week the problem was spotted in. The `?tab=config`
+     * is the whole point: the panel used to sit further down this same page, and
+     * a bare `#employee-config` now points at an element that is not mounted —
+     * a link that silently does nothing.
+     */
+    const configHref = (() => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('tab', 'config');
+        return `${pathname}?${params.toString()}#employee-config`;
+    })();
+
     const salonRows = rowsForTab(view.rows, 'salon');
     const cocinaRows = rowsForTab(view.rows, 'cocina');
     const shownRows = tab === 'salon' ? salonRows : cocinaRows;
+
+    /**
+     * Everyone the two tabs between them do not show.
+     *
+     * This is the safety net for rowsForTab: an unassigned person is excluded
+     * from BOTH tabs, so without this they would leave no trace on the screen at
+     * all. Someone with hours must never vanish silently — the count and the
+     * names both appear, above the tabs rather than inside one, because the
+     * people it describes are in neither.
+     */
+    const unassigned = view.rows.filter(r => r.department === null);
 
     /** Per-tab totals, summed from what each row actually renders. */
     const totals = shownRows.reduce(
@@ -360,6 +392,34 @@ export default function PayrollWeekTable({
                 )}
             </div>
 
+            {/* ── Unassigned notice ── */}
+            {unassigned.length > 0 && (
+                <div
+                    style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+                        padding: '0.9rem 1rem', borderRadius: '8px',
+                        border: '1px solid var(--warning)', background: 'rgba(234, 179, 8, 0.08)',
+                        color: 'var(--text-primary)',
+                    }}
+                >
+                    <AlertTriangle size={18} style={{ color: 'var(--warning)', flexShrink: 0, marginTop: '0.15rem' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 0 }}>
+                        <span style={{ fontSize: '1rem', fontWeight: 600 }}>
+                            {t('unassigned_notice', { count: unassigned.length })}
+                        </span>
+                        {/* The names, not just the count: "3 people" sends someone
+                            hunting, and the whole point of this notice is that the
+                            people in it are not on screen to be found. */}
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                            {unassigned.map(r => r.employeeName).join(', ')}
+                        </span>
+                        <a href={configHref} style={{ fontSize: '0.95rem', color: 'var(--warning)', textDecoration: 'underline' }}>
+                            {t('unassigned_notice_action')}
+                        </a>
+                    </div>
+                </div>
+            )}
+
             {/* ── Sub-tabs ── */}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 {([['salon', t('tab_salon'), salonRows.length], ['cocina', t('tab_cocina'), cocinaRows.length]] as const).map(
@@ -429,7 +489,7 @@ export default function PayrollWeekTable({
                                     <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
                                         <td style={cell}>
                                             <div style={{ fontWeight: 600 }}>{row.employeeName}</div>
-                                            <RowFlags row={row} t={t} />
+                                            <RowFlags row={row} t={t} configHref={configHref} />
                                         </td>
                                         <td style={numCell}>{row.hoursWorked.toFixed(2)}</td>
                                         <td style={numCell}>
@@ -496,7 +556,7 @@ export default function PayrollWeekTable({
                                                 {savingKey === row.key ? t('saving') : savedKeys[row.key] ? t('saved') : t('save')}
                                             </button>
                                             {noRate && !unlinked && (
-                                                <a href="#employee-config" style={{ display: 'block', fontSize: '0.86rem', color: 'var(--warning)', marginTop: '0.3rem', maxWidth: '160px', textDecoration: 'underline' }}>
+                                                <a href={configHref} style={{ display: 'block', fontSize: '0.86rem', color: 'var(--warning)', marginTop: '0.3rem', maxWidth: '160px', textDecoration: 'underline' }}>
                                                     {t('no_rate_cannot_save')}
                                                 </a>
                                             )}
@@ -585,7 +645,7 @@ export default function PayrollWeekTable({
                                     <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
                                         <td style={cell}>
                                             <div style={{ fontWeight: 600 }}>{row.employeeName}</div>
-                                            <RowFlags row={row} t={t} />
+                                            <RowFlags row={row} t={t} configHref={configHref} />
                                         </td>
 
                                         <td style={numCell}>{row.hoursWorked.toFixed(2)}</td>
@@ -707,7 +767,7 @@ export default function PayrollWeekTable({
                                             </button>
                                             {noRate && !unlinked && (
                                                 <a
-                                                    href="#employee-config"
+                                                    href={configHref}
                                                     style={{ display: 'block', fontSize: '0.86rem', color: 'var(--warning)', marginTop: '0.3rem', maxWidth: '160px', textDecoration: 'underline' }}
                                                 >
                                                     {t('no_rate_cannot_save')}

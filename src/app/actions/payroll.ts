@@ -5,7 +5,7 @@ import { Prisma, TipEntryRole, Department } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
-import { addDays, lastCompleteWeekEnding } from '@/lib/payrollWeek';
+import { addDays, lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import { calcPaySplit } from '@/lib/payrollCalc';
 import { cloverFetch } from '@/lib/clover';
 
@@ -101,7 +101,7 @@ export type PayrollRowFlag =
     | 'MARCAJE_MARCADO'
     | 'SIN_ID_CLOVER'
     | 'SIN_TARIFA'
-    /** No department resolved, so the row is shown under both tabs. */
+    /** No department resolved, so the row appears in NEITHER tab. */
     | 'SIN_DEPARTAMENTO';
 
 export type PayrollRow = {
@@ -125,8 +125,10 @@ export type PayrollRow = {
     rateFromConfig: boolean;
     /**
      * Which tab the row belongs under. Null means unresolved, and an unresolved
-     * row appears under BOTH tabs rather than vanishing from the one it should
-     * have been in — with SIN_DEPARTAMENTO prompting someone to set it.
+     * row appears under NEITHER tab: leaving someone unassigned is how they are
+     * deliberately kept out of payroll. Because that hides people rather than
+     * duplicating them, the table counts these rows and names them in a notice
+     * above the tabs — nobody with hours may disappear silently.
      */
     department: Department | null;
     /** From EmployeeRate. Null means all hours / their real rate respectively. */
@@ -176,7 +178,7 @@ function rateForRole(role: TipEntryRole, cfg: RateConfig): number {
     return role === TipEntryRole.BUSSER ? cfg.busserRate : cfg.serverRate;
 }
 
-/** The one Clover role that means salon. Everything else the merchant uses is kitchen. */
+/** The one Clover role that carries a department. Nothing else does. */
 const WAIT_STAFF_ROLE = 'wait staff';
 
 /**
@@ -187,12 +189,19 @@ const WAIT_STAFF_ROLE = 'wait staff';
  * screen still renders during a Clover outage.
  *
  * 1. department, the manual override. A human said so; nothing outranks that.
- * 2. The cached Clover role. Wait Staff is the merchant's only salon role, so
- *    any other role they have configured is kitchen by elimination.
+ * 2. The cached Clover role, but ONLY Wait Staff, which means SALON. Every other
+ *    role resolves nothing and FALLS THROUGH to the next tier — it does not
+ *    short-circuit to null. "Employee" is the merchant's generic role and is on
+ *    40 of 56 rows; "Accountant", "Manager" and "admin" are back-office. Reading
+ *    any of them as a department was the old "not Wait Staff means kitchen"
+ *    rule, which put the accountants in the kitchen report. A role that carries
+ *    no information must not outrank the tip evidence below it either.
  * 3. A tip entry this week. The tip sheet only ever records MESERO and BUSSER,
  *    so having one is proof of salon — but its absence proves nothing, which is
  *    why this is the last resort rather than a reason to guess kitchen.
  * 4. Null, reported as SIN_DEPARTAMENTO rather than assumed.
+ *
+ * COCINA is therefore never inferred: it is only ever the manual override.
  *
  * Shared with syncCloverRoles so the summary it reports after a refresh is the
  * same resolution the payroll screen will actually show.
@@ -203,10 +212,7 @@ function resolveDepartment(
 ): Department | null {
     if (configured?.department) return configured.department;
 
-    const cached = configured?.cloverRole?.trim();
-    if (cached) {
-        return cached.toLowerCase() === WAIT_STAFF_ROLE ? Department.SALON : Department.COCINA;
-    }
+    if (configured?.cloverRole?.trim().toLowerCase() === WAIT_STAFF_ROLE) return Department.SALON;
 
     return sawTip ? Department.SALON : null;
 }
@@ -221,8 +227,7 @@ function resolveDepartment(
  */
 export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekView> {
     const latest = lastCompleteWeekEnding();
-    const endStr = weekEnding && isBusinessDate(weekEnding) ? weekEnding : latest;
-    const startStr = addDays(endStr, -6);
+    const { start: startStr, end: endStr } = resolveWeekRange(weekEnding);
 
     const start = businessDateToUtcDate(startStr);
     const end = businessDateToUtcDate(endStr);
@@ -631,8 +636,14 @@ export type EmployeeConfigRow = {
     departmentFromRole: Department | null;
     adpHours: number | null;
     adpRate: number | null;
-    /** False for someone active in the window with no EmployeeRate row yet. */
-    hasRow: boolean;
+    /**
+     * True when a human deliberately configured this person, which means a rate
+     * is set. NOT merely "an EmployeeRate row exists": the role sync creates a
+     * row for every Clover employee, so row existence stopped distinguishing
+     * anyone the moment it shipped, and the panel's "needs attention" highlight
+     * would mark nobody. A rate is the thing only a human can put there.
+     */
+    isConfigured: boolean;
     /** Every tip role seen in the lookback window. */
     rolesSeen: TipEntryRole[];
     /**
@@ -650,18 +661,48 @@ export type EmployeeConfigRow = {
  * even with no EmployeeRate row — those people are the entire point of the
  * screen, and listing only existing rows would hide exactly the ones that need
  * attention.
+ *
+ * The inverse is also true and matters more since the role sync started
+ * creating rows: an EmployeeRate row is NOT on its own a reason to list someone.
+ * The sync creates a row for every Clover employee so their role has somewhere
+ * to live, which put 41 of 56 people on this screen who have never worked a
+ * shift here. A row is listed only when the person is payroll-relevant:
+ *
+ *   - they have punches or tips in the lookback window, OR
+ *   - they appear in the week being viewed, however old that week is, OR
+ *   - their row has an hourlyRate, meaning a human configured them deliberately
+ *
+ * A sync-created row with no rate and no recent work is none of those, so it is
+ * not listed. It is emphatically NOT deleted — the cached role is still what
+ * resolves this person's department the day they do start working.
+ *
+ * `week` is the range the page is currently showing. Passing it is what keeps
+ * the SIN_DEPARTAMENTO notice honest: that notice names people and links here,
+ * and for a week older than the lookback window the person it named would
+ * otherwise be missing from this list.
  */
-export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
+export async function getEmployeeConfigs(week?: { start: string; end: string }): Promise<EmployeeConfigRow[]> {
     const since = businessDateToUtcDate(addDays(getBusinessDate(), -CONFIG_LOOKBACK_DAYS));
+
+    // The lookback window, plus the viewed week when it falls outside it. An OR
+    // rather than simply extending `since` back to the viewed week: opening a
+    // week from last year should add that week's dozen people, not everybody
+    // who has worked since.
+    const weekRange = week
+        ? { gte: businessDateToUtcDate(week.start), lte: businessDateToUtcDate(week.end) }
+        : null;
+    const inScope = weekRange
+        ? { OR: [{ businessDate: { gte: since } }, { businessDate: weekRange }] }
+        : { businessDate: { gte: since } };
 
     const [rates, punches, tipEntries] = await Promise.all([
         prisma.employeeRate.findMany(),
         prisma.payrollPunch.groupBy({
             by: ['cloverEmployeeId', 'employeeName'],
-            where: { businessDate: { gte: since }, cloverEmployeeId: { not: null } },
+            where: { ...inScope, cloverEmployeeId: { not: null } },
         }),
         prisma.tipShiftEntry.findMany({
-            where: { tipShift: { tipDay: { businessDate: { gte: since } } } },
+            where: { tipShift: { tipDay: inScope } },
             select: { cloverEmployeeId: true, employeeName: true, role: true },
         }),
     ]);
@@ -669,6 +710,8 @@ export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
     const names = new Map<string, string>();
     const rolesById = new Map<string, Set<TipEntryRole>>();
 
+    // Membership of `names` IS the payroll-relevance test: only people seen in
+    // scope, or carrying a deliberate rate, are ever added to it.
     for (const p of punches) {
         if (p.cloverEmployeeId) names.set(p.cloverEmployeeId, p.employeeName);
     }
@@ -677,9 +720,12 @@ export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
         if (!rolesById.has(e.cloverEmployeeId)) rolesById.set(e.cloverEmployeeId, new Set());
         rolesById.get(e.cloverEmployeeId)!.add(e.role);
     }
-    // A configured person stays listed even after 90 quiet days — their row is
-    // still what payroll reads, so it must remain editable.
-    for (const r of rates) names.set(r.cloverEmployeeId, r.employeeName);
+    // A CONFIGURED person stays listed even after 90 quiet days — their row is
+    // still what payroll reads, so it must remain editable. A rate is what marks
+    // them as configured; a bare sync-created row does not qualify.
+    for (const r of rates) {
+        if (r.hourlyRate != null) names.set(r.cloverEmployeeId, r.employeeName);
+    }
 
     const byId = new Map(rates.map(r => [r.cloverEmployeeId, r]));
 
@@ -702,7 +748,7 @@ export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
                 departmentFromRole: resolveDepartment({ department: null, cloverRole: row?.cloverRole ?? null }, false),
                 adpHours: row?.adpHours ? dec(row.adpHours) : null,
                 adpRate: row?.adpRate ? dec(row.adpRate) : null,
-                hasRow: !!row,
+                isConfigured: row?.hourlyRate != null,
                 rolesSeen,
                 roleVaries: rolesSeen.length > 1,
             };
@@ -710,9 +756,9 @@ export async function getEmployeeConfigs(): Promise<EmployeeConfigRow[]> {
         // Unconfigured first — they are what the screen exists to fix — then by
         // name within each group.
         .sort((a, b) =>
-            a.hasRow === b.hasRow
+            a.isConfigured === b.isConfigured
                 ? a.employeeName.localeCompare(b.employeeName, 'es')
-                : (a.hasRow ? 1 : -1)
+                : (a.isConfigured ? 1 : -1)
         );
 }
 
@@ -797,7 +843,7 @@ const EMPTY_SYNC = { checked: 0, withRole: 0, withoutRole: 0, created: 0, change
  * Clover is read through cloverFetch directly rather than through getWaitStaff,
  * for two reasons: getWaitStaff filters by SalonStaffVisibility, so anyone an
  * admin hid there would come back looking like they had no wait-staff role and
- * be reclassified as kitchen; and it returns only Wait Staff, so the kitchen —
+ * lose their SALON resolution; and it returns only Wait Staff, so everyone else —
  * the people this sync exists for — would never appear.
  *
  * What it does NOT write is department. That column is the manual override and
