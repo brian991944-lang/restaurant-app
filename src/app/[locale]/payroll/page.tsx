@@ -4,7 +4,8 @@ import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import EmployeeConfigPanel from './EmployeeConfigPanel';
 import PayrollWeekTable from './PayrollWeekTable';
-import PayrollTabs, { readTab } from './PayrollTabs';
+import PayrollTabs from './PayrollTabs';
+import { readTab } from '@/lib/payrollTab';
 import CollapsibleSection from './CollapsibleSection';
 import TimesheetImporter from './TimesheetImporter';
 

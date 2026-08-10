@@ -2,21 +2,14 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-
-/** Which top-level section is showing. Mirrored in the URL as ?tab. */
-export type PayrollTab = 'config' | 'reportes';
+import type { PayrollTab } from '@/lib/payrollTab';
 
 /**
- * Reports is the default, and anything unrecognised falls back to it.
- *
- * Exported so the server page and this bar agree on what a given URL means —
- * two copies of the fallback would be free to disagree, and the failure would
- * be a highlighted tab sitting above the other tab's content.
+ * `PayrollTab` and `readTab` deliberately live in @/lib/payrollTab, which has no
+ * 'use client' directive. The server page has to call readTab, and a function
+ * exported from THIS file cannot be called from the server — only rendered as a
+ * component. Re-exporting either of them from here would rebuild that trap.
  */
-export function readTab(raw: string | string[] | undefined): PayrollTab {
-    const value = Array.isArray(raw) ? raw[0] : raw;
-    return value === 'config' ? 'config' : 'reportes';
-}
 
 /**
  * The top-level Configuración / Reportes switch.
