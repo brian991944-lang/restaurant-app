@@ -111,6 +111,34 @@ function RowFlags({ row, t, configHref }: { row: PayrollRow; t: (k: string) => s
     );
 }
 
+/**
+ * What retention takes off a check, and what is actually paid out after it.
+ *
+ * Shared by both tables, and by the totals footers, because they differ only in
+ * where the base comes from — tips minus ADP for the salon, the configured pay
+ * split for the kitchen. Two copies of this rounding would be two chances for
+ * the figure on a row to disagree with the one in the footer above it.
+ *
+ * A base at or below zero means the ADP figure exceeds the tips: that row needs
+ * CORRECTING, not retaining. A percentage of a negative amount is not money
+ * being held, so nothing is retained and there is no net to show — retaining it
+ * would report a larger payout than the check itself.
+ *
+ * Rounded once, here. Everything after it is exact integer-cent subtraction.
+ */
+function retentionOn(baseCents: number | null, active: boolean, pct: number): {
+    /** null when retention is off — the cell shows a dash, not a zero. */
+    retainedC: number | null;
+    /** null whenever there is no retained figure to subtract from the base. */
+    netC: number | null;
+} {
+    if (!active || baseCents === null) return { retainedC: null, netC: null };
+    if (baseCents <= 0) return { retainedC: 0, netC: null };
+
+    const retainedC = Math.round(baseCents * pct / 100);
+    return { retainedC, netC: baseCents - retainedC };
+}
+
 type Draft = { adp: string; retActive: boolean; retPct: string };
 
 /**
@@ -279,13 +307,18 @@ export default function PayrollWeekTable({
             const wage = row.weekWageCents ?? 0;
             const tips = Math.round(row.tipsTotal * 100);
             const adp = toCents(d.adp);
+            const pct = Number(d.retPct) || 0;
             if (tab === 'salon') {
+                const checkC = tips - adp;
+                const ret = retentionOn(checkC, d.retActive, pct);
                 return {
                     hours: t.hours + row.hoursWorked,
                     wage: t.wage + wage,
                     tips: t.tips + tips,
                     adp: t.adp + wage + adp,
-                    check: t.check + (tips - adp),
+                    check: t.check + checkC,
+                    retained: t.retained + (ret.retainedC ?? 0),
+                    netRows: t.netRows + (ret.netC !== null ? 1 : 0),
                 };
             }
             // Kitchen has no tips: the split comes from their configured ADP
@@ -296,16 +329,32 @@ export default function PayrollWeekTable({
                 adpHours: row.adpHours,
                 adpRate: row.adpRate,
             });
+            const ret = retentionOn(split?.checkTotalCents ?? null, d.retActive, pct);
             return {
                 hours: t.hours + row.hoursWorked,
                 wage: t.wage + wage,
                 tips: t.tips,
                 adp: t.adp + (split?.adpTotalCents ?? 0),
                 check: t.check + (split?.checkTotalCents ?? 0),
+                retained: t.retained + (ret.retainedC ?? 0),
+                netRows: t.netRows + (ret.netC !== null ? 1 : 0),
             };
         },
-        { hours: 0, wage: 0, tips: 0, adp: 0, check: 0 }
+        { hours: 0, wage: 0, tips: 0, adp: 0, check: 0, retained: 0, netRows: 0 }
     );
+
+    /**
+     * What the week actually pays out: the gross check total less everything
+     * retained. Derived by subtraction rather than summed separately, so it
+     * cannot drift from the two figures it sits between — a row whose base was
+     * clamped contributes zero retention here, exactly as it shows on the row.
+     *
+     * netRows is what gates the footer, rather than a non-zero total: retention
+     * set to 0% retains nothing, and gating on the amount would show a net on
+     * those rows while the footer stayed blank. The footer appears exactly when
+     * at least one row on the tab shows a net of its own.
+     */
+    const totalNetC = totals.check - totals.retained;
 
     /**
      * Any picked day resolves to the week containing it: snap to that Monday,
@@ -481,9 +530,11 @@ export default function PayrollWeekTable({
                                 });
 
                                 const pct = Number(draft.retPct) || 0;
-                                const retainedC = draft.retActive && split
-                                    ? Math.round(split.checkTotalCents * pct / 100)
-                                    : null;
+                                const { retainedC, netC } = retentionOn(
+                                    split?.checkTotalCents ?? null,
+                                    draft.retActive,
+                                    pct
+                                );
 
                                 return (
                                     <tr key={row.key} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -540,6 +591,13 @@ export default function PayrollWeekTable({
                                             ) : (
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                                     <span style={{ fontWeight: 700 }}>{formatMoney(retainedC)}</span>
+                                                    {netC !== null && (
+                                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                            {t('net')}: {formatMoney(netC)}
+                                                        </span>
+                                                    )}
+                                                    {/* Last, so it qualifies BOTH figures above it: neither the
+                                                        retained amount nor the net is written anywhere yet. */}
                                                     <span style={{ fontSize: '0.84rem', color: 'var(--warning)' }}>
                                                         {t('retained_not_recorded')}
                                                     </span>
@@ -581,7 +639,19 @@ export default function PayrollWeekTable({
                                 <td style={numCell}>{formatMoney(totals.adp)}</td>
                                 <td style={numCell}>{formatMoney(totals.check)}</td>
                                 <td style={cell}></td>
-                                <td style={numCell}></td>
+                                {/* No row retaining anything means the check column above
+                                    already IS what gets paid out, so a second identical
+                                    figure would only invite doubt. */}
+                                <td style={numCell}>
+                                    {totals.netRows > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                            <span>{formatMoney(totals.retained)}</span>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 400, color: 'var(--text-secondary)' }}>
+                                                {t('net')}: {formatMoney(totalNetC)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </td>
                                 <td style={cell}></td>
                             </tr>
                         </tfoot>
@@ -634,7 +704,7 @@ export default function PayrollWeekTable({
                                 );
 
                                 const pct = Number(draft.retPct) || 0;
-                                const retainedC = draft.retActive ? Math.round(checkC * pct / 100) : null;
+                                const { retainedC, netC } = retentionOn(checkC, draft.retActive, pct);
 
                                 const unlinked = !row.cloverEmployeeId;
                                 // Both conditions make the row unsettleable, so
@@ -746,9 +816,15 @@ export default function PayrollWeekTable({
                                             ) : (
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                                                     <span style={{ fontWeight: 700 }}>{formatMoney(retainedC)}</span>
+                                                    {netC !== null && (
+                                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                            {t('net')}: {formatMoney(netC)}
+                                                        </span>
+                                                    )}
                                                     {/* Nothing writes RetentionLedger yet. Saying so on the
-                                                        figure itself is the only thing stopping it from
-                                                        reading as money already set aside. */}
+                                                        figures themselves is the only thing stopping them from
+                                                        reading as money already set aside. Last of the three,
+                                                        so it qualifies the net as well as the retained amount. */}
                                                     <span style={{ fontSize: '0.84rem', color: 'var(--warning)' }}>
                                                         {t('retained_not_recorded')}
                                                     </span>
@@ -800,7 +876,19 @@ export default function PayrollWeekTable({
                                 <td style={numCell}>{formatMoney(totals.adp)}</td>
                                 <td style={numCell}>{formatMoney(totals.check)}</td>
                                 <td style={cell}></td>
-                                <td style={numCell}></td>
+                                {/* No row retaining anything means the check column above
+                                    already IS what gets paid out, so a second identical
+                                    figure would only invite doubt. */}
+                                <td style={numCell}>
+                                    {totals.netRows > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                                            <span>{formatMoney(totals.retained)}</span>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 400, color: 'var(--text-secondary)' }}>
+                                                {t('net')}: {formatMoney(totalNetC)}
+                                            </span>
+                                        </div>
+                                    )}
+                                </td>
                                 <td style={cell}></td>
                             </tr>
                         </tfoot>

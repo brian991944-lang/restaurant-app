@@ -238,6 +238,7 @@
     "retention": "Retention",
     "retained": "Retained",
     "retained_not_recorded": "Calculation, not yet recorded",
+    "net": "Net",
     "suggested": "Suggested",
     "use_suggested": "Use the suggested figure",
     "save": "Save",
