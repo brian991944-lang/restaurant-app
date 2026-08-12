@@ -853,6 +853,11 @@ model EmployeeRate {
   cloverRoleAt     DateTime?
   adpHours         Decimal?    @db.Decimal(5,2)
   adpRate          Decimal?    @db.Decimal(6,2)
+  // The person's name exactly as it appears in ADP's export, so an imported
+  // AdpEntry row can be matched back to a Clover id. ADP writes
+  // "Ayala, Piero R" where Clover has "Piero" — the two will not match on
+  // anything but an explicit mapping, which is what this column is.
+  adpName          String?
   // Hides the person from the CONFIG panel only. It must NEVER remove them from
   // a payroll report: someone with hours that week still appears there and still
   // gets paid. Hiding is decluttering, not exclusion — getPayrollWeek does not
@@ -930,4 +935,83 @@ model PayrollPunch {
   @@index([employeeName])
   @@index([cloverEmployeeId])
   @@index([importBatchId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Imported ADP payroll cost
+//
+// Source is ADP's "Payroll Detail" export: one row per employee per check
+// date, with earnings, employee taxes and employer liability broken out.
+//
+// NEVER store SSN, TIN, bank account or check numbers. The export carries all
+// of them; the app has no use for any of them, and holding them creates a
+// custodial obligation it does not need. Drop those columns at the parser, not
+// at the query.
+// ─────────────────────────────────────────────────────────────
+
+// One ADP payroll run — a single check date, as imported.
+//
+// This model exists because nothing in this schema stored what the EMPLOYER
+// paid. Everything before it — PayrollEntry.wageTotal, tipsTotal, the adp/check
+// splits — is gross pay from the worker's side. The employer's own liability
+// (SS and Medicare match, NJ SUI and SDI, FUTA) was recorded nowhere, so every
+// labor-cost figure the app has reported to date is understated by the entire
+// employer burden: roughly 11% on the sample export. A cost number that is
+// consistently ~11% low is not a rounding problem, it is the wrong number, and
+// importing this is what fixes it.
+model AdpRun {
+  id            String   @id @default(cuid())
+  checkDate     DateTime @db.Date
+  payrollNumber String?
+  companyName   String?
+  importedAt    DateTime @default(now())
+  entries       AdpEntry[]
+  @@unique([checkDate, payrollNumber])
+  @@index([checkDate])
+}
+
+// One employee's line on one ADP run: what ADP ACTUALLY charged and withheld.
+//
+// Do not confuse this with PayrollEntry.adpWage / adpTips. Those are the
+// ROUTING DECISION made before the run — how much of a week's gross was sent to
+// ADP to process versus paid by handwritten check. This model is the result
+// that came back: what ADP actually paid out, withheld and billed the employer
+// for. They answer different questions, and the fields are similarly named
+// enough that a reader will conflate them if this note is not here.
+//
+//   PayrollEntry.adpWage   → what we told ADP to run
+//   AdpEntry.totalEarnings → what ADP ran
+//   AdpEntry.erTotal       → what it cost us on top, which nothing else knows
+//
+// They can legitimately disagree — a correction, an off-cycle check, a mid-week
+// change — and a difference is a fact worth surfacing, not an error to reconcile
+// away by overwriting one with the other.
+//
+// adpEmployeeName is stored exactly as ADP writes it ("Ayala, Piero R"). Matching
+// it to a Clover id is a separate mapping and lives in EmployeeRate.adpName;
+// cloverEmployeeId here is null until that mapping resolves, and an unresolved
+// row is still a real cost that must count toward totals.
+model AdpEntry {
+  id                String   @id @default(cuid())
+  adpRunId          String
+  adpRun            AdpRun   @relation(fields: [adpRunId], references: [id], onDelete: Cascade)
+  adpEmployeeName   String
+  cloverEmployeeId  String?
+  department        String?
+  regularHours      Decimal  @db.Decimal(7,2) @default(0)
+  regularRate       Decimal  @db.Decimal(6,2) @default(0)
+  regularAmount     Decimal  @db.Decimal(10,2) @default(0)
+  tipsAmount        Decimal  @db.Decimal(10,2) @default(0)
+  totalHours        Decimal  @db.Decimal(7,2) @default(0)
+  totalEarnings     Decimal  @db.Decimal(10,2) @default(0)
+  employeeTaxes     Decimal  @db.Decimal(10,2) @default(0)
+  netPay            Decimal  @db.Decimal(10,2) @default(0)
+  erSocSec          Decimal  @db.Decimal(10,2) @default(0)
+  erMedicare        Decimal  @db.Decimal(10,2) @default(0)
+  erSui             Decimal  @db.Decimal(10,2) @default(0)
+  erSdi             Decimal  @db.Decimal(10,2) @default(0)
+  erFuta            Decimal  @db.Decimal(10,2) @default(0)
+  erTotal           Decimal  @db.Decimal(10,2) @default(0)
+  @@unique([adpRunId, adpEmployeeName])
+  @@index([cloverEmployeeId])
 }
