@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server';
-import { getPayrollWeek, getEmployeeConfigs, getAdvances } from '@/app/actions/payroll';
+import { getPayrollWeek, getEmployeeConfigs, getAdvances, getAdpRuns } from '@/app/actions/payroll';
 import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import EmployeeConfigPanel from './EmployeeConfigPanel';
@@ -9,6 +9,8 @@ import PayrollTabs from './PayrollTabs';
 import { readTab } from '@/lib/payrollTab';
 import CollapsibleSection from './CollapsibleSection';
 import TimesheetImporter from './TimesheetImporter';
+import AdpLiabilityImporter from './AdpLiabilityImporter';
+import AdpRunsList from './AdpRunsList';
 
 export default async function PayrollPage({
     searchParams
@@ -27,10 +29,11 @@ export default async function PayrollPage({
     // parallel; the alternative was a waterfall for one string.
     const week = resolveWeekRange(requested);
 
-    const [view, configs, advances] = await Promise.all([
+    const [view, configs, advances, adpRuns] = await Promise.all([
         getPayrollWeek(requested),
         getEmployeeConfigs(week),
         getAdvances(),
+        getAdpRuns(),
     ]);
 
     return (
@@ -86,8 +89,17 @@ export default async function PayrollPage({
                         week the server considers unfinished during the pre-cutover hours. */}
                     <PayrollWeekTable view={view} maxSelectableDate={lastCompleteWeekEnding()} />
 
-                    <CollapsibleSection title={t('importer_section')}>
+                    <CollapsibleSection title={t('importer_section')} testId="timesheet-section">
                         <TimesheetImporter />
+                    </CollapsibleSection>
+
+                    {/* The employer's own cost of a run — taxes, workers comp and
+                        ADP's fee — which nothing else on this page knows. The
+                        weekly figures above are gross pay from the worker's side
+                        and are understated as a COST by everything in here. */}
+                    <CollapsibleSection title={t('adp_section')} testId="adp-section">
+                        <AdpLiabilityImporter />
+                        <AdpRunsList runs={adpRuns} />
                     </CollapsibleSection>
                 </>
             )}

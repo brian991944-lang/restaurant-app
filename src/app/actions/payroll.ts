@@ -8,6 +8,8 @@ import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { addDays, lastCompleteWeekEnding, resolveWeekRange, sundayOf } from '@/lib/payrollWeek';
 import { calcPaySplit, advanceStatus, type AdvanceStatus } from '@/lib/payrollCalc';
 import { cloverFetch } from '@/lib/clover';
+import { parseAdpLiabilityRows, type AdpLiabilityParseResult } from '@/lib/adpLiabilityParse';
+import { xlsxToRows } from '@/lib/adpLiabilitySheet';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
 
@@ -1446,4 +1448,245 @@ export async function deleteDeduction(ledgerId: string): Promise<{ success: bool
     } catch (e) {
         return { success: false, error: `No se pudo borrar el descuento: ${e instanceof Error ? e.message : String(e)}` };
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ADP Payroll Liability import
+//
+// Three actions, split so that nothing is written until a human has seen the
+// figures: parse shows, commit stores, and the service fee arrives days later
+// by hand. The parsing itself is in lib/adpLiabilityParse.ts — this file is
+// 'use server', so anything exported from it is a public endpoint.
+// ─────────────────────────────────────────────────────────────
+
+export type AdpParseResponse = {
+    success: boolean;
+    result?: AdpLiabilityParseResult;
+    error?: string;
+};
+
+/**
+ * Parse an uploaded Payroll Liability .xlsx. WRITES NOTHING.
+ *
+ * Not gated by isAdminSession: it touches no data and returns only what the
+ * caller already uploaded. commitAdpRun is where the gate belongs, and it has
+ * one. Keeping the preview open means a non-admin can still be asked to check a
+ * file without being handed the ability to store it.
+ */
+export async function parseAdpLiability(fileBase64: string): Promise<AdpParseResponse> {
+    if (!fileBase64) {
+        return { success: false, error: 'No se recibió ningún archivo.' };
+    }
+
+    try {
+        const rows = xlsxToRows(fileBase64);
+        if (rows.length === 0) {
+            return { success: false, error: 'La hoja está vacía.' };
+        }
+
+        const result = parseAdpLiabilityRows(rows);
+
+        // Without a check date there is nothing to key the run on, so this is
+        // the one parse failure that cannot be shown as a warning and left to
+        // the person importing.
+        if (!result.checkDate) {
+            return {
+                success: false,
+                error: 'No se encontró la línea "Check Date From" — no se puede identificar la fecha del pago.',
+            };
+        }
+
+        return { success: true, result };
+    } catch (e) {
+        return { success: false, error: `No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/** Dollars to a Decimal-safe string, or null. Prisma takes the string as-is. */
+const money = (value: number | null | undefined): string | null =>
+    value === null || value === undefined || !Number.isFinite(value) ? null : value.toFixed(2);
+
+const rate = (value: number | null | undefined): string | null =>
+    value === null || value === undefined || !Number.isFinite(value) ? null : value.toFixed(3);
+
+/**
+ * Store a parsed run, replacing any earlier import of the same one.
+ *
+ * The natural key is [checkDate, payrollNumber], so re-importing a file after a
+ * correction replaces the run rather than adding a second copy of it.
+ *
+ * The lookup is a findFirst rather than an upsert on the compound unique because
+ * payrollNumber is NULLABLE. In Postgres two nulls never conflict, so a unique
+ * index cannot match a run whose payroll number is absent, and an upsert would
+ * quietly insert a duplicate every time such a file was imported. Matching by
+ * hand costs one query and behaves the same whether the number is there or not.
+ *
+ * A missing figure is stored as 0 because the columns are non-nullable — but
+ * only ever after the preview has shown that label as missing and a human has
+ * pressed confirm anyway. That is a decision taken in front of a warning, not a
+ * silent default. It is also not hypothetical: FUTA legitimately disappears once
+ * an employee passes the wage base, and refusing the import would leave a real
+ * run with no way in.
+ *
+ * serviceFee is NOT touched, on create or on update. ADP does not know it at run
+ * time — the invoice arrives the Monday after — so import has nothing to say
+ * about it, and a re-import must not wipe a fee somebody has already entered.
+ */
+export async function commitAdpRun(
+    parsed: AdpLiabilityParseResult
+): Promise<{ success: boolean; created?: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para importar nóminas de ADP.' };
+    }
+    if (!parsed?.checkDate || !isBusinessDate(parsed.checkDate)) {
+        return { success: false, error: 'La fecha del pago no es válida.' };
+    }
+
+    const checkDate = new Date(`${parsed.checkDate}T00:00:00.000Z`);
+    const payrollNumber = parsed.payrollNumber ?? null;
+    const a = parsed.amounts;
+
+    // Every stored figure, with the nulls the columns cannot hold flattened to
+    // 0. serviceFee is absent from this object on purpose — see above.
+    const figures = {
+        erSocSec: money(a.erSocSec) ?? '0.00',
+        erMedicare: money(a.erMedicare) ?? '0.00',
+        erFuta: money(a.erFuta) ?? '0.00',
+        erSui: money(a.erSui) ?? '0.00',
+        erSdi: money(a.erSdi) ?? '0.00',
+        erTaxTotal: money(a.erTaxTotal) ?? '0.00',
+        workersComp: money(a.workersComp) ?? '0.00',
+        debitTaxes: money(a.debitTaxes) ?? '0.00',
+        debitChecks: money(a.debitChecks) ?? '0.00',
+        debitDirectDeposit: money(a.debitDirectDeposit) ?? '0.00',
+        totalCashRequired: money(a.totalCashRequired) ?? '0.00',
+        futaRate: rate(parsed.rates.futaRate),
+        suiRate: rate(parsed.rates.suiRate),
+        sdiRate: rate(parsed.rates.sdiRate),
+    };
+
+    try {
+        const existing = await prisma.adpRun.findFirst({
+            where: { checkDate, payrollNumber },
+            select: { id: true },
+        });
+
+        if (existing) {
+            await prisma.adpRun.update({ where: { id: existing.id }, data: figures });
+        } else {
+            await prisma.adpRun.create({ data: { checkDate, payrollNumber, ...figures } });
+        }
+
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true, created: !existing };
+    } catch (e) {
+        return { success: false, error: `No se pudo guardar la nómina: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/**
+ * Enter (or clear) ADP's processing fee for a run.
+ *
+ * Separate from import because the figure arrives separately: the fee invoice
+ * lands the Monday after the run and debits three days later, so it is typed in
+ * by hand once it is known. Passing null puts the run back to pending, which is
+ * the state to be in when a fee was entered by mistake — zero would claim the
+ * run was free.
+ */
+export async function setAdpServiceFee(
+    adpRunId: string,
+    amount: number | null
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para cambiar la comisión de ADP.' };
+    }
+    if (!adpRunId) {
+        return { success: false, error: 'Falta identificar la nómina.' };
+    }
+    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
+        return { success: false, error: 'La comisión debe ser un número positivo.' };
+    }
+
+    try {
+        await prisma.adpRun.update({
+            where: { id: adpRunId },
+            data: { serviceFee: amount === null ? null : (toCentsExact(amount) / 100).toFixed(2) },
+        });
+        revalidatePath(PAYROLL_ROUTE);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo guardar la comisión: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/** One imported run, with the employer cost already worked out. */
+export type AdpRunRow = {
+    id: string;
+    /** ISO YYYY-MM-DD, formatted by the caller. */
+    checkDate: string;
+    payrollNumber: string | null;
+    erSocSec: number;
+    erMedicare: number;
+    erFuta: number;
+    erSui: number;
+    erSdi: number;
+    erTaxTotal: number;
+    workersComp: number;
+    /** Null means the invoice has not arrived yet — NOT zero. */
+    serviceFee: number | null;
+    debitTaxes: number;
+    debitChecks: number;
+    debitDirectDeposit: number;
+    totalCashRequired: number;
+    futaRate: number | null;
+    suiRate: number | null;
+    sdiRate: number | null;
+    /** erTaxTotal + workersComp + serviceFee, in cents. */
+    employerCostCents: number;
+    /** True while serviceFee is null, so the cost is shown as incomplete. */
+    employerCostPending: boolean;
+    importedAt: string;
+};
+
+/**
+ * Every imported run, newest first.
+ *
+ * The employer cost is computed here rather than in the component so there is
+ * one definition of it. It is deliberately NOT totalCashRequired: that figure
+ * includes the employees' own money — their net pay and the tax withheld from
+ * them — and answers "what left the bank", not "what this cost us".
+ */
+export async function getAdpRuns(): Promise<AdpRunRow[]> {
+    const rows = await prisma.adpRun.findMany({ orderBy: { checkDate: 'desc' } });
+
+    return rows.map(r => {
+        const serviceFee = r.serviceFee === null ? null : dec(r.serviceFee);
+        const erTaxTotal = dec(r.erTaxTotal);
+        const workersComp = dec(r.workersComp);
+
+        return {
+            id: r.id,
+            checkDate: r.checkDate.toISOString().slice(0, 10),
+            payrollNumber: r.payrollNumber,
+            erSocSec: dec(r.erSocSec),
+            erMedicare: dec(r.erMedicare),
+            erFuta: dec(r.erFuta),
+            erSui: dec(r.erSui),
+            erSdi: dec(r.erSdi),
+            erTaxTotal,
+            workersComp,
+            serviceFee,
+            debitTaxes: dec(r.debitTaxes),
+            debitChecks: dec(r.debitChecks),
+            debitDirectDeposit: dec(r.debitDirectDeposit),
+            totalCashRequired: dec(r.totalCashRequired),
+            futaRate: r.futaRate === null ? null : dec(r.futaRate),
+            suiRate: r.suiRate === null ? null : dec(r.suiRate),
+            sdiRate: r.sdiRate === null ? null : dec(r.sdiRate),
+            employerCostCents:
+                toCentsExact(erTaxTotal) + toCentsExact(workersComp) + (serviceFee === null ? 0 : toCentsExact(serviceFee)),
+            employerCostPending: serviceFee === null,
+            importedAt: r.importedAt.toISOString(),
+        };
+    });
 }
