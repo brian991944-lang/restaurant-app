@@ -853,10 +853,15 @@ model EmployeeRate {
   cloverRoleAt     DateTime?
   adpHours         Decimal?    @db.Decimal(5,2)
   adpRate          Decimal?    @db.Decimal(6,2)
-  // The person's name exactly as it appears in ADP's export, so an imported
-  // AdpEntry row can be matched back to a Clover id. ADP writes
-  // "Ayala, Piero R" where Clover has "Piero" — the two will not match on
-  // anything but an explicit mapping, which is what this column is.
+  // The person's name exactly as it appears in ADP's exports, so a row naming
+  // them can be matched back to a Clover id. ADP writes "Ayala, Piero R" where
+  // Clover has "Piero" — the two will not match on anything but an explicit
+  // mapping, which is what this column is.
+  //
+  // AdpRun itself is run-level and never names anybody, so nothing reads this
+  // yet. It is kept because the mapping is wanted regardless: any per-person
+  // ADP figure is unusable without it, and the names are easier to collect now,
+  // while someone is looking at them, than to reconstruct later.
   adpName          String?
   // Hides the person from the CONFIG panel only. It must NEVER remove them from
   // a payroll report: someone with hours that week still appears there and still
@@ -940,78 +945,99 @@ model PayrollPunch {
 // ─────────────────────────────────────────────────────────────
 // Imported ADP payroll cost
 //
-// Source is ADP's "Payroll Detail" export: one row per employee per check
-// date, with earnings, employee taxes and employer liability broken out.
+// Source is ADP's "Payroll Liability" report: one file per check date, laid out
+// as labelled rows rather than a table. It is deliberately NOT the "Payroll
+// Detail" export — Liability carries the employer's own cost, which is the
+// whole point of this model, and it carries no SSN, TIN or per-person pay data
+// to have to be careful with.
 //
-// NEVER store SSN, TIN, bank account or check numbers. The export carries all
-// of them; the app has no use for any of them, and holding them creates a
-// custodial obligation it does not need. Drop those columns at the parser, not
-// at the query.
+// NEVER store bank account or routing numbers. The report carries them; the app
+// has no use for them, and holding them creates a custodial obligation it does
+// not need. Drop them at the parser, not at the query.
 // ─────────────────────────────────────────────────────────────
 
-// One ADP payroll run — a single check date, as imported.
+// One ADP payroll run — a single check date, at run level.
 //
 // This model exists because nothing in this schema stored what the EMPLOYER
 // paid. Everything before it — PayrollEntry.wageTotal, tipsTotal, the adp/check
 // splits — is gross pay from the worker's side. The employer's own liability
-// (SS and Medicare match, NJ SUI and SDI, FUTA) was recorded nowhere, so every
-// labor-cost figure the app has reported to date is understated by the entire
-// employer burden: roughly 11% on the sample export. A cost number that is
-// consistently ~11% low is not a rounding problem, it is the wrong number, and
-// importing this is what fixes it.
-model AdpRun {
-  id            String   @id @default(cuid())
-  checkDate     DateTime @db.Date
-  payrollNumber String?
-  companyName   String?
-  importedAt    DateTime @default(now())
-  entries       AdpEntry[]
-  @@unique([checkDate, payrollNumber])
-  @@index([checkDate])
-}
-
-// One employee's line on one ADP run: what ADP ACTUALLY charged and withheld.
+// (SS and Medicare match, NJ SUI and SDI, FUTA, workers comp, ADP's fee) was
+// recorded nowhere, so every labor-cost figure the app has reported to date is
+// understated by that entire amount: employer tax alone runs ~11% of gross on
+// the sample run, more once workers comp and the fee are counted. A cost number
+// that is consistently ~11% low is not a rounding problem, it is the wrong
+// number, and importing this is what fixes it.
 //
-// Do not confuse this with PayrollEntry.adpWage / adpTips. Those are the
-// ROUTING DECISION made before the run — how much of a week's gross was sent to
-// ADP to process versus paid by handwritten check. This model is the result
-// that came back: what ADP actually paid out, withheld and billed the employer
-// for. They answer different questions, and the fields are similarly named
-// enough that a reader will conflate them if this note is not here.
+// The employer's true cost of a run is:
 //
-//   PayrollEntry.adpWage   → what we told ADP to run
-//   AdpEntry.totalEarnings → what ADP ran
-//   AdpEntry.erTotal       → what it cost us on top, which nothing else knows
+//   erTaxTotal + workersComp + serviceFee
+//
+// Do NOT reach for totalCashRequired for that. It is cash out the door, which
+// includes the employees' own money — their net pay and the tax withheld from
+// them. It answers "what leaves the bank", not "what this cost us".
+//
+// Nor is erTaxTotal a debit on top of the others. It is already INSIDE
+// debitTaxes, which remits employee withholding and employer contribution
+// together, so on the sample run:
+//
+//   debitTaxes 919.07 = employer 436.75 + employee 482.32
+//   totalCashRequired 4376.82 = 919.07 + 922.86 + 2474.06 + 60.83
+//                               taxes    checks   FSDD      workers comp
+//
+// Adding erTaxTotal to totalCashRequired double counts it.
+//
+// Do not confuse any of this with PayrollEntry.adpWage / adpTips either. Those
+// are the ROUTING DECISION made before the run — how much of a week's gross was
+// sent to ADP to process versus paid by handwritten check. This model is what
+// came back: what ADP actually withheld, remitted and billed. They answer
+// different questions, and the names are close enough that a reader will
+// conflate them without this note.
+//
+//   PayrollEntry.adpWage → what we told ADP to run
+//   AdpRun.erTaxTotal    → what it cost us on top, which nothing else knows
 //
 // They can legitimately disagree — a correction, an off-cycle check, a mid-week
 // change — and a difference is a fact worth surfacing, not an error to reconcile
 // away by overwriting one with the other.
-//
-// adpEmployeeName is stored exactly as ADP writes it ("Ayala, Piero R"). Matching
-// it to a Clover id is a separate mapping and lives in EmployeeRate.adpName;
-// cloverEmployeeId here is null until that mapping resolves, and an unresolved
-// row is still a real cost that must count toward totals.
-model AdpEntry {
-  id                String   @id @default(cuid())
-  adpRunId          String
-  adpRun            AdpRun   @relation(fields: [adpRunId], references: [id], onDelete: Cascade)
-  adpEmployeeName   String
-  cloverEmployeeId  String?
-  department        String?
-  regularHours      Decimal  @db.Decimal(7,2) @default(0)
-  regularRate       Decimal  @db.Decimal(6,2) @default(0)
-  regularAmount     Decimal  @db.Decimal(10,2) @default(0)
-  tipsAmount        Decimal  @db.Decimal(10,2) @default(0)
-  totalHours        Decimal  @db.Decimal(7,2) @default(0)
-  totalEarnings     Decimal  @db.Decimal(10,2) @default(0)
-  employeeTaxes     Decimal  @db.Decimal(10,2) @default(0)
-  netPay            Decimal  @db.Decimal(10,2) @default(0)
-  erSocSec          Decimal  @db.Decimal(10,2) @default(0)
-  erMedicare        Decimal  @db.Decimal(10,2) @default(0)
-  erSui             Decimal  @db.Decimal(10,2) @default(0)
-  erSdi             Decimal  @db.Decimal(10,2) @default(0)
-  erFuta            Decimal  @db.Decimal(10,2) @default(0)
-  erTotal           Decimal  @db.Decimal(10,2) @default(0)
-  @@unique([adpRunId, adpEmployeeName])
-  @@index([cloverEmployeeId])
+model AdpRun {
+  id                 String   @id @default(cuid())
+  checkDate          DateTime @db.Date
+  payrollNumber      String?
+  erSocSec           Decimal  @db.Decimal(10,2) @default(0)
+  erMedicare         Decimal  @db.Decimal(10,2) @default(0)
+  erFuta             Decimal  @db.Decimal(10,2) @default(0)
+  erSui              Decimal  @db.Decimal(10,2) @default(0)
+  erSdi              Decimal  @db.Decimal(10,2) @default(0)
+  // "Total Employer Tax Contributions" as ADP states it, stored rather than
+  // summed from the five above so an import that failed to find a line cannot
+  // quietly report a smaller total than the report did.
+  erTaxTotal         Decimal  @db.Decimal(10,2) @default(0)
+  // "Pay-by-Pay Insurance" — workers comp premium. An employer cost, but not a
+  // tax, so it sits outside erTaxTotal and has to be added separately.
+  workersComp        Decimal  @db.Decimal(10,2) @default(0)
+  // ADP's own processing fee. Nullable because the report CANNOT carry it: the
+  // fee invoice arrives the Monday after the run and debits three days later,
+  // so at import time it does not exist yet and is entered by hand.
+  //
+  // Null therefore means "not entered yet", which is NOT zero. A run still
+  // awaiting its fee is an incomplete cost, and treating null as 0 would report
+  // it as a finished one that happened to be free.
+  serviceFee         Decimal? @db.Decimal(10,2)
+  // The three debits ADP takes, straight from the report. Employee money and
+  // employer money mixed together — see the note above before summing them.
+  debitTaxes         Decimal  @db.Decimal(10,2) @default(0)
+  debitChecks        Decimal  @db.Decimal(10,2) @default(0)
+  debitDirectDeposit Decimal  @db.Decimal(10,2) @default(0)
+  totalCashRequired  Decimal  @db.Decimal(10,2) @default(0)
+  // The rates ADP assessed this run, as percentages (FUTA 0.6, SUI 2.8,
+  // SDI 0.5). Recorded because they are reset periodically and a cost that
+  // moved needs the rate change visible next to it. Nullable: older imports may
+  // not have them, and a guessed rate is worse than an absent one.
+  futaRate           Decimal? @db.Decimal(6,3)
+  suiRate            Decimal? @db.Decimal(6,3)
+  sdiRate            Decimal? @db.Decimal(6,3)
+  importedAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  @@unique([checkDate, payrollNumber])
+  @@index([checkDate])
 }
