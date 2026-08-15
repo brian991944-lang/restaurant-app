@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server';
-import { getPayrollWeek, getEmployeeConfigs, getAdvances, getAdpRuns } from '@/app/actions/payroll';
+import { getPayrollWeek, getEmployeeConfigs, getAdvances, getAdpRuns, getPayrollSpend } from '@/app/actions/payroll';
 import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import EmployeeConfigPanel from './EmployeeConfigPanel';
@@ -11,6 +11,7 @@ import CollapsibleSection from './CollapsibleSection';
 import TimesheetImporter from './TimesheetImporter';
 import AdpLiabilityImporter from './AdpLiabilityImporter';
 import AdpRunsList from './AdpRunsList';
+import PayrollSpendReport from './PayrollSpendReport';
 
 export default async function PayrollPage({
     searchParams
@@ -29,11 +30,14 @@ export default async function PayrollPage({
     // parallel; the alternative was a waterfall for one string.
     const week = resolveWeekRange(requested);
 
-    const [view, configs, advances, adpRuns] = await Promise.all([
+    const [view, configs, advances, adpRuns, spend] = await Promise.all([
         getPayrollWeek(requested),
         getEmployeeConfigs(week),
         getAdvances(),
         getAdpRuns(),
+        // Same `requested` as getPayrollWeek, so both resolve the week through
+        // resolveWeekRange and cannot end up describing different weeks.
+        getPayrollSpend(requested),
     ]);
 
     return (
@@ -82,6 +86,12 @@ export default async function PayrollPage({
 
             {tab === 'reportes' && (
                 <>
+                    {/* What the week COST — wages plus the employer's own liability.
+                        Above the table on purpose: the table below is per person and
+                        gross, and this is the only figure on the page that answers
+                        what the restaurant actually spent. */}
+                    <PayrollSpendReport spend={spend} />
+
                     {/* The bound is the SUNDAY ending the last complete week, so every
                         day of every finished week is clickable while the week still in
                         progress stays out of reach. Computed on the server: it depends

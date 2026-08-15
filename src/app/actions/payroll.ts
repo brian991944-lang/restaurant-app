@@ -10,6 +10,7 @@ import { calcPaySplit, advanceStatus, type AdvanceStatus } from '@/lib/payrollCa
 import { cloverFetch } from '@/lib/clover';
 import { parseAdpLiabilityRows, type AdpLiabilityParseResult } from '@/lib/adpLiabilityParse';
 import { xlsxToRows } from '@/lib/adpLiabilitySheet';
+import { toCents } from '@/lib/money';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
 
@@ -1647,6 +1648,189 @@ export type AdpRunRow = {
     employerCostPending: boolean;
     importedAt: string;
 };
+
+/**
+ * Days from the Sunday ending a payroll week to the Friday its checks land.
+ *
+ * The week runs Monday to Sunday, payroll is processed the following Thursday
+ * and the checks land Friday — five days after the Sunday. This is the ONLY
+ * link between a worked week and what ADP charged for it: AdpRun is run-level
+ * and carries no week reference, so the date arithmetic is the join.
+ */
+const WEEK_END_TO_CHECK_DATE_DAYS = 5;
+
+/** The whole payroll cost of one week, wage side and employer side together. */
+export type PayrollSpend = {
+    weekEnding: string;
+    weekStart: string;
+    /** The check date looked for: weekEnding + 5 days. Shown when no run matched. */
+    expectedCheckDate: string;
+
+    /** False when the week has NO PayrollEntry rows — see hasEntries below. */
+    hasEntries: boolean;
+    entryCount: number;
+
+    // ── Wages, from the settled PayrollEntry rows ──
+    adpWageCents: number;
+    checkWageCents: number;
+
+    // ── Tips. NOT spend. See the note on totalSpendCents. ──
+    adpTipsCents: number;
+    checkTipsCents: number;
+    tipsPassthroughCents: number;
+
+    // ── Employer cost, from the matched AdpRun ──
+    adpRunMissing: boolean;
+    /** How many runs shared this check date. Normally 1; 2 means an off-cycle run. */
+    matchedRunCount: number;
+    erTaxTotalCents: number;
+    workersCompCents: number;
+    /** Null while ADP's fee invoice has not arrived. Never treated as zero. */
+    serviceFeeCents: number | null;
+
+    // ── Retention: money HELD, not money spent ──
+    retainedCents: number;
+    deliveredCents: number;
+    /** retained - delivered. Held without subtracting ENTREGA is the wrong figure. */
+    totalRetainedCents: number;
+
+    totalSpendCents: number;
+    /** False when the run is missing or its fee has not been entered. */
+    spendIsComplete: boolean;
+};
+
+/**
+ * What one payroll week actually cost.
+ *
+ * ── TIPS ARE NOT SPEND, and this is the thing to get right ──
+ *
+ * totalSpend deliberately EXCLUDES tips, both the ADP side and the check side.
+ * Tips are money customers handed over for the staff; the restaurant holds them
+ * briefly and passes them on. Counting them as payroll cost would inflate the
+ * figure by the entire tip pool — on the first week of real data that is over
+ * $3,200 against roughly $1,000 of wages, so the error would be larger than the
+ * number it corrupts. They are returned separately as tipsPassthroughCents so
+ * they can be SHOWN without being ADDED.
+ *
+ * What IS spend: wages the restaurant paid (through ADP and by check), plus the
+ * employer's own liability on top of them (taxes, workers comp, ADP's fee).
+ *
+ * Retention is not spend either. It is wages already counted in adpWage /
+ * checkWage that are being held back rather than handed over — adding it would
+ * count the same dollars twice.
+ *
+ * The AdpRun is matched on checkDate = weekEnding + 5 days and NOTHING ELSE. If
+ * no run carries that date the wage side is returned alone with adpRunMissing
+ * set: a nearby run is not evidence of anything, and quietly attaching one would
+ * charge a week for a payroll it did not generate.
+ */
+export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend> {
+    const { start: startStr, end: endStr } = resolveWeekRange(weekEnding);
+    const expectedCheckDate = addDays(endStr, WEEK_END_TO_CHECK_DATE_DAYS);
+
+    const [weekRow, runs] = await Promise.all([
+        prisma.payrollWeek.findUnique({
+            where: { weekEnding: businessDateToUtcDate(endStr) },
+            select: { id: true },
+        }),
+        // findMany, not findFirst: [checkDate, payrollNumber] is unique, so two
+        // runs CAN share a check date — a regular run plus an off-cycle one. Both
+        // cost the employer money, so both are counted. Taking the first would
+        // silently drop the second.
+        prisma.adpRun.findMany({
+            where: { checkDate: businessDateToUtcDate(expectedCheckDate) },
+            select: { erTaxTotal: true, workersComp: true, serviceFee: true },
+        }),
+    ]);
+
+    // Decimal -> string -> cents, so no figure passes through a float on the way
+    // in. Each amount is rounded exactly once, here.
+    const cents = (d: Prisma.Decimal | null | undefined): number =>
+        d === null || d === undefined ? 0 : toCents(d.toString());
+
+    const [entryAgg, ledger] = await Promise.all([
+        weekRow
+            ? prisma.payrollEntry.aggregate({
+                where: { payrollWeekId: weekRow.id },
+                _count: { _all: true },
+                _sum: { adpWage: true, checkWage: true, adpTips: true, checkTips: true },
+            })
+            : null,
+        weekRow
+            ? prisma.retentionLedger.groupBy({
+                by: ['kind'],
+                where: {
+                    payrollWeekId: weekRow.id,
+                    // ADELANTO and DESCUENTO are advances and their repayments,
+                    // not retention. Summing all four kinds together would report
+                    // a loan as money held.
+                    kind: { in: [RetentionKind.RETENCION, RetentionKind.ENTREGA] },
+                },
+                _sum: { amount: true },
+            })
+            : [],
+    ]);
+
+    const entryCount = entryAgg?._count._all ?? 0;
+    const hasEntries = entryCount > 0;
+
+    const adpWageCents = cents(entryAgg?._sum.adpWage);
+    const checkWageCents = cents(entryAgg?._sum.checkWage);
+    const adpTipsCents = cents(entryAgg?._sum.adpTips);
+    const checkTipsCents = cents(entryAgg?._sum.checkTips);
+
+    const adpRunMissing = runs.length === 0;
+
+    const erTaxTotalCents = runs.reduce((t, r) => t + cents(r.erTaxTotal), 0);
+    const workersCompCents = runs.reduce((t, r) => t + cents(r.workersComp), 0);
+
+    // Null when the fee is not KNOWN, which covers two different situations:
+    // no run has been imported at all, or a matched run is still awaiting its
+    // invoice. Without the adpRunMissing test the empty-array cases would fold
+    // to 0 on their own — .some() is false and .reduce() returns the seed — and
+    // an unimported run would report a fee of exactly zero rather than an
+    // unknown one. That is the null-is-not-zero mistake this whole model exists
+    // to avoid, committed by the code meant to enforce it.
+    //
+    // A part-known fee is also not a known fee: adding only the invoices that
+    // happen to have arrived would report a total that looks finished but is
+    // short.
+    const serviceFeeCents =
+        adpRunMissing || runs.some(r => r.serviceFee === null)
+            ? null
+            : runs.reduce((t, r) => t + cents(r.serviceFee), 0);
+
+    const sumOf = (kind: RetentionKind): number =>
+        cents(ledger.find(l => l.kind === kind)?._sum.amount ?? null);
+
+    const retainedCents = sumOf(RetentionKind.RETENCION);
+    const deliveredCents = sumOf(RetentionKind.ENTREGA);
+
+    return {
+        weekEnding: endStr,
+        weekStart: startStr,
+        expectedCheckDate,
+        hasEntries,
+        entryCount,
+        adpWageCents,
+        checkWageCents,
+        adpTipsCents,
+        checkTipsCents,
+        tipsPassthroughCents: adpTipsCents + checkTipsCents,
+        adpRunMissing,
+        matchedRunCount: runs.length,
+        erTaxTotalCents,
+        workersCompCents,
+        serviceFeeCents,
+        retainedCents,
+        deliveredCents,
+        totalRetainedCents: retainedCents - deliveredCents,
+        // Wages + employer liability. No tips, no retention — see above.
+        totalSpendCents:
+            adpWageCents + checkWageCents + erTaxTotalCents + workersCompCents + (serviceFeeCents ?? 0),
+        spendIsComplete: !adpRunMissing && serviceFeeCents !== null,
+    };
+}
 
 /**
  * Every imported run, newest first.
