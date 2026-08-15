@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { ImportKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { cloverFetch } from '@/lib/clover';
 import { isAdminSession } from '@/lib/adminGuard';
@@ -12,6 +13,8 @@ import {
 } from '@/lib/timesheetParse';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
+/** The Reports page reads the same imports, so it is revalidated alongside. */
+const REPORTS_ROUTE = '/[locale]/reports';
 
 /**
  * What commitTimesheet needs from the preview. Deliberately narrower than
@@ -96,7 +99,10 @@ export async function commitTimesheet(
     punches: PunchToCommit[],
     importBatchId: string,
     periodStart?: Date | null,
-    periodEnd?: Date | null
+    periodEnd?: Date | null,
+    /** The uploaded file's name, recorded in the ImportLog. Optional so an older
+     *  caller still works; the log simply has no name for that upload. */
+    fileName?: string | null
 ): Promise<{ success: boolean; error?: string; created?: number; replaced?: number }> {
     if (!(await isAdminSession())) {
         return { success: false, error: 'No tienes permiso para importar horas.' };
@@ -146,10 +152,29 @@ export async function commitTimesheet(
                 })),
             });
 
+            // Logged INSIDE the transaction so the history cannot disagree with
+            // the data: an insert that rolls back must not leave a row claiming
+            // it happened.
+            //
+            // The period recorded is the range actually deleted and reinserted,
+            // not the period the file states. Those differ when a shift clocks
+            // in after midnight on the first day, and the log should say which
+            // days this upload really touched.
+            await tx.importLog.create({
+                data: {
+                    kind: ImportKind.TIMESHEET,
+                    fileName: fileName?.trim() ? fileName.trim() : null,
+                    periodStart: rangeStart,
+                    periodEnd: rangeEnd,
+                    rowsImported: inserted.count,
+                },
+            });
+
             return { replaced: removed.count, created: inserted.count };
         });
 
         revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(REPORTS_ROUTE);
 
         return { success: true, created: result.created, replaced: result.replaced };
     } catch (e) {

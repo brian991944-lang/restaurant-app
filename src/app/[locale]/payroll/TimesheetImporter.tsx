@@ -89,7 +89,8 @@ export default function TimesheetImporter() {
             })),
             batchId,
             result.periodStart,
-            result.periodEnd
+            result.periodEnd,
+            fileName
         );
 
         if (res.success) {

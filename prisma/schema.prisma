@@ -943,6 +943,45 @@ model PayrollPunch {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Upload history
+// ─────────────────────────────────────────────────────────────
+
+enum ImportKind {
+  TIMESHEET
+  ADP_LIABILITY
+}
+
+// One row per UPLOAD, including re-uploads of a period already imported.
+//
+// The log is HISTORY; the imported rows are CURRENT STATE. Those answer
+// different questions and neither substitutes for the other:
+//
+//   "is this week's timesheet in?"  -> the PayrollPunch rows
+//   "who uploaded what, and when?"  -> here
+//
+// A second entry for the same week is not a duplicate to be cleaned up. It
+// means somebody corrected a file and re-uploaded it, and being able to see
+// that — and when — is the reason this table exists. commitTimesheet REPLACES
+// the punches it supersedes, so without a log the earlier upload would leave no
+// trace at all.
+//
+// Nothing reads this to decide whether a period is imported. It postdates the
+// first imports, so the earliest uploads have no row here and a presence check
+// against it would report weeks with real data as missing.
+model ImportLog {
+  id           String     @id @default(cuid())
+  kind         ImportKind
+  fileName     String?
+  periodStart  DateTime?  @db.Date
+  periodEnd    DateTime?  @db.Date
+  rowsImported Int        @default(0)
+  importedAt   DateTime   @default(now())
+
+  @@index([kind, periodStart])
+  @@index([importedAt])
+}
+
+// ─────────────────────────────────────────────────────────────
 // Imported ADP payroll cost
 //
 // Source is ADP's "Payroll Liability" report: one file per check date, laid out

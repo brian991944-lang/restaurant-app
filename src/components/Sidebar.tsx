@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee, Landmark, Briefcase, Clock } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
@@ -76,6 +76,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         { name: t('raw_data'), href: `/${locale}/data`, icon: Database, station: 'Management' },
         { name: t('finanzas'), href: `/${locale}/finanzas`, icon: Landmark, station: 'Management' },
         { name: t('payroll'), href: `/${locale}/payroll`, icon: Clock, station: 'Management' },
+        { name: t('reports'), href: `/${locale}/reports`, icon: FileBarChart, station: 'Management' },
     ];
 
     /**

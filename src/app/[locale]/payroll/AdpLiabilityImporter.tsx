@@ -93,7 +93,7 @@ export default function AdpLiabilityImporter() {
         setIsCommitting(true);
         setError(null);
 
-        const res = await commitAdpRun(result);
+        const res = await commitAdpRun(result, fileName);
         if (res.success) {
             setDone(res.created ? t('adp_import_created') : t('adp_import_replaced'));
             setResult(null);

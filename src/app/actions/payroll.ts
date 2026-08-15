@@ -1,7 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { Prisma, TipEntryRole, Department, RetentionKind } from '@prisma/client';
+import { Prisma, TipEntryRole, Department, RetentionKind, ImportKind } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
@@ -13,6 +13,8 @@ import { xlsxToRows } from '@/lib/adpLiabilitySheet';
 import { toCents } from '@/lib/money';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
+/** The Reports page reads the same imports, so it is revalidated alongside. */
+const REPORTS_ROUTE = '/[locale]/reports';
 
 /** Prisma Decimal does not cross the server/client boundary — convert explicitly. */
 const dec = (d: Prisma.Decimal): number => d.toNumber();
@@ -1534,7 +1536,10 @@ const rate = (value: number | null | undefined): string | null =>
  * about it, and a re-import must not wipe a fee somebody has already entered.
  */
 export async function commitAdpRun(
-    parsed: AdpLiabilityParseResult
+    parsed: AdpLiabilityParseResult,
+    /** The uploaded file's name, recorded in the ImportLog. Optional so an older
+     *  caller still works; the log simply has no name for that upload. */
+    fileName?: string | null
 ): Promise<{ success: boolean; created?: boolean; error?: string }> {
     if (!(await isAdminSession())) {
         return { success: false, error: 'No tienes permiso para importar nóminas de ADP.' };
@@ -1567,19 +1572,41 @@ export async function commitAdpRun(
     };
 
     try {
-        const existing = await prisma.adpRun.findFirst({
-            where: { checkDate, payrollNumber },
-            select: { id: true },
+        const created = await prisma.$transaction(async tx => {
+            const existing = await tx.adpRun.findFirst({
+                where: { checkDate, payrollNumber },
+                select: { id: true },
+            });
+
+            if (existing) {
+                await tx.adpRun.update({ where: { id: existing.id }, data: figures });
+            } else {
+                await tx.adpRun.create({ data: { checkDate, payrollNumber, ...figures } });
+            }
+
+            // Logged inside the transaction so the history cannot claim an
+            // import that rolled back. A run is one check date, so both period
+            // bounds are that date — the log's period columns describe what the
+            // upload covered, and for ADP that is a single day.
+            await tx.importLog.create({
+                data: {
+                    kind: ImportKind.ADP_LIABILITY,
+                    fileName: fileName?.trim() ? fileName.trim() : null,
+                    periodStart: checkDate,
+                    periodEnd: checkDate,
+                    // A liability report is one run, not a row count. Recording
+                    // 1 keeps "how many uploads" answerable by counting rows
+                    // rather than by summing a column that means nothing here.
+                    rowsImported: 1,
+                },
+            });
+
+            return !existing;
         });
 
-        if (existing) {
-            await prisma.adpRun.update({ where: { id: existing.id }, data: figures });
-        } else {
-            await prisma.adpRun.create({ data: { checkDate, payrollNumber, ...figures } });
-        }
-
         revalidatePath(PAYROLL_ROUTE);
-        return { success: true, created: !existing };
+        revalidatePath(REPORTS_ROUTE);
+        return { success: true, created };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la nómina: ${e instanceof Error ? e.message : String(e)}` };
     }

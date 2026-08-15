@@ -27,7 +27,8 @@
     "tips_reviews": "Tips & Reviews",
     "gift_cards": "Gift Cards",
     "closing_lists": "Opening & Closing Lists",
-    "payroll": "Payroll"
+    "payroll": "Payroll",
+    "reports": "Reports"
   },
   "Dashboard": {
     "welcome": "Welcome back",
@@ -515,5 +516,33 @@
     "day_submitted_locked": "This day has already been submitted. An administrator must reopen it before it can be edited.",
     "changed_by_prompt": "Who is making this change?",
     "clover_not_owed": "This is what Clover reported, for comparison. It is not what anyone is owed."
+  },
+  "Reports": {
+    "title": "Reports",
+    "subtitle": "Expenses and uploaded files",
+    "tab_gastos": "Expenses",
+    "tab_archivos": "Uploaded files",
+    "exp_nomina": "Payroll",
+    "week": "Week",
+    "prev_week": "Previous week",
+    "next_week": "Next week",
+    "upload_title": "Uploads by week",
+    "upload_subtitle": "One row per week, from the first week with data through the current week.",
+    "upload_none": "Nothing has been imported yet.",
+    "upload_gaps": "{count} week(s) still waiting on a file",
+    "upload_no_gaps": "No files are missing.",
+    "upload_week": "Week",
+    "upload_timesheet": "Hours (Homebase)",
+    "upload_adp": "ADP payroll",
+    "upload_missing": "What is missing",
+    "upload_check_date": "Expected check date: {date}",
+    "upload_in_progress": "Week in progress",
+    "upload_state_PRESENT": "Uploaded",
+    "upload_state_MISSING": "Missing",
+    "upload_state_PENDING": "Not due yet",
+    "upload_reuploaded": "{count} uploads — showing the most recent",
+    "upload_missing_timesheet": "This week's hours have not been uploaded",
+    "upload_missing_adp": "The ADP run dated {date} has not been imported",
+    "upload_nothing_missing": "Nothing"
   }
 }
