@@ -3,8 +3,6 @@ import { getPayrollSpend } from '@/app/actions/payroll';
 import { getUploadLog } from '@/app/actions/reports';
 import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import { readReportsTab, readExpenseTab } from '@/lib/reportsTab';
-import ReportsTabs from './ReportsTabs';
-import ExpenseTabs from './ExpenseTabs';
 import ReportsWeekPicker from './ReportsWeekPicker';
 import UploadLogTable from './UploadLogTable';
 import PayrollSpendReport from '../payroll/PayrollSpendReport';
@@ -12,9 +10,16 @@ import PayrollSpendReport from '../payroll/PayrollSpendReport';
 /**
  * Reports — expenses, and a record of what has been uploaded.
  *
+ * ?tab still selects the view; the SIDEBAR sets it now instead of a bar on this
+ * page. Nothing about the reading changed, which is the point — the parameter is
+ * the contract, and moving the control that writes it did not touch the contract.
+ * A hand-typed or bookmarked ?tab still works, and an unrecognised one still
+ * falls back through readReportsTab.
+ *
  * readReportsTab and readExpenseTab come from @/lib/reportsTab, which carries no
- * 'use client' directive precisely so this server component can call them. See
- * that file's header before moving either.
+ * 'use client' directive precisely so this server component can call them — and
+ * now so the client Sidebar can call the same function to decide which child to
+ * highlight. See that file's header before moving either.
  */
 export default async function ReportsPage({
     searchParams,
@@ -49,16 +54,16 @@ export default async function ReportsPage({
                 </p>
             </div>
 
-            <ReportsTabs active={tab} />
-
             {/* ONLY the selected tab is rendered, never all of them with the
                 others hidden — the same rule the payroll page follows. Each tab
                 is tested explicitly rather than by a final `else`, so a third tab
                 cannot be swept into the second one's branch. */}
             {tab === 'gastos' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} data-testid="reports-gastos">
-                    <ExpenseTabs active={expense} />
-
+                    {/* No sub-tab bar: payroll is the only expense, and the
+                        sidebar links straight to it. The ?exp parameter and its
+                        reader are kept so a second category is a new branch here
+                        rather than a new mechanism. */}
                     {expense === 'nomina' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} data-testid="expense-nomina">
                             <div className="glass-panel" style={{ padding: '1.5rem' }}>

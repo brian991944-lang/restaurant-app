@@ -28,7 +28,9 @@
     "gift_cards": "Gift Cards",
     "closing_lists": "Opening & Closing Lists",
     "payroll": "Payroll",
-    "reports": "Reports"
+    "reports": "Reports",
+    "reports_nomina": "Payroll",
+    "reports_archivos": "Files"
   },
   "Dashboard": {
     "welcome": "Welcome back",
@@ -520,8 +522,6 @@
   "Reports": {
     "title": "Reports",
     "subtitle": "Expenses and uploaded files",
-    "tab_gastos": "Expenses",
-    "tab_archivos": "Uploaded files",
     "exp_nomina": "Payroll",
     "week": "Week",
     "prev_week": "Previous week",

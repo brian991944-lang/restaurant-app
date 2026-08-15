@@ -13,11 +13,15 @@ const EXPENSE_LABEL_KEY: Record<ExpenseTab, string> = {
 /**
  * The sub-tab bar inside Gastos.
  *
- * One tab today. It is still a bar, and still driven off EXPENSE_TABS, because
- * the alternative — a bare heading now, a bar later — means the second expense
- * arrives with a layout change attached to it. It writes ?exp, a different
- * parameter from the top-level ?tab, so the two levels cannot reinterpret each
- * other's values.
+ * NOT CURRENTLY RENDERED. Payroll is the only expense, the sidebar links
+ * straight to it, and a bar holding one button is furniture. It is kept on disk
+ * rather than deleted because it is the machinery a SECOND expense category
+ * needs: adding one should be a new entry in EXPENSE_TABS and a branch on the
+ * page, not a component rewritten from memory.
+ *
+ * It writes ?exp, a different parameter from ?tab, so the two levels cannot
+ * reinterpret each other's values. Mount it in reports/page.tsx above the
+ * expense branches when there is a second category to switch between.
  */
 export default function ExpenseTabs({ active }: { active: ExpenseTab }) {
     const t = useTranslations('Reports');
