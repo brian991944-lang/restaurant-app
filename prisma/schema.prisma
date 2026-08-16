@@ -967,6 +967,9 @@ model PayrollPunch {
 enum ImportKind {
   TIMESHEET
   ADP_LIABILITY
+  // ADP's fee invoice — what ADP charged US. A different document from the
+  // Liability report, arriving days later and debited on a different day.
+  ADP_FEE
 }
 
 // One row per UPLOAD, including re-uploads of a period already imported.
@@ -1027,7 +1030,7 @@ model ImportLog {
 //
 // The employer's true cost of a run is:
 //
-//   erTaxTotal + workersComp + serviceFee
+//   erTaxTotal + workersComp + serviceFeePayroll + serviceFeeWorkersComp
 //
 // Do NOT reach for totalCashRequired for that. It is cash out the door, which
 // includes the employees' own money — their net pay and the tax withheld from
@@ -1072,14 +1075,33 @@ model AdpRun {
   // "Pay-by-Pay Insurance" — workers comp premium. An employer cost, but not a
   // tax, so it sits outside erTaxTotal and has to be added separately.
   workersComp        Decimal  @db.Decimal(10,2) @default(0)
-  // ADP's own processing fee. Nullable because the report CANNOT carry it: the
-  // fee invoice arrives the Monday after the run and debits three days later,
-  // so at import time it does not exist yet and is entered by hand.
+  // ── ADP's own charges, from the FEE INVOICE, not from the Liability report ──
   //
-  // Null therefore means "not entered yet", which is NOT zero. A run still
-  // awaiting its fee is an incomplete cost, and treating null as 0 would report
-  // it as a finished one that happened to be free.
-  serviceFee         Decimal? @db.Decimal(10,2)
+  // Both are nullable because the Liability report cannot carry them: the fee
+  // invoice arrives days after the run and debits later still. Null means NOT
+  // YET KNOWN, never zero — a run awaiting its invoice is an incomplete cost,
+  // and treating null as 0 would report it as a finished one that was free.
+  //
+  // ADP's processing charge for running the payroll. It scales with headcount —
+  // a base plus a per-person rate — so a jump between runs usually means more
+  // people were paid, not that the price changed. Observed: 5 people $41.66,
+  // 10 people $56.99, and the per-unit rate itself rose mid-2026. That is why
+  // serviceFeeEmployees is stored next to it.
+  serviceFeePayroll     Decimal? @db.Decimal(10,2)
+  // The flat $16 ADP charges to ADMINISTER Pay-by-Pay. This is NOT the premium.
+  //
+  // The premium is workersComp above, comes from the Liability report, and is
+  // money that goes to the insurance carrier. This is ADP's fee for handling
+  // it. Two separate charges, on two separate documents, debited on different
+  // days. Adding one to the other double-counts, and because both are small and
+  // plausible the result would look right.
+  serviceFeeWorkersComp Decimal? @db.Decimal(10,2)
+  // "Unit Count" from the invoice: how many people that run paid.
+  //
+  // Stored so the payroll fee can be EXPLAINED rather than merely reported. A
+  // fee that rose $15 is a question; a fee that rose $15 while headcount went
+  // from 5 to 10 is an answer.
+  serviceFeeEmployees   Int?
   // The three debits ADP takes, straight from the report. Employee money and
   // employer money mixed together — see the note above before summing them.
   debitTaxes         Decimal  @db.Decimal(10,2) @default(0)

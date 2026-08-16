@@ -119,9 +119,10 @@ export default function PayrollSpendReport({ spend }: { spend: PayrollSpend }) {
                         {spend.adpRunMissing && (
                             <li data-testid="spend-run-missing">{t('spend_run_missing', { date: spend.expectedCheckDate })}</li>
                         )}
-                        {!spend.adpRunMissing && spend.serviceFeeCents === null && (
-                            <li data-testid="spend-fee-missing">{t('spend_fee_missing')}</li>
-                        )}
+                        {!spend.adpRunMissing
+                            && (spend.serviceFeePayrollCents === null || spend.serviceFeeWorkersCompCents === null) && (
+                                <li data-testid="spend-fee-missing">{t('spend_fee_missing')}</li>
+                            )}
                     </ul>
                 </div>
             )}
@@ -133,19 +134,49 @@ export default function PayrollSpendReport({ spend }: { spend: PayrollSpend }) {
                 {line(t('spend_check_wages'), spend.checkWageCents, 'spend-check-wages')}
                 {employerLine(t('spend_er_taxes'), spend.erTaxTotalCents, 'spend-er-taxes')}
                 {employerLine(t('spend_workers_comp'), spend.workersCompCents, 'spend-workers-comp')}
+                {/* The two ADP fees are SEPARATE lines, never one.
+                    "Workers comp" three rows up is the PREMIUM, which goes to the
+                    carrier; this one is ADP's flat charge for administering the
+                    policy. Two small plausible numbers that sum to something
+                    plausible is exactly how a double-count survives review, so
+                    they are labelled apart and shown apart. */}
                 <div style={rowStyle}>
-                    <span style={labelStyle}>{t('spend_service_fee')}</span>
+                    <span style={labelStyle}>
+                        {t('spend_fee_payroll')}
+                        {/* The headcount sits with the fee it explains: this charge is
+                            a base plus a per-person rate, so a jump usually means more
+                            people were paid rather than a price change. */}
+                        {spend.serviceFeeEmployees !== null && (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }} data-testid="spend-fee-headcount">
+                                {' '}{t('spend_fee_headcount', { count: spend.serviceFeeEmployees })}
+                            </span>
+                        )}
+                    </span>
                     <span
-                        style={{ ...valueStyle, color: spend.serviceFeeCents === null ? 'var(--warning)' : 'var(--text-primary)' }}
-                        data-testid="spend-service-fee"
+                        style={{ ...valueStyle, color: spend.serviceFeePayrollCents === null ? 'var(--warning)' : 'var(--text-primary)' }}
+                        data-testid="spend-fee-payroll"
                     >
-                        {/* Three states, not two: no run imported at all, a run
-                            whose fee invoice has not arrived, and a known fee. */}
+                        {/* Three states, not two: no run imported at all, a run whose
+                            fee invoice has not arrived, and a known fee. */}
                         {spend.adpRunMissing
                             ? '—'
-                            : spend.serviceFeeCents === null
+                            : spend.serviceFeePayrollCents === null
                                 ? t('spend_fee_pending')
-                                : formatMoney(spend.serviceFeeCents)}
+                                : formatMoney(spend.serviceFeePayrollCents)}
+                    </span>
+                </div>
+
+                <div style={rowStyle}>
+                    <span style={labelStyle}>{t('spend_fee_workers_comp')}</span>
+                    <span
+                        style={{ ...valueStyle, color: spend.serviceFeeWorkersCompCents === null ? 'var(--warning)' : 'var(--text-primary)' }}
+                        data-testid="spend-fee-workers-comp"
+                    >
+                        {spend.adpRunMissing
+                            ? '—'
+                            : spend.serviceFeeWorkersCompCents === null
+                                ? t('spend_fee_pending')
+                                : formatMoney(spend.serviceFeeWorkersCompCents)}
                     </span>
                 </div>
             </div>

@@ -9,7 +9,8 @@ import { addDays, lastCompleteWeekEnding, resolveWeekRange, sundayOf } from '@/l
 import { calcPaySplit, advanceStatus, type AdvanceStatus } from '@/lib/payrollCalc';
 import { cloverFetch } from '@/lib/clover';
 import { parseAdpLiabilityRows, type AdpLiabilityParseResult } from '@/lib/adpLiabilityParse';
-import { xlsxToRows } from '@/lib/adpLiabilitySheet';
+import { xlsxToRows } from '@/lib/adpSheet';
+import { parseAdpFeeRows, type AdpFeeParseResult } from '@/lib/adpFeeParse';
 import { toCents } from '@/lib/money';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
@@ -17,6 +18,21 @@ const PAYROLL_ROUTE = '/[locale]/payroll';
 const REPORTS_ROUTE = '/[locale]/reports';
 /** The tip sheet's Nombre dropdown reads the includeInTips flag set here. */
 const TIPS_ROUTE = '/[locale]/tips-reviews';
+
+/**
+ * Days from the Sunday ending a payroll week to the Friday its checks land.
+ *
+ * The week runs Monday to Sunday, payroll is processed the following Thursday
+ * and the checks land Friday — five days after the Sunday. This is the ONLY
+ * link between a worked week and what ADP charged for it: AdpRun is run-level
+ * and carries no week reference, so the date arithmetic is the join.
+ *
+ * Declared here at the top rather than beside its first user because a second
+ * consumer — the fee invoice's Period-Ending Date — now reads it from further up
+ * the file, and a const referenced above its declaration throws at module load
+ * rather than at compile time.
+ */
+const WEEK_END_TO_CHECK_DATE_DAYS = 5;
 
 /** Prisma Decimal does not cross the server/client boundary — convert explicitly. */
 const dec = (d: Prisma.Decimal): number => d.toNumber();
@@ -1584,9 +1600,10 @@ const rate = (value: number | null | undefined): string | null =>
  * an employee passes the wage base, and refusing the import would leave a real
  * run with no way in.
  *
- * serviceFee is NOT touched, on create or on update. ADP does not know it at run
- * time — the invoice arrives the Monday after — so import has nothing to say
- * about it, and a re-import must not wipe a fee somebody has already entered.
+ * The ADP FEE fields are NOT touched, on create or on update. They come from a
+ * different document — the fee invoice, imported by commitAdpFees — which
+ * arrives days later. A re-import of the Liability report must not wipe fees
+ * that invoice already supplied.
  */
 export async function commitAdpRun(
     parsed: AdpLiabilityParseResult,
@@ -1606,7 +1623,7 @@ export async function commitAdpRun(
     const a = parsed.amounts;
 
     // Every stored figure, with the nulls the columns cannot hold flattened to
-    // 0. serviceFee is absent from this object on purpose — see above.
+    // 0. The fee fields are absent from this object on purpose — see above.
     const figures = {
         erSocSec: money(a.erSocSec) ?? '0.00',
         erMedicare: money(a.erMedicare) ?? '0.00',
@@ -1666,37 +1683,137 @@ export async function commitAdpRun(
 }
 
 /**
- * Enter (or clear) ADP's processing fee for a run.
+ * Days from a payroll week's Sunday to the Friday its checks land, and so from
+ * the fee invoice's Period-Ending Date to the AdpRun it belongs to.
  *
- * Separate from import because the figure arrives separately: the fee invoice
- * lands the Monday after the run and debits three days later, so it is typed in
- * by hand once it is known. Passing null puts the run back to pending, which is
- * the state to be in when a fee was entered by mistake — zero would claim the
- * run was free.
+ * Verified against both real runs: checkDate 2026-08-07 and 2026-08-14 map back
+ * to 2026-08-02 and 2026-08-09, both Sundays and both existing PayrollWeeks.
+ * Identical to the rule getPayrollSpend uses, and deliberately the same constant
+ * rather than a second copy that could drift.
  */
-export async function setAdpServiceFee(
-    adpRunId: string,
-    amount: number | null
-): Promise<{ success: boolean; error?: string }> {
-    if (!(await isAdminSession())) {
-        return { success: false, error: 'No tienes permiso para cambiar la comisión de ADP.' };
-    }
-    if (!adpRunId) {
-        return { success: false, error: 'Falta identificar la nómina.' };
-    }
-    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) {
-        return { success: false, error: 'La comisión debe ser un número positivo.' };
+const FEE_PERIOD_TO_CHECK_DATE_DAYS = WEEK_END_TO_CHECK_DATE_DAYS;
+
+export type AdpFeeParseResponse = {
+    success: boolean;
+    result?: AdpFeeParseResult;
+    error?: string;
+};
+
+/**
+ * Parse an uploaded ADP fee invoice. WRITES NOTHING.
+ *
+ * Ungated for the same reason parseAdpLiability is: it touches no data and
+ * returns only what the caller already uploaded. commitAdpFees carries the gate.
+ */
+export async function parseAdpFees(fileBase64: string): Promise<AdpFeeParseResponse> {
+    if (!fileBase64) {
+        return { success: false, error: 'No se recibió ningún archivo.' };
     }
 
     try {
-        await prisma.adpRun.update({
-            where: { id: adpRunId },
-            data: { serviceFee: amount === null ? null : (toCentsExact(amount) / 100).toFixed(2) },
-        });
-        revalidatePath(PAYROLL_ROUTE, 'page');
-        return { success: true };
+        const rows = xlsxToRows(fileBase64);
+        if (rows.length === 0) {
+            return { success: false, error: 'La hoja está vacía.' };
+        }
+
+        const result = parseAdpFeeRows(rows);
+        if (result.periods.length === 0) {
+            return {
+                success: false,
+                error: 'No se encontró ningún cargo con fecha de periodo en el archivo.',
+            };
+        }
+
+        return { success: true, result };
     } catch (e) {
-        return { success: false, error: `No se pudo guardar la comisión: ${e instanceof Error ? e.message : String(e)}` };
+        return { success: false, error: `No se pudo leer el archivo: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/** What happened to one period when its fees were committed. */
+export type AdpFeeCommitOutcome = {
+    periodEnding: string;
+    /** The run this period was matched to, or null when none exists. */
+    checkDate: string | null;
+    matched: boolean;
+};
+
+/**
+ * Store the parsed fees against the runs they belong to.
+ *
+ * The join is Period-Ending Date + 5 days = AdpRun.checkDate, asserted per
+ * period at write time rather than assumed once. A period with no matching run
+ * is REPORTED and skipped — never used to create one. An AdpRun is the record of
+ * a payroll that happened, and inventing one from a fee line would manufacture a
+ * run with no taxes, no wages and no evidence it took place.
+ *
+ * Fees are written by update, never upsert, for the same reason.
+ */
+export async function commitAdpFees(
+    parsed: AdpFeeParseResult,
+    fileName?: string | null
+): Promise<{ success: boolean; outcomes?: AdpFeeCommitOutcome[]; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para importar facturas de ADP.' };
+    }
+    if (!parsed?.periods?.length) {
+        return { success: false, error: 'No hay periodos que guardar.' };
+    }
+
+    try {
+        const outcomes: AdpFeeCommitOutcome[] = [];
+
+        await prisma.$transaction(async tx => {
+            for (const period of parsed.periods) {
+                if (!isBusinessDate(period.periodEnding)) {
+                    outcomes.push({ periodEnding: period.periodEnding, checkDate: null, matched: false });
+                    continue;
+                }
+
+                const checkDateStr = addDays(period.periodEnding, FEE_PERIOD_TO_CHECK_DATE_DAYS);
+                const runs = await tx.adpRun.findMany({
+                    where: { checkDate: businessDateToUtcDate(checkDateStr) },
+                    select: { id: true },
+                });
+
+                if (runs.length === 0) {
+                    outcomes.push({ periodEnding: period.periodEnding, checkDate: checkDateStr, matched: false });
+                    continue;
+                }
+
+                // Two runs can share a check date — a regular run plus an
+                // off-cycle one. The invoice charges the date, not the run, so
+                // the fee is recorded against each rather than guessed onto one.
+                for (const run of runs) {
+                    await tx.adpRun.update({
+                        where: { id: run.id },
+                        data: {
+                            serviceFeePayroll: money(period.payrollFee),
+                            serviceFeeWorkersComp: money(period.workersCompFee),
+                            serviceFeeEmployees: period.employees,
+                        },
+                    });
+                }
+
+                outcomes.push({ periodEnding: period.periodEnding, checkDate: checkDateStr, matched: true });
+            }
+
+            await tx.importLog.create({
+                data: {
+                    kind: ImportKind.ADP_FEE,
+                    fileName: fileName?.trim() ? fileName.trim() : null,
+                    periodStart: businessDateToUtcDate(parsed.periods[0].periodEnding),
+                    periodEnd: businessDateToUtcDate(parsed.periods[parsed.periods.length - 1].periodEnding),
+                    rowsImported: outcomes.filter(o => o.matched).length,
+                },
+            });
+        });
+
+        revalidatePath(PAYROLL_ROUTE, 'page');
+        revalidatePath(REPORTS_ROUTE, 'page');
+        return { success: true, outcomes };
+    } catch (e) {
+        return { success: false, error: `No se pudieron guardar las comisiones: ${e instanceof Error ? e.message : String(e)}` };
     }
 }
 
@@ -1713,8 +1830,12 @@ export type AdpRunRow = {
     erSdi: number;
     erTaxTotal: number;
     workersComp: number;
-    /** Null means the invoice has not arrived yet — NOT zero. */
-    serviceFee: number | null;
+    /** ADP's processing charge. Null means the invoice has not arrived — NOT zero. */
+    serviceFeePayroll: number | null;
+    /** The flat fee to ADMINISTER Pay-by-Pay. Not the premium — that is workersComp. */
+    serviceFeeWorkersComp: number | null;
+    /** Unit Count from the invoice: how many people that run paid. */
+    serviceFeeEmployees: number | null;
     debitTaxes: number;
     debitChecks: number;
     debitDirectDeposit: number;
@@ -1722,22 +1843,12 @@ export type AdpRunRow = {
     futaRate: number | null;
     suiRate: number | null;
     sdiRate: number | null;
-    /** erTaxTotal + workersComp + serviceFee, in cents. */
+    /** erTaxTotal + workersComp + both ADP fees, in cents. */
     employerCostCents: number;
-    /** True while serviceFee is null, so the cost is shown as incomplete. */
+    /** True while either fee is unknown, so the cost is shown as incomplete. */
     employerCostPending: boolean;
     importedAt: string;
 };
-
-/**
- * Days from the Sunday ending a payroll week to the Friday its checks land.
- *
- * The week runs Monday to Sunday, payroll is processed the following Thursday
- * and the checks land Friday — five days after the Sunday. This is the ONLY
- * link between a worked week and what ADP charged for it: AdpRun is run-level
- * and carries no week reference, so the date arithmetic is the join.
- */
-const WEEK_END_TO_CHECK_DATE_DAYS = 5;
 
 /** The whole payroll cost of one week, wage side and employer side together. */
 export type PayrollSpend = {
@@ -1765,8 +1876,12 @@ export type PayrollSpend = {
     matchedRunCount: number;
     erTaxTotalCents: number;
     workersCompCents: number;
-    /** Null while ADP's fee invoice has not arrived. Never treated as zero. */
-    serviceFeeCents: number | null;
+    /** ADP's processing charge. Null while the invoice has not arrived. */
+    serviceFeePayrollCents: number | null;
+    /** ADP's flat fee to administer Pay-by-Pay. NOT the premium — that is workersCompCents. */
+    serviceFeeWorkersCompCents: number | null;
+    /** How many people that run paid, from the invoice. Explains the payroll fee. */
+    serviceFeeEmployees: number | null;
 
     // ── Retention: money HELD, not money spent ──
     retainedCents: number;
@@ -1819,7 +1934,13 @@ export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend
         // silently drop the second.
         prisma.adpRun.findMany({
             where: { checkDate: businessDateToUtcDate(expectedCheckDate) },
-            select: { erTaxTotal: true, workersComp: true, serviceFee: true },
+            select: {
+                erTaxTotal: true,
+                workersComp: true,
+                serviceFeePayroll: true,
+                serviceFeeWorkersComp: true,
+                serviceFeeEmployees: true,
+            },
         }),
     ]);
 
@@ -1875,10 +1996,26 @@ export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend
     // A part-known fee is also not a known fee: adding only the invoices that
     // happen to have arrived would report a total that looks finished but is
     // short.
-    const serviceFeeCents =
-        adpRunMissing || runs.some(r => r.serviceFee === null)
+    //
+    // The two fees are tracked separately all the way through. They are separate
+    // charges on separate documents debited on different days, and collapsing
+    // them into one figure here would make the $16 comp-administration fee
+    // indistinguishable from the comp PREMIUM sitting three lines above it.
+    const feeCents = (pick: (r: typeof runs[number]) => Prisma.Decimal | null): number | null =>
+        adpRunMissing || runs.some(r => pick(r) === null)
             ? null
-            : runs.reduce((t, r) => t + cents(r.serviceFee), 0);
+            : runs.reduce((t, r) => t + cents(pick(r)), 0);
+
+    const serviceFeePayrollCents = feeCents(r => r.serviceFeePayroll);
+    const serviceFeeWorkersCompCents = feeCents(r => r.serviceFeeWorkersComp);
+
+    // Summed across runs sharing a check date, for the same reason the fees are:
+    // an off-cycle run paid its own people. Null when unknown rather than 0,
+    // which would claim a run paid nobody.
+    const serviceFeeEmployees =
+        adpRunMissing || runs.some(r => r.serviceFeeEmployees === null)
+            ? null
+            : runs.reduce((t, r) => t + (r.serviceFeeEmployees ?? 0), 0);
 
     const sumOf = (kind: RetentionKind): number =>
         cents(ledger.find(l => l.kind === kind)?._sum.amount ?? null);
@@ -1901,14 +2038,18 @@ export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend
         matchedRunCount: runs.length,
         erTaxTotalCents,
         workersCompCents,
-        serviceFeeCents,
+        serviceFeePayrollCents,
+        serviceFeeWorkersCompCents,
+        serviceFeeEmployees,
         retainedCents,
         deliveredCents,
         totalRetainedCents: retainedCents - deliveredCents,
         // Wages + employer liability. No tips, no retention — see above.
         totalSpendCents:
-            adpWageCents + checkWageCents + erTaxTotalCents + workersCompCents + (serviceFeeCents ?? 0),
-        spendIsComplete: !adpRunMissing && serviceFeeCents !== null,
+            adpWageCents + checkWageCents + erTaxTotalCents + workersCompCents
+            + (serviceFeePayrollCents ?? 0) + (serviceFeeWorkersCompCents ?? 0),
+        spendIsComplete:
+            !adpRunMissing && serviceFeePayrollCents !== null && serviceFeeWorkersCompCents !== null,
     };
 }
 
@@ -1924,7 +2065,8 @@ export async function getAdpRuns(): Promise<AdpRunRow[]> {
     const rows = await prisma.adpRun.findMany({ orderBy: { checkDate: 'desc' } });
 
     return rows.map(r => {
-        const serviceFee = r.serviceFee === null ? null : dec(r.serviceFee);
+        const serviceFeePayroll = r.serviceFeePayroll === null ? null : dec(r.serviceFeePayroll);
+        const serviceFeeWorkersComp = r.serviceFeeWorkersComp === null ? null : dec(r.serviceFeeWorkersComp);
         const erTaxTotal = dec(r.erTaxTotal);
         const workersComp = dec(r.workersComp);
 
@@ -1939,7 +2081,9 @@ export async function getAdpRuns(): Promise<AdpRunRow[]> {
             erSdi: dec(r.erSdi),
             erTaxTotal,
             workersComp,
-            serviceFee,
+            serviceFeePayroll,
+            serviceFeeWorkersComp,
+            serviceFeeEmployees: r.serviceFeeEmployees,
             debitTaxes: dec(r.debitTaxes),
             debitChecks: dec(r.debitChecks),
             debitDirectDeposit: dec(r.debitDirectDeposit),
@@ -1947,9 +2091,14 @@ export async function getAdpRuns(): Promise<AdpRunRow[]> {
             futaRate: r.futaRate === null ? null : dec(r.futaRate),
             suiRate: r.suiRate === null ? null : dec(r.suiRate),
             sdiRate: r.sdiRate === null ? null : dec(r.sdiRate),
+            // Both fees count toward the cost, and an absent one contributes
+            // nothing rather than being guessed at — but it still makes the
+            // total PENDING, so a partial figure is never read as a final one.
             employerCostCents:
-                toCentsExact(erTaxTotal) + toCentsExact(workersComp) + (serviceFee === null ? 0 : toCentsExact(serviceFee)),
-            employerCostPending: serviceFee === null,
+                toCentsExact(erTaxTotal) + toCentsExact(workersComp)
+                + (serviceFeePayroll === null ? 0 : toCentsExact(serviceFeePayroll))
+                + (serviceFeeWorkersComp === null ? 0 : toCentsExact(serviceFeeWorkersComp)),
+            employerCostPending: serviceFeePayroll === null || serviceFeeWorkersComp === null,
             importedAt: r.importedAt.toISOString(),
         };
     });

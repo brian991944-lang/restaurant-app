@@ -9,6 +9,7 @@ import PayrollSpendReport from '../payroll/PayrollSpendReport';
 import CollapsibleSection from '../payroll/CollapsibleSection';
 import TimesheetImporter from '../payroll/TimesheetImporter';
 import AdpLiabilityImporter from '../payroll/AdpLiabilityImporter';
+import AdpFeeImporter from '../payroll/AdpFeeImporter';
 
 /**
  * Reports — expenses, and a record of what has been uploaded.
@@ -106,6 +107,13 @@ export default async function ReportsPage({
 
                     <CollapsibleSection title={t('upload_import_adp')} testId="reports-adp-upload">
                         <AdpLiabilityImporter />
+                    </CollapsibleSection>
+
+                    {/* The fee invoice is a third document, not part of the
+                        Liability import: it arrives days later and one file can
+                        cover several periods. Its own section for that reason. */}
+                    <CollapsibleSection title={t('upload_import_adp_fee')} testId="reports-adpfee-upload">
+                        <AdpFeeImporter />
                     </CollapsibleSection>
 
                     <UploadLogTable rows={uploads} />

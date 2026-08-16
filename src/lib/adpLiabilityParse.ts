@@ -384,20 +384,28 @@ export function parseAdpLiabilityRows(rows: string[][]): AdpLiabilityParseResult
 }
 
 /**
- * The employer's true cost of a run: employer taxes + workers comp + ADP's fee.
+ * The employer's true cost of a run: employer taxes + workers comp premium +
+ * BOTH of ADP's fees.
  *
- * Everything is in integer cents and the fee is nullable, because ADP does not
- * know it at run time — the invoice arrives the Monday after. A null fee makes
- * the cost PENDING rather than complete, and is never treated as zero: a run
- * still awaiting its fee is an unfinished figure, not a free one.
+ * Everything is in integer cents. The two fees are nullable and separate because
+ * they come from the fee invoice, which arrives days after the run — and because
+ * one of them (comp administration) is easily confused with the comp PREMIUM,
+ * which is workersCompCents here and comes from a different document entirely.
+ *
+ * Either fee being null makes the cost PENDING rather than complete. A null is
+ * never treated as zero: a run still awaiting its invoice is an unfinished
+ * figure, not a free one.
  */
 export function employerCostCents(
     erTaxTotalCents: number | null,
     workersCompCents: number | null,
-    serviceFeeCents: number | null
+    serviceFeePayrollCents: number | null,
+    serviceFeeWorkersCompCents: number | null
 ): { cents: number; pending: boolean } {
     return {
-        cents: (erTaxTotalCents ?? 0) + (workersCompCents ?? 0) + (serviceFeeCents ?? 0),
-        pending: serviceFeeCents === null,
+        cents:
+            (erTaxTotalCents ?? 0) + (workersCompCents ?? 0)
+            + (serviceFeePayrollCents ?? 0) + (serviceFeeWorkersCompCents ?? 0),
+        pending: serviceFeePayrollCents === null || serviceFeeWorkersCompCents === null,
     };
 }

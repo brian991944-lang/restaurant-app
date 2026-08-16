@@ -1,10 +1,15 @@
 /**
- * The .xlsx front-end for the ADP Payroll Liability parser.
+ * The .xlsx front-end for every ADP workbook this app reads.
  *
- * This is the ONLY file that knows the report arrives as a spreadsheet.
- * lib/adpLiabilityParse.ts takes `string[][]` and nothing else, so swapping
- * containers means adding a sibling of this file — a CSV path would be one
- * Papa.parse call producing the same shape — and changing nothing else.
+ * This is the ONLY file that knows an ADP document arrives as a spreadsheet.
+ * Both parsers — lib/adpLiabilityParse.ts and lib/adpFeeParse.ts — take
+ * `string[][]` and nothing else, so swapping containers means adding a sibling
+ * of this file (a CSV path would be one Papa.parse call producing the same
+ * shape) and changing nothing else.
+ *
+ * Deliberately knows nothing about either document's layout. It was named
+ * adpLiabilitySheet.ts while the Liability report was the only caller, which
+ * read as though it were specific to it; it never was.
  *
  * SheetJS is installed from the vendor's own CDN tarball rather than from npm.
  * The npm `xlsx` package is frozen at 0.18.5 and carries two unfixed advisories
