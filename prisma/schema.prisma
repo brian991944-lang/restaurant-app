@@ -876,6 +876,24 @@ model EmployeeRate {
   // touched this row". Without a separate flag, adding someone back would clear
   // isHidden, change nothing the relevance rule reads, and silently no-op.
   isPinned         Boolean     @default(false)
+  // Adds this person to the TIP-ENTRY DROPDOWN even though Clover does not give
+  // them the Wait Staff role.
+  //
+  // Clover's role is access control — who can do what on the POS — and does not
+  // always describe who works the floor. A manager who serves tables needs to be
+  // recordable on a tip sheet without being handed a role that changes their POS
+  // permissions.
+  //
+  // Explicitly NOT derived from department. Department is inferred from tip
+  // entries when unset, so driving the dropdown from it would mean appearing in
+  // tips causes you to keep appearing in tips — a loop with no way out of it.
+  // This flag is only ever set by hand.
+  //
+  // Read by getTipEligibleStaff and by nothing else. It must NOT reach
+  // getWaitStaff: that list also fills the closing-list staff pills, and a
+  // column named for tips deciding who can be recorded on a closing checklist is
+  // exactly the kind of coupling nobody would trace back to here.
+  includeInTips    Boolean     @default(false)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 }

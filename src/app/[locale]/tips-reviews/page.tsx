@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server';
 import { CheckCircle2 } from 'lucide-react';
 import { getTipDay, ensureTipDay } from '@/app/actions/tips';
-import { getWaitStaff } from '@/app/actions/clover';
+import { getTipEligibleStaff } from '@/app/actions/clover';
 import { formatBusinessDateEs, getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { toCents, formatMoney } from '@/lib/money';
 import TipDayEditor from './TipDayEditor';
@@ -61,7 +61,9 @@ export default async function TipsReviewsPage({
         else openError = opened.error;
     }
 
-    const { staff, error: staffError } = await getWaitStaff();
+    // Tip-eligible, not merely Wait Staff: somebody who works the floor under a
+    // different Clover role is added here by the includeInTips flag.
+    const { staff, error: staffError } = await getTipEligibleStaff();
     const headerDate = formatBusinessDateEs(dateValue);
 
     return (

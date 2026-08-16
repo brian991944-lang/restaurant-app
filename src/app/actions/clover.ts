@@ -573,6 +573,11 @@ async function fetchWaitStaffFromClover(): Promise<{ id: string; name: string }[
 /**
  * The merchant's wait staff, read from Clover, excluding anyone an admin has
  * hidden. Read-only with respect to Clover.
+ *
+ * STRICTLY Clover's Wait Staff role. It does NOT include people flagged
+ * includeInTips — that is getTipEligibleStaff below, and the two are separate on
+ * purpose. This list fills the opening and closing checklist pills, which have
+ * nothing to do with tips.
  */
 export async function getWaitStaff(): Promise<{
     staff: { id: string; name: string }[];
@@ -594,6 +599,71 @@ export async function getWaitStaff(): Promise<{
         return {
             staff: [],
             error: `No se pudo obtener el personal de salón desde Clover: ${e instanceof Error ? e.message : String(e)}`
+        };
+    }
+}
+
+/**
+ * Who may be recorded on a TIP SHEET: Clover's Wait Staff, plus anyone flagged
+ * includeInTips, minus anyone an admin has hidden.
+ *
+ * ── Why this is separate from getWaitStaff ──
+ *
+ * getWaitStaff also fills the staff pills on the opening and closing
+ * checklists. If the includeInTips flag were folded into it, a column named for
+ * tips would silently decide who can be recorded as having done closing work —
+ * a coupling with nothing at either end to hint it exists, and one nobody
+ * debugging the closing lists would think to trace back to a tips column.
+ *
+ * Two functions, each naming the list it returns, is the cost of keeping that
+ * visible. Both go through fetchWaitStaffFromClover, so the rule that a caller
+ * only ever sees { id, name } stays enforced in one place.
+ *
+ * Hiding still wins over the flag. SalonStaffVisibility is the admin's explicit
+ * "not this person", and includeInTips is a reason to be on the list, not an
+ * exemption from being taken off it.
+ */
+export async function getTipEligibleStaff(): Promise<{
+    staff: { id: string; name: string }[];
+    error: string | null;
+}> {
+    try {
+        const [cloverStaff, flagged, hidden] = await Promise.all([
+            fetchWaitStaffFromClover(),
+            prisma.employeeRate.findMany({
+                where: { includeInTips: true },
+                select: { cloverEmployeeId: true, employeeName: true },
+            }),
+            prisma.salonStaffVisibility.findMany({
+                where: { isVisible: false },
+                select: { cloverId: true },
+            }),
+        ]);
+
+        const byId = new Map(cloverStaff.map(s => [s.id, s.name]));
+
+        // Clover's name wins where it has one. It is the live source and the
+        // same name the rest of the tip flow stores, so preferring the local
+        // copy would put a second spelling of one person into TipShiftEntry.
+        for (const row of flagged) {
+            if (!row.cloverEmployeeId) continue;
+            if (!byId.has(row.cloverEmployeeId)) {
+                byId.set(row.cloverEmployeeId, row.employeeName);
+            }
+        }
+
+        const hiddenIds = new Set(hidden.map(h => h.cloverId));
+
+        const staff = [...byId.entries()]
+            .filter(([id]) => !hiddenIds.has(id))
+            .map(([id, name]) => ({ id, name }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+
+        return { staff, error: null };
+    } catch (e) {
+        return {
+            staff: [],
+            error: `No se pudo obtener el personal para propinas: ${e instanceof Error ? e.message : String(e)}`,
         };
     }
 }

@@ -15,6 +15,8 @@ import { toCents } from '@/lib/money';
 const PAYROLL_ROUTE = '/[locale]/payroll';
 /** The Reports page reads the same imports, so it is revalidated alongside. */
 const REPORTS_ROUTE = '/[locale]/reports';
+/** The tip sheet's Nombre dropdown reads the includeInTips flag set here. */
+const TIPS_ROUTE = '/[locale]/tips-reviews';
 
 /** Prisma Decimal does not cross the server/client boundary — convert explicitly. */
 const dec = (d: Prisma.Decimal): number => d.toNumber();
@@ -649,6 +651,11 @@ export type EmployeeConfigRow = {
      * would mark nobody. A rate is the thing only a human can put there.
      */
     isConfigured: boolean;
+    /**
+     * On the tip-entry dropdown by hand, despite Clover not giving them the Wait
+     * Staff role. Nothing to do with department — see the schema comment.
+     */
+    includeInTips: boolean;
     /** Every tip role seen in the lookback window. */
     rolesSeen: TipEntryRole[];
     /**
@@ -768,6 +775,7 @@ export async function getEmployeeConfigs(week?: { start: string; end: string }):
                 adpHours: row?.adpHours ? dec(row.adpHours) : null,
                 adpRate: row?.adpRate ? dec(row.adpRate) : null,
                 isConfigured: row?.hourlyRate != null,
+                includeInTips: row?.includeInTips ?? false,
                 rolesSeen,
                 roleVaries: rolesSeen.length > 1,
             };
@@ -929,6 +937,51 @@ export async function setEmployeeHidden(
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo actualizar a la persona: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/**
+ * Add or remove one person from the TIP-ENTRY DROPDOWN.
+ *
+ * Separate from saveEmployeeConfig because that action requires an hourly rate
+ * above zero, and the people this exists for may have none — a manager who
+ * serves tables is on the tip sheet without necessarily being paid hourly
+ * through this panel. Folding the flag into it would make "add Henry to the
+ * dropdown" impossible until somebody invented a rate for him.
+ *
+ * An UPSERT rather than an update: getEmployeeConfigs lists anyone with recent
+ * punches or tips, and those people need not have an EmployeeRate row yet. The
+ * sibling toggles use update() and would throw on exactly that row.
+ *
+ * Sets ONLY this flag. It does not pin, hide, or touch a rate — this is about
+ * one dropdown, and a control that quietly changed a second thing would be the
+ * coupling the split of getWaitStaff/getTipEligibleStaff exists to avoid.
+ */
+export async function setEmployeeIncludeInTips(
+    cloverEmployeeId: string,
+    employeeName: string,
+    includeInTips: boolean
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para cambiar la configuración.' };
+    }
+    if (!cloverEmployeeId) {
+        return { success: false, error: 'Falta identificar a la persona.' };
+    }
+
+    try {
+        await prisma.employeeRate.upsert({
+            where: { cloverEmployeeId },
+            create: { cloverEmployeeId, employeeName, includeInTips },
+            update: { includeInTips },
+        });
+
+        revalidatePath(PAYROLL_ROUTE, 'page');
+        // The tip sheet reads this list, so it has to be refetched too.
+        revalidatePath(TIPS_ROUTE, 'page');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo actualizar la lista de propinas: ${e instanceof Error ? e.message : String(e)}` };
     }
 }
 

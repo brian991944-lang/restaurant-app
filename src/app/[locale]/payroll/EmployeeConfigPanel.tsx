@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { AlertTriangle, RefreshCw, Users } from 'lucide-react';
-import { saveEmployeeConfig, syncCloverRoles, type EmployeeConfigRow, type RoleSyncResult } from '@/app/actions/payroll';
+import { saveEmployeeConfig, syncCloverRoles, setEmployeeIncludeInTips, type EmployeeConfigRow, type RoleSyncResult } from '@/app/actions/payroll';
 import ManagePeopleModal from './ManagePeopleModal';
 import { calcPaySplit } from '@/lib/payrollCalc';
 import { formatMoney } from '@/lib/money';
@@ -75,6 +75,16 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
     const [rowError, setRowError] = useState<Record<string, string>>({});
     const [savedKeys, setSavedKeys] = useState<Record<string, boolean>>({});
 
+    /**
+     * The tip-dropdown flag, held locally so the checkbox responds at once and
+     * is put back if the save fails. A checkbox that stayed ticked after a failed
+     * write would claim somebody is on the tip sheet when they are not.
+     */
+    const [tipFlags, setTipFlags] = useState<Record<string, boolean>>(() =>
+        Object.fromEntries(configs.map(c => [c.cloverEmployeeId, c.includeInTips]))
+    );
+    const [tipSavingKey, setTipSavingKey] = useState<string | null>(null);
+
     const [syncing, setSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<RoleSyncResult | null>(null);
     const [syncError, setSyncError] = useState('');
@@ -135,6 +145,30 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
             setRowError(e => ({ ...e, [r.cloverEmployeeId]: res.error ?? t('config_save_failed') }));
         }
         setSavingKey(null);
+    };
+
+    /**
+     * Toggle one person on or off the tip-entry dropdown.
+     *
+     * Saves on its own rather than waiting for the row's Save button: that button
+     * is disabled until a rate is entered, and the people this flag exists for —
+     * a manager who works the floor — may never have one.
+     */
+    const handleTipToggle = async (r: EmployeeConfigRow, next: boolean) => {
+        setTipSavingKey(r.cloverEmployeeId);
+        setTipFlags(f => ({ ...f, [r.cloverEmployeeId]: next }));
+        setRowError(e => ({ ...e, [r.cloverEmployeeId]: '' }));
+
+        const res = await setEmployeeIncludeInTips(r.cloverEmployeeId, r.employeeName, next);
+
+        if (res.success) {
+            router.refresh();
+        } else {
+            // Put it back. The flag did not change, so the box must not say it did.
+            setTipFlags(f => ({ ...f, [r.cloverEmployeeId]: !next }));
+            setRowError(e => ({ ...e, [r.cloverEmployeeId]: res.error ?? t('tips_toggle_failed') }));
+        }
+        setTipSavingKey(null);
     };
 
     const handleSyncRoles = async () => {
@@ -266,6 +300,15 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                             <th style={numHead}>{t('adp_hours')}</th>
                             <th style={numHead}>{t('adp_rate')}</th>
                             <th style={head}>{t('preview_40h')}</th>
+                            <th style={head}>
+                                {t('tips_dropdown')}
+                                {/* The hint is in the header, not per row: it says what
+                                    the column DOES, and repeating it 56 times would not
+                                    make it any clearer. */}
+                                <div style={{ fontWeight: 400, fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '190px' }}>
+                                    {t('tips_dropdown_hint')}
+                                </div>
+                            </th>
                             <th style={head}></th>
                         </tr>
                     </thead>
@@ -412,6 +455,22 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                                                 </span>
                                             </div>
                                         )}
+                                    </td>
+
+                                    <td style={cell} data-testid="tips-dropdown-cell">
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', minHeight: '44px' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={tipFlags[r.cloverEmployeeId] ?? false}
+                                                disabled={tipSavingKey === r.cloverEmployeeId}
+                                                onChange={e => handleTipToggle(r, e.target.checked)}
+                                                aria-label={t('tips_dropdown')}
+                                                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                            />
+                                            {tipSavingKey === r.cloverEmployeeId && (
+                                                <span style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>{t('saving')}</span>
+                                            )}
+                                        </label>
                                     </td>
 
                                     <td style={cell}>
