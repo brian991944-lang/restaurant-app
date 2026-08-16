@@ -6,6 +6,9 @@ import { readReportsTab, readExpenseTab } from '@/lib/reportsTab';
 import ReportsWeekPicker from './ReportsWeekPicker';
 import UploadLogTable from './UploadLogTable';
 import PayrollSpendReport from '../payroll/PayrollSpendReport';
+import CollapsibleSection from '../payroll/CollapsibleSection';
+import TimesheetImporter from '../payroll/TimesheetImporter';
+import AdpLiabilityImporter from '../payroll/AdpLiabilityImporter';
 
 /**
  * Reports — expenses, and a record of what has been uploaded.
@@ -84,7 +87,27 @@ export default async function ReportsPage({
             )}
 
             {tab === 'archivos' && (
-                <div data-testid="reports-archivos">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }} data-testid="reports-archivos">
+                    {/* The uploaders sit above the table but COLLAPSED, so the tab
+                        opens on the table rather than on two upload panels pushing
+                        it below the fold. The table is why you came to this tab;
+                        the uploaders are what you do about what it tells you.
+
+                        Collapsed also means unmounted — CollapsibleSection renders
+                        `{open && children}` — so a closed importer holds no stale
+                        parse result from a file you looked at and thought better of.
+
+                        Same components the payroll page mounts, with no props and
+                        no shared module state, so the two mount points are wholly
+                        independent instances. */}
+                    <CollapsibleSection title={t('upload_import_timesheet')} testId="reports-timesheet-upload">
+                        <TimesheetImporter />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection title={t('upload_import_adp')} testId="reports-adp-upload">
+                        <AdpLiabilityImporter />
+                    </CollapsibleSection>
+
                     <UploadLogTable rows={uploads} />
                 </div>
             )}

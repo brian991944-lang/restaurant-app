@@ -526,6 +526,8 @@
     "week": "Week",
     "prev_week": "Previous week",
     "next_week": "Next week",
+    "upload_import_timesheet": "Upload hours from Homebase",
+    "upload_import_adp": "Upload ADP payroll",
     "upload_title": "Uploads by week",
     "upload_subtitle": "One row per week, from the first week with data through the current week.",
     "upload_none": "Nothing has been imported yet.",

@@ -257,7 +257,7 @@ export async function addShift(tipDayId: string): Promise<{ success: boolean; er
             data: { tipDayId, orderIndex: (last?.orderIndex ?? -1) + 1 }
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to add tip shift:', e);
@@ -300,7 +300,7 @@ export async function removeShift(shiftId: string): Promise<{ success: boolean; 
             }
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to remove tip shift:', e);
@@ -361,7 +361,7 @@ export async function upsertEntry(
             }
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to upsert tip entry:', e);
@@ -484,7 +484,7 @@ export async function saveShift(
             });
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to save shift:', e);
@@ -504,7 +504,7 @@ export async function removeEntry(entryId: string): Promise<{ success: boolean; 
 
     try {
         await prisma.tipShiftEntry.delete({ where: { id: entryId } });
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to remove tip entry:', e);
@@ -539,7 +539,7 @@ export async function confirmZeroCash(
             }
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to confirm zero cash:', e);
@@ -595,7 +595,7 @@ export async function setTipTargets(
             await tx.tipDay.update({ where: { id: tipDayId }, data: { [column]: newValue } });
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to set tip target:', e);
@@ -631,7 +631,7 @@ export async function submitTipDay(
             });
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         if (e instanceof TipValidationError) return { success: false, error: e.message };
@@ -754,7 +754,7 @@ export async function adminUpdateSubmittedDay(
             if (problem) throw new TipValidationError(problem);
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         if (e instanceof TipValidationError) return { success: false, error: e.message };
@@ -811,7 +811,7 @@ export async function reopenTipDay(
             });
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         if (e instanceof TipValidationError) return { success: false, error: e.message };

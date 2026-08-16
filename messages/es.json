@@ -526,6 +526,8 @@
     "week": "Semana",
     "prev_week": "Semana anterior",
     "next_week": "Semana siguiente",
+    "upload_import_timesheet": "Cargar horas desde Homebase",
+    "upload_import_adp": "Cargar nómina de ADP",
     "upload_title": "Archivos cargados por semana",
     "upload_subtitle": "Una fila por semana, desde la primera semana con datos hasta la semana actual.",
     "upload_none": "Todavía no hay ningún dato importado.",

@@ -173,8 +173,8 @@ export async function commitTimesheet(
             return { replaced: removed.count, created: inserted.count };
         });
 
-        revalidatePath(PAYROLL_ROUTE);
-        revalidatePath(REPORTS_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
+        revalidatePath(REPORTS_ROUTE, 'page');
 
         return { success: true, created: result.created, replaced: result.replaced };
     } catch (e) {

@@ -134,7 +134,7 @@ export async function createDigitalRecipe(data: any) {
             });
         }
 
-        revalidatePath('/[locale]/recetario');
+        revalidatePath('/[locale]/recetario', 'page');
         return { success: true, recipe: newRec };
     } catch (e) {
         console.error(e);
@@ -214,7 +214,7 @@ export async function updateDigitalRecipe(id: string, data: any) {
             }
         }
 
-        revalidatePath('/[locale]/recetario');
+        revalidatePath('/[locale]/recetario', 'page');
         return { success: true, recipe: updated };
     } catch (e) {
         console.error(e);
@@ -274,7 +274,7 @@ export async function suggestNextRecipeCode(type: string, categoryId: string) {
 export async function deleteDigitalRecipe(id: string) {
     try {
         await prisma.digitalRecipe.delete({ where: { id } });
-        revalidatePath('/[locale]/recetario');
+        revalidatePath('/[locale]/recetario', 'page');
         return { success: true };
     } catch (e) {
         console.error(e);

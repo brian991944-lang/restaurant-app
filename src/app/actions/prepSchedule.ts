@@ -654,7 +654,7 @@ export async function createOrUpdatePrepRule(data: { ingredientId: string, ruleT
                 }
             });
         }
-        revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/prep-schedule', 'page');
         return { success: true };
     } catch (error) {
         console.error('createOrUpdatePrepRule error:', error);
@@ -702,7 +702,7 @@ export async function applyRulesToCategory(categoryId: string, data: { activeDay
             }
         }
 
-        revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/prep-schedule', 'page');
         return { success: true };
     } catch (error) {
         console.error('applyRulesToCategory error:', error);
@@ -713,7 +713,7 @@ export async function applyRulesToCategory(categoryId: string, data: { activeDay
 export async function deleteAirTightRule(ruleId: string) {
     try {
         await (prisma as any).prepRule.delete({ where: { id: ruleId } });
-        revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/prep-schedule', 'page');
         return { success: true };
     } catch (error) {
         console.error('deleteAirTightRule error:', error);

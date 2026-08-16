@@ -146,7 +146,7 @@ export async function updateSalonStock(
             });
         }
 
-        revalidatePath('/[locale]/inventory-salon');
+        revalidatePath('/[locale]/inventory-salon', 'page');
         return { success: true };
     } catch (e: any) {
         console.error('Failed to update salon stock:', e);
@@ -178,8 +178,8 @@ export async function setStaffVisibility(
             update: { name, isVisible }
         });
 
-        revalidatePath('/[locale]/closing-lists');
-        revalidatePath('/[locale]/inventory-salon');
+        revalidatePath('/[locale]/closing-lists', 'page');
+        revalidatePath('/[locale]/inventory-salon', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to set staff visibility:', e);
@@ -230,7 +230,7 @@ export async function createSalonGroup(name: string): Promise<{ success: boolean
 
     try {
         await prisma.salonGroup.create({ data: { name: trimmed } });
-        revalidatePath('/[locale]/inventory-salon');
+        revalidatePath('/[locale]/inventory-salon', 'page');
         return { success: true };
     } catch (e: any) {
         if (isDuplicateGroupName(e)) {
@@ -262,7 +262,7 @@ export async function renameSalonGroup(id: string, name: string): Promise<{ succ
             })
         ]);
 
-        revalidatePath('/[locale]/inventory-salon');
+        revalidatePath('/[locale]/inventory-salon', 'page');
         return { success: true };
     } catch (e: any) {
         if (isDuplicateGroupName(e)) {
@@ -287,7 +287,7 @@ export async function deleteSalonGroup(id: string): Promise<{ success: boolean; 
         }
 
         await prisma.salonGroup.delete({ where: { id } });
-        revalidatePath('/[locale]/inventory-salon');
+        revalidatePath('/[locale]/inventory-salon', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to delete salon group:', e);
@@ -371,7 +371,7 @@ export async function restockSalonItem(
         };
     }
 
-    revalidatePath('/[locale]/inventory-salon');
+    revalidatePath('/[locale]/inventory-salon', 'page');
     return { success: true, error: null };
 }
 
@@ -480,9 +480,9 @@ export async function addIngredient(data: any) {
             });
         }
 
-        revalidatePath('/[locale]/inventory');
-        revalidatePath('/[locale]/prep-schedule');
-        revalidatePath('/[locale]/compras');
+        revalidatePath('/[locale]/inventory', 'page');
+        revalidatePath('/[locale]/prep-schedule', 'page');
+        revalidatePath('/[locale]/compras', 'page');
         return { success: true, ingredient };
     } catch (e: any) {
         console.error('Failed to add ingredient:', e);
@@ -621,8 +621,8 @@ export async function editIngredient(id: string, data: any) {
             });
         }
 
-        revalidatePath('/[locale]/inventory');
-        revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/inventory', 'page');
+        revalidatePath('/[locale]/prep-schedule', 'page');
         return { success: true, ingredient };
     } catch (e) {
         console.error('Failed to edit ingredient:', e);
@@ -985,8 +985,8 @@ export async function logWaste(ingredientId: string, qty: number, note?: string)
                 note: note || 'Waste correction'
             }
         });
-        revalidatePath('/[locale]/inventory');
-        revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/inventory', 'page');
+        revalidatePath('/[locale]/prep-schedule', 'page');
         return { success: true };
     } catch (e) {
         console.error("Failed to log waste:", e);
@@ -1012,8 +1012,8 @@ export async function logInventoryAdjustment(ingredientId: string, qtyChange: nu
                 note: `Manual adjustment by ${userName}`
             }
         });
-        revalidatePath('/[locale]/inventory');
-        revalidatePath('/[locale]/prep-schedule');
+        revalidatePath('/[locale]/inventory', 'page');
+        revalidatePath('/[locale]/prep-schedule', 'page');
         return { success: true };
     } catch (e) {
         console.error("Failed to log inventory adjustment:", e);
@@ -1027,7 +1027,7 @@ export async function setIngredientActive(id: string, isActive: boolean) {
             where: { id },
             data: { isActive }
         });
-        revalidatePath('/[locale]/inventory');
+        revalidatePath('/[locale]/inventory', 'page');
         return { success: true };
     } catch (e: any) {
         console.error('Failed to set ingredient active state:', e);

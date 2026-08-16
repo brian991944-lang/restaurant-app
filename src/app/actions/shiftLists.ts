@@ -89,7 +89,7 @@ export async function createShiftTask(
             data: { sectionId, text: trimmed, sortOrder: (last?.sortOrder ?? -1) + 1 }
         });
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to create shift task:', e);
@@ -117,7 +117,7 @@ export async function updateShiftTask(
             }
         });
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to update shift task:', e);
@@ -129,7 +129,7 @@ export async function deleteShiftTask(taskId: string): Promise<{ success: boolea
     try {
         // Checks and deferrals cascade from the schema.
         await prisma.shiftTask.delete({ where: { id: taskId } });
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to delete shift task:', e);
@@ -165,7 +165,7 @@ export async function reorderShiftTask(
             prisma.shiftTask.update({ where: { id: neighbour.id }, data: { sortOrder: task.sortOrder } })
         ]);
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to reorder shift task:', e);
@@ -197,7 +197,7 @@ export async function createShiftSection(
             }
         });
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to create shift section:', e);
@@ -222,7 +222,7 @@ export async function updateShiftSection(
             }
         });
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to update shift section:', e);
@@ -259,7 +259,7 @@ export async function toggleShiftTask(
             await prisma.shiftTaskCheck.deleteMany({ where: { runId: run.id, taskId } });
         }
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to toggle shift task:', e);
@@ -290,7 +290,7 @@ export async function setShiftRunStaff(
             })
         ]);
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to set shift run staff:', e);
@@ -308,7 +308,7 @@ export async function completeShiftRun(
             data: { completedAt: new Date() }
         });
 
-        revalidatePath('/[locale]/closing-lists');
+        revalidatePath('/[locale]/closing-lists', 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to complete shift run:', e);

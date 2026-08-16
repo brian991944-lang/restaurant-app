@@ -87,7 +87,7 @@ export async function saveRateConfig(
             create: { id: 'singleton', ...values },
             update: values,
         });
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudieron guardar las tarifas: ${e instanceof Error ? e.message : String(e)}` };
@@ -606,7 +606,7 @@ export async function savePayrollEntry(
             update: figures,
         });
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la nómina: ${e instanceof Error ? e.message : String(e)}` };
@@ -827,7 +827,7 @@ export async function saveEmployeeConfig(
             update: data,
         });
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la configuración: ${e instanceof Error ? e.message : String(e)}` };
@@ -925,7 +925,7 @@ export async function setEmployeeHidden(
             data: isHidden ? { isHidden: true } : { isHidden: false, isPinned: true },
         });
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo actualizar a la persona: ${e instanceof Error ? e.message : String(e)}` };
@@ -959,7 +959,7 @@ export async function addEmployeeToConfig(
             data: { isPinned: true, isHidden: false },
         });
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo agregar a la persona: ${e instanceof Error ? e.message : String(e)}` };
@@ -1100,7 +1100,7 @@ export async function syncCloverRoles(): Promise<RoleSyncResult> {
         }
 
         await prisma.$transaction(ops);
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
 
         return {
             success: true,
@@ -1141,7 +1141,7 @@ export async function saveRetentionSetting(
             create: { cloverEmployeeId, employeeName, isActive, percentage: percentage.toFixed(2) },
             update: { employeeName, isActive, percentage: percentage.toFixed(2) },
         });
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la retención: ${e instanceof Error ? e.message : String(e)}` };
@@ -1308,7 +1308,7 @@ export async function createAdvance(
             },
         });
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo registrar el adelanto: ${e instanceof Error ? e.message : String(e)}` };
@@ -1399,7 +1399,7 @@ export async function recordDeduction(
             await prisma.salaryAdvance.update({ where: { id: advanceId }, data: { isActive: false } });
         }
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo registrar el descuento: ${e instanceof Error ? e.message : String(e)}` };
@@ -1446,7 +1446,7 @@ export async function deleteDeduction(ledgerId: string): Promise<{ success: bool
             }
         }
 
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo borrar el descuento: ${e instanceof Error ? e.message : String(e)}` };
@@ -1604,8 +1604,8 @@ export async function commitAdpRun(
             return !existing;
         });
 
-        revalidatePath(PAYROLL_ROUTE);
-        revalidatePath(REPORTS_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
+        revalidatePath(REPORTS_ROUTE, 'page');
         return { success: true, created };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la nómina: ${e instanceof Error ? e.message : String(e)}` };
@@ -1640,7 +1640,7 @@ export async function setAdpServiceFee(
             where: { id: adpRunId },
             data: { serviceFee: amount === null ? null : (toCentsExact(amount) / 100).toFixed(2) },
         });
-        revalidatePath(PAYROLL_ROUTE);
+        revalidatePath(PAYROLL_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la comisión: ${e instanceof Error ? e.message : String(e)}` };

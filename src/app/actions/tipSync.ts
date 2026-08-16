@@ -338,7 +338,7 @@ export async function syncCloverTips(businessDate?: string): Promise<{
             }
         });
 
-        revalidatePath(TIPS_ROUTE);
+        revalidatePath(TIPS_ROUTE, 'page');
 
         return {
             success: true,
