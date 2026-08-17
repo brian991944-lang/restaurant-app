@@ -33,8 +33,21 @@
  * whichever period happened to be read last.
  */
 
-/** Zero-based column indices, from the invoice's own column numbering. */
-const COL = {
+/**
+ * The invoice's own column numbers, ONE-BASED, exactly as a spreadsheet shows
+ * them: col 7 is column G.
+ *
+ * These are never used as array indices. sheet_to_json({ header: 1 }) returns
+ * ZERO-based arrays — spreadsheet column N is index N-1 — and writing the
+ * one-based numbers straight into the lookups is precisely the bug this file
+ * shipped with: every column was read one to the left, so the description
+ * column returned the period-ending date, nothing matched any known charge, and
+ * the parser reported that the file contained no periods at all.
+ *
+ * The conversion happens in exactly one place, `toIndex`, so it cannot be
+ * skipped by writing a new constant next to these.
+ */
+const SPREADSHEET_COL = {
     /** Subtotal rows announce themselves here with "Total Invoice#…". */
     totalMarker: 5,
     itemDescription: 7,
@@ -44,6 +57,32 @@ const COL = {
     /** The charge after discount — what is actually owed. */
     totalDue: 19,
 } as const;
+
+/** One-based spreadsheet column to zero-based array index. The only conversion. */
+const toIndex = (spreadsheetColumn: number): number => spreadsheetColumn - 1;
+
+type ColumnMap = {
+    itemDescription: number;
+    periodEnding: number;
+    unitCount: number;
+    totalDue: number;
+};
+
+/** Where the columns sit when the header row cannot be found. */
+const DEFAULT_COLUMNS: ColumnMap = {
+    itemDescription: toIndex(SPREADSHEET_COL.itemDescription),
+    periodEnding: toIndex(SPREADSHEET_COL.periodEnding),
+    unitCount: toIndex(SPREADSHEET_COL.unitCount),
+    totalDue: toIndex(SPREADSHEET_COL.totalDue),
+};
+
+/** Header text for each column, matched after normalisation. */
+const HEADER_LABELS: Record<keyof ColumnMap, string> = {
+    itemDescription: 'item description',
+    periodEnding: 'period-ending date',
+    unitCount: 'unit count',
+    totalDue: 'total due invoice',
+};
 
 /** Which charge a row is. Anything else is ignored and counted. */
 export type AdpFeeKind = 'PAYROLL' | 'WORKERS_COMP';
@@ -99,6 +138,14 @@ export type AdpFeeUnreadable = {
 };
 
 export type AdpFeeParseResult = {
+    /**
+     * Where the column positions came from. HEADER means they were read off the
+     * invoice's own header row; DEFAULT means the header could not be found and
+     * the documented positions were assumed, which is worth showing the user.
+     */
+    columnsFrom: 'HEADER' | 'DEFAULT';
+    /** The zero-based indices actually used, so a mis-read is visible not inferred. */
+    columns: ColumnMap;
     periods: AdpFeePeriod[];
     /** Distinct invoice numbers seen, for display. One file can hold several. */
     invoiceNumbers: string[];
@@ -118,7 +165,22 @@ export type AdpFeeParseResult = {
 // Cell helpers — same rules as the Liability parser
 // ─────────────────────────────────────────────────────────────
 
-const norm = (v: string): string => v.replace(/\s+/g, ' ').trim().toLowerCase();
+/**
+ * Normalise a cell for comparison: collapse whitespace, trim, lowercase, and
+ * fold every kind of apostrophe and quote to the plain ASCII form.
+ *
+ * The apostrophe fold matters. "Pay-by-Pay Workers' Compensation" can carry
+ * U+2019 (’) from Excel's autocorrect where the source code has U+0027 ('), and
+ * the two are different characters that compare unequal. The charge would stop
+ * being recognised with nothing on screen to suggest why — the description would
+ * simply be listed as unknown.
+ */
+const norm = (v: string): string =>
+    v.replace(/[‘’ʼ՚]/g, "'")
+        .replace(/[“”]/g, '"')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
 
 const cellAt = (row: string[], i: number): string => {
     const v = row[i];
@@ -178,6 +240,43 @@ function readPeriodEnding(raw: string): string | null {
     return null;
 }
 
+/**
+ * Find the header row and read the column positions off it.
+ *
+ * Preferred over trusting fixed positions, because a fixed position is a
+ * statement about the file that nothing checks — which is how this parser
+ * shipped reading every column one to the left. Positions taken from the
+ * header cannot be off by one: they are wherever the label actually is.
+ *
+ * Requires the description and period columns at minimum; those two are what
+ * every row is keyed on. Returns null when no row carries them, and the caller
+ * falls back to the documented positions and says so.
+ */
+function findColumns(rows: string[][]): ColumnMap | null {
+    for (const row of rows.slice(0, 30)) {
+        const found: Partial<ColumnMap> = {};
+        row.forEach((cell, index) => {
+            const text = norm(cell === undefined || cell === null ? '' : String(cell));
+            if (text === '') return;
+            for (const key of Object.keys(HEADER_LABELS) as (keyof ColumnMap)[]) {
+                if (found[key] === undefined && text === HEADER_LABELS[key]) found[key] = index;
+            }
+        });
+
+        if (found.itemDescription !== undefined && found.periodEnding !== undefined) {
+            return {
+                itemDescription: found.itemDescription,
+                periodEnding: found.periodEnding,
+                // These two are not load-bearing for grouping, so a header that
+                // names them differently falls back rather than failing the file.
+                unitCount: found.unitCount ?? DEFAULT_COLUMNS.unitCount,
+                totalDue: found.totalDue ?? DEFAULT_COLUMNS.totalDue,
+            };
+        }
+    }
+    return null;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Entry point
 // ─────────────────────────────────────────────────────────────
@@ -207,12 +306,19 @@ export function parseAdpFeeRows(rows: string[][]): AdpFeeParseResult {
     let miscSkipped = 0;
     let totalRowsSkipped = 0;
 
-    rows.forEach((row, index) => {
-        const marker = norm(cellAt(row, COL.totalMarker));
+    const discovered = findColumns(rows);
+    const COL = discovered ?? DEFAULT_COLUMNS;
 
-        // Subtotal rows. Counted rather than ignored: a file with none at all
-        // would mean the layout moved, and silence would be the only symptom.
-        if (marker.startsWith(TOTAL_PREFIX)) {
+    rows.forEach((row, index) => {
+        // Subtotal rows announce themselves in a fixed column on this invoice,
+        // but the whole row is scanned instead: it costs nothing, and it is one
+        // fewer position that has to be right for the file to be read at all.
+        const marker = row.map(c => norm(c === undefined || c === null ? '' : String(c)))
+            .find(text => text.startsWith(TOTAL_PREFIX));
+
+        // Counted rather than ignored: a file with none at all would mean the
+        // layout moved, and silence would be the only symptom.
+        if (marker) {
             totalRowsSkipped++;
             const num = /total invoice#\s*(\S+)/.exec(marker);
             if (num) invoiceNumbers.add(num[1]);
@@ -303,6 +409,8 @@ export function parseAdpFeeRows(rows: string[][]): AdpFeeParseResult {
         });
 
     return {
+        columnsFrom: discovered ? 'HEADER' : 'DEFAULT',
+        columns: COL,
         periods,
         invoiceNumbers: [...invoiceNumbers].sort(),
         miscSkipped,

@@ -1718,9 +1718,23 @@ export async function parseAdpFees(fileBase64: string): Promise<AdpFeeParseRespo
 
         const result = parseAdpFeeRows(rows);
         if (result.periods.length === 0) {
+            // Say WHY, not just that it failed. The first version of this message
+            // reported only "no charges found", which was true and useless: the
+            // actual cause was that every column was being read one to the left,
+            // and the descriptions it did see would have named the problem
+            // immediately. Whatever the parser looked at goes in the message.
+            const seen = result.unrecognisedDescriptions.slice(0, 5).join(' | ');
+            const detail = seen
+                ? ` Lo que se leyó en la columna de concepto fue: ${seen}`
+                : ' No se leyó ningún texto en la columna de concepto.';
+            const source = result.columnsFrom === 'HEADER'
+                ? 'encabezado'
+                : 'posiciones por defecto (no se encontró el encabezado)';
+
             return {
                 success: false,
-                error: 'No se encontró ningún cargo con fecha de periodo en el archivo.',
+                error: `No se encontró ningún cargo con fecha de periodo en el archivo.`
+                    + ` Columnas tomadas del ${source}.${detail}`,
             };
         }
 

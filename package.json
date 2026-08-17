@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:adp-fee": "node scripts/check-adp-fee-parser.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {
