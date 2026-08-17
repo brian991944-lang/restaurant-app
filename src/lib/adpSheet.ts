@@ -37,6 +37,51 @@ import * as XLSX from 'xlsx';
  * it, so the xlsx path hands over strings too rather than letting the two
  * front-ends disagree about what a cell is.
  */
+/**
+ * Widen a sheet's declared range to cover every cell it actually contains.
+ *
+ * ADP's fee invoice declares `!ref = A1:AF6` while holding 1,542 cells across 74
+ * rows. sheet_to_json honours the declared range, so the file read back as SIX
+ * rows: the header plus the first two charges. The parser then reported one
+ * period, no subtotals and no invoice numbers — all of which were true of the
+ * six rows it was given, and none of which were true of the file.
+ *
+ * A wrong `<dimension>` is common in machine-generated workbooks; Excel itself
+ * ignores the element and rebuilds the range from the cells. This does the same.
+ *
+ * Only ever WIDENS. A declared range larger than the cells present is left
+ * alone, so a sheet with deliberate trailing space keeps it.
+ *
+ * Exported for the check in scripts/check-adp-fee-parser.js. A corrupt
+ * dimension cannot be forged by writing one — XLSX.write honours `!ref` and
+ * simply omits the out-of-range cells, producing a file that genuinely lacks
+ * them rather than one that merely under-declares them. The only way to
+ * reproduce ADP's file is to set the bad range on a sheet that already holds
+ * every cell, which is what this function is handed.
+ */
+export function widenRefToActualCells(sheet: XLSX.WorkSheet): void {
+    const addresses = Object.keys(sheet).filter(key => /^[A-Z]+[1-9]\d*$/.test(key));
+    if (addresses.length === 0) return;
+
+    let maxRow = 0;
+    let maxCol = 0;
+    for (const address of addresses) {
+        const { r, c } = XLSX.utils.decode_cell(address);
+        if (r > maxRow) maxRow = r;
+        if (c > maxCol) maxCol = c;
+    }
+
+    const declared = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+    const end = {
+        r: Math.max(maxRow, declared?.e.r ?? 0),
+        c: Math.max(maxCol, declared?.e.c ?? 0),
+    };
+
+    // Anchored at A1 rather than at the declared start: these reports begin at
+    // the top left, and a declared start below row 1 would drop the header.
+    sheet['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: end });
+}
+
 export function xlsxToRows(base64: string): string[][] {
     const workbook = XLSX.read(base64, { type: 'base64' });
 
@@ -45,6 +90,10 @@ export function xlsxToRows(base64: string): string[][] {
 
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) throw new Error('No se pudo leer la hoja del archivo.');
+
+    // Before reading, not after: sheet_to_json cannot return rows the range
+    // excludes, so a truncated range is silently lossy rather than an error.
+    widenRefToActualCells(sheet);
 
     const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
         header: 1,

@@ -1,32 +1,43 @@
 /**
- * Runnable check for the ADP fee invoice parser.  `node scripts/check-adp-fee-parser.js`
+ * Runnable check for the ADP fee invoice pipeline.  `npm run check:adp-fee`
  *
- * ── Why this file exists ──
+ * ── Why this file exists, and why it has now failed twice ──
  *
- * The fee parser shipped reading every column one position to the left, and its
- * unit test passed anyway — because the test placed its cells using the same
- * one-based numbers the parser was wrongly using as indices. The test and the
- * bug agreed with each other, so the first real invoice found nothing at all.
+ * First failure: the parser read every column one position to the left, and the
+ * test passed anyway, because it placed cells using the same one-based numbers
+ * the parser was wrongly using as indices. Test and bug agreed.
  *
- * This fixture is built the other way round. Cells are placed by their ONE-BASED
- * spreadsheet column, converted to array positions by the same N-1 rule a real
- * reader performs, then round-tripped through an actual .xlsx via SheetJS and
- * read back the way the app reads it. The indices under test are therefore the
- * ones the app genuinely sees, and a fixture that agrees with a broken parser is
- * no longer expressible.
+ * Second failure: the real invoice declares `!ref = A1:AF6` while holding 74
+ * rows of cells. sheet_to_json honours that range, so the file arrived as six
+ * rows and the parser reported one period. The test passed because
+ * `XLSX.utils.aoa_to_sheet` writes a CORRECT range — the broken condition could
+ * not occur — and because the test called the parser DIRECTLY, never going
+ * through xlsxToRows, where the bug actually was.
  *
- * There is no test runner in this project, so this is a plain script: it
- * compiles the parser to a temp directory and runs against the output. It exits
+ * Both lessons are now built in:
+ *
+ *   1. The fixture runs through xlsxToRows, the same entry point the app uses.
+ *      Testing the parser alone left the adapter — half the pipeline — untested.
+ *   2. It deliberately writes a TRUNCATED `!ref`, reproducing what ADP ships, so
+ *      the file-shape that broke production is a permanent case here.
+ *   3. Cells are placed by ONE-BASED spreadsheet column and converted by the same
+ *      N-1 rule a real reader performs, so a fixture cannot agree with an
+ *      off-by-one parser.
+ *
+ * There is no test runner in this project, so this is a plain script. It exits
  * non-zero on failure, so CI can call it as-is.
  */
 
 const path = require('path');
-const os = require('os');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'adpfee-'));
+// Compiled INSIDE node_modules so that `require('xlsx')` from the emitted
+// adpSheet.js resolves by the normal upward walk. A system temp directory has no
+// node_modules above it and the import fails.
+const OUT = path.join(ROOT, 'node_modules', '.cache', 'adp-fee-check');
+fs.mkdirSync(OUT, { recursive: true });
 
 // The compiler is invoked through node against its own entry script rather than
 // through `npx`: spawning npx.cmd on Windows without a shell fails with EINVAL,
@@ -37,16 +48,21 @@ execFileSync(
     [
         path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc'),
         'src/lib/adpFeeParse.ts',
+        'src/lib/adpSheet.ts',
         '--outDir', OUT,
         '--target', 'es2020',
         '--module', 'commonjs',
         '--skipLibCheck',
+        '--esModuleInterop',
     ],
     { cwd: ROOT, stdio: 'inherit' }
 );
 
 const XLSX = require(path.join(ROOT, 'node_modules', 'xlsx'));
 const { parseAdpFeeRows } = require(path.join(OUT, 'adpFeeParse.js'));
+// The ADAPTER is under test too. The bug that reached production lived here, not
+// in the parser, and a check that skipped it could not have seen it.
+const { xlsxToRows, widenRefToActualCells } = require(path.join(OUT, 'adpSheet.js'));
 
 /** Place values by ONE-BASED spreadsheet column, exactly as the invoice numbers them. */
 function sheetRow(cells) {
@@ -85,12 +101,8 @@ const wb = XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(wb, ws, 'Invoice');
 const b64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
 
-const readBack = XLSX.utils
-    .sheet_to_json(XLSX.read(b64, { type: 'base64' }).Sheets['Invoice'], {
-        header: 1, raw: true, defval: '', blankrows: true,
-    })
-    .map(r => (Array.isArray(r) ? r : []).map(c => (c === null || c === undefined ? '' : String(c))));
-
+// Through the real adapter, not a local copy of what it does.
+const readBack = xlsxToRows(b64);
 const res = parseAdpFeeRows(readBack);
 
 let bad = 0;
@@ -106,6 +118,7 @@ console.log(`periods     : ${res.periods.length}`);
 for (const p of res.periods) console.log('  ', JSON.stringify(p));
 console.log('');
 
+expect('every row reaches the parser', readBack.length, rows.length);
 expect('columns discovered from header', res.columnsFrom, 'HEADER');
 expect('itemDescription index (col 7)', res.columns.itemDescription, 6);
 expect('periodEnding index (col 8)', res.columns.periodEnding, 7);
@@ -130,6 +143,52 @@ expect('misc rows skipped', res.miscSkipped, 1);
 expect('subtotal rows skipped', res.totalRowsSkipped, 2);
 expect('nothing unrecognised', res.unrecognisedDescriptions, []);
 expect('nothing unreadable', res.unreadable, []);
+
+// ── The regression that reached production ──
+//
+// ADP's invoice declares `!ref = A1:AF6` while holding 74 rows of cells.
+// sheet_to_json honours the declared range, so the file arrived six rows long
+// and the parser truthfully reported one period from what it was given.
+//
+// This cannot be reproduced by writing a truncated file: XLSX.write honours
+// `!ref` too and omits the out-of-range cells, yielding a file that genuinely
+// lacks them. The condition is a sheet that HOLDS every cell and UNDER-DECLARES
+// its range, so it is built exactly that way here.
+{
+    const bad = XLSX.utils.aoa_to_sheet(rows);
+    bad['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 5, c: 31 } });   // claims 6 rows
+
+    const before = XLSX.utils.sheet_to_json(bad, { header: 1, raw: true, defval: '', blankrows: true });
+    expect('truncated !ref really does truncate', before.length, 6);
+
+    widenRefToActualCells(bad);
+    const after = XLSX.utils
+        .sheet_to_json(bad, { header: 1, raw: true, defval: '', blankrows: true })
+        .map(r => (Array.isArray(r) ? r : []).map(c => (c === null || c === undefined ? '' : String(c))));
+    expect('widening recovers every row', after.length, rows.length);
+
+    const recovered = parseAdpFeeRows(after);
+    expect('recovered rows yield all periods', recovered.periods.length, 3);
+    expect('recovered rows yield all subtotals', recovered.totalRowsSkipped, 2);
+    expect('recovered rows yield invoice numbers', recovered.invoiceNumbers, ['725100001', '725724890']);
+
+    // A range that is already correct, or wider than the cells, must be left alone.
+    const wide = XLSX.utils.aoa_to_sheet(rows);
+    wide['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 99, c: 31 } });
+    widenRefToActualCells(wide);
+    expect('a wider declared range is preserved', XLSX.utils.decode_range(wide['!ref']).e.r, 99);
+}
+
+// Real sheets can be ragged — SheetJS omits trailing empty cells when a range is
+// not padded. A short row must read as empty cells, never as end-of-data.
+const ragged = readBack.map(r => {
+    const copy = [...r];
+    while (copy.length > 0 && copy[copy.length - 1] === '') copy.pop();
+    return copy;
+});
+const raggedRes = parseAdpFeeRows(ragged);
+expect('ragged rows still parse', raggedRes.periods.length, 3);
+expect('ragged subtotals still counted', raggedRes.totalRowsSkipped, 2);
 
 // Without a header the documented positions must still be right.
 const noHeader = parseAdpFeeRows(readBack.filter(r => !r.includes('Item Description')));
