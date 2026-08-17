@@ -132,6 +132,32 @@ export default function PayrollSpendReport({ spend }: { spend: PayrollSpend }) {
                 <h3 style={{ fontSize: '1.15rem', margin: '0 0 0.35rem' }}>{t('spend_breakdown')}</h3>
                 {line(t('spend_adp_wages'), spend.adpWageCents, 'spend-adp-wages')}
                 {line(t('spend_check_wages'), spend.checkWageCents, 'spend-check-wages')}
+
+                {/* The SAME wages, cut a second way. The two lines above answer
+                    how the money was paid; these answer who it was paid to. Each
+                    trio sums to the same wage total, so adding across the two
+                    groups would count every wage twice — they are indented and
+                    given their own heading to keep that visible. */}
+                <div style={{ paddingLeft: '1rem', borderLeft: '2px solid var(--border)', marginTop: '0.6rem' }} data-testid="spend-by-dept">
+                    <div style={{ ...labelStyle, fontWeight: 600, padding: '0.35rem 0' }}>{t('spend_by_dept')}</div>
+                    {line(t('spend_salon_wages'), spend.salonWageCents, 'spend-salon-wages')}
+                    {line(t('spend_cocina_wages'), spend.cocinaWageCents, 'spend-cocina-wages')}
+                    {/* Only when somebody is actually unresolved. A permanent
+                        $0.00 line would train the reader to ignore the one case
+                        it exists to surface. */}
+                    {spend.sinDeptWageCents !== 0 && (
+                        <div style={rowStyle}>
+                            <span style={{ ...labelStyle, color: 'var(--warning)' }}>{t('spend_sindept_wages')}</span>
+                            <span style={{ ...valueStyle, color: 'var(--warning)' }} data-testid="spend-sindept-wages">
+                                {formatMoney(spend.sinDeptWageCents)}
+                            </span>
+                        </div>
+                    )}
+                    <p style={{ margin: '0.4rem 0 0', color: 'var(--text-secondary)', fontSize: '0.95rem' }} data-testid="spend-dept-note">
+                        {t('spend_dept_note')}
+                    </p>
+                </div>
+
                 {employerLine(t('spend_er_taxes'), spend.erTaxTotalCents, 'spend-er-taxes')}
                 {employerLine(t('spend_workers_comp'), spend.workersCompCents, 'spend-workers-comp')}
                 {/* The two ADP fees are SEPARATE lines, never one.

@@ -1876,8 +1876,23 @@ export type PayrollSpend = {
     entryCount: number;
 
     // ── Wages, from the settled PayrollEntry rows ──
+    //
+    // Two independent cuts of the SAME money. adp/check answers how it was PAID;
+    // salon/cocina/sinDept answers who it was paid TO. Each trio sums to the
+    // same wage total, and adding across the two would double it.
     adpWageCents: number;
     checkWageCents: number;
+
+    /**
+     * Wages by department. Resolved through resolveDepartment at read time —
+     * PayrollEntry stores no department, and EmployeeRate keeps no history, so
+     * for anyone without a tipped role on the settled entry this is TODAY'S
+     * department applied to a past week.
+     */
+    salonWageCents: number;
+    cocinaWageCents: number;
+    /** Anyone whose department does not resolve. Never folded into a real one. */
+    sinDeptWageCents: number;
 
     // ── Tips. NOT spend. See the note on totalSpendCents. ──
     adpTipsCents: number;
@@ -1963,14 +1978,30 @@ export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend
     const cents = (d: Prisma.Decimal | null | undefined): number =>
         d === null || d === undefined ? 0 : toCents(d.toString());
 
-    const [entryAgg, ledger] = await Promise.all([
+    const [entries, employeeRates, ledger] = await Promise.all([
+        // findMany rather than aggregate: the department split and the wage
+        // totals are computed from ONE pass over these rows, so the parts are
+        // guaranteed to sum to the whole. Two independent queries could drift,
+        // and a split that did not add up to the total above it would be worse
+        // than no split at all.
         weekRow
-            ? prisma.payrollEntry.aggregate({
+            ? prisma.payrollEntry.findMany({
                 where: { payrollWeekId: weekRow.id },
-                _count: { _all: true },
-                _sum: { adpWage: true, checkWage: true, adpTips: true, checkTips: true },
+                select: {
+                    cloverEmployeeId: true,
+                    role: true,
+                    adpWage: true,
+                    checkWage: true,
+                    adpTips: true,
+                    checkTips: true,
+                },
             })
-            : null,
+            : [],
+        // Every rate row, not just this week's people: 56 rows, one round trip,
+        // and no second query keyed on ids the first one has to return first.
+        prisma.employeeRate.findMany({
+            select: { cloverEmployeeId: true, department: true, cloverRole: true },
+        }),
         weekRow
             ? prisma.retentionLedger.groupBy({
                 by: ['kind'],
@@ -1986,13 +2017,55 @@ export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend
             : [],
     ]);
 
-    const entryCount = entryAgg?._count._all ?? 0;
+    const entryCount = entries.length;
     const hasEntries = entryCount > 0;
 
-    const adpWageCents = cents(entryAgg?._sum.adpWage);
-    const checkWageCents = cents(entryAgg?._sum.checkWage);
-    const adpTipsCents = cents(entryAgg?._sum.adpTips);
-    const checkTipsCents = cents(entryAgg?._sum.checkTips);
+    const rateById = new Map(employeeRates.map(r => [r.cloverEmployeeId, r]));
+
+    let adpWageCents = 0;
+    let checkWageCents = 0;
+    let adpTipsCents = 0;
+    let checkTipsCents = 0;
+    let salonWageCents = 0;
+    let cocinaWageCents = 0;
+    let sinDeptWageCents = 0;
+
+    for (const entry of entries) {
+        const adpWage = cents(entry.adpWage);
+        const checkWage = cents(entry.checkWage);
+
+        adpWageCents += adpWage;
+        checkWageCents += checkWage;
+        adpTipsCents += cents(entry.adpTips);
+        checkTipsCents += cents(entry.checkTips);
+
+        // ── Which department this person's wages belong to ──
+        //
+        // resolveDepartment is reused rather than reimplemented, so this screen
+        // and the payroll table can never disagree about the same person. Its
+        // tiers: manual override, then cached Wait Staff role, then tip evidence,
+        // then null.
+        //
+        // The tip evidence comes from the SETTLED ENTRY — a non-null role means
+        // this person worked a tipped shift in THIS week, which is the only
+        // at-the-time signal the database holds. Everything above it is current
+        // state: EmployeeRate is overwritten in place with no history, so for
+        // anyone without a tipped role the department shown is TODAY'S, applied
+        // retroactively. Moving somebody between departments re-labels their past
+        // weeks. The figures do not change; which line they sit on does. The UI
+        // says so out loud rather than leaving it to whoever reads this file.
+        //
+        // Tier 1 outranks the settled role deliberately: a manual override that
+        // said COCINA wins even over a MESERO entry, because a split that
+        // contradicted the table above it would be worse than one that is
+        // retroactive.
+        const department = resolveDepartment(rateById.get(entry.cloverEmployeeId), entry.role !== null);
+        const wage = adpWage + checkWage;
+
+        if (department === Department.SALON) salonWageCents += wage;
+        else if (department === Department.COCINA) cocinaWageCents += wage;
+        else sinDeptWageCents += wage;
+    }
 
     const adpRunMissing = runs.length === 0;
 
@@ -2045,6 +2118,9 @@ export async function getPayrollSpend(weekEnding?: string): Promise<PayrollSpend
         entryCount,
         adpWageCents,
         checkWageCents,
+        salonWageCents,
+        cocinaWageCents,
+        sinDeptWageCents,
         adpTipsCents,
         checkTipsCents,
         tipsPassthroughCents: adpTipsCents + checkTipsCents,
