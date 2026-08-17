@@ -139,6 +139,40 @@ function retentionOn(baseCents: number | null, active: boolean, pct: number): {
     return { retainedC, netC: baseCents - retainedC };
 }
 
+/**
+ * A kitchen row's ADP/check split, honouring inAdp.
+ *
+ * Used by BOTH the rendered row and the footer totals, so the two cannot
+ * disagree about the same person — that drift is what a shared helper exists to
+ * prevent.
+ *
+ * Outside ADP, calcPaySplit is deliberately not called: it divides a wage
+ * between ADP and the check, and there is no division when none of it goes to
+ * ADP. The effective hours and rate are reported as zero because that is what
+ * was sent to ADP, not as the person's real figures.
+ */
+function kitchenSplit(row: PayrollRow) {
+    if (row.hourlyRate === null) return null;
+
+    if (!row.inAdp) {
+        const wage = row.weekWageCents ?? 0;
+        return {
+            totalEarnedCents: wage,
+            adpTotalCents: 0,
+            checkTotalCents: wage,
+            effectiveAdpHours: 0,
+            effectiveAdpRate: 0,
+        };
+    }
+
+    return calcPaySplit({
+        hours: row.hoursWorked,
+        hourlyRate: row.hourlyRate,
+        adpHours: row.adpHours,
+        adpRate: row.adpRate,
+    });
+}
+
 type Draft = { adp: string; retActive: boolean; retPct: string };
 
 /**
@@ -322,13 +356,9 @@ export default function PayrollWeekTable({
                 };
             }
             // Kitchen has no tips: the split comes from their configured ADP
-            // hours and rate, not from anything typed into the row.
-            const split = row.hourlyRate === null ? null : calcPaySplit({
-                hours: row.hoursWorked,
-                hourlyRate: row.hourlyRate,
-                adpHours: row.adpHours,
-                adpRate: row.adpRate,
-            });
+            // hours and rate, not from anything typed into the row — and is
+            // skipped entirely for anyone outside ADP.
+            const split = kitchenSplit(row);
             const ret = retentionOn(split?.checkTotalCents ?? null, d.retActive, pct);
             return {
                 hours: t.hours + row.hoursWorked,
@@ -522,12 +552,7 @@ export default function PayrollWeekTable({
                                 // The kitchen split is entirely configuration-driven:
                                 // their ADP hours and rate come from EmployeeRate, so
                                 // nothing on this row is typed except retention.
-                                const split = noRate ? null : calcPaySplit({
-                                    hours: row.hoursWorked,
-                                    hourlyRate: row.hourlyRate!,
-                                    adpHours: row.adpHours,
-                                    adpRate: row.adpRate,
-                                });
+                                const split = kitchenSplit(row);
 
                                 const pct = Number(draft.retPct) || 0;
                                 const { retainedC, netC } = retentionOn(
@@ -596,10 +621,17 @@ export default function PayrollWeekTable({
                                                             {t('net')}: {formatMoney(netC)}
                                                         </span>
                                                     )}
-                                                    {/* Last, so it qualifies BOTH figures above it: neither the
-                                                        retained amount nor the net is written anywhere yet. */}
-                                                    <span style={{ fontSize: '0.84rem', color: 'var(--warning)' }}>
-                                                        {t('retained_not_recorded')}
+                                                    {/* Last, so it qualifies BOTH figures above it. Two states,
+                                                        because the retained amount IS written to the ledger on
+                                                        save now — a row still claiming "not yet recorded" while
+                                                        the balance already holds it would be worse than saying
+                                                        nothing at all. */}
+                                                    <span
+                                                        style={{ fontSize: '0.84rem', color: row.isSettled ? 'var(--success)' : 'var(--text-secondary)' }}
+                                                        data-testid="retention-state"
+                                                        data-settled={row.isSettled ? 'true' : 'false'}
+                                                    >
+                                                        {row.isSettled ? t('retained_recorded') : t('retained_on_save')}
                                                     </span>
                                                 </div>
                                             )}
@@ -691,8 +723,11 @@ export default function PayrollWeekTable({
                                 const wageC = row.weekWageCents;
                                 const tipsC = Math.round(row.tipsTotal * 100);
                                 const adpC = toCents(draft.adp);
-                                const adpTotalC = wageC === null ? null : wageC + adpC;
-                                const checkC = tipsC - adpC;
+                                // Outside ADP: nothing routes through it, so the ADP
+                                // column is zero and the whole week — wage and tips
+                                // alike — sits on the check side.
+                                const adpTotalC = !row.inAdp ? 0 : wageC === null ? null : wageC + adpC;
+                                const checkC = !row.inAdp ? (wageC ?? 0) + tipsC : tipsC - adpC;
 
                                 // (hours × minimum wage) − wage + cushion. Never
                                 // written anywhere; it is a number to read.
@@ -758,13 +793,23 @@ export default function PayrollWeekTable({
                                                 step="0.01"
                                                 min="0"
                                                 inputMode="decimal"
-                                                value={draft.adp}
-                                                disabled={locked}
+                                                value={row.inAdp ? draft.adp : ''}
+                                                // Disabled rather than hidden: the column still
+                                                // exists for everyone else on the screen, and an
+                                                // empty cell with no explanation reads as an
+                                                // oversight. The note below says why.
+                                                disabled={locked || !row.inAdp}
                                                 onFocus={selectAllOnFocus}
                                                 onChange={e => patch(row, { adp: e.target.value })}
-                                                style={{ ...smallInput, opacity: locked ? 0.5 : 1 }}
+                                                style={{ ...smallInput, opacity: (locked || !row.inAdp) ? 0.5 : 1 }}
+                                                data-testid="salon-adp-tips-input"
                                             />
-                                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                                            {!row.inAdp && (
+                                                <div style={{ marginTop: '0.3rem', fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '190px', marginLeft: 'auto' }} data-testid="salon-not-in-adp">
+                                                    {t('not_in_adp_tips_note')}
+                                                </div>
+                                            )}
+                                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'flex-end', visibility: row.inAdp ? 'visible' : 'hidden' }}>
                                                 <span style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
                                                     {t('suggested')}: {suggestedC === null ? '—' : formatMoney(suggestedC)}
                                                 </span>
@@ -821,12 +866,16 @@ export default function PayrollWeekTable({
                                                             {t('net')}: {formatMoney(netC)}
                                                         </span>
                                                     )}
-                                                    {/* Nothing writes RetentionLedger yet. Saying so on the
-                                                        figures themselves is the only thing stopping them from
-                                                        reading as money already set aside. Last of the three,
-                                                        so it qualifies the net as well as the retained amount. */}
-                                                    <span style={{ fontSize: '0.84rem', color: 'var(--warning)' }}>
-                                                        {t('retained_not_recorded')}
+                                                    {/* savePayrollEntry now writes this to RetentionLedger, so the
+                                                        label says which of the two states this row is in. Last of
+                                                        the three, so it qualifies the net as well as the retained
+                                                        amount. */}
+                                                    <span
+                                                        style={{ fontSize: '0.84rem', color: row.isSettled ? 'var(--success)' : 'var(--text-secondary)' }}
+                                                        data-testid="retention-state"
+                                                        data-settled={row.isSettled ? 'true' : 'false'}
+                                                    >
+                                                        {row.isSettled ? t('retained_recorded') : t('retained_on_save')}
                                                     </span>
                                                 </div>
                                             )}

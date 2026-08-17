@@ -178,6 +178,19 @@ export type PayrollRow = {
     effectiveRate: number | null;
     savedAdpTips: number | null;
     savedCheckTips: number | null;
+    /**
+     * False when this person is paid entirely by the owner, outside ADP.
+     * calcPaySplit is not consulted for them and retention is taken on the
+     * week's total rather than on the check side. See EmployeeRate.inAdp.
+     */
+    inAdp: boolean;
+    /**
+     * True when a PayrollEntry already exists for this person and week.
+     *
+     * Drives the retention label: a row that says "not yet recorded" while the
+     * ledger already holds it is worse than no label at all.
+     */
+    isSettled: boolean;
     retentionActive: boolean;
     retentionPercentage: number;
     flags: PayrollRowFlag[];
@@ -476,6 +489,11 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             effectiveRate,
             savedAdpTips: saved ? dec(saved.adpTips) : null,
             savedCheckTips: saved ? dec(saved.checkTips) : null,
+            // Defaults TRUE for anyone with no EmployeeRate row: everybody was in
+            // ADP before this flag existed, so absence must mean unchanged
+            // behaviour rather than silently moving people off it.
+            inAdp: configured?.inAdp ?? true,
+            isSettled: saved !== undefined && saved !== null,
             retentionActive: retention?.isActive ?? false,
             retentionPercentage: retention ? dec(retention.percentage) : 0,
             flags,
@@ -556,26 +574,71 @@ export async function savePayrollEntry(
 
         const isKitchen = row.department === Department.COCINA;
 
-        // Kitchen: the WAGE is split by configuration, recomputed here from the
-        // person's own adpHours / adpRate rather than from anything the client
-        // sent. Salón: the wage all goes through ADP.
-        const split = isKitchen
-            ? calcPaySplit({
+        const wageCents = row.weekWageCents ?? 0;
+        const tipsCents = toCentsExact(row.tipsTotal);
+
+        let adpWageCents: number;
+        let checkWageCents: number;
+        let adpTipsCents: number;
+        let checkTipsCents: number;
+
+        if (!row.inAdp) {
+            // Paid entirely by the owner. calcPaySplit is NOT consulted: it
+            // exists to divide a wage between ADP and the check, and there is no
+            // division to make when none of it goes to ADP. Feeding it
+            // adpHours 0 would reach the same numbers by pretending this is a
+            // routing choice, which is the confusion the flag exists to end.
+            adpWageCents = 0;
+            checkWageCents = wageCents;
+            adpTipsCents = 0;
+            checkTipsCents = isKitchen ? 0 : tipsCents;
+        } else if (isKitchen) {
+            // The WAGE is split by configuration, recomputed here from the
+            // person's own adpHours / adpRate rather than from anything the
+            // client sent.
+            const split = calcPaySplit({
                 hours: row.hoursWorked,
                 hourlyRate: row.hourlyRate,
                 adpHours: row.adpHours,
                 adpRate: row.adpRate,
-            })
-            : null;
+            });
+            adpWageCents = split.adpTotalCents;
+            checkWageCents = split.checkTotalCents;
+            // Kitchen staff receive no tips, so both tip columns are zero rather
+            // than carrying whatever the shared save handler happened to send.
+            adpTipsCents = 0;
+            checkTipsCents = 0;
+        } else {
+            // Salón in ADP: the wage all goes through ADP, and the TIPS are the
+            // thing split by hand.
+            adpWageCents = wageCents;
+            checkWageCents = 0;
+            adpTipsCents = toCentsExact(adpTips);
+            checkTipsCents = Math.max(0, tipsCents - adpTipsCents);
+        }
 
-        const wageCents = row.weekWageCents ?? 0;
-        const adpWageCents = isKitchen ? split!.adpTotalCents : wageCents;
-        const checkWageCents = isKitchen ? split!.checkTotalCents : 0;
+        /**
+         * What retention is taken on.
+         *
+         * For anyone IN ADP this is unchanged: the check side of whatever that
+         * person's table splits — the non-ADP tips for salón, the non-ADP wage
+         * for kitchen.
+         *
+         * Outside ADP it is the week's TOTAL, wage plus tips, because all of it
+         * passes through the owner's hands rather than only a residual after ADP
+         * took its part.
+         */
+        const retentionBaseCents = !row.inAdp
+            ? wageCents + tipsCents
+            : isKitchen ? checkWageCents : checkTipsCents;
 
-        // Kitchen staff receive no tips, so both tip columns are zero rather
-        // than carrying whatever the shared save handler happened to send.
-        const storedAdpTips = isKitchen ? 0 : adpTips;
-        const checkTips = isKitchen ? 0 : Math.max(0, row.tipsTotal - adpTips);
+        // Mirrors retentionOn in PayrollWeekTable: a percentage of a negative is
+        // a correction, not money held, so a non-positive base retains nothing.
+        const retentionPct = row.retentionPercentage;
+        const retainedCents =
+            row.retentionActive && retentionBaseCents > 0
+                ? Math.round(retentionBaseCents * retentionPct / 100)
+                : 0;
 
         // The stored rate is a BLEND when the week spanned more than one role:
         // the weighted average of the daily rates, rounded to 2dp for the
@@ -592,13 +655,6 @@ export async function savePayrollEntry(
         const storedRate = row.effectiveRate ?? row.hourlyRate;
         const wageTotal = (row.weekWageCents ?? 0) / 100;
 
-        const week = await prisma.payrollWeek.upsert({
-            where: { weekEnding: end },
-            create: { weekEnding: end },
-            update: {},
-            select: { id: true },
-        });
-
         // Written identically on create and update — one object, so the two
         // branches cannot drift apart as columns are added.
         const figures = {
@@ -610,21 +666,66 @@ export async function savePayrollEntry(
             hourlyRate: storedRate.toFixed(2),
             wageTotal: wageTotal.toFixed(2),
             tipsTotal: row.tipsTotal.toFixed(2),
-            adpTips: storedAdpTips.toFixed(2),
-            checkTips: checkTips.toFixed(2),
+            adpTips: (adpTipsCents / 100).toFixed(2),
+            checkTips: (checkTipsCents / 100).toFixed(2),
             adpWage: (adpWageCents / 100).toFixed(2),
             checkWage: (checkWageCents / 100).toFixed(2),
         };
 
-        await prisma.payrollEntry.upsert({
-            where: {
-                payrollWeekId_cloverEmployeeId: { payrollWeekId: week.id, cloverEmployeeId },
-            },
-            create: { payrollWeekId: week.id, cloverEmployeeId, ...figures },
-            update: figures,
+        await prisma.$transaction(async tx => {
+            const week = await tx.payrollWeek.upsert({
+                where: { weekEnding: end },
+                create: { weekEnding: end },
+                update: {},
+                select: { id: true },
+            });
+
+            await tx.payrollEntry.upsert({
+                where: {
+                    payrollWeekId_cloverEmployeeId: { payrollWeekId: week.id, cloverEmployeeId },
+                },
+                create: { payrollWeekId: week.id, cloverEmployeeId, ...figures },
+                update: figures,
+            });
+
+            // ── Retention, recorded rather than merely displayed ──
+            //
+            // DELETE then CREATE, not upsert: RetentionLedger has no unique key
+            // for this combination, and it must not get one — a week can
+            // legitimately hold several ENTREGA or DESCUENTO rows. Deleting
+            // first also makes switching retention OFF leave no row at all,
+            // where an upsert would strand the previous week's amount as a
+            // balance nobody is holding.
+            //
+            // Scoped to RETENCION and this week only, so an ENTREGA recorded
+            // against the same week survives re-settling untouched.
+            await tx.retentionLedger.deleteMany({
+                where: {
+                    cloverEmployeeId,
+                    payrollWeekId: week.id,
+                    kind: RetentionKind.RETENCION,
+                },
+            });
+
+            if (retainedCents > 0) {
+                await tx.retentionLedger.create({
+                    data: {
+                        cloverEmployeeId,
+                        employeeName: row.employeeName,
+                        kind: RetentionKind.RETENCION,
+                        amount: (retainedCents / 100).toFixed(2),
+                        // The rate AT THE TIME. RetentionSetting is overwritten in
+                        // place, so without this a percentage changed later would
+                        // silently re-describe what was held months ago.
+                        percentageUsed: retentionPct.toFixed(2),
+                        payrollWeekId: week.id,
+                    },
+                });
+            }
         });
 
         revalidatePath(PAYROLL_ROUTE, 'page');
+        revalidatePath(REPORTS_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo guardar la nómina: ${e instanceof Error ? e.message : String(e)}` };
@@ -672,6 +773,11 @@ export type EmployeeConfigRow = {
      * Staff role. Nothing to do with department — see the schema comment.
      */
     includeInTips: boolean;
+    /**
+     * False when this person is paid entirely by the owner, outside ADP. Not the
+     * same as adpHours being zero — see EmployeeRate.inAdp.
+     */
+    inAdp: boolean;
     /** Every tip role seen in the lookback window. */
     rolesSeen: TipEntryRole[];
     /**
@@ -792,6 +898,9 @@ export async function getEmployeeConfigs(week?: { start: string; end: string }):
                 adpRate: row?.adpRate ? dec(row.adpRate) : null,
                 isConfigured: row?.hourlyRate != null,
                 includeInTips: row?.includeInTips ?? false,
+                // True when there is no row: everyone was in ADP before this flag
+                // existed, so absence must mean unchanged behaviour.
+                inAdp: row?.inAdp ?? true,
                 rolesSeen,
                 roleVaries: rolesSeen.length > 1,
             };
@@ -998,6 +1107,45 @@ export async function setEmployeeIncludeInTips(
         return { success: true };
     } catch (e) {
         return { success: false, error: `No se pudo actualizar la lista de propinas: ${e instanceof Error ? e.message : String(e)}` };
+    }
+}
+
+/**
+ * Mark one person as inside or outside ADP.
+ *
+ * Its own action rather than a field on saveEmployeeConfig for the same reason
+ * as setEmployeeIncludeInTips: that action refuses an hourly rate at or below
+ * zero, and somebody paid entirely by the owner may have no rate configured here
+ * at all. An upsert, because getEmployeeConfigs lists people with recent punches
+ * who need not have an EmployeeRate row yet.
+ *
+ * Changing this does NOT rewrite settled weeks. PayrollEntry holds what was
+ * actually paid; flipping the flag changes how the NEXT settle is split, and
+ * re-settling an existing week is what applies it to that week.
+ */
+export async function setEmployeeInAdp(
+    cloverEmployeeId: string,
+    employeeName: string,
+    inAdp: boolean
+): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'No tienes permiso para cambiar la configuración.' };
+    }
+    if (!cloverEmployeeId) {
+        return { success: false, error: 'Falta identificar a la persona.' };
+    }
+
+    try {
+        await prisma.employeeRate.upsert({
+            where: { cloverEmployeeId },
+            create: { cloverEmployeeId, employeeName, inAdp },
+            update: { inAdp },
+        });
+
+        revalidatePath(PAYROLL_ROUTE, 'page');
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: `No se pudo actualizar la configuración de ADP: ${e instanceof Error ? e.message : String(e)}` };
     }
 }
 

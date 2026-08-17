@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
 import { AlertTriangle, RefreshCw, Users } from 'lucide-react';
-import { saveEmployeeConfig, syncCloverRoles, setEmployeeIncludeInTips, type EmployeeConfigRow, type RoleSyncResult } from '@/app/actions/payroll';
+import { saveEmployeeConfig, syncCloverRoles, setEmployeeIncludeInTips, setEmployeeInAdp, type EmployeeConfigRow, type RoleSyncResult } from '@/app/actions/payroll';
 import ManagePeopleModal from './ManagePeopleModal';
 import { calcPaySplit } from '@/lib/payrollCalc';
 import { formatMoney } from '@/lib/money';
@@ -84,6 +84,12 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
         Object.fromEntries(configs.map(c => [c.cloverEmployeeId, c.includeInTips]))
     );
     const [tipSavingKey, setTipSavingKey] = useState<string | null>(null);
+
+    /** Same optimistic-with-rollback pattern as the tip flag above. */
+    const [adpFlags, setAdpFlags] = useState<Record<string, boolean>>(() =>
+        Object.fromEntries(configs.map(c => [c.cloverEmployeeId, c.inAdp]))
+    );
+    const [adpSavingKey, setAdpSavingKey] = useState<string | null>(null);
 
     const [syncing, setSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<RoleSyncResult | null>(null);
@@ -169,6 +175,30 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
             setRowError(e => ({ ...e, [r.cloverEmployeeId]: res.error ?? t('tips_toggle_failed') }));
         }
         setTipSavingKey(null);
+    };
+
+    /**
+     * Move one person in or out of ADP.
+     *
+     * Saves on its own for the same reason the tip toggle does: the row's Save
+     * button needs an hourly rate, and somebody paid entirely by the owner may
+     * not have one configured here.
+     */
+    const handleAdpToggle = async (r: EmployeeConfigRow, next: boolean) => {
+        setAdpSavingKey(r.cloverEmployeeId);
+        setAdpFlags(f => ({ ...f, [r.cloverEmployeeId]: next }));
+        setRowError(e => ({ ...e, [r.cloverEmployeeId]: '' }));
+
+        const res = await setEmployeeInAdp(r.cloverEmployeeId, r.employeeName, next);
+
+        if (res.success) {
+            router.refresh();
+        } else {
+            // Put it back. The flag did not change, so the box must not say it did.
+            setAdpFlags(f => ({ ...f, [r.cloverEmployeeId]: !next }));
+            setRowError(e => ({ ...e, [r.cloverEmployeeId]: res.error ?? t('in_adp_toggle_failed') }));
+        }
+        setAdpSavingKey(null);
     };
 
     const handleSyncRoles = async () => {
@@ -300,6 +330,12 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                             <th style={numHead}>{t('adp_hours')}</th>
                             <th style={numHead}>{t('adp_rate')}</th>
                             <th style={head}>{t('preview_40h')}</th>
+                            <th style={head}>
+                                {t('in_adp')}
+                                <div style={{ fontWeight: 400, fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '200px' }}>
+                                    {t('in_adp_hint')}
+                                </div>
+                            </th>
                             <th style={head}>
                                 {t('tips_dropdown')}
                                 {/* The hint is in the header, not per row: it says what
@@ -453,6 +489,30 @@ export default function EmployeeConfigPanel({ configs }: { configs: EmployeeConf
                                                         rate: split.effectiveAdpRate.toFixed(2),
                                                     })}
                                                 </span>
+                                            </div>
+                                        )}
+                                    </td>
+
+                                    <td style={cell} data-testid="in-adp-cell">
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer', minHeight: '44px' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={adpFlags[r.cloverEmployeeId] ?? true}
+                                                disabled={adpSavingKey === r.cloverEmployeeId}
+                                                onChange={e => handleAdpToggle(r, e.target.checked)}
+                                                aria-label={t('in_adp')}
+                                                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                                            />
+                                            {adpSavingKey === r.cloverEmployeeId && (
+                                                <span style={{ fontSize: '0.86rem', color: 'var(--text-secondary)' }}>{t('saving')}</span>
+                                            )}
+                                        </label>
+                                        {/* Only when OFF, and stated positively: an unchecked box
+                                            beside every ADP field on the row is otherwise easy to
+                                            read as a mistake rather than a decision. */}
+                                        {adpFlags[r.cloverEmployeeId] === false && (
+                                            <div style={{ fontSize: '0.82rem', color: 'var(--warning)', maxWidth: '200px' }}>
+                                                {t('in_adp_off_note')}
                                             </div>
                                         )}
                                     </td>

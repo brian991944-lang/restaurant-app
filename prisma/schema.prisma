@@ -853,6 +853,21 @@ model EmployeeRate {
   cloverRoleAt     DateTime?
   adpHours         Decimal?    @db.Decimal(5,2)
   adpRate          Decimal?    @db.Decimal(6,2)
+  // False means this person is paid ENTIRELY BY THE OWNER — no part of their pay
+  // routes through ADP. Their whole wage goes on the check side, and for a
+  // tipped person their tips do too.
+  //
+  // This is NOT the same as adpHours being zero. adpHours/adpRate describe a
+  // ROUTING SPLIT WITHIN ADP: how much of a wage ADP processes versus how much
+  // the check covers. Both null means the whole wage goes through ADP, which is
+  // why no combination of them can express "not in ADP at all" — every value
+  // still describes a split inside it. This flag is being outside it.
+  //
+  // Consequences, all in one place so they cannot drift apart:
+  //   - calcPaySplit is not consulted. There is no split to make.
+  //   - Retention is taken on the week's TOTAL, wage plus tips, because all of
+  //     it passes through the owner's hands rather than only the check side.
+  inAdp            Boolean     @default(true)
   // The person's name exactly as it appears in ADP's exports, so a row naming
   // them can be matched back to a Clover id. ADP writes "Ayala, Piero R" where
   // Clover has "Piero" — the two will not match on anything but an explicit
