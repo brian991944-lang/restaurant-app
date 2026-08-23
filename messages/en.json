@@ -222,7 +222,7 @@
     "adp_employer_cost_parsed": "Employer cost",
     "adp_before_fee": "(excluding ADP's fee)",
     "adp_concept": "Item",
-    "adp_rate": "Rate",
+    "adp_rate": "ADP rate",
     "adp_amount": "Amount",
     "adp_not_found": "NOT FOUND",
     "adp_row": "row",
@@ -473,7 +473,6 @@
     "config_dept_resolved": "Resolves to {dept}.",
     "real_rate": "Real rate",
     "adp_hours": "ADP hours",
-    "adp_rate": "ADP rate",
     "adp_hours_placeholder": "All",
     "adp_rate_placeholder": "Real rate",
     "adp_hours_hint": "Empty = all hours worked",
@@ -483,7 +482,11 @@
     "preview_total": "Total",
     "preview_adp": "ADP",
     "preview_check": "Check",
-    "preview_basis": "ADP = {hours} h x ${rate}"
+    "preview_basis": "ADP = {hours} h x ${rate}",
+    "advance_deduct_row": "Advance",
+    "advance_net_after": "Final net",
+    "advance_partial_note": "Only {amount} of {weekly} fits this week",
+    "advance_none_available": "The check cannot cover a deduction this week"
   },
   "Tips": {
     "title": "Tip Distribution",

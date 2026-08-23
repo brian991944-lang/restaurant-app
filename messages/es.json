@@ -222,7 +222,7 @@
     "adp_employer_cost_parsed": "Costo del patrón",
     "adp_before_fee": "(sin la comisión de ADP)",
     "adp_concept": "Concepto",
-    "adp_rate": "Tasa",
+    "adp_rate": "Tarifa ADP",
     "adp_amount": "Monto",
     "adp_not_found": "NO ENCONTRADO",
     "adp_row": "fila",
@@ -473,7 +473,6 @@
     "config_dept_resolved": "Queda en {dept}.",
     "real_rate": "Tarifa real",
     "adp_hours": "Horas ADP",
-    "adp_rate": "Tarifa ADP",
     "adp_hours_placeholder": "Todas",
     "adp_rate_placeholder": "Tarifa real",
     "adp_hours_hint": "Vacío = todas las horas trabajadas",
@@ -483,7 +482,11 @@
     "preview_total": "Total",
     "preview_adp": "ADP",
     "preview_check": "Cheque",
-    "preview_basis": "ADP = {hours} h x ${rate}"
+    "preview_basis": "ADP = {hours} h x ${rate}",
+    "advance_deduct_row": "Adelanto",
+    "advance_net_after": "Neto final",
+    "advance_partial_note": "Solo alcanza {amount} de {weekly} esta semana",
+    "advance_none_available": "El cheque no alcanza para descontar esta semana"
   },
   "Tips": {
     "title": "Distribución de Propinas",

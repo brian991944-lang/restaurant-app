@@ -173,7 +173,7 @@ function kitchenSplit(row: PayrollRow) {
     });
 }
 
-type Draft = { adp: string; retActive: boolean; retPct: string };
+type Draft = { adp: string; retActive: boolean; retPct: string; dedAdvance: boolean };
 
 /**
  * A row's draft as it starts life, from whatever is already saved for it.
@@ -189,7 +189,69 @@ function draftFromRow(r: PayrollRow): Draft {
         adp: r.savedAdpTips !== null ? r.savedAdpTips.toFixed(2) : '',
         retActive: r.retentionActive,
         retPct: r.retentionPercentage.toFixed(2),
+        // On by default whenever an advance is outstanding: settling a week for
+        // someone who owes money should take the repayment unless somebody
+        // actively decides not to.
+        dedAdvance: r.advance !== null,
     };
+}
+
+/**
+ * The advance repayment line: what this week can actually take back, and the
+ * net after BOTH retention and the deduction.
+ *
+ * `availableCheckC` is recomputed by the caller from the figures currently on
+ * screen rather than read off row.advance, whose copy was computed server-side
+ * from the last saved ADP split. Typing a different split has to move this line
+ * immediately, or it would promise a deduction the save then contradicts.
+ */
+function AdvanceLine({ row, draft, onToggle, locked, availableCheckC, t }: {
+    row: PayrollRow;
+    draft: Draft;
+    onToggle: (next: boolean) => void;
+    locked: boolean;
+    availableCheckC: number;
+    t: ReturnType<typeof useTranslations<'Payroll'>>;
+}) {
+    const adv = row.advance;
+    if (!adv) return null;
+
+    const applicableC = Math.max(0, Math.min(adv.weeklyCents, adv.outstandingCents, availableCheckC));
+    const takenC = draft.dedAdvance ? applicableC : 0;
+    const shortfall = draft.dedAdvance && applicableC < adv.weeklyCents;
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem', marginTop: '0.4rem', paddingTop: '0.4rem', borderTop: '1px dashed var(--border)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: locked ? 'not-allowed' : 'pointer' }}>
+                <input
+                    type="checkbox"
+                    checked={draft.dedAdvance}
+                    disabled={locked}
+                    onChange={e => onToggle(e.target.checked)}
+                    style={{ width: '18px', height: '18px', cursor: locked ? 'not-allowed' : 'pointer' }}
+                />
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('advance_deduct_row')}</span>
+                <span style={{ fontWeight: 700 }}>−{formatMoney(takenC)}</span>
+            </label>
+
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                {t('advance_net_after')}: {formatMoney(Math.max(0, availableCheckC - takenC))}
+            </span>
+
+            {/* A short week is not a debt — it says so rather than leaving the
+                smaller figure to look like an error. */}
+            {shortfall && (
+                <span style={{ fontSize: '0.84rem', color: 'var(--warning)', textAlign: 'right' }}>
+                    {applicableC === 0
+                        ? t('advance_none_available')
+                        : t('advance_partial_note', {
+                            amount: formatMoney(applicableC),
+                            weekly: formatMoney(adv.weeklyCents),
+                        })}
+                </span>
+            )}
+        </div>
+    );
 }
 
 export default function PayrollWeekTable({
@@ -406,7 +468,9 @@ export default function PayrollWeekTable({
         setRowError(e => ({ ...e, [row.key]: '' }));
 
         const adp = toCents(draft.adp) / 100;
-        const entry = await savePayrollEntry(view.weekEnding, row.cloverEmployeeId, adp);
+        const entry = await savePayrollEntry(
+            view.weekEnding, row.cloverEmployeeId, adp, undefined, draft.dedAdvance
+        );
 
         let failure = entry.success ? null : (entry.error ?? t('row_save_failed'));
 
@@ -635,6 +699,16 @@ export default function PayrollWeekTable({
                                                     </span>
                                                 </div>
                                             )}
+                                            {/* Outside the retention block: an advance is repaid whether or
+                                                not anything is being held back. */}
+                                            <AdvanceLine
+                                                row={row}
+                                                draft={draft}
+                                                locked={locked}
+                                                onToggle={next => patch(row, { dedAdvance: next })}
+                                                availableCheckC={Math.max(0, (split?.checkTotalCents ?? 0) - (retainedC ?? 0))}
+                                                t={t}
+                                            />
                                         </td>
                                         <td style={cell}>
                                             <button
@@ -879,6 +953,16 @@ export default function PayrollWeekTable({
                                                     </span>
                                                 </div>
                                             )}
+                                            {/* Outside the retention block: an advance is repaid whether or
+                                                not anything is being held back. */}
+                                            <AdvanceLine
+                                                row={row}
+                                                draft={draft}
+                                                locked={locked}
+                                                onToggle={next => patch(row, { dedAdvance: next })}
+                                                availableCheckC={Math.max(0, checkC - (retainedC ?? 0))}
+                                                t={t}
+                                            />
                                         </td>
 
                                         <td style={cell}>

@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { addDays, lastCompleteWeekEnding, resolveWeekRange, sundayOf } from '@/lib/payrollWeek';
-import { calcPaySplit, advanceStatus, type AdvanceStatus } from '@/lib/payrollCalc';
+import { calcPaySplit, advanceStatus, applicableAdvanceCents, type AdvanceStatus } from '@/lib/payrollCalc';
 import { cloverFetch } from '@/lib/clover';
 import { parseAdpLiabilityRows, type AdpLiabilityParseResult } from '@/lib/adpLiabilityParse';
 import { xlsxToRows } from '@/lib/adpSheet';
@@ -193,6 +193,24 @@ export type PayrollRow = {
     isSettled: boolean;
     retentionActive: boolean;
     retentionPercentage: number;
+    /**
+     * The person's active advance, or null when they have none.
+     *
+     * INDICATIVE, not authoritative. availableCheckCents and applicableCents
+     * depend on the ADP tip split, which for salón is typed at settle time —
+     * this uses the saved value, or zero when nothing is settled yet.
+     * savePayrollEntry recomputes both from the figure actually submitted, the
+     * same way retention is displayed here and recomputed there.
+     */
+    advance: {
+        id: string;
+        weeklyCents: number;
+        outstandingCents: number;
+        /** What is handed over this week after retention — the repayment ceiling. */
+        availableCheckCents: number;
+        /** min(weekly, outstanding, availableCheck). May be 0. */
+        applicableCents: number;
+    } | null;
     flags: PayrollRowFlag[];
 };
 
@@ -268,7 +286,10 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
     const start = businessDateToUtcDate(startStr);
     const end = businessDateToUtcDate(endStr);
 
-    const [rateConfig, punches, tipEntries, week, retentions, employeeRates] = await Promise.all([
+    const [
+        rateConfig, punches, tipEntries, week, retentions, employeeRates,
+        activeAdvances, advanceLedger,
+    ] = await Promise.all([
         getRateConfig(),
         prisma.payrollPunch.findMany({
             where: { businessDate: { gte: start, lte: end } },
@@ -294,7 +315,30 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         }),
         prisma.retentionSetting.findMany(),
         prisma.employeeRate.findMany(),
+        // Active advances and every repayment against them. The balance is
+        // computed from the ledger rather than stored, so both are needed.
+        prisma.salaryAdvance.findMany({ where: { isActive: true } }),
+        prisma.retentionLedger.findMany({
+            where: { kind: RetentionKind.DESCUENTO, advanceId: { not: null } },
+            select: { advanceId: true, amount: true },
+        }),
     ]);
+
+    // Paid-to-date per advance, across ALL weeks — the outstanding balance is
+    // not a per-week figure.
+    const paidByAdvance = new Map<string, number>();
+    for (const l of advanceLedger) {
+        if (!l.advanceId) continue;
+        paidByAdvance.set(l.advanceId, (paidByAdvance.get(l.advanceId) ?? 0) + toCentsExact(dec(l.amount)));
+    }
+
+    const advanceByEmployee = new Map<string, typeof activeAdvances[number]>();
+    for (const a of activeAdvances) {
+        // One active advance per person is the assumption everywhere else; if
+        // two somehow exist, the older one is paid down first.
+        const held = advanceByEmployee.get(a.cloverEmployeeId);
+        if (!held || a.createdAt < held.createdAt) advanceByEmployee.set(a.cloverEmployeeId, a);
+    }
 
     type Acc = {
         cloverEmployeeId: string | null;
@@ -471,6 +515,70 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
         if (hourlyRate === null) flags.push('SIN_TARIFA');
         if (department === null) flags.push('SIN_DEPARTAMENTO');
 
+        const inAdp = configured?.inAdp ?? true;
+        const retentionActive = retention?.isActive ?? false;
+        const retentionPct = retention ? dec(retention.percentage) : 0;
+
+        /**
+         * The advance figures for this row.
+         *
+         * availableCheckCents mirrors savePayrollEntry's retention base exactly:
+         * outside ADP the whole week passes through the owner's hands, kitchen
+         * uses the check side of the wage split, salón the tips paid outside
+         * ADP. Retention is taken off first, and whatever is left is the most an
+         * advance can take back.
+         *
+         * For salón this is INDICATIVE only: the ADP tip split is typed at
+         * settle time, so before a week is settled this assumes none of the tips
+         * go through ADP. savePayrollEntry recomputes it from the submitted
+         * figure.
+         */
+        const advanceRow = acc.cloverEmployeeId ? advanceByEmployee.get(acc.cloverEmployeeId) : undefined;
+        let advance: PayrollRow['advance'] = null;
+
+        if (advanceRow && department !== null && hourlyRate !== null) {
+            const wageC = weekWageCents ?? 0;
+            const tipsC = toCentsExact(acc.tips);
+            const isKitchen = department === Department.COCINA;
+
+            let baseCents: number;
+            if (!inAdp) {
+                baseCents = wageC + tipsC;
+            } else if (isKitchen) {
+                const split = calcPaySplit({
+                    hours: acc.hours,
+                    hourlyRate,
+                    adpHours: configured?.adpHours ? dec(configured.adpHours) : null,
+                    adpRate: configured?.adpRate ? dec(configured.adpRate) : null,
+                });
+                baseCents = split.checkTotalCents;
+            } else {
+                const adpTipsC = saved ? toCentsExact(dec(saved.adpTips)) : 0;
+                baseCents = Math.max(0, tipsC - adpTipsC);
+            }
+
+            const retainedC = retentionActive && baseCents > 0
+                ? Math.round(baseCents * retentionPct / 100)
+                : 0;
+            const availableCheckCents = Math.max(0, baseCents - retainedC);
+
+            const principalC = toCentsExact(dec(advanceRow.principalAmount));
+            const outstandingCents = Math.max(0, principalC - (paidByAdvance.get(advanceRow.id) ?? 0));
+            const weeklyCents = toCentsExact(dec(advanceRow.weeklyDeduction));
+
+            advance = {
+                id: advanceRow.id,
+                weeklyCents,
+                outstandingCents,
+                availableCheckCents,
+                applicableCents: applicableAdvanceCents({
+                    weeklyDeductionCents: weeklyCents,
+                    outstandingCents,
+                    availableCheckCents,
+                }),
+            };
+        }
+
         return {
             key,
             cloverEmployeeId: acc.cloverEmployeeId,
@@ -492,10 +600,11 @@ export async function getPayrollWeek(weekEnding?: string): Promise<PayrollWeekVi
             // Defaults TRUE for anyone with no EmployeeRate row: everybody was in
             // ADP before this flag existed, so absence must mean unchanged
             // behaviour rather than silently moving people off it.
-            inAdp: configured?.inAdp ?? true,
+            inAdp,
             isSettled: saved !== undefined && saved !== null,
-            retentionActive: retention?.isActive ?? false,
-            retentionPercentage: retention ? dec(retention.percentage) : 0,
+            retentionActive,
+            retentionPercentage: retentionPct,
+            advance,
             flags,
         };
     }).sort((a, b) => a.employeeName.localeCompare(b.employeeName, 'es'));
@@ -534,7 +643,17 @@ export async function savePayrollEntry(
     weekEnding: string,
     cloverEmployeeId: string,
     adpTips: number,
-    _checkTips?: number
+    _checkTips?: number,
+    /**
+     * Whether to repay the person's advance out of this week's check.
+     *
+     * Defaults TRUE: settling a week for someone who owes money should take the
+     * repayment unless somebody actively decides otherwise. Passing false
+     * records NO deduction row, which the advances tab then reports as a missed
+     * week — deliberately, because a week where repayment was owed and skipped
+     * is exactly what that list is for.
+     */
+    deductAdvance: boolean = true
 ): Promise<{ success: boolean; error?: string }> {
     if (!(await isAdminSession())) {
         return { success: false, error: 'No tienes permiso para guardar la nómina.' };
@@ -640,6 +759,14 @@ export async function savePayrollEntry(
                 ? Math.round(retentionBaseCents * retentionPct / 100)
                 : 0;
 
+        // What is genuinely handed over, and therefore the most an advance can
+        // take back. Retention comes off FIRST — money already held back cannot
+        // also repay a debt.
+        //
+        // Recomputed here from the adpTips actually submitted rather than read
+        // off the row, whose figure is indicative for exactly this reason.
+        const availableCheckCents = Math.max(0, retentionBaseCents - retainedCents);
+
         // The stored rate is a BLEND when the week spanned more than one role:
         // the weighted average of the daily rates, rounded to 2dp for the
         // column. hoursWorked x hourlyRate therefore does not reliably
@@ -721,6 +848,97 @@ export async function savePayrollEntry(
                         payrollWeekId: week.id,
                     },
                 });
+            }
+
+            // ── Advance repayment ──
+            //
+            // Which advance this week pays down. An existing row for this week
+            // wins over "the active advance": re-settling has to be able to
+            // reduce, and reopen, an advance that its OWN earlier row closed —
+            // by then that advance is no longer active and would not be found.
+            const existingDeduction = await tx.retentionLedger.findFirst({
+                where: {
+                    cloverEmployeeId,
+                    payrollWeekId: week.id,
+                    kind: RetentionKind.DESCUENTO,
+                    advanceId: { not: null },
+                },
+                select: { advanceId: true },
+            });
+
+            const advance = existingDeduction?.advanceId
+                ? await tx.salaryAdvance.findUnique({ where: { id: existingDeduction.advanceId } })
+                : await tx.salaryAdvance.findFirst({
+                    where: { cloverEmployeeId, isActive: true },
+                    orderBy: { createdAt: 'asc' },
+                });
+
+            if (advance) {
+                // Same delete-then-create as retention, scoped to THIS advance,
+                // person and week — a manual deduction against a different
+                // advance, or an ENTREGA in the same week, survives untouched.
+                await tx.retentionLedger.deleteMany({
+                    where: {
+                        cloverEmployeeId,
+                        payrollWeekId: week.id,
+                        kind: RetentionKind.DESCUENTO,
+                        advanceId: advance.id,
+                    },
+                });
+
+                // Balance measured AFTER removing the row being replaced, so a
+                // re-settle does not count its own previous payment against
+                // itself and clamp the new figure to a balance that includes it.
+                const otherPayments = await tx.retentionLedger.findMany({
+                    where: { kind: RetentionKind.DESCUENTO, advanceId: advance.id },
+                    select: { amount: true },
+                });
+                const principalCents = toCentsExact(dec(advance.principalAmount));
+                const paidElsewhere = otherPayments.reduce((t, l) => t + toCentsExact(dec(l.amount)), 0);
+                const outstandingCents = Math.max(0, principalCents - paidElsewhere);
+
+                const applicable = deductAdvance
+                    ? applicableAdvanceCents({
+                        weeklyDeductionCents: toCentsExact(dec(advance.weeklyDeduction)),
+                        outstandingCents,
+                        availableCheckCents,
+                    })
+                    : null;
+
+                if (applicable !== null) {
+                    // A ZERO row is written deliberately, and it changes what a
+                    // ledger row means: a zero-amount DESCUENTO is not a payment,
+                    // it records a week that WAS settled with nothing available to
+                    // take. Without it, "the check could not cover it" and "nobody
+                    // ran payroll" are indistinguishable, and advanceStatus would
+                    // report the week as missed. See its missedWeeks walk, which
+                    // tests for the presence of a row rather than its amount.
+                    await tx.retentionLedger.create({
+                        data: {
+                            cloverEmployeeId,
+                            employeeName: row.employeeName,
+                            kind: RetentionKind.DESCUENTO,
+                            amount: (applicable / 100).toFixed(2),
+                            advanceId: advance.id,
+                            payrollWeekId: week.id,
+                            note: applicable === 0
+                                ? 'Sin saldo disponible en el cheque esta semana'
+                                : null,
+                        },
+                    });
+                }
+
+                // Recomputed from the ledger, never from "did this payment clear
+                // the balance". A re-settle for a SMALLER amount has to reopen an
+                // advance that an earlier, larger one closed, and only the total
+                // knows that.
+                const shouldBeActive = paidElsewhere + (applicable ?? 0) < principalCents;
+                if (advance.isActive !== shouldBeActive) {
+                    await tx.salaryAdvance.update({
+                        where: { id: advance.id },
+                        data: { isActive: shouldBeActive },
+                    });
+                }
             }
         });
 

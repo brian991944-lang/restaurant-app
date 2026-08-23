@@ -110,7 +110,12 @@ export type AdvanceStatus = {
     weeksRemaining: number | null;
     isPaidOff: boolean;
     /**
-     * Payroll weeks where a payment was genuinely owed and none was recorded.
+     * Payroll weeks where a payment was genuinely owed and NO deduction row was
+     * recorded at all.
+     *
+     * A week holding a zero-amount row is NOT missed: settling a week where the
+     * check could not cover anything records a $0.00 DESCUENTO, and that is a
+     * deliberate "we looked and there was nothing to take".
      *
      * The walk STOPS once the balance reaches zero, so a settled advance reports
      * no missed weeks rather than one more every Sunday forever. Without that,
@@ -173,9 +178,14 @@ export function advanceStatus({
         // "missed". This is what stops a settled advance accruing false alarms.
         if (balance <= 0) break;
 
-        const amt = byWeek.get(week) ?? 0;
-        if (amt === 0) missedWeeks.push(week);
-        balance -= amt;
+        // PRESENCE, not amount. A zero-amount DESCUENTO means payroll was
+        // settled that week and there was nothing available to take — which is
+        // a different fact from nobody having looked, and the only thing that
+        // tells the two apart. Testing the amount instead would flag such a
+        // week as missed and bury the signal this list exists to carry.
+        const recorded = byWeek.get(week);
+        if (recorded === undefined) missedWeeks.push(week);
+        balance -= recorded ?? 0;
 
         week = addDays(week, 7);
     }
@@ -192,4 +202,37 @@ export function advanceStatus({
         isPaidOff: outstandingCents === 0,
         missedWeeks,
     };
+}
+
+export type ApplicableAdvanceInput = {
+    weeklyDeductionCents: number;
+    outstandingCents: number;
+    /** What is actually handed over this week, AFTER retention. */
+    availableCheckCents: number;
+};
+
+/**
+ * How much of an advance can actually be repaid out of THIS week's check.
+ *
+ * Retention comes off first and the advance is repaid from what is genuinely
+ * handed over, so the check — not the gross — is the ceiling. Taking more than
+ * the check would mean handing the worker a negative amount.
+ *
+ * A short week is not a debt: when this returns less than the weekly amount,
+ * nothing extra is owed later, the balance simply takes more weeks to clear.
+ * Returning 0 is a legitimate answer and is recorded as a zero-amount row
+ * rather than as no row at all.
+ *
+ * Shared by the payroll row and by savePayrollEntry so the figure a person sees
+ * before settling is produced by the same rule that settles it.
+ */
+export function applicableAdvanceCents({
+    weeklyDeductionCents,
+    outstandingCents,
+    availableCheckCents,
+}: ApplicableAdvanceInput): number {
+    const weekly = Math.max(0, Math.round(weeklyDeductionCents));
+    const outstanding = Math.max(0, Math.round(outstandingCents));
+    const available = Math.max(0, Math.round(availableCheckCents));
+    return Math.min(weekly, outstanding, available);
 }
