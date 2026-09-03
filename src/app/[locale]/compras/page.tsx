@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocale } from 'next-intl';
-import { toPng } from 'html-to-image';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch, Share2 } from 'lucide-react';
 import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus } from '@/app/actions/compras';
@@ -18,6 +17,26 @@ interface SentListSnapshot {
     groups: [string, { id: string; name: string }[]][];
 }
 
+// The message body sent to WhatsApp. *asterisks* are WhatsApp's own bold markup,
+// not Markdown — they render as bold there and stay literal anywhere else.
+//
+// Always Spanish, regardless of the UI locale: this text leaves the app and goes
+// to the suppliers, who read Spanish. The on-screen preview still follows the
+// locale, so an English-locale user sees an English heading above Spanish text.
+function buildListaTexto(sentList: SentListSnapshot): string {
+    const fecha = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(sentList.sentAt);
+    const lines: string[] = [];
+    lines.push(`🛒 *Lista de Compras — ${sentList.providerLabel}*`);
+    lines.push(fecha);
+    lines.push('');
+    for (const [category, items] of sentList.groups) {
+        lines.push(`*${category}*`);
+        for (const item of items) lines.push(`• ${item.name}`);
+        lines.push('');
+    }
+    return lines.join('\n').trim();
+}
+
 export default function ComprasPage() {
     const locale = useLocale();
     const { isAdmin } = useAdmin();
@@ -28,8 +47,7 @@ export default function ComprasPage() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [sentList, setSentList] = useState<SentListSnapshot | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [capturing, setCapturing] = useState(false);
-    const shareRef = useRef<HTMLDivElement>(null);
+    const [sharing, setSharing] = useState(false);
 
 
     const tabs = [
@@ -140,59 +158,43 @@ export default function ComprasPage() {
         }
     };
 
-    const slugify = (value: string) =>
-        // NFD splits accents into combining marks, which the alphanumeric filter
-        // below then drops -- so 'Cafe' with an accent slugifies to 'cafe', not 'caf'.
-        value.normalize('NFD')
-            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'lista';
-
-    // Local calendar date, not toISOString() — the filename must agree with the
-    // date printed inside the image, and UTC disagrees with it after ~7pm here.
-    const ymd = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const copiarFallback = async (texto: string) => {
+        try {
+            await navigator.clipboard.writeText(texto);
+            alert(locale === 'es'
+                ? 'Lista copiada al portapapeles. Pégala en WhatsApp.'
+                : 'List copied to clipboard. Paste it into WhatsApp.');
+        } catch (err) {
+            console.error('Error al copiar la lista:', err);
+            alert(locale === 'es'
+                ? 'No se pudo copiar la lista. Intenta de nuevo.'
+                : 'Could not copy the list. Please try again.');
+        }
+    };
 
     // Runs from the modal button's own tap. iOS refuses a share sheet that is not
-    // opened by a direct user gesture, so this must never be chained onto the
-    // await in handleEnviarLista.
+    // opened by a direct user gesture — that holds for text shares too, so this
+    // must never be chained onto the await in handleEnviarLista.
     const handleCompartirLista = async () => {
-        if (!shareRef.current || !sentList) return;
-        setCapturing(true);
+        if (!sentList) return;
+        setSharing(true);
         try {
-            const dataUrl = await toPng(shareRef.current, {
-                pixelRatio: 2,
-                backgroundColor: '#ffffff',
-                cacheBust: true,
-                filter: (node) => {
-                    if (node instanceof HTMLElement && node.dataset.noCapture === 'true') {
-                        return false;
+            const texto = buildListaTexto(sentList);
+            if (navigator.share) {
+                try {
+                    await navigator.share({ text: texto });
+                } catch (err) {
+                    // AbortError = user dismissed the share sheet; that is not a
+                    // failure, so do NOT fall back to the clipboard behind their back.
+                    if ((err as Error).name !== 'AbortError') {
+                        await copiarFallback(texto);
                     }
-                    return true;
-                },
-            });
-            const blob = await (await fetch(dataUrl)).blob();
-            const file = new File(
-                [blob],
-                `lista-compras-${slugify(sentList.providerLabel)}-${ymd(sentList.sentAt)}.png`,
-                { type: 'image/png' }
-            );
-
-            if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({ files: [file], title: 'Lista de Compras' });
+                }
             } else {
-                // Desktop fallback: download the PNG
-                const a = document.createElement('a');
-                a.href = dataUrl;
-                a.download = file.name;
-                a.click();
-            }
-        } catch (err) {
-            // AbortError = user closed the share sheet; ignore silently
-            if ((err as Error).name !== 'AbortError') {
-                console.error('Error al compartir la lista:', err);
-                alert('No se pudo generar la imagen. Intenta de nuevo.');
+                await copiarFallback(texto);
             }
         } finally {
-            setCapturing(false);
+            setSharing(false);
         }
     };
 
@@ -553,11 +555,10 @@ export default function ComprasPage() {
                         </p>
 
                         <div style={{ overflowY: 'auto', padding: '0 1.5rem 1rem' }}>
-                            {/* Everything inside this ref is what lands in the PNG. Colours are
-                                literal, not CSS variables: the app theme is dark and the image
-                                is white. */}
+                            {/* A preview of what the shared text will say. Nothing is captured
+                                from it — buildListaTexto reads the snapshot directly — so this
+                                is presentation only and safe to restyle. */}
                             <div
-                                ref={shareRef}
                                 style={{
                                     background: '#ffffff', color: '#111827',
                                     padding: '1.25rem', borderRadius: '8px',
@@ -607,13 +608,11 @@ export default function ComprasPage() {
                             {sentList.groups.length > 0 && (
                                 <button
                                     onClick={handleCompartirLista}
-                                    disabled={capturing}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: capturing ? 'default' : 'pointer', opacity: capturing ? 0.6 : 1, minHeight: '44px' }}
+                                    disabled={sharing}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: sharing ? 'default' : 'pointer', opacity: sharing ? 0.6 : 1, minHeight: '44px' }}
                                 >
                                     <Share2 size={16} />
-                                    {capturing
-                                        ? (locale === 'es' ? 'Generando imagen…' : 'Generating image…')
-                                        : (locale === 'es' ? 'Compartir por WhatsApp' : 'Share via WhatsApp')}
+                                    {locale === 'es' ? 'Compartir por WhatsApp' : 'Share via WhatsApp'}
                                 </button>
                             )}
                         </div>
