@@ -1,13 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocale } from 'next-intl';
+import { toPng } from 'html-to-image';
 import { useAdmin } from '@/components/AdminContext';
-import { ShoppingCart, CheckSquare, Square, PackageSearch } from 'lucide-react';
+import { ShoppingCart, CheckSquare, Square, PackageSearch, Share2 } from 'lucide-react';
 import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus } from '@/app/actions/compras';
 import { addIngredient } from '@/app/actions/inventory';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 
+// A frozen copy of what was just sent. Taken BEFORE the server action runs,
+// because submitShoppingList flips isSubmittedForOrdering and the refetch that
+// follows would otherwise change the list out from under the open modal.
+interface SentListSnapshot {
+    providerLabel: string;
+    sentAt: Date;
+    groups: [string, { id: string; name: string }[]][];
+}
 
 export default function ComprasPage() {
     const locale = useLocale();
@@ -17,6 +26,10 @@ export default function ComprasPage() {
     const [ingredients, setIngredients] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [sentList, setSentList] = useState<SentListSnapshot | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [capturing, setCapturing] = useState(false);
+    const shareRef = useRef<HTMLDivElement>(null);
 
 
     const tabs = [
@@ -89,6 +102,100 @@ export default function ComprasPage() {
         }
     };
 
+    const displayName = (ing: any) => (locale === 'es' && ing.nameEs ? ing.nameEs : ing.name);
+    const displayCategory = (ing: any) =>
+        locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
+
+    const handleEnviarLista = async () => {
+        const activeTabInfo = tabs.find(t => t.id === activeTab);
+        if (!activeTabInfo || isSubmitting) return;
+
+        // Snapshot first, send second. Anything read after the await is post-mutation
+        // and post-refetch, which is not what the user pressed the button on.
+        const flagged = ingredients.filter(ing => ing.needsOrdering);
+        const groups = Array.from<[string, { id: string; name: string }[]]>(
+            flagged.reduce((acc, ing) => {
+                const cat = displayCategory(ing);
+                if (!acc.has(cat)) acc.set(cat, []);
+                acc.get(cat).push({ id: ing.id, name: displayName(ing) });
+                return acc;
+            }, new Map<string, { id: string; name: string }[]>())
+        ).sort((a, b) => a[0].localeCompare(b[0], locale));
+        groups.forEach(([, items]) => items.sort((a, b) => a.name.localeCompare(b.name, locale)));
+
+        setIsSubmitting(true);
+        try {
+            const { submitShoppingList } = await import('@/app/actions/compras');
+            const res = await submitShoppingList(activeTabInfo.providers);
+            if (!res.success) {
+                alert(locale === 'es'
+                    ? 'No se pudo enviar la lista. Intenta de nuevo.'
+                    : 'Could not submit the list. Please try again.');
+                return;
+            }
+            setSentList({ providerLabel: activeTabInfo.label, sentAt: new Date(), groups });
+            loadData();
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const slugify = (value: string) =>
+        // NFD splits accents into combining marks, which the alphanumeric filter
+        // below then drops -- so 'Cafe' with an accent slugifies to 'cafe', not 'caf'.
+        value.normalize('NFD')
+            .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'lista';
+
+    // Local calendar date, not toISOString() — the filename must agree with the
+    // date printed inside the image, and UTC disagrees with it after ~7pm here.
+    const ymd = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // Runs from the modal button's own tap. iOS refuses a share sheet that is not
+    // opened by a direct user gesture, so this must never be chained onto the
+    // await in handleEnviarLista.
+    const handleCompartirLista = async () => {
+        if (!shareRef.current || !sentList) return;
+        setCapturing(true);
+        try {
+            const dataUrl = await toPng(shareRef.current, {
+                pixelRatio: 2,
+                backgroundColor: '#ffffff',
+                cacheBust: true,
+                filter: (node) => {
+                    if (node instanceof HTMLElement && node.dataset.noCapture === 'true') {
+                        return false;
+                    }
+                    return true;
+                },
+            });
+            const blob = await (await fetch(dataUrl)).blob();
+            const file = new File(
+                [blob],
+                `lista-compras-${slugify(sentList.providerLabel)}-${ymd(sentList.sentAt)}.png`,
+                { type: 'image/png' }
+            );
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: 'Lista de Compras' });
+            } else {
+                // Desktop fallback: download the PNG
+                const a = document.createElement('a');
+                a.href = dataUrl;
+                a.download = file.name;
+                a.click();
+            }
+        } catch (err) {
+            // AbortError = user closed the share sheet; ignore silently
+            if ((err as Error).name !== 'AbortError') {
+                console.error('Error al compartir la lista:', err);
+                alert('No se pudo generar la imagen. Intenta de nuevo.');
+            }
+        } finally {
+            setCapturing(false);
+        }
+    };
+
     return (
         <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -126,19 +233,14 @@ export default function ComprasPage() {
                 
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     {!isAdmin && (
-                        <button 
-                            onClick={async () => {
-                                const activeTabInfo = tabs.find(t => t.id === activeTab);
-                                if (activeTabInfo) {
-                                    const { submitShoppingList } = await import('@/app/actions/compras');
-                                    await submitShoppingList(activeTabInfo.providers);
-                                    alert(locale === 'es' ? '¡Lista enviada al administrador!' : 'List submitted to admin!');
-                                    loadData();
-                                }
-                            }}
-                            style={{ padding: '0.6rem 1.2rem', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                        <button
+                            onClick={handleEnviarLista}
+                            disabled={isSubmitting}
+                            style={{ padding: '0.6rem 1.2rem', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: isSubmitting ? 'default' : 'pointer', opacity: isSubmitting ? 0.6 : 1 }}
                         >
-                            {locale === 'es' ? 'Enviar Lista' : 'Submit List'}
+                            {isSubmitting
+                                ? (locale === 'es' ? 'Enviando…' : 'Sending…')
+                                : (locale === 'es' ? 'Enviar Lista' : 'Submit List')}
                         </button>
                     )}
 
@@ -298,6 +400,7 @@ export default function ComprasPage() {
                                                                 {activeTab === 'SUBMITTED_LIST' ? (
                                                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                                         <button
+                                                                            data-no-capture="true"
                                                                             onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'COMPRADO' ? 'PENDIENTE' : 'COMPRADO')}
                                                                             title="Comprado"
                                                                             style={{
@@ -312,6 +415,7 @@ export default function ComprasPage() {
                                                                             {ing.purchaseStatus === 'COMPRADO' ? <CheckSquare size={24} /> : <Square size={24} />}
                                                                         </button>
                                                                         <button
+                                                                            data-no-capture="true"
                                                                             onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'NO_DISPONIBLE' ? 'PENDIENTE' : 'NO_DISPONIBLE')}
                                                                             title="No Disponible"
                                                                             style={{
@@ -327,6 +431,7 @@ export default function ComprasPage() {
                                                                     </div>
                                                                 ) : (
                                                                     <button
+                                                                        data-no-capture="true"
                                                                         onClick={() => handleToggle(ing.id, ing.needsOrdering)}
                                                                         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
                                                                     >
@@ -417,6 +522,104 @@ export default function ComprasPage() {
                     </div>
                 )}
             </div>
+
+            {/* Confirmation + shareable preview. Plain inline modal: no backdrop-filter,
+                no transforms — html-to-image renders neither faithfully. */}
+            {sentList && (
+                <div
+                    onClick={() => setSentList(null)}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 1000,
+                        background: 'rgba(0,0,0,0.5)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '1rem'
+                    }}
+                >
+                    <div
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: 'var(--bg-primary)', border: '1px solid var(--border)',
+                            borderRadius: '12px', width: '100%', maxWidth: '560px', maxHeight: '90vh',
+                            display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                        }}
+                    >
+                        <h2 style={{ margin: 0, padding: '1.25rem 1.5rem 0.5rem', fontSize: '1.4rem' }}>
+                            {locale === 'es' ? 'Lista enviada' : 'List sent'}
+                        </h2>
+                        <p style={{ margin: 0, padding: '0 1.5rem 1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                            {locale === 'es'
+                                ? 'La lista fue enviada al administrador. Puedes compartirla como imagen.'
+                                : 'The list was sent to the admin. You can share it as an image.'}
+                        </p>
+
+                        <div style={{ overflowY: 'auto', padding: '0 1.5rem 1rem' }}>
+                            {/* Everything inside this ref is what lands in the PNG. Colours are
+                                literal, not CSS variables: the app theme is dark and the image
+                                is white. */}
+                            <div
+                                ref={shareRef}
+                                style={{
+                                    background: '#ffffff', color: '#111827',
+                                    padding: '1.25rem', borderRadius: '8px',
+                                    border: '1px solid #e5e7eb'
+                                }}
+                            >
+                                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#111827' }}>
+                                    {locale === 'es' ? 'Lista de Compras' : 'Shopping List'} — {sentList.providerLabel}
+                                </div>
+                                <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                                    {new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(sentList.sentAt)}
+                                </div>
+
+                                {sentList.groups.length === 0 ? (
+                                    <div style={{ marginTop: '1rem', color: '#6b7280', fontStyle: 'italic' }}>
+                                        {locale === 'es' ? 'No había productos marcados.' : 'No items were flagged.'}
+                                    </div>
+                                ) : (
+                                    <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {sentList.groups.map(([category, items]) => (
+                                            <div key={category}>
+                                                <div style={{
+                                                    fontWeight: 700, fontSize: '0.95rem', color: '#111827',
+                                                    borderBottom: '2px solid #e5e7eb', paddingBottom: '0.3rem', marginBottom: '0.4rem'
+                                                }}>
+                                                    {category}
+                                                </div>
+                                                {items.map(item => (
+                                                    <div key={item.id} style={{ fontSize: '0.95rem', color: '#374151', padding: '0.2rem 0' }}>
+                                                        • {item.name}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap', padding: '0 1.5rem 1.25rem' }}>
+                            <button
+                                onClick={() => setSentList(null)}
+                                style={{ padding: '0.6rem 1.2rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 600, cursor: 'pointer', minHeight: '44px' }}
+                            >
+                                {locale === 'es' ? 'Cerrar' : 'Close'}
+                            </button>
+                            {sentList.groups.length > 0 && (
+                                <button
+                                    onClick={handleCompartirLista}
+                                    disabled={capturing}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 1.2rem', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: capturing ? 'default' : 'pointer', opacity: capturing ? 0.6 : 1, minHeight: '44px' }}
+                                >
+                                    <Share2 size={16} />
+                                    {capturing
+                                        ? (locale === 'es' ? 'Generando imagen…' : 'Generating image…')
+                                        : (locale === 'es' ? 'Compartir por WhatsApp' : 'Share via WhatsApp')}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <AddIngredientModal
                 isOpen={isCreateModalOpen}
