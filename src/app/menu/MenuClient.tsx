@@ -145,6 +145,14 @@ export default function MenuClient({
         if (stored === 'light' || stored === 'dark') setTheme(stored);
     }, []);
 
+    // Featured photos render whole (never cropped), so their natural shape
+    // decides the layout: portrait pairs the photo beside the body at >=720px.
+    // Keyed by item id, set from the media's own load event; before the
+    // dimensions arrive we assume landscape (the common case for food photos).
+    const [portraitById, setPortraitById] = useState<Record<string, boolean>>({});
+    const notePortrait = (id: string, isPortrait: boolean) =>
+        setPortraitById(prev => (prev[id] === isPortrait ? prev : { ...prev, [id]: isPortrait }));
+
     // prefers-reduced-motion: the featured video is replaced by its poster.
     // Tracked in JS (not CSS display) so the <video> is never mounted at all —
     // a hidden autoplaying video would still download and play.
@@ -213,12 +221,14 @@ export default function MenuClient({
         return tag ? (lang === 'es' ? tag.es : tag.en) : null;
     };
 
-    // One card component, two variants (regular / featured). Media zoom + focal
-    // panning uses the same left/top math the old featured tile used — no
-    // transform, per this module's hard rules.
-    const renderCard = (item: MenuItemData, opts?: { featured: boolean; featuredCount: number }) => {
+    // One card component, two variants. Regular grid cards keep the cropped
+    // 220px media with zoom + focal panning (left/top math — no transform, per
+    // this module's hard rules). FEATURED cards ignore photoFit/photoZoom/focal
+    // entirely: the photo renders whole inside a gold-framed stage, and its
+    // natural shape (see portraitById) picks the stacked or side-by-side layout.
+    const renderCard = (item: MenuItemData, opts?: { featured: boolean }) => {
         const featured = opts?.featured ?? false;
-        const solo = featured && (opts?.featuredCount ?? 0) === 1;
+        const portrait = featured && (portraitById[item.id] ?? false);
         const cover = coverOf(item);
         const desc = itemDescription(item);
         const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
@@ -249,42 +259,62 @@ export default function MenuClient({
             }
             : {};
         return (
-            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}${solo ? ' mp-card-feat-solo' : ''}`}>
-                <div
-                    className={`mp-cardmedia${fit === 'contain' ? ' mp-feat-tile-textile' : ''}${clickable ? ' mp-media-tappable' : ''}`}
-                    {...interactiveProps}
-                >
-                    {showVideo ? (
-                        <video
-                            className="mp-cardmedia-fill"
-                            src={item.videoUrl!}
-                            poster={cover || undefined}
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            preload="auto"
-                            style={mediaStyle}
-                        />
-                    ) : cover ? (
-                        <img
-                            className="mp-cardmedia-fill"
-                            src={cover}
-                            alt={itemName(item)}
-                            loading="lazy"
-                            style={mediaStyle}
-                        />
-                    ) : (
-                        <div className="mp-media-placeholder" aria-hidden="true">
-                            <span>{itemName(item).charAt(0).toUpperCase()}</span>
-                        </div>
-                    )}
-                    {item.videoUrl && !showVideo && (
-                        <span className="mp-play-badge" aria-hidden="true">
-                            <PlayGlyph size={12} />
-                        </span>
-                    )}
-                </div>
+            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}${portrait ? ' mp-card-feat-portrait' : ''}`}>
+                {featured ? (
+                    /* The stage is the cream area; the gold frame wraps the photo
+                       itself. Featured derivation guarantees a cover photo. */
+                    <div className="mp-feat-stage" {...interactiveProps}>
+                        {showVideo ? (
+                            <video
+                                className="mp-feat-photo"
+                                src={item.videoUrl!}
+                                poster={cover || undefined}
+                                autoPlay
+                                muted
+                                loop
+                                playsInline
+                                preload="auto"
+                                onLoadedMetadata={(e) =>
+                                    notePortrait(item.id, e.currentTarget.videoHeight > e.currentTarget.videoWidth)
+                                }
+                            />
+                        ) : (
+                            <img
+                                className="mp-feat-photo"
+                                src={cover!}
+                                alt={itemName(item)}
+                                loading="lazy"
+                                onLoad={(e) =>
+                                    notePortrait(item.id, e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)
+                                }
+                            />
+                        )}
+                    </div>
+                ) : (
+                    <div
+                        className={`mp-cardmedia${clickable ? ' mp-media-tappable' : ''}`}
+                        {...interactiveProps}
+                    >
+                        {cover ? (
+                            <img
+                                className="mp-cardmedia-fill"
+                                src={cover}
+                                alt={itemName(item)}
+                                loading="lazy"
+                                style={mediaStyle}
+                            />
+                        ) : (
+                            <div className="mp-media-placeholder" aria-hidden="true">
+                                <span>{itemName(item).charAt(0).toUpperCase()}</span>
+                            </div>
+                        )}
+                        {item.videoUrl && (
+                            <span className="mp-play-badge" aria-hidden="true">
+                                <PlayGlyph size={12} />
+                            </span>
+                        )}
+                    </div>
+                )}
                 <div className="mp-card-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
                         <h3 className="mp-item-name">{itemName(item)}</h3>
@@ -524,9 +554,7 @@ export default function MenuClient({
                                 <p className="mp-comingsoon">{t.comingSoon}</p>
                             ) : (
                                 <div className="mp-grid">
-                                    {featured.map(item =>
-                                        renderCard(item, { featured: true, featuredCount: featured.length })
-                                    )}
+                                    {featured.map(item => renderCard(item, { featured: true }))}
                                     {regularItems.map(item => renderCard(item))}
                                 </div>
                             )}

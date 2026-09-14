@@ -28,6 +28,8 @@
   --m-gloss-bg: #efe6d4;
   --m-footer-bg: #1a1612;
   --m-card-shadow: 0 6px 18px rgba(28, 20, 16, 0.05);
+  /* Gold frame + glow around the FEATURED photo itself (ring first, then bloom) */
+  --m-frame: 0 0 0 2px #d4b06a, 0 0 20px rgba(212, 176, 106, 0.65), 0 0 48px rgba(212, 176, 106, 0.38), 0 0 90px rgba(212, 176, 106, 0.18);
 
   margin: 0;
   box-sizing: border-box;
@@ -58,6 +60,7 @@
   --m-gloss-bg: #262019;
   --m-footer-bg: #0f0c0a;
   --m-card-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --m-frame: 0 0 0 2px #d4b06a, 0 0 20px rgba(212, 176, 106, 0.5), 0 0 48px rgba(212, 176, 106, 0.28), 0 0 90px rgba(212, 176, 106, 0.14);
 }
 
 .menu-public *,
@@ -196,13 +199,6 @@
   border-color: var(--m-teal);
 }
 
-/* Backdrop shown behind "contain"-fit photos (whole photo visible) */
-.mp-feat-tile-textile {
-  background-image: url('https://abijsgttguoyyamoqcxg.supabase.co/storage/v1/object/public/restaurant-assets/textil-andino.webp');
-  background-repeat: repeat;
-  background-size: 120px auto;
-}
-
 /* ---------- Sections ---------- */
 
 .mp-main {
@@ -270,14 +266,66 @@
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-/* Featured variant: gold border + warm shadow. Solo spans the full row. */
+/* Featured variant: a regular-looking card spanning the full row — the gold
+   frame and glow live on the PHOTO (--m-frame), not on the card. */
 .mp-card-feat {
-  border-color: var(--m-gold-light);
-  box-shadow: 0 8px 24px rgba(212, 176, 106, 0.22);
+  grid-column: 1 / -1;
 }
 
-.mp-card-feat-solo {
-  grid-column: 1 / -1;
+/* The cream area holding the framed photo. Taps open the lightbox. */
+.mp-feat-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 48px 32px;
+  background-color: var(--m-bg);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+/* Whole photo, natural shape — never cropped, no fit/zoom/focal. */
+.mp-feat-photo {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  width: auto;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: var(--m-frame);
+}
+
+@media (min-width: 720px) {
+  .mp-feat-photo {
+    max-height: 460px;
+  }
+}
+
+/* Portrait photo: framed photo left, body right, vertically centered.
+   Below 720px the base flex/stacked layout applies unchanged. */
+@media (min-width: 720px) {
+  .mp-card-feat-portrait {
+    display: grid;
+    grid-template-columns: minmax(0, 46%) 1fr;
+  }
+
+  .mp-card-feat-portrait .mp-feat-stage {
+    padding: 40px 24px 40px 48px;
+  }
+
+  .mp-card-feat-portrait .mp-card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 24px 32px 24px 8px;
+  }
+
+  .mp-card-feat-portrait .mp-feat-photo {
+    max-height: 520px;
+  }
+
+  .mp-card-feat-portrait .mp-item-name {
+    font-size: 22px;
+  }
 }
 
 .mp-cardmedia {
@@ -287,21 +335,6 @@
   overflow: hidden;
   background-color: var(--m-img-bg);
   transition: background-color 0.2s ease;
-}
-
-/* Two featured: 260px each. One featured: 240px, 340px from 720px up. */
-.mp-card-feat .mp-cardmedia {
-  height: 260px;
-}
-
-.mp-card-feat-solo .mp-cardmedia {
-  height: 240px;
-}
-
-@media (min-width: 720px) {
-  .mp-card-feat-solo .mp-cardmedia {
-    height: 340px;
-  }
 }
 
 /* Inline style carries object-fit/position and the zoom pan (width/height/left/top) */
