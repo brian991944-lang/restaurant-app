@@ -5,34 +5,35 @@
    perspective, will-change, or contain. Feedback via background-color /
    border-color / color / opacity transitions only, <= 200ms. */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Space+Grotesk:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
 
+/* Instrument Serif is used ONLY for dish names, section titles and the
+   featured card name. Everything else is the system stack. */
 .menu-public {
   /* Light palette */
-  --m-bg: #f6f1e6;
-  --m-ink: #221a12;
-  --m-muted: #6f6251;
-  --m-faint: #a3947d;
-  --m-hairline: #ddd2bd;
-  --m-teal: #4f8ba3;
-  --m-gold: #b78a44;
-  --m-burgundy: #6e2b33;
-  --m-tag-text: #f6f1e6;
-  --m-img-bg: #c9b8a0;
-
-  /* Featured "most ordered" glow (brighter than --m-gold on purpose) */
-  --m-glow-ring: 0 0 0 2px rgba(224, 183, 92, 1);
-  --m-glow-near: 0 0 26px rgba(224, 183, 92, 0.65);
-  --m-glow-far: 0 0 60px rgba(224, 183, 92, 0.38), 0 0 100px rgba(224, 183, 92, 0.2);
-
-  --m-nav-h: 56px;
+  --m-bg: #f3eee6;
+  --m-card: #fffcf7;
+  --m-ink: #1a1612;
+  --m-desc: #3a322b;
+  --m-muted: #6a6158;
+  --m-hairline: #ddd2c2;
+  --m-teal: #1e8a8f;
+  --m-teal-dark: #14686c;
+  --m-header: #1a6f73;
+  --m-header-ink: #f8eedc;
+  --m-gold: #8b5e2b;
+  --m-gold-light: #d4b06a;
+  --m-sage: #2f5e55;
+  --m-img-bg: #e8dcc8;
+  --m-gloss-bg: #efe6d4;
+  --m-footer-bg: #1a1612;
+  --m-card-shadow: 0 6px 18px rgba(28, 20, 16, 0.05);
 
   margin: 0;
   box-sizing: border-box;
   background-color: var(--m-bg);
   color: var(--m-ink);
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 400;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s ease, color 0.2s ease;
@@ -40,20 +41,23 @@
 
 .menu-dark {
   /* Dark palette override */
-  --m-bg: #1f1416;
-  --m-ink: #f0e7d6;
-  --m-muted: #a89482;
-  --m-faint: #8f7d6c;
-  --m-hairline: #3c2b2a;
-  --m-teal: #7fb3c8;
-  --m-gold: #c99a52;
-  --m-burgundy: #7d3340;
-  --m-tag-text: #f0e7d6;
+  --m-bg: #1a1612;
+  --m-card: #262019;
+  --m-ink: #f3eee6;
+  --m-desc: #d9cfc2;
+  --m-muted: #a89a8c;
+  --m-hairline: #3a322b;
+  --m-teal: #3aa7ac;
+  --m-teal-dark: #14686c;
+  --m-header: #1a6f73;
+  --m-header-ink: #f8eedc;
+  --m-gold: #d4b06a;
+  --m-gold-light: #d4b06a;
+  --m-sage: #8fb3a8;
   --m-img-bg: #3a2a22;
-
-  --m-glow-ring: 0 0 0 1.5px rgba(224, 183, 92, 0.85);
-  --m-glow-near: 0 0 22px rgba(224, 183, 92, 0.45);
-  --m-glow-far: 0 0 52px rgba(224, 183, 92, 0.24), 0 0 88px rgba(224, 183, 92, 0.12);
+  --m-gloss-bg: #262019;
+  --m-footer-bg: #0f0c0a;
+  --m-card-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 
 .menu-public *,
@@ -65,300 +69,145 @@
 }
 
 .mp-page {
-  max-width: 1240px;
+  max-width: 980px;
   margin: 0 auto;
-  padding: 0 1.5rem 5rem;
 }
 
-/* ---------- Header ---------- */
+/* ---------- Sticky header + category nav (one sticky unit) ---------- */
 
-/* Centered logo with the language/theme cluster pinned top-right */
+.mp-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(20, 104, 108, 0.28);
+}
+
 .mp-header {
-  position: relative;
+  background-color: var(--m-header);
+  color: var(--m-header-ink);
+  padding: 10px 16px 12px;
+}
+
+.mp-header-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 1.75rem 0 1.25rem;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .mp-logo-img {
   display: block;
-  height: 72px;
+  height: 58px;
   width: auto;
-}
-
-.mp-wordmark {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 2.2rem;
-  font-weight: 500;
-  letter-spacing: 0.35em;
-  /* offset optically re-centers the trailing letterspace */
-  padding-left: 0.35em;
-  color: var(--m-teal);
+  max-width: 74%;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .mp-header-controls {
-  position: absolute;
-  right: 0;
-  top: calc(50% - 1.1rem + 0.25rem);
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-}
-
-@media (max-width: 640px) {
-  .mp-header {
-    padding-top: 3.4rem;
-  }
-
-  .mp-logo-img {
-    height: 56px;
-  }
-
-  .mp-wordmark {
-    font-size: 1.45rem;
-  }
-
-  .mp-header-controls {
-    top: 0.75rem;
-  }
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .mp-lang-toggle {
   display: flex;
-  align-items: baseline;
-  gap: 0.9rem;
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
 }
 
 .mp-lang-btn {
   font-family: inherit;
-  font-size: 0.82rem;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  color: var(--m-faint);
-  background: none;
+  font-size: 12px;
+  background: transparent;
   border: none;
-  padding: 0.2rem 0;
-  border-bottom: 1.5px solid transparent;
+  color: var(--m-header-ink);
+  padding: 7px 12px;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.mp-lang-btn:hover {
-  color: var(--m-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .mp-lang-btn.mp-lang-active {
-  color: var(--m-teal);
-  border-bottom-color: var(--m-teal);
+  background-color: var(--m-gold-light);
+  color: var(--m-teal-dark);
+  font-weight: 700;
 }
 
 .mp-theme-btn {
-  font-family: inherit;
-  font-size: 1.05rem;
-  line-height: 1;
-  color: var(--m-muted);
-  background: none;
-  border: 1px solid var(--m-hairline);
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
-  width: 2.2rem;
-  height: 2.2rem;
+  border: none;
+  background-color: rgba(255, 255, 255, 0.12);
+  color: var(--m-header-ink);
+  font-size: 0.95rem;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease;
 }
 
-.mp-theme-btn:hover {
-  color: var(--m-ink);
-  border-color: var(--m-faint);
+.mp-hint {
+  margin-top: 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  background-color: rgba(255, 250, 243, 0.12);
+  border: 1px solid rgba(196, 164, 106, 0.35);
+  border-radius: 10px;
+  padding: 8px 12px;
 }
 
-/* ---------- Favorites band (per category) ---------- */
-
-.mp-feat-band {
-  padding-top: 1.5rem;
-  /* outer bloom reaches ~100px; keep clear of the grid below */
-  margin-bottom: 56px;
-}
-
-.mp-feat-label {
+.mp-catbar {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  margin-bottom: 1.75rem;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 10px 16px 12px;
+  background-color: var(--m-bg);
+  border-bottom: 1px solid var(--m-hairline);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.mp-feat-rule {
-  flex: 1;
-  height: 1px;
-  background-color: var(--m-hairline);
+.mp-catbar::-webkit-scrollbar {
+  display: none;
 }
 
-.mp-feat-label-text {
+.mp-pill {
   font-family: inherit;
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  color: var(--m-faint);
+  font-size: 13px;
   white-space: nowrap;
-}
-
-.mp-feat-pair {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.75rem;
-}
-
-.mp-feat-tile {
-  position: relative;
-  overflow: hidden;
+  border: 1px solid var(--m-hairline);
+  background-color: var(--m-card);
+  color: var(--m-ink);
+  border-radius: 999px;
+  padding: 8px 14px;
   cursor: pointer;
-  background-color: var(--m-img-bg);
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.mp-feat-tile-solo {
-  aspect-ratio: 3 / 2;
+.mp-pill.mp-pill-active {
+  background-color: var(--m-teal);
+  color: #f8eedc;
+  border-color: var(--m-teal);
 }
 
-.mp-feat-tile-pair {
-  aspect-ratio: 5 / 4;
-}
-
-/* Glow lives ONLY on featured tiles — never on any shared card class */
-.mp-feat-glow {
-  box-shadow: var(--m-glow-ring), var(--m-glow-near), var(--m-glow-far);
-}
-
-.mp-feat-img {
-  position: absolute;
-  /* no inset: inline left/top pan the zoom overflow (focal-driven, no transform) */
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Backdrop shown behind "contain"-fit favorites photos (whole photo visible) */
+/* Backdrop shown behind "contain"-fit photos (whole photo visible) */
 .mp-feat-tile-textile {
   background-image: url('https://abijsgttguoyyamoqcxg.supabase.co/storage/v1/object/public/restaurant-assets/textil-andino.webp');
   background-repeat: repeat;
   background-size: 120px auto;
 }
 
-/* Card wrapper: glowing photo tile with name/price/desc in normal flow below */
-.mp-feat-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.mp-feat-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.mp-feat-name {
-  font-family: 'Instrument Serif', serif;
-  font-weight: 400;
-  font-size: clamp(22px, 3.2vw, 34px);
-  line-height: 1.1;
-  color: var(--m-ink);
-}
-
-.mp-feat-tile-pair .mp-feat-name {
-  font-size: clamp(19px, 4.5vw, 24px);
-}
-
-.mp-feat-desc {
-  font-family: 'Instrument Serif', serif;
-  font-style: italic;
-  font-size: 16px;
-  line-height: 1.4;
-  color: var(--m-muted);
-  max-width: 52ch;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.mp-feat-price {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1.1rem;
-  font-weight: 500;
-  color: var(--m-gold);
-  white-space: nowrap;
-  text-align: right;
-}
-
-@media (max-width: 640px) {
-  .mp-feat-pair {
-    gap: 1rem;
-  }
-}
-
-/* ---------- Sticky category nav ---------- */
-
-.mp-catbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: var(--m-bg);
-  border-bottom: 1px solid var(--m-hairline);
-  margin: 0 -1.5rem;
-  padding: 0 1.5rem;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-.mp-catbar-inner {
-  display: flex;
-  align-items: center;
-  gap: 1.75rem;
-  overflow-x: auto;
-  height: var(--m-nav-h);
-  scrollbar-width: none;
-}
-
-.mp-catbar-inner::-webkit-scrollbar {
-  display: none;
-}
-
-.mp-navlink {
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  color: var(--m-muted);
-  background: none;
-  border: none;
-  border-bottom: 1.5px solid transparent;
-  padding: 0.35rem 0;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.mp-navlink:hover {
-  color: var(--m-ink);
-}
-
-.mp-navlink.mp-navlink-active {
-  color: var(--m-teal);
-  border-bottom-color: var(--m-teal);
-}
-
 /* ---------- Sections ---------- */
 
 .mp-main {
-  display: flex;
-  flex-direction: column;
-  gap: 3.5rem;
-  padding-top: 2.25rem;
+  /* bottom padding clears the fixed footer */
+  padding: 8px 16px 120px;
 }
 
 /* Tab switch: opacity-only fade, replayed via key remount (<=180ms) */
@@ -374,94 +223,91 @@
 .mp-comingsoon {
   padding: 3.5rem 0;
   text-align: center;
-  color: var(--m-faint);
+  color: var(--m-muted);
   font-size: 0.95rem;
   letter-spacing: 0.08em;
-}
-
-.mp-section-head {
-  display: flex;
-  align-items: baseline;
-  gap: 1rem;
-  border-bottom: 1px solid var(--m-hairline);
-  padding-bottom: 0.9rem;
-  margin-bottom: 1.75rem;
 }
 
 .mp-section-title {
   font-family: 'Instrument Serif', serif;
   font-weight: 400;
-  font-size: clamp(34px, 6vw, 56px);
-  line-height: 1.05;
-}
-
-.mp-section-count {
-  font-size: 0.72rem;
-  font-weight: 500;
-  letter-spacing: 0.2em;
+  font-size: 16px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--m-faint);
-  white-space: nowrap;
+  color: var(--m-teal);
+  margin: 16px 0 0;
 }
 
-/* ---------- Uniform 3-across grid ---------- */
+.mp-section-lead {
+  font-size: 13px;
+  color: var(--m-muted);
+  margin-top: 4px;
+}
+
+/* ---------- Card grid ---------- */
 
 .mp-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2.25rem 2rem;
-}
-
-@media (max-width: 900px) {
-  .mp-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 560px) {
-  .mp-grid {
-    grid-template-columns: repeat(1, 1fr);
-  }
-}
-
-/* ---------- Featured (asymmetric) layout ---------- */
-
-.mp-feature-grid {
-  display: grid;
   grid-template-columns: 1fr;
-  gap: 2.25rem;
+  gap: 16px;
+  margin-top: 12px;
 }
 
-@media (min-width: 820px) {
-  .mp-feature-grid {
-    grid-template-columns: 1.5fr 1fr;
-    gap: 2.5rem;
+@media (min-width: 720px) {
+  .mp-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
-/* ---------- Cards (flat, editorial) ---------- */
+/* ---------- Cards ---------- */
 
 .mp-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
+  background-color: var(--m-card);
+  border: 1px solid var(--m-hairline);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--m-card-shadow);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.mp-media {
+/* Featured variant: gold border + warm shadow. Solo spans the full row. */
+.mp-card-feat {
+  border-color: var(--m-gold-light);
+  box-shadow: 0 8px 24px rgba(212, 176, 106, 0.22);
+}
+
+.mp-card-feat-solo {
+  grid-column: 1 / -1;
+}
+
+.mp-cardmedia {
   position: relative;
-  /* fixed portrait ratio so photo and placeholder tiles occupy identical space */
-  aspect-ratio: 4 / 5;
-  background-color: var(--m-img-bg);
+  width: 100%;
+  height: 220px;
   overflow: hidden;
+  background-color: var(--m-img-bg);
   transition: background-color 0.2s ease;
 }
 
-.mp-media-fill {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* Two featured: 260px each. One featured: 240px, 340px from 720px up. */
+.mp-card-feat .mp-cardmedia {
+  height: 260px;
+}
+
+.mp-card-feat-solo .mp-cardmedia {
+  height: 240px;
+}
+
+@media (min-width: 720px) {
+  .mp-card-feat-solo .mp-cardmedia {
+    height: 340px;
+  }
+}
+
+/* Inline style carries object-fit/position and the zoom pan (width/height/left/top) */
+.mp-cardmedia-fill {
+  position: absolute;
   display: block;
-  border-radius: 0;
 }
 
 .mp-media-placeholder {
@@ -474,7 +320,6 @@
 }
 
 .mp-media-placeholder span {
-  font-family: 'Instrument Serif', serif;
   font-style: italic;
   font-size: 4rem;
   line-height: 1;
@@ -482,108 +327,83 @@
   opacity: 0.85;
 }
 
-.mp-badge {
-  position: absolute;
-  top: 0;
-  left: 0;
-  font-size: 0.66rem;
-  font-weight: 500;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--m-tag-text);
-  background-color: var(--m-burgundy);
-  padding: 0.35rem 0.75rem;
-  border-radius: 0;
+.mp-card-body {
+  padding: 14px 16px 16px;
 }
 
 .mp-card-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 10px;
 }
 
 .mp-item-name {
   font-family: 'Instrument Serif', serif;
   font-weight: 400;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.2;
 }
 
-.mp-card-hero .mp-item-name {
-  font-size: 24px;
+.mp-card-feat .mp-item-name {
+  font-size: 20px;
 }
 
 .mp-price {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 1rem;
-  font-weight: 500;
+  font-weight: 700;
+  font-size: 17px;
   color: var(--m-gold);
   white-space: nowrap;
-  text-align: right;
 }
 
 .mp-item-desc {
-  font-size: 0.88rem;
-  font-weight: 300;
-  line-height: 1.5;
-  color: var(--m-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--m-desc);
+  margin: 8px 0 10px;
 }
 
-/* ---------- Compact rows (beside the featured item) ---------- */
+/* ---------- Tag chips (identical colors in both themes) ---------- */
 
-.mp-rows {
+.mp-tags {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.mp-row {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--m-hairline);
+.mp-tag {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background-color: #efe4d2;
+  color: #5a4630;
 }
 
-.mp-row:first-child {
-  padding-top: 0;
+.mp-tag-fav {
+  background-color: var(--m-gold-light);
+  color: var(--m-teal-dark);
 }
 
-.mp-row:last-child {
-  border-bottom: none;
-}
+.mp-tag-sig { background-color: #efe3b8; color: #6a4e10; }
+.mp-tag-fish { background-color: #e4eef3; color: #24506a; }
+.mp-tag-shell { background-color: #efe6f4; color: #5a2d6e; }
+.mp-tag-nut { background-color: #f6e6d4; color: #7a3d12; }
+.mp-tag-spice { background-color: #f6ddd8; color: #7a2218; }
+.mp-tag-veg { background-color: #e3efe0; color: #2f5e34; }
 
-.mp-row-media {
-  position: relative;
-  width: 104px;
-  aspect-ratio: 16 / 11;
-  flex-shrink: 0;
-  background-color: var(--m-img-bg);
-  overflow: hidden;
-  transition: background-color 0.2s ease;
-}
-
-.mp-row-media .mp-media-placeholder span {
-  font-size: 1.9rem;
-}
-
-.mp-row-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.mp-row .mp-item-name {
-  font-size: 18px;
-}
-
-.mp-row .mp-item-desc {
-  -webkit-line-clamp: 1;
+.mp-seemore {
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--m-teal);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* ---------- Empty state ---------- */
@@ -622,11 +442,62 @@
   padding-left: 2px;
 }
 
-.mp-row-media .mp-play-badge {
-  width: 26px;
-  height: 26px;
-  bottom: 5px;
-  right: 5px;
+/* ---------- Glossary ---------- */
+
+.mp-glossary {
+  margin: 0 16px 120px;
+  padding: 16px;
+  border-radius: 16px;
+  background-color: var(--m-gloss-bg);
+  border: 1px dashed var(--m-gold-light);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.mp-glossary-title {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--m-sage);
+  margin-bottom: 8px;
+}
+
+.mp-glossary dt {
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.mp-glossary dd {
+  color: var(--m-muted);
+  font-size: 13px;
+}
+
+/* ---------- Fixed footer ---------- */
+
+/* Centered by left/right 0 + margin auto — transform is banned in this module. */
+.mp-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: min(980px, 100%);
+  z-index: 30;
+  background-color: var(--m-footer-bg);
+  color: #f8eedc;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  text-align: center;
+}
+
+.mp-footer-title {
+  display: block;
+  font-size: 14px;
+}
+
+.mp-footer-sub {
+  display: block;
+  font-size: 12px;
+  opacity: 0.75;
 }
 
 /* ---------- Dish lightbox (always dark, both themes) ---------- */

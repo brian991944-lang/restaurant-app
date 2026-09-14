@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-
-// Upload logo to Supabase restaurant-assets bucket and paste public URL here.
-const LOGO_URL = '';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { MENU_TAGS } from '@/lib/menuTags';
+import { MENU_GLOSSARY } from '@/lib/menuGlossary';
 
 const THEME_STORAGE_KEY = 'fusionista-menu-theme';
 
@@ -52,44 +51,52 @@ type Theme = 'light' | 'dark';
 type MediaTab = 'fotos' | 'video';
 
 const UI_TEXT: Record<Lang, {
-    subtitle: string; featured: string; favorites: string; empty: string; comingSoon: string;
-    itemsOne: string; itemsMany: string; photosTab: string; videoTab: string;
+    empty: string; comingSoon: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
+    hint: string; seeMore: string; favorite: string; glossaryTitle: string;
+    footerTitle: string; footerSub: string;
 }> = {
     en: {
-        subtitle: 'Peruvian Kitchen',
-        featured: 'Featured',
-        favorites: 'FAVORITES',
         empty: 'Menu coming soon.',
         comingSoon: 'Coming soon',
-        itemsOne: 'dish',
-        itemsMany: 'dishes',
         photosTab: 'PHOTOS',
         videoTab: 'VIDEO',
         close: 'Close',
         view: 'View',
         prevPhoto: 'Previous photo',
         nextPhoto: 'Next photo',
+        hint: 'Look at the photos, read what each dish is, then call your server. This menu does not send orders.',
+        seeMore: 'See more and why order this',
+        favorite: 'Favorite',
+        glossaryTitle: 'Words that help',
+        footerTitle: 'Ready to order? Call your server',
+        footerSub: 'Your server takes the order',
     },
     es: {
-        subtitle: 'Cocina Peruana',
-        featured: 'Destacado',
-        favorites: 'FAVORITOS',
         empty: 'Menú disponible próximamente.',
         comingSoon: 'Disponible próximamente',
-        itemsOne: 'plato',
-        itemsMany: 'platos',
         photosTab: 'FOTOS',
         videoTab: 'VIDEO',
         close: 'Cerrar',
         view: 'Ver',
         prevPhoto: 'Foto anterior',
         nextPhoto: 'Foto siguiente',
+        hint: 'Mira las fotos, lee qué es cada plato y llama al mesero cuando quieras pedir. Este menú no envía órdenes.',
+        seeMore: 'Ver más y por qué pedirlo',
+        favorite: 'Favorito',
+        glossaryTitle: 'Palabras que ayudan',
+        footerTitle: '¿Listo para pedir? Llama al mesero',
+        footerSub: 'El mesero toma tu orden',
     },
 };
 
 function formatPrice(price: number): string {
     return price % 1 === 0 ? `$${price}` : `$${price.toFixed(2)}`;
+}
+
+// Card prices carry no dollar sign (design); the lightbox keeps formatPrice's "$".
+function formatPriceBare(price: number): string {
+    return formatPrice(price).slice(1);
 }
 
 // Lightbox gallery: cover first, then extra photos, deduped, nulls removed.
@@ -101,7 +108,7 @@ function hasMedia(item: MenuItemData): boolean {
     return galleryOf(item).length > 0 || !!item.videoUrl;
 }
 
-// Card cover: same precedence renderMedia uses (cover photo, else first gallery photo).
+// Card cover precedence: cover photo, else first gallery photo.
 function coverOf(item: MenuItemData): string | null {
     return item.photoUrl || (item.photoUrls || [])[0] || null;
 }
@@ -136,6 +143,18 @@ export default function MenuClient({
     useEffect(() => {
         const stored = localStorage.getItem(THEME_STORAGE_KEY);
         if (stored === 'light' || stored === 'dark') setTheme(stored);
+    }, []);
+
+    // prefers-reduced-motion: the featured video is replaced by its poster.
+    // Tracked in JS (not CSS display) so the <video> is never mounted at all —
+    // a hidden autoplaying video would still download and play.
+    const [reducedMotion, setReducedMotion] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+        setReducedMotion(mq.matches);
+        const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+        mq.addEventListener('change', onChange);
+        return () => mq.removeEventListener('change', onChange);
     }, []);
 
     // Apply theme by toggling .menu-dark on <body> (which carries .menu-public).
@@ -188,9 +207,33 @@ export default function MenuClient({
     const itemTagline = (i: MenuItemData) =>
         lang === 'es' ? (i.taglineEs || i.taglineEn) : (i.taglineEn || i.taglineEs);
 
-    const renderMedia = (item: MenuItemData, compact = false) => {
-        const cover = item.photoUrl || (item.photoUrls || [])[0] || null;
+    // Tag chip label in the active language; unknown keys render nothing.
+    const tagLabel = (key: string): string | null => {
+        const tag = MENU_TAGS.find(tg => tg.key === key);
+        return tag ? (lang === 'es' ? tag.es : tag.en) : null;
+    };
+
+    // One card component, two variants (regular / featured). Media zoom + focal
+    // panning uses the same left/top math the old featured tile used — no
+    // transform, per this module's hard rules.
+    const renderCard = (item: MenuItemData, opts?: { featured: boolean; featuredCount: number }) => {
+        const featured = opts?.featured ?? false;
+        const solo = featured && (opts?.featuredCount ?? 0) === 1;
+        const cover = coverOf(item);
+        const desc = itemDescription(item);
+        const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
+        const zoom = item.photoZoom;
+        const mediaStyle: React.CSSProperties = {
+            objectFit: fit,
+            objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`,
+            width: `${zoom}%`,
+            height: `${zoom}%`,
+            left: `${-(zoom - 100) * (item.photoFocalX / 100)}%`,
+            top: `${-(zoom - 100) * (item.photoFocalY / 100)}%`,
+        };
         const clickable = hasMedia(item);
+        // Video only on the featured variant; grid cards always show the photo.
+        const showVideo = featured && !!item.videoUrl && !reducedMotion;
         const interactiveProps = clickable
             ? {
                 role: 'button' as const,
@@ -206,76 +249,62 @@ export default function MenuClient({
             }
             : {};
         return (
-            <div
-                className={`${compact ? 'mp-row-media' : 'mp-media'}${clickable ? ' mp-media-tappable' : ''}`}
-                {...interactiveProps}
-            >
-                {cover ? (
-                    <img
-                        className="mp-media-fill"
-                        src={cover}
-                        alt={itemName(item)}
-                        loading="lazy"
-                        style={{ objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%` }}
-                    />
-                ) : (
-                    <div className="mp-media-placeholder" aria-hidden="true">
-                        <span>{itemName(item).charAt(0).toUpperCase()}</span>
-                    </div>
-                )}
-                {item.videoUrl && (
-                    <span className="mp-play-badge" aria-hidden="true">
-                        <PlayGlyph size={12} />
-                    </span>
-                )}
-            </div>
-        );
-    };
-
-    const renderCard = (item: MenuItemData, hero = false) => (
-        <article key={item.id} className={`mp-card${hero ? ' mp-card-hero' : ''}`}>
-            {renderMedia(item)}
-            <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
-                <h3 className="mp-item-name">{itemName(item)}</h3>
-                <span className="mp-price">{formatPrice(item.salePrice)}</span>
-            </div>
-            {itemDescription(item) && (
-                <p className="mp-item-desc">{itemDescription(item)}</p>
-            )}
-        </article>
-    );
-
-    // Favorites tile. Photo renders at full color; name/price/desc sit below the
-    // tile like a normal card. Opens the same lightbox as regular cards.
-    const renderFeaturedTile = (item: MenuItemData, variant: 'solo' | 'pair') => {
-        const cover = coverOf(item);
-        const desc = itemDescription(item);
-        // "contain" shows the whole photo on a textile backdrop; zoom applies in both modes.
-        const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
-        const zoom = item.photoZoom;
-        return (
-            <article key={item.id} className={`mp-feat-card mp-feat-card-${variant}`}>
+            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}${solo ? ' mp-card-feat-solo' : ''}`}>
                 <div
-                    className={`mp-feat-tile mp-feat-tile-${variant} mp-feat-glow${fit === 'contain' ? ' mp-feat-tile-textile' : ''}`}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${t.view} ${itemName(item)}`}
-                    onClick={() => openLightbox(item)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            openLightbox(item);
-                        }
-                    }}
+                    className={`mp-cardmedia${fit === 'contain' ? ' mp-feat-tile-textile' : ''}${clickable ? ' mp-media-tappable' : ''}`}
+                    {...interactiveProps}
                 >
-                    {cover && <img className="mp-feat-img" src={cover} alt={itemName(item)} loading="lazy" style={{ objectFit: fit, objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`, width: `${zoom}%`, height: `${zoom}%`, left: `${-(zoom - 100) * (item.photoFocalX / 100)}%`, top: `${-(zoom - 100) * (item.photoFocalY / 100)}%` }} />}
+                    {showVideo ? (
+                        <video
+                            className="mp-cardmedia-fill"
+                            src={item.videoUrl!}
+                            poster={cover || undefined}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            preload="auto"
+                            style={mediaStyle}
+                        />
+                    ) : cover ? (
+                        <img
+                            className="mp-cardmedia-fill"
+                            src={cover}
+                            alt={itemName(item)}
+                            loading="lazy"
+                            style={mediaStyle}
+                        />
+                    ) : (
+                        <div className="mp-media-placeholder" aria-hidden="true">
+                            <span>{itemName(item).charAt(0).toUpperCase()}</span>
+                        </div>
+                    )}
+                    {item.videoUrl && !showVideo && (
+                        <span className="mp-play-badge" aria-hidden="true">
+                            <PlayGlyph size={12} />
+                        </span>
+                    )}
                 </div>
-                <div className="mp-feat-body">
+                <div className="mp-card-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
-                        <h3 className="mp-feat-name">{itemName(item)}</h3>
-                        <span className="mp-feat-price">{formatPrice(item.salePrice)}</span>
+                        <h3 className="mp-item-name">{itemName(item)}</h3>
+                        <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
                     </div>
-                    {variant === 'solo' && desc && <p className="mp-feat-desc">{desc}</p>}
+                    {desc && <p className="mp-item-desc">{desc}</p>}
+                    {(featured || item.tags.length > 0) && (
+                        <div className="mp-tags">
+                            {featured && <span className="mp-tag mp-tag-fav">{t.favorite}</span>}
+                            {item.tags.map(key => {
+                                const label = tagLabel(key);
+                                return label ? (
+                                    <span key={key} className={`mp-tag mp-tag-${key}`}>{label}</span>
+                                ) : null;
+                            })}
+                        </div>
+                    )}
+                    <button className="mp-seemore" onClick={() => openLightbox(item)}>
+                        {t.seeMore}
+                    </button>
                 </div>
             </article>
         );
@@ -284,12 +313,21 @@ export default function MenuClient({
     const currentCategory = categories.find(c => c.id === activeCategory) || null;
     const currentItems = currentCategory ? (itemsByCategory.get(currentCategory.id) || []) : [];
 
-    // Favorites band: this category's ranked items that have a cover photo, lowest
+    // Featured: this category's ranked items that have a cover photo, lowest
     // rank first, capped at 2. A rank without an image is skipped (never blank).
+    // Featured dishes render as the FIRST cards in the grid and are removed
+    // from the regular list so no dish appears twice.
     const featured = currentItems
         .filter(i => i.featuredRank != null && !!coverOf(i))
         .sort((a, b) => (a.featuredRank as number) - (b.featuredRank as number))
         .slice(0, 2);
+    const featuredIds = new Set(featured.map(i => i.id));
+    const regularItems = currentItems.filter(i => !featuredIds.has(i.id));
+
+    // Category subtitle in the active language only — no cross-language fallback.
+    const sectionLead = currentCategory
+        ? (lang === 'es' ? currentCategory.subtitleEs : currentCategory.subtitleEn)?.trim() || null
+        : null;
 
     const renderLightbox = () => {
         if (!selected) return null;
@@ -417,97 +455,102 @@ export default function MenuClient({
             {/* Pre-paint theme sync: corrects the menu-dark class layout.tsx ships
                 before the page paints (light is the default when nothing stored). */}
             <script dangerouslySetInnerHTML={{ __html: THEME_SYNC_SCRIPT }} />
-            <header className="mp-header">
-                {LOGO_URL ? (
-                    <img className="mp-logo-img" src={LOGO_URL} alt="Fusionista" />
-                ) : (
-                    <span className="mp-wordmark">FUSIONISTA</span>
-                )}
-                <div className="mp-header-controls">
-                    <div className="mp-lang-toggle" role="group" aria-label="Language / Idioma">
-                        <button
-                            className={`mp-lang-btn${lang === 'en' ? ' mp-lang-active' : ''}`}
-                            onClick={() => setLang('en')}
-                            aria-pressed={lang === 'en'}
-                        >
-                            EN
-                        </button>
-                        <button
-                            className={`mp-lang-btn${lang === 'es' ? ' mp-lang-active' : ''}`}
-                            onClick={() => setLang('es')}
-                            aria-pressed={lang === 'es'}
-                        >
-                            ES
-                        </button>
+
+            {/* Header + category nav share ONE sticky container so they scroll
+                as a unit — no separate sticky offsets. */}
+            <div className="mp-sticky">
+                <header className="mp-header">
+                    <div className="mp-header-row">
+                        <img
+                            className="mp-logo-img"
+                            src="/menu/logo.png"
+                            alt="Fusionista — Modern Peruvian Cuisine"
+                        />
+                        <div className="mp-header-controls">
+                            <div className="mp-lang-toggle" role="group" aria-label="Language / Idioma">
+                                <button
+                                    className={`mp-lang-btn${lang === 'en' ? ' mp-lang-active' : ''}`}
+                                    onClick={() => setLang('en')}
+                                    aria-pressed={lang === 'en'}
+                                >
+                                    EN
+                                </button>
+                                <button
+                                    className={`mp-lang-btn${lang === 'es' ? ' mp-lang-active' : ''}`}
+                                    onClick={() => setLang('es')}
+                                    aria-pressed={lang === 'es'}
+                                >
+                                    ES
+                                </button>
+                            </div>
+                            <button
+                                className="mp-theme-btn"
+                                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                                aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                            >
+                                {theme === 'dark' ? '☀' : '☾'}
+                            </button>
+                        </div>
                     </div>
-                    <button
-                        className="mp-theme-btn"
-                        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                        aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-                    >
-                        {theme === 'dark' ? '☀' : '☾'}
-                    </button>
-                </div>
-            </header>
+                    <p className="mp-hint">{t.hint}</p>
+                </header>
+
+                {categories.length > 0 && (
+                    <nav className="mp-catbar" aria-label="Categories">
+                        {categories.map(cat => (
+                            <button
+                                key={cat.id}
+                                aria-pressed={activeCategory === cat.id}
+                                className={`mp-pill${activeCategory === cat.id ? ' mp-pill-active' : ''}`}
+                                onClick={() => selectCategory(cat.id)}
+                            >
+                                {categoryName(cat)}
+                            </button>
+                        ))}
+                    </nav>
+                )}
+            </div>
 
             {categories.length === 0 ? (
                 <p className="mp-empty">{t.empty}</p>
             ) : (
-                <>
-                    <nav className="mp-catbar" aria-label="Categories">
-                        <div className="mp-catbar-inner" role="tablist">
-                            {categories.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    role="tab"
-                                    aria-selected={activeCategory === cat.id}
-                                    className={`mp-navlink${activeCategory === cat.id ? ' mp-navlink-active' : ''}`}
-                                    onClick={() => selectCategory(cat.id)}
-                                >
-                                    {categoryName(cat)}
-                                </button>
-                            ))}
-                        </div>
-                    </nav>
-
-                    {currentCategory && (
-                        <main className="mp-main">
-                            {/* key remounts the section per tab so the opacity fade replays */}
-                            <section key={currentCategory.id} className="mp-section mp-section-fade">
-                                <div className="mp-section-head">
-                                    <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
-                                    {currentItems.length > 0 && (
-                                        <span className="mp-section-count">
-                                            {currentItems.length} {currentItems.length === 1 ? t.itemsOne : t.itemsMany}
-                                        </span>
+                currentCategory && (
+                    <main className="mp-main">
+                        {/* key remounts the section per tab so the opacity fade replays */}
+                        <section key={currentCategory.id} className="mp-section-fade">
+                            <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
+                            {sectionLead && <p className="mp-section-lead">{sectionLead}</p>}
+                            {currentItems.length === 0 ? (
+                                <p className="mp-comingsoon">{t.comingSoon}</p>
+                            ) : (
+                                <div className="mp-grid">
+                                    {featured.map(item =>
+                                        renderCard(item, { featured: true, featuredCount: featured.length })
                                     )}
+                                    {regularItems.map(item => renderCard(item))}
                                 </div>
-                                {featured.length > 0 && (
-                                    <section className="mp-feat-band" aria-label={t.favorites}>
-                                        <div className="mp-feat-label">
-                                            <span className="mp-feat-rule" aria-hidden="true" />
-                                            <span className="mp-feat-label-text">{t.favorites}</span>
-                                            <span className="mp-feat-rule" aria-hidden="true" />
-                                        </div>
-                                        <div className={featured.length === 1 ? 'mp-feat-single' : 'mp-feat-pair'}>
-                                            {featured.map(item =>
-                                                renderFeaturedTile(item, featured.length === 1 ? 'solo' : 'pair')
-                                            )}
-                                        </div>
-                                    </section>
-                                )}
-                                {currentItems.length === 0 ? (
-                                    <p className="mp-comingsoon">{t.comingSoon}</p>
-                                ) : (
-                                    <div className="mp-grid">
-                                        {currentItems.map(item => renderCard(item))}
-                                    </div>
-                                )}
-                            </section>
-                        </main>
-                    )}
-                </>
+                            )}
+                        </section>
+                    </main>
+                )
             )}
+
+            <aside className="mp-glossary">
+                <h2 className="mp-glossary-title">{t.glossaryTitle}</h2>
+                <dl>
+                    {MENU_GLOSSARY.map(g => (
+                        <Fragment key={g.term}>
+                            <dt>{g.term}</dt>
+                            <dd>{lang === 'es' ? g.es : g.en}</dd>
+                        </Fragment>
+                    ))}
+                </dl>
+            </aside>
+
+            <footer className="mp-footer">
+                <strong className="mp-footer-title">{t.footerTitle}</strong>
+                <span className="mp-footer-sub">{t.footerSub}</span>
+            </footer>
 
             {renderLightbox()}
         </div>
