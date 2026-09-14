@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { X, Languages } from 'lucide-react';
 import ImageUpload from '@/components/ui/ImageUpload';
 import { createMenuItem, updateMenuItem, setFeaturedRank } from '@/app/actions/menuAdmin';
+import { MENU_TAGS } from '@/lib/menuTags';
 
 interface ItemEditorModalProps {
     isOpen: boolean;
@@ -21,6 +22,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [descriptionEs, setDescriptionEs] = useState('');
     const [taglineEn, setTaglineEn] = useState('');
     const [taglineEs, setTaglineEs] = useState('');
+    const [tags, setTags] = useState<string[]>([]);
     const [salePrice, setSalePrice] = useState('0');
     const [menuCategoryId, setMenuCategoryId] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
@@ -50,6 +52,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setDescriptionEs(initialData.descriptionEs || '');
                 setTaglineEn(initialData.taglineEn || '');
                 setTaglineEs(initialData.taglineEs || '');
+                setTags(initialData.tags || []);
                 setSalePrice((initialData.salePrice ?? 0).toString());
                 setMenuCategoryId(initialData.menuCategoryId || '');
                 setIsAvailable(initialData.isAvailable ?? true);
@@ -69,6 +72,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setDescriptionEs('');
                 setTaglineEn('');
                 setTaglineEs('');
+                setTags([]);
                 setSalePrice('0');
                 setMenuCategoryId(defaultCategoryId || '');
                 setIsAvailable(true);
@@ -98,6 +102,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             descriptionEs,
             taglineEn,
             taglineEs,
+            tags,
             salePrice: parseFloat(salePrice) || 0,
             menuCategoryId: menuCategoryId || null,
             photoUrl: photoUrl || null,
@@ -189,6 +194,34 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                         <div style={fieldStyle}>
                             <label style={labelStyle}>Descripción (ES)</label>
                             <textarea value={descriptionEs} onChange={e => setDescriptionEs(e.target.value)} className="input-field" rows={3} style={{ resize: 'vertical' }} />
+                        </div>
+                    </div>
+
+                    <div style={fieldStyle}>
+                        <label style={labelStyle}>Etiquetas</label>
+                        <div role="group" aria-label="Etiquetas" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {MENU_TAGS.map(tag => {
+                                const active = tags.includes(tag.key);
+                                return (
+                                    <button
+                                        key={tag.key}
+                                        type="button"
+                                        onClick={() => setTags(prev => active ? prev.filter(k => k !== tag.key) : [...prev, tag.key])}
+                                        aria-pressed={active}
+                                        style={{
+                                            minHeight: '40px', padding: '0.4rem 0.9rem',
+                                            borderRadius: '999px',
+                                            border: active ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
+                                            background: active ? 'var(--accent-primary)' : 'transparent',
+                                            color: active ? 'white' : 'var(--text-primary)',
+                                            fontWeight: active ? 600 : 400,
+                                            fontSize: '0.85rem', cursor: 'pointer'
+                                        }}
+                                    >
+                                        {tag.es}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 

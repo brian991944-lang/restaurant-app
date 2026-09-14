@@ -200,6 +200,10 @@ model MenuCategory {
   id        String   @id @default(cuid())
   nameEn    String
   nameEs    String
+  // Short helper line under the section title on the public menu
+  // ("Texto corto que ayuda al cliente a elegir"). Null = no subtitle.
+  subtitleEn String?
+  subtitleEs String?
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -229,6 +233,9 @@ model MenuItem {
   videoUrl        String?
   taglineEn       String? // short catchy "how we make it" line, shown in the lightbox (max 60 chars, enforced in menuAdmin actions)
   taglineEs       String?
+  // Tag chips on the public menu card. Values are MenuTagKey strings from
+  // src/lib/menuTags.ts — that file is the vocabulary; this column only stores keys.
+  tags            String[] @default([])
   isAvailable     Boolean @default(true)
   isFeatured      Boolean @default(false)
   featuredRank    Int?    // "most ordered" band on the public menu: lower rank shows first (null = not featured)

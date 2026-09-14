@@ -16,6 +16,8 @@ type MenuCategoryData = {
     id: string;
     nameEn: string;
     nameEs: string;
+    subtitleEn: string | null;
+    subtitleEs: string | null;
     sortOrder: number;
 };
 
@@ -27,6 +29,7 @@ type MenuItemData = {
     descriptionEs: string | null;
     taglineEn: string | null;
     taglineEs: string | null;
+    tags: string[];
     salePrice: number;
     photoUrl: string | null;
     photoUrls: string[];

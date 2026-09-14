@@ -10,7 +10,7 @@ export default async function PublicMenuPage() {
         prisma.menuCategory.findMany({
             where: { isActive: true },
             orderBy: { sortOrder: 'asc' },
-            select: { id: true, nameEn: true, nameEs: true, sortOrder: true },
+            select: { id: true, nameEn: true, nameEs: true, subtitleEn: true, subtitleEs: true, sortOrder: true },
         }),
         prisma.menuItem.findMany({
             where: { isAvailable: true, menuCategoryId: { not: null } },
@@ -23,6 +23,7 @@ export default async function PublicMenuPage() {
                 descriptionEs: true,
                 taglineEn: true,
                 taglineEs: true,
+                tags: true,
                 salePrice: true,
                 photoUrl: true,
                 photoUrls: true,

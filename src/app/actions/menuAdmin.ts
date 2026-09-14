@@ -24,16 +24,20 @@ export async function getMenuCategoriesAdmin() {
     }
 }
 
-export async function createMenuCategory(nameEn: string, nameEs: string) {
+export async function createMenuCategory(
+    data: { nameEn: string; nameEs: string; subtitleEn?: string | null; subtitleEs?: string | null }
+) {
     try {
-        if (!nameEn?.trim() || !nameEs?.trim()) {
+        if (!data.nameEn?.trim() || !data.nameEs?.trim()) {
             return { success: false, error: 'El nombre en inglés y español son obligatorios.' };
         }
         const last = await prisma.menuCategory.findFirst({ orderBy: { sortOrder: 'desc' } });
         const category = await prisma.menuCategory.create({
             data: {
-                nameEn: nameEn.trim(),
-                nameEs: nameEs.trim(),
+                nameEn: data.nameEn.trim(),
+                nameEs: data.nameEs.trim(),
+                subtitleEn: data.subtitleEn?.trim() || null,
+                subtitleEs: data.subtitleEs?.trim() || null,
                 sortOrder: (last?.sortOrder ?? -1) + 1
             }
         });
@@ -47,7 +51,7 @@ export async function createMenuCategory(nameEn: string, nameEs: string) {
 
 export async function updateMenuCategory(
     id: string,
-    data: { nameEn?: string; nameEs?: string; isActive?: boolean }
+    data: { nameEn?: string; nameEs?: string; subtitleEn?: string | null; subtitleEs?: string | null; isActive?: boolean }
 ) {
     try {
         const category = await prisma.menuCategory.update({
@@ -55,6 +59,8 @@ export async function updateMenuCategory(
             data: {
                 ...(data.nameEn !== undefined ? { nameEn: data.nameEn.trim() } : {}),
                 ...(data.nameEs !== undefined ? { nameEs: data.nameEs.trim() } : {}),
+                ...(data.subtitleEn !== undefined ? { subtitleEn: data.subtitleEn?.trim() || null } : {}),
+                ...(data.subtitleEs !== undefined ? { subtitleEs: data.subtitleEs?.trim() || null } : {}),
                 ...(data.isActive !== undefined ? { isActive: data.isActive } : {})
             }
         });
@@ -133,6 +139,7 @@ interface MenuItemInput {
     descriptionEs?: string | null;
     taglineEn?: string | null;  // short "how we make it" line for the lightbox, max 60 chars
     taglineEs?: string | null;
+    tags?: string[];             // MenuTagKey values from src/lib/menuTags.ts
     salePrice?: number;
     menuCategoryId?: string | null;
     photoUrl?: string | null;    // card cover
@@ -178,6 +185,7 @@ export async function createMenuItem(data: MenuItemInput) {
                 descriptionEs: data.descriptionEs?.trim() || null,
                 taglineEn: data.taglineEn?.trim() || null,
                 taglineEs: data.taglineEs?.trim() || null,
+                tags: data.tags ?? [],
                 salePrice: data.salePrice ?? 0,
                 menuCategoryId: data.menuCategoryId || null,
                 photoUrl: data.photoUrl || null,
@@ -222,6 +230,7 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.descriptionEs !== undefined ? { descriptionEs: data.descriptionEs?.trim() || null } : {}),
                 ...(data.taglineEn !== undefined ? { taglineEn: data.taglineEn?.trim() || null } : {}),
                 ...(data.taglineEs !== undefined ? { taglineEs: data.taglineEs?.trim() || null } : {}),
+                ...(data.tags !== undefined ? { tags: data.tags } : {}),
                 ...(data.salePrice !== undefined ? { salePrice: data.salePrice } : {}),
                 ...(data.menuCategoryId !== undefined ? { menuCategoryId: data.menuCategoryId || null } : {}),
                 ...(data.photoUrl !== undefined ? { photoUrl: data.photoUrl || null } : {}),

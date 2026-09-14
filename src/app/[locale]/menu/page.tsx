@@ -29,6 +29,8 @@ export default function MenuAdminPage() {
     const [categoryModal, setCategoryModal] = useState<{ open: boolean; editing: any | null }>({ open: false, editing: null });
     const [catNameEn, setCatNameEn] = useState('');
     const [catNameEs, setCatNameEs] = useState('');
+    const [catSubtitleEn, setCatSubtitleEn] = useState('');
+    const [catSubtitleEs, setCatSubtitleEs] = useState('');
     const [catError, setCatError] = useState<string | null>(null);
 
     // Platos tab state
@@ -51,6 +53,8 @@ export default function MenuAdminPage() {
     const openCategoryModal = (cat: any | null) => {
         setCatNameEn(cat?.nameEn || '');
         setCatNameEs(cat?.nameEs || '');
+        setCatSubtitleEn(cat?.subtitleEn || '');
+        setCatSubtitleEs(cat?.subtitleEs || '');
         setCatError(null);
         setCategoryModal({ open: true, editing: cat });
     };
@@ -58,9 +62,10 @@ export default function MenuAdminPage() {
     const handleSaveCategory = async (e: React.FormEvent) => {
         e.preventDefault();
         setCatError(null);
+        const payload = { nameEn: catNameEn, nameEs: catNameEs, subtitleEn: catSubtitleEn, subtitleEs: catSubtitleEs };
         const result = categoryModal.editing
-            ? await updateMenuCategory(categoryModal.editing.id, { nameEn: catNameEn, nameEs: catNameEs })
-            : await createMenuCategory(catNameEn, catNameEs);
+            ? await updateMenuCategory(categoryModal.editing.id, payload)
+            : await createMenuCategory(payload);
         if (result.success) {
             setCategoryModal({ open: false, editing: null });
             loadAll();
@@ -343,6 +348,14 @@ export default function MenuAdminPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Nombre (ES) *</label>
                                 <input value={catNameEs} onChange={e => setCatNameEs(e.target.value)} type="text" className="input-field" placeholder="p.ej. Ceviches" required />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Subtítulo (ES)</label>
+                                <input value={catSubtitleEs} onChange={e => setCatSubtitleEs(e.target.value)} type="text" className="input-field" placeholder="Texto corto que ayuda al cliente a elegir." />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Subtítulo (EN)</label>
+                                <input value={catSubtitleEn} onChange={e => setCatSubtitleEn(e.target.value)} type="text" className="input-field" placeholder="Short line that helps guests choose." />
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', paddingTop: '0.5rem' }}>
                                 <button type="button" onClick={() => setCategoryModal({ open: false, editing: null })} style={{ padding: '0.65rem 1.25rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', minHeight: '44px' }}>

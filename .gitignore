@@ -55,6 +55,9 @@ scripts/timesheet-import.csv
 scripts/importPunches.ts
 scripts/timesheet-fixture.csv
 
+# Local design drafts — reference only, never shipped
+design-ref/
+
 scripts/importHistoricalTips.ts
 scripts/seedTipDay.ts
 scripts/deleteTipSeed.ts
