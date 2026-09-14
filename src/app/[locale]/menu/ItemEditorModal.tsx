@@ -23,6 +23,12 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [taglineEn, setTaglineEn] = useState('');
     const [taglineEs, setTaglineEs] = useState('');
     const [tags, setTags] = useState<string[]>([]);
+    const [whyEn, setWhyEn] = useState('');
+    const [whyEs, setWhyEs] = useState('');
+    // Components are edited as raw multiline text (one per line) and split into
+    // arrays only on save, so typing never fights a re-parse.
+    const [componentsEnText, setComponentsEnText] = useState('');
+    const [componentsEsText, setComponentsEsText] = useState('');
     const [salePrice, setSalePrice] = useState('0');
     const [menuCategoryId, setMenuCategoryId] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
@@ -53,6 +59,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setTaglineEn(initialData.taglineEn || '');
                 setTaglineEs(initialData.taglineEs || '');
                 setTags(initialData.tags || []);
+                setWhyEn(initialData.whyEn || '');
+                setWhyEs(initialData.whyEs || '');
+                setComponentsEnText((initialData.componentsEn || []).join('\n'));
+                setComponentsEsText((initialData.componentsEs || []).join('\n'));
                 setSalePrice((initialData.salePrice ?? 0).toString());
                 setMenuCategoryId(initialData.menuCategoryId || '');
                 setIsAvailable(initialData.isAvailable ?? true);
@@ -73,6 +83,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setTaglineEn('');
                 setTaglineEs('');
                 setTags([]);
+                setWhyEn('');
+                setWhyEs('');
+                setComponentsEnText('');
+                setComponentsEsText('');
                 setSalePrice('0');
                 setMenuCategoryId(defaultCategoryId || '');
                 setIsAvailable(true);
@@ -91,6 +105,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
 
     if (!isOpen) return null;
 
+    // "One per line" textarea -> array: split, trim, drop empty lines.
+    const linesToList = (text: string) =>
+        text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -103,6 +121,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             taglineEn,
             taglineEs,
             tags,
+            whyEn,
+            whyEs,
+            componentsEn: linesToList(componentsEnText),
+            componentsEs: linesToList(componentsEsText),
             salePrice: parseFloat(salePrice) || 0,
             menuCategoryId: menuCategoryId || null,
             photoUrl: photoUrl || null,
@@ -222,6 +244,28 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     </button>
                                 );
                             })}
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Por qué pedirlo (ES)</label>
+                            <textarea value={whyEs} onChange={e => setWhyEs(e.target.value)} className="input-field" rows={2} style={{ resize: 'vertical' }} />
+                        </div>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Por qué pedirlo (EN)</label>
+                            <textarea value={whyEn} onChange={e => setWhyEn(e.target.value)} className="input-field" rows={2} style={{ resize: 'vertical' }} />
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Componentes (ES)</label>
+                            <textarea value={componentsEsText} onChange={e => setComponentsEsText(e.target.value)} className="input-field" rows={3} style={{ resize: 'vertical' }} placeholder="Uno por línea" />
+                        </div>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Componentes (EN)</label>
+                            <textarea value={componentsEnText} onChange={e => setComponentsEnText(e.target.value)} className="input-field" rows={3} style={{ resize: 'vertical' }} placeholder="Uno por línea" />
                         </div>
                     </div>
 

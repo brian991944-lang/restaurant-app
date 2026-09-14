@@ -236,6 +236,12 @@ model MenuItem {
   // Tag chips on the public menu card. Values are MenuTagKey strings from
   // src/lib/menuTags.ts — that file is the vocabulary; this column only stores keys.
   tags            String[] @default([])
+  // "Why order it" — a persuasive line for the redesigned card/lightbox.
+  whyEn           String?
+  whyEs           String?
+  // What arrives at the table, one entry per component, shown as a list.
+  componentsEn    String[] @default([])
+  componentsEs    String[] @default([])
   isAvailable     Boolean @default(true)
   isFeatured      Boolean @default(false)
   featuredRank    Int?    // "most ordered" band on the public menu: lower rank shows first (null = not featured)

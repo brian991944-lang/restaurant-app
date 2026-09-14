@@ -30,6 +30,10 @@ type MenuItemData = {
     taglineEn: string | null;
     taglineEs: string | null;
     tags: string[];
+    whyEn: string | null;
+    whyEs: string | null;
+    componentsEn: string[];
+    componentsEs: string[];
     salePrice: number;
     photoUrl: string | null;
     photoUrls: string[];

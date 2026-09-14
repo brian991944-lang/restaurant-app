@@ -140,6 +140,10 @@ interface MenuItemInput {
     taglineEn?: string | null;  // short "how we make it" line for the lightbox, max 60 chars
     taglineEs?: string | null;
     tags?: string[];             // MenuTagKey values from src/lib/menuTags.ts
+    whyEn?: string | null;       // "why order it" line for the redesigned card
+    whyEs?: string | null;
+    componentsEn?: string[];     // what arrives at the table, one entry per component
+    componentsEs?: string[];
     salePrice?: number;
     menuCategoryId?: string | null;
     photoUrl?: string | null;    // card cover
@@ -186,6 +190,10 @@ export async function createMenuItem(data: MenuItemInput) {
                 taglineEn: data.taglineEn?.trim() || null,
                 taglineEs: data.taglineEs?.trim() || null,
                 tags: data.tags ?? [],
+                whyEn: data.whyEn?.trim() || null,
+                whyEs: data.whyEs?.trim() || null,
+                componentsEn: data.componentsEn ?? [],
+                componentsEs: data.componentsEs ?? [],
                 salePrice: data.salePrice ?? 0,
                 menuCategoryId: data.menuCategoryId || null,
                 photoUrl: data.photoUrl || null,
@@ -231,6 +239,10 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.taglineEn !== undefined ? { taglineEn: data.taglineEn?.trim() || null } : {}),
                 ...(data.taglineEs !== undefined ? { taglineEs: data.taglineEs?.trim() || null } : {}),
                 ...(data.tags !== undefined ? { tags: data.tags } : {}),
+                ...(data.whyEn !== undefined ? { whyEn: data.whyEn?.trim() || null } : {}),
+                ...(data.whyEs !== undefined ? { whyEs: data.whyEs?.trim() || null } : {}),
+                ...(data.componentsEn !== undefined ? { componentsEn: data.componentsEn } : {}),
+                ...(data.componentsEs !== undefined ? { componentsEs: data.componentsEs } : {}),
                 ...(data.salePrice !== undefined ? { salePrice: data.salePrice } : {}),
                 ...(data.menuCategoryId !== undefined ? { menuCategoryId: data.menuCategoryId || null } : {}),
                 ...(data.photoUrl !== undefined ? { photoUrl: data.photoUrl || null } : {}),
