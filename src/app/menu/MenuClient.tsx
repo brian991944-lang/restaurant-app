@@ -213,11 +213,11 @@ export default function MenuClient({
         return tag ? (lang === 'es' ? tag.es : tag.en) : null;
     };
 
-    // One card component, two variants. Regular grid cards keep the cropped
-    // 220px media with zoom + focal panning (left/top math — no transform, per
-    // this module's hard rules). FEATURED cards ignore photoFit/photoZoom/focal
-    // entirely: the photo renders whole inside a gold-framed stage, stacked
-    // above the body, sized by max-width/max-height at its natural shape.
+    // One card component, two variants sharing ONE media element. Both honor
+    // photoFit / photoZoom / the focal point via mediaStyle (left/top pan math —
+    // no transform, per this module's hard rules). Featured differs only in
+    // size (full-row banner, taller media, gold frame — all CSS) and in
+    // playing its video inline when reduced motion is off.
     const renderCard = (item: MenuItemData, opts?: { featured: boolean }) => {
         const featured = opts?.featured ?? false;
         const cover = coverOf(item);
@@ -251,55 +251,41 @@ export default function MenuClient({
             : {};
         return (
             <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}`}>
-                {featured ? (
-                    /* The stage is the cream area; the gold frame wraps the photo
-                       itself. Featured derivation guarantees a cover photo. */
-                    <div className="mp-feat-stage" {...interactiveProps}>
-                        {showVideo ? (
-                            <video
-                                className="mp-feat-photo"
-                                src={item.videoUrl!}
-                                poster={cover || undefined}
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                preload="auto"
-                            />
-                        ) : (
-                            <img
-                                className="mp-feat-photo"
-                                src={cover!}
-                                alt={itemName(item)}
-                                loading="lazy"
-                            />
-                        )}
-                    </div>
-                ) : (
-                    <div
-                        className={`mp-cardmedia${clickable ? ' mp-media-tappable' : ''}`}
-                        {...interactiveProps}
-                    >
-                        {cover ? (
-                            <img
-                                className="mp-cardmedia-fill"
-                                src={cover}
-                                alt={itemName(item)}
-                                loading="lazy"
-                                style={mediaStyle}
-                            />
-                        ) : (
-                            <div className="mp-media-placeholder" aria-hidden="true">
-                                <span>{itemName(item).charAt(0).toUpperCase()}</span>
-                            </div>
-                        )}
-                        {item.videoUrl && (
-                            <span className="mp-play-badge" aria-hidden="true">
-                                <PlayGlyph size={12} />
-                            </span>
-                        )}
-                    </div>
-                )}
+                <div
+                    className={`mp-cardmedia${fit === 'contain' ? ' mp-feat-tile-textile' : ''}${clickable ? ' mp-media-tappable' : ''}`}
+                    {...interactiveProps}
+                >
+                    {showVideo ? (
+                        <video
+                            className="mp-cardmedia-fill"
+                            src={item.videoUrl!}
+                            poster={cover || undefined}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            preload="auto"
+                            style={mediaStyle}
+                        />
+                    ) : cover ? (
+                        <img
+                            className="mp-cardmedia-fill"
+                            src={cover}
+                            alt={itemName(item)}
+                            loading="lazy"
+                            style={mediaStyle}
+                        />
+                    ) : (
+                        <div className="mp-media-placeholder" aria-hidden="true">
+                            <span>{itemName(item).charAt(0).toUpperCase()}</span>
+                        </div>
+                    )}
+                    {item.videoUrl && !showVideo && (
+                        <span className="mp-play-badge" aria-hidden="true">
+                            <PlayGlyph size={12} />
+                        </span>
+                    )}
+                </div>
                 <div className="mp-card-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
                         <h3 className="mp-item-name">{itemName(item)}</h3>
