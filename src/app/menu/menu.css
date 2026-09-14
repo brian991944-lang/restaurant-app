@@ -272,59 +272,43 @@
   grid-column: 1 / -1;
 }
 
-/* The cream area holding the framed photo. Taps open the lightbox. */
+/* The cream area holding the framed photo. Taps open the lightbox.
+   Sized for the 11" iPad (834x1194 / 1194x834) — both orientations are above
+   the 720px breakpoint, so the >=720px values are the normal case and the
+   base values below are phone-only. */
 .mp-feat-stage {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px 48px 32px;
+  padding: 14px 14px 10px;
   background-color: var(--m-bg);
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
-/* Whole photo, natural shape — never cropped, no fit/zoom/focal. */
+/* Whole photo, natural shape — never cropped, no fit/zoom/focal.
+   width auto + max-width 100% keeps the gold frame tight to the image at any
+   aspect ratio — a portrait photo would otherwise letterbox inside its own
+   element and the frame would sit out in empty space. Landscape photos still
+   reach the card edges because max-width 100% binds first. */
 .mp-feat-photo {
   display: block;
-  max-width: 100%;
-  max-height: 300px;
   width: auto;
+  max-width: 100%;
   height: auto;
+  max-height: min(52vh, 420px);
   border-radius: 4px;
   box-shadow: var(--m-frame);
 }
 
 @media (min-width: 720px) {
+  .mp-feat-stage {
+    padding: 20px 20px 16px;
+  }
+
   .mp-feat-photo {
-    max-height: 460px;
-  }
-}
-
-/* Portrait photo: framed photo left, body right, vertically centered.
-   Below 720px the base flex/stacked layout applies unchanged. */
-@media (min-width: 720px) {
-  .mp-card-feat-portrait {
-    display: grid;
-    grid-template-columns: minmax(0, 46%) 1fr;
-  }
-
-  .mp-card-feat-portrait .mp-feat-stage {
-    padding: 40px 24px 40px 48px;
-  }
-
-  .mp-card-feat-portrait .mp-card-body {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 24px 32px 24px 8px;
-  }
-
-  .mp-card-feat-portrait .mp-feat-photo {
-    max-height: 520px;
-  }
-
-  .mp-card-feat-portrait .mp-item-name {
-    font-size: 22px;
+    max-height: min(56vh, 620px);
   }
 }
 

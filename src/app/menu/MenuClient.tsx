@@ -145,14 +145,6 @@ export default function MenuClient({
         if (stored === 'light' || stored === 'dark') setTheme(stored);
     }, []);
 
-    // Featured photos render whole (never cropped), so their natural shape
-    // decides the layout: portrait pairs the photo beside the body at >=720px.
-    // Keyed by item id, set from the media's own load event; before the
-    // dimensions arrive we assume landscape (the common case for food photos).
-    const [portraitById, setPortraitById] = useState<Record<string, boolean>>({});
-    const notePortrait = (id: string, isPortrait: boolean) =>
-        setPortraitById(prev => (prev[id] === isPortrait ? prev : { ...prev, [id]: isPortrait }));
-
     // prefers-reduced-motion: the featured video is replaced by its poster.
     // Tracked in JS (not CSS display) so the <video> is never mounted at all —
     // a hidden autoplaying video would still download and play.
@@ -224,11 +216,10 @@ export default function MenuClient({
     // One card component, two variants. Regular grid cards keep the cropped
     // 220px media with zoom + focal panning (left/top math — no transform, per
     // this module's hard rules). FEATURED cards ignore photoFit/photoZoom/focal
-    // entirely: the photo renders whole inside a gold-framed stage, and its
-    // natural shape (see portraitById) picks the stacked or side-by-side layout.
+    // entirely: the photo renders whole inside a gold-framed stage, stacked
+    // above the body, sized by max-width/max-height at its natural shape.
     const renderCard = (item: MenuItemData, opts?: { featured: boolean }) => {
         const featured = opts?.featured ?? false;
-        const portrait = featured && (portraitById[item.id] ?? false);
         const cover = coverOf(item);
         const desc = itemDescription(item);
         const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
@@ -259,7 +250,7 @@ export default function MenuClient({
             }
             : {};
         return (
-            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}${portrait ? ' mp-card-feat-portrait' : ''}`}>
+            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}`}>
                 {featured ? (
                     /* The stage is the cream area; the gold frame wraps the photo
                        itself. Featured derivation guarantees a cover photo. */
@@ -274,9 +265,6 @@ export default function MenuClient({
                                 loop
                                 playsInline
                                 preload="auto"
-                                onLoadedMetadata={(e) =>
-                                    notePortrait(item.id, e.currentTarget.videoHeight > e.currentTarget.videoWidth)
-                                }
                             />
                         ) : (
                             <img
@@ -284,9 +272,6 @@ export default function MenuClient({
                                 src={cover!}
                                 alt={itemName(item)}
                                 loading="lazy"
-                                onLoad={(e) =>
-                                    notePortrait(item.id, e.currentTarget.naturalHeight > e.currentTarget.naturalWidth)
-                                }
                             />
                         )}
                     </div>
