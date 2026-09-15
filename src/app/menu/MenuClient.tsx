@@ -252,9 +252,21 @@ export default function MenuClient({
         return (
             <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}`}>
                 <div
-                    className={`mp-cardmedia${fit === 'contain' ? ' mp-feat-tile-textile' : ''}${clickable ? ' mp-media-tappable' : ''}`}
+                    className={`mp-cardmedia${clickable ? ' mp-media-tappable' : ''}`}
                     {...interactiveProps}
                 >
+                    {/* Blurred duplicate of the cover as the backdrop. Behind the
+                        sharp media by DOM order; cover-fit photos hide it entirely,
+                        contain-fit ones show it in the letterbox area. */}
+                    {cover && (
+                        <img
+                            className="mp-cardmedia-blur"
+                            src={cover}
+                            alt=""
+                            aria-hidden="true"
+                            loading="lazy"
+                        />
+                    )}
                     {showVideo ? (
                         <video
                             className="mp-cardmedia-fill"

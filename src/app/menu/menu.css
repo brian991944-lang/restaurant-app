@@ -1,8 +1,14 @@
 /* Public digital menu — editorial restyle (Pass C.1), scoped under .menu-public.
    Theme: CSS custom properties on .menu-public (light) with .menu-dark override
    (toggled on <body> alongside .menu-public).
-   Hard rules for this module: NO backdrop-filter, filter, transform,
-   perspective, will-change, or contain. Feedback via background-color /
+   Hard rules for this module: NO backdrop-filter, transform, perspective,
+   will-change, or contain. `filter` is permitted ONLY on a decorative leaf
+   image with no descendants and no positioned content inside it (e.g. the
+   .mp-cardmedia-blur backdrop); NEVER on a container or any ancestor of
+   fixed/absolutely-positioned content. The ban's purpose is protecting
+   position:fixed resolution (filter on an ancestor makes it the containing
+   block, which is how modals and the fixed footer end up in the wrong
+   place) — a leaf image cannot affect that. Feedback via background-color /
    border-color / color / opacity transitions only, <= 200ms. */
 
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
@@ -289,11 +295,20 @@
   }
 }
 
-/* Backdrop shown behind "contain"-fit photos (whole photo visible) */
-.mp-feat-tile-textile {
-  background-image: url('https://abijsgttguoyyamoqcxg.supabase.co/storage/v1/object/public/restaurant-assets/textil-andino.webp');
-  background-repeat: repeat;
-  background-size: 120px auto;
+/* Blurred duplicate of the dish's own photo, behind the sharp media. Only
+   visible where the sharp media does not fill the box (contain fit). Oversized
+   ~112% with negative offsets so the blur never samples past the edges and
+   leaves a dark halo — offsets, not transform. Leaf image: the filter
+   exception in the header rule applies here and nowhere else. */
+.mp-cardmedia-blur {
+  position: absolute;
+  width: 112%;
+  height: 112%;
+  left: -6%;
+  top: -6%;
+  object-fit: cover;
+  filter: blur(28px) brightness(0.92);
+  pointer-events: none;
 }
 
 .mp-cardmedia {

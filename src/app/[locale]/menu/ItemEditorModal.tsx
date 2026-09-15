@@ -388,6 +388,11 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                 Haz clic en la parte del plato que debe quedar centrada.
                             </span>
+                            {/* Same geometry as the featured card media at desktop /
+                                iPad-landscape width: 918x420 content box. The card's
+                                media height is FIXED at 420px while its width is
+                                fluid, so iPad portrait crops to ~772/420 — shown as
+                                the dashed guide, (772/420)/(918/420) = 84.1% width. */}
                             <div
                                 onClick={(e) => {
                                     const rect = e.currentTarget.getBoundingClientRect();
@@ -398,18 +403,31 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                 }}
                                 style={{
                                     position: 'relative',
-                                    aspectRatio: '3 / 2',
+                                    aspectRatio: '918 / 420',
                                     overflow: 'hidden',
                                     borderRadius: '8px',
                                     border: '1px solid var(--border)',
-                                    cursor: 'crosshair',
-                                    ...(photoFit === 'contain' ? {
-                                        backgroundImage: "url('https://abijsgttguoyyamoqcxg.supabase.co/storage/v1/object/public/restaurant-assets/textil-andino.webp')",
-                                        backgroundRepeat: 'repeat',
-                                        backgroundSize: '120px auto'
-                                    } : {})
+                                    cursor: 'crosshair'
                                 }}
                             >
+                                {/* Blurred backdrop — identical to .mp-cardmedia-blur on the
+                                    public menu. Leaf image, no descendants; the filter cannot
+                                    affect position:fixed resolution. */}
+                                <img
+                                    src={photoUrl}
+                                    alt=""
+                                    aria-hidden="true"
+                                    style={{
+                                        position: 'absolute',
+                                        width: '112%',
+                                        height: '112%',
+                                        left: '-6%',
+                                        top: '-6%',
+                                        objectFit: 'cover',
+                                        filter: 'blur(28px) brightness(0.92)',
+                                        pointerEvents: 'none'
+                                    }}
+                                />
                                 <img
                                     src={photoUrl}
                                     alt="Encuadre de la foto"
@@ -422,6 +440,19 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                         left: `${-(photoZoom - 100) * (photoFocalX / 100)}%`,
                                         top: `${-(photoZoom - 100) * (photoFocalY / 100)}%`,
                                         display: 'block'
+                                    }}
+                                />
+                                {/* iPad-portrait crop window (see comment above) */}
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        height: '100%',
+                                        left: '7.95%',
+                                        width: '84.1%',
+                                        border: '1px dashed rgba(255,255,255,0.7)',
+                                        pointerEvents: 'none'
                                     }}
                                 />
                                 <span
@@ -442,6 +473,9 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                     }}
                                 />
                             </div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Línea punteada: lo que se ve en iPad vertical.
+                            </span>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 <label style={labelStyle}>Ajuste de la foto</label>
                                 <div role="group" aria-label="Ajuste de la foto" style={{ display: 'inline-flex', alignSelf: 'flex-start', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
