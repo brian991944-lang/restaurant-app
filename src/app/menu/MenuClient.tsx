@@ -53,8 +53,7 @@ type MediaTab = 'fotos' | 'video';
 const UI_TEXT: Record<Lang, {
     empty: string; comingSoon: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
-    hint: string; seeMore: string; favorite: string; glossaryTitle: string;
-    footerTitle: string; footerSub: string;
+    hint: string; seeMore: string; glossaryTitle: string;
 }> = {
     en: {
         empty: 'Menu coming soon.',
@@ -65,12 +64,9 @@ const UI_TEXT: Record<Lang, {
         view: 'View',
         prevPhoto: 'Previous photo',
         nextPhoto: 'Next photo',
-        hint: 'Look at the photos, read what each dish is, then call your server. This menu does not send orders.',
-        seeMore: 'See more and why order this',
-        favorite: 'Favorite',
+        hint: "Browse, then tell your server what you'd like  ·  this menu doesn't take orders",
+        seeMore: 'Details & photos',
         glossaryTitle: 'Words that help',
-        footerTitle: 'Ready to order? Call your server',
-        footerSub: 'Your server takes the order',
     },
     es: {
         empty: 'Menú disponible próximamente.',
@@ -81,12 +77,9 @@ const UI_TEXT: Record<Lang, {
         view: 'Ver',
         prevPhoto: 'Foto anterior',
         nextPhoto: 'Foto siguiente',
-        hint: 'Mira las fotos, lee qué es cada plato y llama al mesero cuando quieras pedir. Este menú no envía órdenes.',
-        seeMore: 'Ver más y por qué pedirlo',
-        favorite: 'Favorito',
+        hint: 'Elige con calma y dile al mesero qué deseas  ·  este menú no toma pedidos',
+        seeMore: 'Detalles y fotos',
         glossaryTitle: 'Palabras que ayudan',
-        footerTitle: '¿Listo para pedir? Llama al mesero',
-        footerSub: 'El mesero toma tu orden',
     },
 };
 
@@ -251,62 +244,68 @@ export default function MenuClient({
             : {};
         return (
             <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}`}>
-                <div
-                    className={`mp-cardmedia${clickable ? ' mp-media-tappable' : ''}`}
-                    {...interactiveProps}
-                >
-                    {/* Blurred duplicate of the cover as the backdrop. Behind the
-                        sharp media by DOM order; cover-fit photos hide it entirely,
-                        contain-fit ones show it in the letterbox area. */}
-                    {cover && (
+                {/* No cover AND no video -> text card: no media block at all,
+                    the body carries the emblem watermark instead. clickable is
+                    hasMedia(item), which is exactly cover-or-video. */}
+                {clickable && (
+                    <div className="mp-cardmedia mp-media-tappable" {...interactiveProps}>
+                        {/* Blurred duplicate of the cover as the backdrop. Behind the
+                            sharp media by DOM order; cover-fit photos hide it entirely,
+                            contain-fit ones show it in the letterbox area. */}
+                        {cover && (
+                            <img
+                                className="mp-cardmedia-blur"
+                                src={cover}
+                                alt=""
+                                aria-hidden="true"
+                                loading="lazy"
+                            />
+                        )}
+                        {showVideo ? (
+                            <video
+                                className="mp-cardmedia-fill"
+                                src={item.videoUrl!}
+                                poster={cover || undefined}
+                                autoPlay
+                                muted
+                                loop
+                                playsInline
+                                preload="auto"
+                                style={mediaStyle}
+                            />
+                        ) : cover ? (
+                            <img
+                                className="mp-cardmedia-fill"
+                                src={cover}
+                                alt={itemName(item)}
+                                loading="lazy"
+                                style={mediaStyle}
+                            />
+                        ) : null}
+                        {item.videoUrl && !showVideo && (
+                            <span className="mp-play-badge" aria-hidden="true">
+                                <PlayGlyph size={12} />
+                            </span>
+                        )}
+                    </div>
+                )}
+                <div className={`mp-card-body${clickable ? '' : ' mp-card-body-text'}`}>
+                    {!clickable && (
                         <img
-                            className="mp-cardmedia-blur"
-                            src={cover}
+                            className="mp-card-emblem"
+                            src="/menu/emblem.png"
                             alt=""
                             aria-hidden="true"
                             loading="lazy"
                         />
                     )}
-                    {showVideo ? (
-                        <video
-                            className="mp-cardmedia-fill"
-                            src={item.videoUrl!}
-                            poster={cover || undefined}
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
-                            preload="auto"
-                            style={mediaStyle}
-                        />
-                    ) : cover ? (
-                        <img
-                            className="mp-cardmedia-fill"
-                            src={cover}
-                            alt={itemName(item)}
-                            loading="lazy"
-                            style={mediaStyle}
-                        />
-                    ) : (
-                        <div className="mp-media-placeholder" aria-hidden="true">
-                            <span>{itemName(item).charAt(0).toUpperCase()}</span>
-                        </div>
-                    )}
-                    {item.videoUrl && !showVideo && (
-                        <span className="mp-play-badge" aria-hidden="true">
-                            <PlayGlyph size={12} />
-                        </span>
-                    )}
-                </div>
-                <div className="mp-card-body">
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
                         <h3 className="mp-item-name">{itemName(item)}</h3>
                         <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
                     </div>
                     {desc && <p className="mp-item-desc">{desc}</p>}
-                    {(featured || item.tags.length > 0) && (
+                    {item.tags.length > 0 && (
                         <div className="mp-tags">
-                            {featured && <span className="mp-tag mp-tag-fav">{t.favorite}</span>}
                             {item.tags.map(key => {
                                 const label = tagLabel(key);
                                 return label ? (
@@ -315,9 +314,11 @@ export default function MenuClient({
                             })}
                         </div>
                     )}
-                    <button className="mp-seemore" onClick={() => openLightbox(item)}>
-                        {t.seeMore}
-                    </button>
+                    {clickable && (
+                        <button className="mp-seemore" onClick={() => openLightbox(item)}>
+                            {t.seeMore}
+                        </button>
+                    )}
                 </div>
             </article>
         );
@@ -469,60 +470,59 @@ export default function MenuClient({
                 before the page paints (light is the default when nothing stored). */}
             <script dangerouslySetInnerHTML={{ __html: THEME_SYNC_SCRIPT }} />
 
-            {/* Header + category nav share ONE sticky container so they scroll
-                as a unit — no separate sticky offsets. */}
-            <div className="mp-sticky">
-                <header className="mp-header">
-                    <div className="mp-header-row">
-                        <img
-                            className="mp-logo-img"
-                            src="/menu/logo.png"
-                            alt="Fusionista — Modern Peruvian Cuisine"
-                        />
-                        <div className="mp-header-controls">
-                            <div className="mp-lang-toggle" role="group" aria-label="Language / Idioma">
-                                <button
-                                    className={`mp-lang-btn${lang === 'en' ? ' mp-lang-active' : ''}`}
-                                    onClick={() => setLang('en')}
-                                    aria-pressed={lang === 'en'}
-                                >
-                                    EN
-                                </button>
-                                <button
-                                    className={`mp-lang-btn${lang === 'es' ? ' mp-lang-active' : ''}`}
-                                    onClick={() => setLang('es')}
-                                    aria-pressed={lang === 'es'}
-                                >
-                                    ES
-                                </button>
-                            </div>
+            {/* The header scrolls away; only the category nav below is sticky.
+                No shared wrapper: a sticky nav inside a wrapper that ends at the
+                nav would unstick the moment the wrapper scrolls past. */}
+            <header className="mp-header">
+                <div className="mp-header-row">
+                    <img
+                        className="mp-logo-img"
+                        src="/menu/logo.png"
+                        alt="Fusionista — Modern Peruvian Cuisine"
+                    />
+                    <div className="mp-header-controls">
+                        <div className="mp-lang-toggle" role="group" aria-label="Language / Idioma">
                             <button
-                                className="mp-theme-btn"
-                                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                                aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                                className={`mp-lang-btn${lang === 'en' ? ' mp-lang-active' : ''}`}
+                                onClick={() => setLang('en')}
+                                aria-pressed={lang === 'en'}
                             >
-                                {theme === 'dark' ? '☀' : '☾'}
+                                EN
+                            </button>
+                            <button
+                                className={`mp-lang-btn${lang === 'es' ? ' mp-lang-active' : ''}`}
+                                onClick={() => setLang('es')}
+                                aria-pressed={lang === 'es'}
+                            >
+                                ES
                             </button>
                         </div>
+                        <button
+                            className="mp-theme-btn"
+                            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                        >
+                            {theme === 'dark' ? '☀' : '☾'}
+                        </button>
                     </div>
-                    <p className="mp-hint">{t.hint}</p>
-                </header>
+                </div>
+                <p className="mp-hint-line">{t.hint}</p>
+            </header>
 
-                {categories.length > 0 && (
-                    <nav className="mp-catbar" aria-label="Categories">
-                        {categories.map(cat => (
-                            <button
-                                key={cat.id}
-                                aria-pressed={activeCategory === cat.id}
-                                className={`mp-pill${activeCategory === cat.id ? ' mp-pill-active' : ''}`}
-                                onClick={() => selectCategory(cat.id)}
-                            >
-                                {categoryName(cat)}
-                            </button>
-                        ))}
-                    </nav>
-                )}
-            </div>
+            {categories.length > 0 && (
+                <nav className="mp-catbar" aria-label="Categories">
+                    {categories.map(cat => (
+                        <button
+                            key={cat.id}
+                            aria-pressed={activeCategory === cat.id}
+                            className={`mp-tab${activeCategory === cat.id ? ' mp-tab-active' : ''}`}
+                            onClick={() => selectCategory(cat.id)}
+                        >
+                            {categoryName(cat)}
+                        </button>
+                    ))}
+                </nav>
+            )}
 
             {categories.length === 0 ? (
                 <p className="mp-empty">{t.empty}</p>
@@ -531,7 +531,11 @@ export default function MenuClient({
                     <main className="mp-main">
                         {/* key remounts the section per tab so the opacity fade replays */}
                         <section key={currentCategory.id} className="mp-section-fade">
-                            <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
+                            <div className="mp-section-head">
+                                <span className="mp-section-rule" aria-hidden="true" />
+                                <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
+                                <span className="mp-section-rule" aria-hidden="true" />
+                            </div>
                             {sectionLead && <p className="mp-section-lead">{sectionLead}</p>}
                             {currentItems.length === 0 ? (
                                 <p className="mp-comingsoon">{t.comingSoon}</p>
@@ -557,11 +561,6 @@ export default function MenuClient({
                     ))}
                 </dl>
             </aside>
-
-            <footer className="mp-footer">
-                <strong className="mp-footer-title">{t.footerTitle}</strong>
-                <span className="mp-footer-sub">{t.footerSub}</span>
-            </footer>
 
             {renderLightbox()}
         </div>
