@@ -4,19 +4,32 @@ import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import {
     Plus, Pencil, Trash2, ChevronUp, ChevronDown, ExternalLink,
-    Image as ImageIcon, Star, Eye, EyeOff, X
+    Image as ImageIcon, Star, Eye, EyeOff, X, RefreshCw
 } from 'lucide-react';
 import {
     getMenuCategoriesAdmin, createMenuCategory, updateMenuCategory,
     reorderMenuCategories, deleteMenuCategory,
     getMenuItemsAdmin, updateMenuItem, reorderMenuItems, deleteMenuItem
 } from '@/app/actions/menuAdmin';
+import { syncMenuFromClover } from '@/app/actions/clover';
 import ItemEditorModal from './ItemEditorModal';
 import CostosTab from './CostosTab';
 
 type TabId = 'categorias' | 'platos' | 'costos';
 
 const UNCATEGORIZED = '__none__';
+
+// Small status pill used in the Platos list.
+const chipStyle = (color: string): React.CSSProperties => ({
+    fontSize: '0.7rem',
+    fontWeight: 600,
+    padding: '0.1rem 0.45rem',
+    borderRadius: '999px',
+    color,
+    border: '1px solid ' + color + '55',
+    background: color + '18',
+    whiteSpace: 'nowrap',
+});
 
 export default function MenuAdminPage() {
     const { isAdmin } = useAdmin();
@@ -37,6 +50,11 @@ export default function MenuAdminPage() {
     const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [itemModal, setItemModal] = useState<{ open: boolean; editing: any | null }>({ open: false, editing: null });
     const [itemError, setItemError] = useState<string | null>(null);
+
+    // Clover sync state
+    const [syncing, setSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<any>(null);
+    const [showSkipped, setShowSkipped] = useState(false);
 
     const loadAll = async () => {
         const [cats, its] = await Promise.all([getMenuCategoriesAdmin(), getMenuItemsAdmin()]);
@@ -114,6 +132,33 @@ export default function MenuAdminPage() {
         }
     };
 
+    // The Eye button writes hiddenInApp, NOT isAvailable: isAvailable mirrors
+    // Clover's own flag and the next sync would undo anything set here.
+    const handleToggleHidden = async (item: any) => {
+        const newValue = !item.hiddenInApp;
+        setItems(prev => prev.map(i => i.id === item.id ? { ...i, hiddenInApp: newValue } : i));
+        const result = await updateMenuItem(item.id, { hiddenInApp: newValue } as any);
+        if (!result.success) {
+            setItemError(result.error || 'Error al guardar.');
+            loadAll();
+        }
+    };
+
+    const handleSyncClover = async () => {
+        setSyncing(true);
+        setSyncResult(null);
+        setShowSkipped(false);
+        try {
+            const result = await syncMenuFromClover();
+            setSyncResult(result);
+            await loadAll();
+        } catch (e) {
+            setSyncResult({ error: e instanceof Error ? e.message : String(e) });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const handleMoveItem = async (index: number, direction: -1 | 1) => {
         // Reorder is only offered when a single real category is selected.
         const target = index + direction;
@@ -162,6 +207,7 @@ export default function MenuAdminPage() {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <style>{'@keyframes mp-spin { to { transform: rotate(360deg); } }'}</style>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
@@ -243,22 +289,86 @@ export default function MenuAdminPage() {
                     )}
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                        <select
-                            value={categoryFilter}
-                            onChange={e => setCategoryFilter(e.target.value)}
-                            className="input-field"
-                            style={{ maxWidth: '320px', minHeight: '44px' }}
-                        >
-                            <option value="all">Todas las categorías</option>
-                            {categories.map((cat: any) => (
-                                <option key={cat.id} value={cat.id}>{cat.nameEs} / {cat.nameEn}</option>
-                            ))}
-                            <option value={UNCATEGORIZED}>Sin categoría</option>
-                        </select>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            <select
+                                value={categoryFilter}
+                                onChange={e => setCategoryFilter(e.target.value)}
+                                className="input-field"
+                                style={{ maxWidth: '320px', minHeight: '44px' }}
+                            >
+                                <option value="all">Todas las categorías</option>
+                                {categories.map((cat: any) => (
+                                    <option key={cat.id} value={cat.id}>{cat.nameEs} / {cat.nameEn}</option>
+                                ))}
+                                <option value={UNCATEGORIZED}>Sin categoría</option>
+                            </select>
+                            <button
+                                onClick={handleSyncClover}
+                                disabled={syncing}
+                                className="btn-secondary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', minHeight: '44px', padding: '0 1rem', opacity: syncing ? 0.6 : 1, cursor: syncing ? 'wait' : 'pointer' }}
+                                title="Traer platos, precios y categorías desde Clover"
+                            >
+                                <RefreshCw size={16} style={syncing ? { animation: 'mp-spin 1s linear infinite' } : undefined} />
+                                {syncing ? 'Sincronizando…' : 'Sincronizar con Clover'}
+                            </button>
+                        </div>
                         <button onClick={() => setItemModal({ open: true, editing: null })} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', minHeight: '44px' }}>
                             <Plus size={18} /> Nuevo Plato
                         </button>
                     </div>
+
+                    {syncResult && (
+                        <div style={{ padding: '0.85rem 1rem', borderRadius: '8px', fontSize: '0.9rem', background: syncResult.error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.08)', border: syncResult.error ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(34, 197, 94, 0.25)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                                <div>
+                                    {syncResult.error ? (
+                                        <span style={{ color: '#ef4444' }}>{syncResult.error}</span>
+                                    ) : (
+                                        <>
+                                            <div style={{ fontWeight: 600 }}>
+                                                {[
+                                                    syncResult.created + ' creados',
+                                                    syncResult.adopted ? syncResult.adopted + ' vinculados' : null,
+                                                    syncResult.updated + ' actualizados',
+                                                    syncResult.unchanged + ' sin cambios en Clover',
+                                                    syncResult.orphaned ? syncResult.orphaned + ' ya no están en Clover' : null,
+                                                    (syncResult.skipped || []).length + ' omitidos',
+                                                ].filter(Boolean).join(' · ')}
+                                            </div>
+                                            {(syncResult.categoriesCreated > 0 || syncResult.categoriesLinked > 0) && (
+                                                <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.2rem' }}>
+                                                    Categorías: {syncResult.categoriesCreated} creadas · {syncResult.categoriesLinked} vinculadas
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                                <button onClick={() => setSyncResult(null)} style={{ color: 'inherit', padding: '0.25rem' }} title="Cerrar"><X size={16} /></button>
+                            </div>
+
+                            {!syncResult.error && (syncResult.skipped || []).length > 0 && (
+                                <div style={{ marginTop: '0.6rem' }}>
+                                    <button
+                                        onClick={() => setShowSkipped(v => !v)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--text-secondary)', fontSize: '0.85rem', padding: '0.25rem 0' }}
+                                    >
+                                        {showSkipped ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                        {showSkipped ? 'Ocultar' : 'Ver'} los {syncResult.skipped.length} omitidos
+                                    </button>
+                                    {showSkipped && (
+                                        <ul style={{ margin: '0.4rem 0 0', paddingLeft: '1.1rem', color: 'var(--text-secondary)', fontSize: '0.85rem', maxHeight: '220px', overflowY: 'auto' }}>
+                                            {syncResult.skipped.map((sk: any, i: number) => (
+                                                <li key={i} style={{ marginBottom: '0.15rem' }}>
+                                                    <strong style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{sk.name}</strong> {'—'} {sk.reason}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {filteredItems.length === 0 && (
                         <p style={{ color: 'var(--text-secondary)', padding: '2rem', textAlign: 'center' }}>
@@ -268,7 +378,7 @@ export default function MenuAdminPage() {
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         {filteredItems.map((item, index) => (
-                            <div key={item.id} className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', opacity: item.isAvailable ? 1 : 0.55 }}>
+                            <div key={item.id} className="glass-panel" style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem', opacity: (item.isAvailable && !item.hiddenInApp) ? 1 : 0.55 }}>
                                 {canReorderItems && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                                         <button onClick={() => handleMoveItem(index, -1)} disabled={index === 0} style={{ ...iconBtnStyle, width: '32px', height: '22px', opacity: index === 0 ? 0.3 : 1 }} title="Subir"><ChevronUp size={16} /></button>
@@ -294,16 +404,32 @@ export default function MenuAdminPage() {
                                         {item.menuCategory ? `${item.menuCategory.nameEs}` : 'Sin categoría'}
                                         {item.cloverId && <span title="Vinculado a Clover POS"> · Clover</span>}
                                     </div>
+                                    {(item.cloverMissingAt || (item.cloverId && (item._count?.recipeIngredients ?? 0) === 0)) && (
+                                        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                                            {item.cloverId && (item._count?.recipeIngredients ?? 0) === 0 && (
+                                                <span style={chipStyle('#f59e0b')} title="Vinculado a Clover pero sin receta: no aporta al costeo">Sin receta</span>
+                                            )}
+                                            {item.cloverMissingAt && (
+                                                <span style={chipStyle('#ef4444')} title="Clover ya no devuelve este artículo. La fila se conserva por la receta y el costeo.">No está en Clover</span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>${(item.salePrice ?? 0).toFixed(2)}</span>
 
                                 <button
-                                    onClick={() => handleQuickToggle(item, 'isAvailable')}
-                                    style={{ ...iconBtnStyle, color: item.isAvailable ? 'var(--success)' : 'var(--text-secondary)' }}
-                                    title={item.isAvailable ? 'Disponible — clic para ocultar' : 'No disponible — clic para mostrar'}
+                                    onClick={() => handleToggleHidden(item)}
+                                    style={{ ...iconBtnStyle, color: item.hiddenInApp ? 'var(--text-secondary)' : 'var(--success)' }}
+                                    title={
+                                        item.hiddenInApp
+                                            ? 'Oculto por el equipo — clic para mostrar'
+                                            : (item.isAvailable
+                                                ? 'Visible en el menú — clic para ocultar'
+                                                : 'No disponible en Clover — clic para ocultarlo también aquí')
+                                    }
                                 >
-                                    {item.isAvailable ? <Eye size={18} /> : <EyeOff size={18} />}
+                                    {item.hiddenInApp ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
                                 <button
                                     onClick={() => handleQuickToggle(item, 'isFeatured')}

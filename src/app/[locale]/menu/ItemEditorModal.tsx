@@ -16,7 +16,13 @@ interface ItemEditorModalProps {
 }
 
 export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, initialData, defaultCategoryId }: ItemEditorModalProps) {
+    // Clover owns name and salePrice on a linked dish: the sync rewrites both on
+    // every run, so editing them here would be silently undone.
+    const isCloverLinked = !!initialData?.cloverId;
+    const lockedStyle: React.CSSProperties = { opacity: 0.6, cursor: 'not-allowed' };
+    const lockedNoteStyle: React.CSSProperties = { fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' };
     const [name, setName] = useState('');
+    const [nameEn, setNameEn] = useState('');
     const [nameEs, setNameEs] = useState('');
     const [descriptionEn, setDescriptionEn] = useState('');
     const [descriptionEs, setDescriptionEs] = useState('');
@@ -53,6 +59,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             setFeaturedError(null);
             if (initialData) {
                 setName(initialData.name || '');
+                setNameEn(initialData.nameEn || '');
                 setNameEs(initialData.nameEs || '');
                 setDescriptionEn(initialData.descriptionEn || '');
                 setDescriptionEs(initialData.descriptionEs || '');
@@ -115,6 +122,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
         setIsSaving(true);
         const payload = {
             name,
+            nameEn,
             nameEs,
             descriptionEn,
             descriptionEs,
@@ -197,10 +205,24 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 )}
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                         <div style={fieldStyle}>
                             <label style={labelStyle}>Nombre (EN) *</label>
-                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="input-field" placeholder="p.ej. Lomo Saltado" required />
+                            <input
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                type="text"
+                                className="input-field"
+                                placeholder="p.ej. Lomo Saltado"
+                                required
+                                readOnly={isCloverLinked}
+                                style={isCloverLinked ? lockedStyle : undefined}
+                            />
+                            {isCloverLinked && <span style={lockedNoteStyle}>Se edita en Clover</span>}
+                        </div>
+                        <div style={fieldStyle}>
+                            <label style={labelStyle}>Nombre para el menú (EN)</label>
+                            <input value={nameEn} onChange={e => setNameEn(e.target.value)} type="text" className="input-field" placeholder={name || 'p.ej. Lomo Saltado'} />
                         </div>
                         <div style={fieldStyle}>
                             <label style={labelStyle}>Nombre (ES)</label>
@@ -303,7 +325,18 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={fieldStyle}>
                             <label style={labelStyle}>Precio ($)</label>
-                            <input value={salePrice} onChange={e => setSalePrice(e.target.value)} type="number" step="0.01" min="0" className="input-field" placeholder="25.00" />
+                            <input
+                                value={salePrice}
+                                onChange={e => setSalePrice(e.target.value)}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="input-field"
+                                placeholder="25.00"
+                                readOnly={isCloverLinked}
+                                style={isCloverLinked ? lockedStyle : undefined}
+                            />
+                            {isCloverLinked && <span style={lockedNoteStyle}>Se edita en Clover</span>}
                         </div>
                         <div style={fieldStyle}>
                             <label style={labelStyle}>Categoría</label>

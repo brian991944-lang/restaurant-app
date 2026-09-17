@@ -198,6 +198,9 @@ model VendorMarketItem {
 
 model MenuCategory {
   id        String   @id @default(cuid())
+  // Clover-owned identity. Null = a section that exists only in the app.
+  // Every display field below stays app-owned; the sync never writes them.
+  cloverCategoryId String? @unique
   nameEn    String
   nameEs    String
   // Short helper line under the section title on the public menu
@@ -217,10 +220,15 @@ model MenuItem {
   category              String? // Ceviches, Appetizers, Entrees, Sauces
   salePrice             Float   @default(0.0)
   targetFoodCostPct     Float   @default(25.0)
-  cloverId              String? // Integration point: Clover POS item id (menu <-> POS sync)
+  cloverId              String? @unique // Integration point: Clover POS item id (menu <-> POS sync). Unique: it is the sync's identity key.
+  cloverSyncedAt        DateTime? // last time syncMenuFromClover confirmed this row against Clover
+  cloverMissingAt       DateTime? // set when Clover stops returning this id; cleared when it reappears. Never deleted — recipes hang off these rows.
   hasInventoryModifiers Boolean @default(false)
 
   // Digital menu module — additive fields only (all optional/defaulted)
+  // `name` is Clover-owned for linked rows; nameEn is the app-owned English
+  // display name the public menu prefers. Null = fall back to `name`.
+  nameEn          String?
   nameEs          String?
   descriptionEn   String?
   descriptionEs   String?
@@ -242,7 +250,14 @@ model MenuItem {
   // What arrives at the table, one entry per component, shown as a list.
   componentsEn    String[] @default([])
   componentsEs    String[] @default([])
+  // Clover-owned: mirrors Clover's `available` flag on every sync.
   isAvailable     Boolean @default(true)
+  // App-owned, NEVER written by the sync. The admin's own "hide this dish"
+  // switch. Kept separate from isAvailable because "86'd in the POS" and
+  // "hidden on the digital menu" are different facts with different owners —
+  // folding them into one column means each sync silently undoes the admin.
+  // The public menu requires isAvailable AND NOT hiddenInApp.
+  hiddenInApp     Boolean @default(false)
   isFeatured      Boolean @default(false)
   featuredRank    Int?    // "most ordered" band on the public menu: lower rank shows first (null = not featured)
   sortOrder       Int     @default(0)
@@ -998,6 +1013,8 @@ enum ImportKind {
   // ADP's fee invoice — what ADP charged US. A different document from the
   // Liability report, arriving days later and debited on a different day.
   ADP_FEE
+  // One row per run of syncMenuFromClover (Clover POS -> digital menu).
+  CLOVER_MENU
 }
 
 // One row per UPLOAD, including re-uploads of a period already imported.

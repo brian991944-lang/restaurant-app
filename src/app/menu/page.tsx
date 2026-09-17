@@ -13,11 +13,14 @@ export default async function PublicMenuPage() {
             select: { id: true, nameEn: true, nameEs: true, subtitleEn: true, subtitleEs: true, sortOrder: true },
         }),
         prisma.menuItem.findMany({
-            where: { isAvailable: true, menuCategoryId: { not: null } },
+            // isAvailable is Clover-owned (86'd in the POS); hiddenInApp is the
+            // admin's own switch. A dish must clear both to reach a guest.
+            where: { isAvailable: true, hiddenInApp: false, menuCategoryId: { not: null } },
             orderBy: { sortOrder: 'asc' },
             select: {
                 id: true,
                 name: true,
+                nameEn: true,
                 nameEs: true,
                 descriptionEn: true,
                 descriptionEs: true,

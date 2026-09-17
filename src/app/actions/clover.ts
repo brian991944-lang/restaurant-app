@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 // Moved to lib so route handlers can use the same client: this file is
 // 'use server', and anything it exports would become a callable action.
 import { requireCloverEnv, cloverFetch } from '@/lib/clover';
+import { revalidateMenuPaths } from '@/lib/menuRevalidate';
 
 async function depleteInventory(ingredientId: string, quantity: number, note: string) {
     const inv = await prisma.inventory.findUnique({ where: { ingredientId: ingredientId } });
@@ -935,4 +936,294 @@ export async function syncSalonFromClover(): Promise<{
     }
 
     return { updated, skipped };
+}
+
+/**
+ * ─────────────────────────────────────────────────────────────
+ * Clover POS  ->  digital menu
+ *
+ * Pulls Clover's catalogue into MenuCategory / MenuItem under an explicit
+ * ownership split. Clover is the source of truth for IDENTITY and COMMERCE;
+ * the app is the source of truth for everything a guest reads.
+ *
+ *   Clover-owned on MenuItem   cloverId, name, salePrice, menuCategoryId,
+ *                              isAvailable
+ *   App-owned, never written   nameEn, nameEs, descriptionEn (seeded once on
+ *                              create, then app-owned), descriptionEs,
+ *                              whyEn/Es, componentsEn/Es, tags, taglineEn/Es,
+ *                              every photo/focal/zoom/fit field, featuredRank,
+ *                              isFeatured, hiddenInApp, targetFoodCostPct,
+ *                              hasInventoryModifiers, recipes, modifiers
+ *   MenuCategory               cloverCategoryId is Clover-owned; nameEn,
+ *                              nameEs, subtitleEn/Es, sortOrder and isActive
+ *                              are seeded on CREATE and never touched again
+ *
+ * Rows are never deleted. Recipes, modifiers and food-costing hang off
+ * MenuItem, so an item that vanishes from Clover is flagged (cloverMissingAt)
+ * and hidden (isAvailable=false), not removed.
+ */
+
+// An item must clear all four bars to take part in the sync.
+function itemSkipReason(el: any): string | null {
+    if (el.deleted === true) return 'eliminado en Clover';
+    if (el.hidden === true) return 'oculto en Clover';
+    if (!(el.categories?.elements?.length > 0)) return 'sin categoría en Clover';
+    if (!el.price) return 'precio 0 en Clover';
+    return null;
+}
+
+export async function syncMenuFromClover(): Promise<{
+    created: number;
+    adopted: number;
+    updated: number;
+    unchanged: number;
+    orphaned: number;
+    skipped: { name: string; reason: string }[];
+    categoriesCreated: number;
+    categoriesLinked: number;
+    error: string | null;
+}> {
+    const empty = {
+        created: 0, adopted: 0, updated: 0, unchanged: 0, orphaned: 0,
+        skipped: [] as { name: string; reason: string }[],
+        categoriesCreated: 0, categoriesLinked: 0,
+    };
+
+    // ── 1. Read Clover. Credentials are read inside cloverFetch, per call. ──
+    let cloverCats: any[];
+    let cloverItems: any[];
+    try {
+        const [catData, itemData] = await Promise.all([
+            cloverFetch('/categories?limit=1000'),
+            cloverFetch('/items?limit=1000&expand=categories'),
+        ]);
+        cloverCats = (catData.elements || []).filter((c: any) => c.deleted !== true);
+        cloverItems = (itemData.elements || []).filter((i: any) => i.deleted !== true);
+    } catch (e) {
+        return { ...empty, error: `No se pudo leer el catálogo de Clover: ${e instanceof Error ? e.message : String(e)}` };
+    }
+
+    const skipped: { name: string; reason: string }[] = [];
+
+    // ── 2. Split Clover's items into eligible and skipped. ──
+    const eligible: any[] = [];
+    for (const el of cloverItems) {
+        const reason = itemSkipReason(el);
+        if (reason) skipped.push({ name: (el.name || '').trim() || '(sin nombre)', reason });
+        else eligible.push(el);
+    }
+
+    // Two Clover items with the same name cannot both land: MenuItem.name is
+    // unique. First wins; the rest are reported rather than failing the batch.
+    const seenNames = new Set<string>();
+    const queue: any[] = [];
+    for (const el of eligible) {
+        const key = (el.name || '').trim().toLowerCase();
+        if (seenNames.has(key)) {
+            skipped.push({ name: (el.name || '').trim(), reason: 'nombre duplicado dentro de Clover' });
+            continue;
+        }
+        seenNames.add(key);
+        queue.push(el);
+    }
+
+    // ── 3. Categories. Only sections that actually receive an eligible item
+    // are created, which keeps Clover's non-food sections (storage, glassware)
+    // off the digital menu without hardcoding their names. ──
+    const usedCatIds = new Set<string>(queue.map(el => el.categories.elements[0].id));
+
+    let dbCats;
+    try {
+        dbCats = await prisma.menuCategory.findMany();
+    } catch (e) {
+        return { ...empty, skipped, error: `No se pudieron leer las categorías: ${e instanceof Error ? e.message : String(e)}` };
+    }
+
+    const catByCloverId = new Map(dbCats.filter(c => c.cloverCategoryId).map(c => [c.cloverCategoryId as string, c]));
+    const catByName = new Map(dbCats.map(c => [c.nameEn.trim().toLowerCase(), c]));
+
+    // Clover category id -> MenuCategory id
+    const catTargets = new Map<string, string>();
+    let categoriesCreated = 0;
+    let categoriesLinked = 0;
+
+    for (const c of cloverCats) {
+        if (!usedCatIds.has(c.id)) continue;
+        const name = (c.name || '').trim();
+
+        const already = catByCloverId.get(c.id);
+        if (already) { catTargets.set(c.id, already.id); continue; }
+
+        // First run: an existing section whose English name matches is the same
+        // section. Claim it by writing the identity column — never a duplicate.
+        const byName = catByName.get(name.toLowerCase());
+        if (byName && !byName.cloverCategoryId) {
+            try {
+                await prisma.menuCategory.update({
+                    where: { id: byName.id },
+                    data: { cloverCategoryId: c.id },
+                });
+                catTargets.set(c.id, byName.id);
+                categoriesLinked++;
+            } catch (e) {
+                skipped.push({ name, reason: `no se pudo vincular la categoría: ${e instanceof Error ? e.message : String(e)}` });
+            }
+            continue;
+        }
+
+        // New section. nameEs is seeded with Clover's English name so nothing
+        // renders blank; an admin renames it in the app and the sync never
+        // overwrites that.
+        try {
+            const created = await prisma.menuCategory.create({
+                data: {
+                    cloverCategoryId: c.id,
+                    nameEn: name,
+                    nameEs: name,
+                    sortOrder: typeof c.sortOrder === 'number' ? c.sortOrder : 0,
+                },
+            });
+            catTargets.set(c.id, created.id);
+            categoriesCreated++;
+        } catch (e) {
+            skipped.push({ name, reason: `no se pudo crear la categoría: ${e instanceof Error ? e.message : String(e)}` });
+        }
+    }
+
+    // ── 4. Plan every item write against current state. ──
+    let dbItems;
+    try {
+        dbItems = await prisma.menuItem.findMany({
+            select: {
+                id: true, name: true, cloverId: true, salePrice: true,
+                menuCategoryId: true, isAvailable: true, descriptionEn: true,
+                cloverMissingAt: true,
+            },
+        });
+    } catch (e) {
+        return { ...empty, skipped, categoriesCreated, categoriesLinked, error: `No se pudieron leer los platos: ${e instanceof Error ? e.message : String(e)}` };
+    }
+
+    const itemByCloverId = new Map(dbItems.filter(i => i.cloverId).map(i => [i.cloverId as string, i]));
+    const itemByName = new Map(dbItems.map(i => [i.name.trim().toLowerCase(), i]));
+
+    type Op = { kind: 'create' | 'adopt' | 'update' | 'orphan'; run: any };
+    const ops: Op[] = [];
+    let unchanged = 0;
+    const now = new Date();
+
+    for (const el of queue) {
+        const name = (el.name || '').trim();
+        const cloverId: string = el.id;
+        const salePrice = el.price / 100;
+        const isAvailable = el.available !== false;
+        const menuCategoryId = catTargets.get(el.categories.elements[0].id) ?? null;
+        const description = typeof el.description === 'string' ? el.description.trim() : '';
+
+        const linked = itemByCloverId.get(cloverId);
+
+        if (linked) {
+            const same =
+                linked.name === name &&
+                linked.salePrice === salePrice &&
+                linked.menuCategoryId === menuCategoryId &&
+                linked.isAvailable === isAvailable &&
+                linked.cloverMissingAt === null;
+            if (same) { unchanged++; continue; }
+            ops.push({
+                kind: 'update',
+                run: prisma.menuItem.update({
+                    where: { id: linked.id },
+                    // Clover-owned fields only. Nothing a guest reads is touched.
+                    data: { name, salePrice, menuCategoryId, isAvailable, cloverSyncedAt: now, cloverMissingAt: null },
+                }),
+            });
+            continue;
+        }
+
+        // Not linked. A row already carrying this exact name is the same dish,
+        // hand-created before the sync existed — adopt it rather than create a
+        // duplicate or fail on the unique index.
+        const byName = itemByName.get(name.toLowerCase());
+        if (byName) {
+            if (byName.cloverId) {
+                skipped.push({ name, reason: `el nombre ya pertenece a otro plato vinculado a Clover (${byName.cloverId})` });
+                continue;
+            }
+            ops.push({
+                kind: 'adopt',
+                run: prisma.menuItem.update({
+                    where: { id: byName.id },
+                    data: {
+                        cloverId, name, salePrice, menuCategoryId, isAvailable,
+                        cloverSyncedAt: now, cloverMissingAt: null,
+                        // Seed the description only if the row has none; an
+                        // existing app-written description is app-owned.
+                        ...(description && !byName.descriptionEn ? { descriptionEn: description } : {}),
+                    },
+                }),
+            });
+            continue;
+        }
+
+        ops.push({
+            kind: 'create',
+            run: prisma.menuItem.create({
+                data: {
+                    name, cloverId, salePrice, menuCategoryId, isAvailable,
+                    cloverSyncedAt: now,
+                    ...(description ? { descriptionEn: description } : {}),
+                },
+            }),
+        });
+    }
+
+    // ── 5. Orphans: linked rows Clover no longer returns. Flagged and hidden,
+    // never deleted — recipes and food-costing hang off these rows. ──
+    const liveIds = new Set<string>(cloverItems.map((i: any) => i.id));
+    const orphans = dbItems.filter(i => i.cloverId && !liveIds.has(i.cloverId) && !i.cloverMissingAt);
+    for (const o of orphans) {
+        ops.push({
+            kind: 'orphan',
+            run: prisma.menuItem.update({
+                where: { id: o.id },
+                data: { cloverMissingAt: now, isAvailable: false },
+            }),
+        });
+    }
+
+    // ── 6. Execute in batches of 50. ──
+    let created = 0, adopted = 0, updated = 0, orphaned = 0;
+    const BATCH = 50;
+    for (let i = 0; i < ops.length; i += BATCH) {
+        const slice = ops.slice(i, i + BATCH);
+        try {
+            await prisma.$transaction(slice.map(o => o.run));
+            for (const o of slice) {
+                if (o.kind === 'create') created++;
+                else if (o.kind === 'adopt') adopted++;
+                else if (o.kind === 'orphan') orphaned++;
+                else updated++;
+            }
+        } catch (e) {
+            return {
+                created, adopted, updated, unchanged, orphaned,
+                skipped, categoriesCreated, categoriesLinked,
+                error: `Falló un lote de escritura (${slice.length} filas, ninguna aplicada): ${e instanceof Error ? e.message : String(e)}`,
+            };
+        }
+    }
+
+    // ── 7. History. rowsImported counts rows the sync actually landed. ──
+    try {
+        await prisma.importLog.create({
+            data: { kind: 'CLOVER_MENU', rowsImported: created + adopted + updated },
+        });
+    } catch (e) {
+        console.error('syncMenuFromClover: no se pudo escribir el ImportLog:', e);
+    }
+
+    revalidateMenuPaths();
+
+    return { created, adopted, updated, unchanged, orphaned, skipped, categoriesCreated, categoriesLinked, error: null };
 }

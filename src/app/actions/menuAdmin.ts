@@ -1,14 +1,8 @@
 'use server';
 
 import prisma from '@/lib/prisma';
-import { revalidatePath } from 'next/cache';
 import { updateCloverItemDescription } from './clover';
-
-// Revalidate the public digital menu and the admin editor after any write.
-function revalidateMenuPaths() {
-    revalidatePath('/menu');
-    revalidatePath('/[locale]/menu', 'page');
-}
+import { revalidateMenuPaths } from '@/lib/menuRevalidate';
 
 // ============ CATEGORÍAS ============
 
@@ -133,7 +127,8 @@ export async function getMenuItemsAdmin() {
 }
 
 interface MenuItemInput {
-    name: string;            // maps to MenuItem.name (@unique, EN)
+    name: string;            // maps to MenuItem.name (@unique, EN). Clover-owned on linked rows.
+    nameEn?: string | null;  // app-owned English display name; overrides `name` on the public menu
     nameEs?: string | null;
     descriptionEn?: string | null;
     descriptionEs?: string | null;
@@ -154,6 +149,9 @@ interface MenuItemInput {
     photoFit?: string;           // favorites-band fit: "cover" or "contain"
     videoUrl?: string | null;
     isAvailable?: boolean;
+    // App-owned "hide this dish". Separate from isAvailable, which the Clover
+    // sync owns — see the MenuItem model for why they are two columns.
+    hiddenInApp?: boolean;
     isFeatured?: boolean;
 }
 
@@ -184,6 +182,7 @@ export async function createMenuItem(data: MenuItemInput) {
         const item = await prisma.menuItem.create({
             data: {
                 name: data.name.trim(),
+                nameEn: data.nameEn?.trim() || null,
                 nameEs: data.nameEs?.trim() || null,
                 descriptionEn: data.descriptionEn?.trim() || null,
                 descriptionEs: data.descriptionEs?.trim() || null,
@@ -204,6 +203,7 @@ export async function createMenuItem(data: MenuItemInput) {
                 photoFit: data.photoFit ?? 'cover',
                 videoUrl: data.videoUrl?.trim() || null,
                 isAvailable: data.isAvailable ?? true,
+                hiddenInApp: data.hiddenInApp ?? false,
                 isFeatured: data.isFeatured ?? false,
                 sortOrder: (last?.sortOrder ?? -1) + 1
                 // cloverId is NOT set here — new digital-menu dishes are unlinked until
@@ -233,6 +233,7 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
             where: { id },
             data: {
                 ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+                ...(data.nameEn !== undefined ? { nameEn: data.nameEn?.trim() || null } : {}),
                 ...(data.nameEs !== undefined ? { nameEs: data.nameEs?.trim() || null } : {}),
                 ...(data.descriptionEn !== undefined ? { descriptionEn: data.descriptionEn?.trim() || null } : {}),
                 ...(data.descriptionEs !== undefined ? { descriptionEs: data.descriptionEs?.trim() || null } : {}),
@@ -253,6 +254,7 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.photoFit !== undefined ? { photoFit: data.photoFit } : {}),
                 ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl?.trim() || null } : {}),
                 ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
+                ...(data.hiddenInApp !== undefined ? { hiddenInApp: data.hiddenInApp } : {}),
                 ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {})
                 // cloverId / digitalRecipeId intentionally untouched — managed by the
                 // Clover sync and Recetario integrations respectively.

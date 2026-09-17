@@ -23,6 +23,7 @@ type MenuCategoryData = {
 type MenuItemData = {
     id: string;
     name: string;
+    nameEn: string | null;
     nameEs: string | null;
     descriptionEn: string | null;
     descriptionEs: string | null;
@@ -194,7 +195,10 @@ export default function MenuClient({
     };
 
     const categoryName = (c: MenuCategoryData) => (lang === 'es' ? c.nameEs : c.nameEn);
-    const itemName = (i: MenuItemData) => (lang === 'es' ? (i.nameEs || i.name) : i.name);
+    // `name` is Clover-owned on linked rows, so the app-owned nameEn wins when
+    // set. Spanish falls back through nameEn before the raw Clover name.
+    const itemName = (i: MenuItemData) =>
+        (lang === 'es' ? (i.nameEs || i.nameEn || i.name) : (i.nameEn || i.name));
     const itemDescription = (i: MenuItemData) =>
         lang === 'es' ? (i.descriptionEs || i.descriptionEn) : (i.descriptionEn || i.descriptionEs);
     const itemTagline = (i: MenuItemData) =>
