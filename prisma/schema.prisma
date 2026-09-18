@@ -597,6 +597,83 @@ model ShiftDeferral {
   createdAt   DateTime  @default(now())
 }
 
+// ---- Caja: cash box reconciliation (Salón) ----
+enum CajaBox {
+  BLANCA
+  NEGRA
+}
+
+enum CajaCorteTipo {
+  APERTURA
+  RELEVO
+  CIERRE
+}
+
+enum CajaFirmaRol {
+  APERTURA
+  SALIENTE
+  ENTRANTE
+  CIERRE
+}
+
+model CajaCorte {
+  id               String         @id @default(cuid())
+  businessDate     String         // YYYY-MM-DD, same convention as ShiftRun
+  seq              Int            // 1-based order within the business day
+  tipo             CajaCorteTipo
+  at               DateTime       @default(now())
+  toleranciaCents  Int            // tolerance in force when this corte was judged
+  tabsConfirmadas  Boolean        @default(false) // CIERRE: only cash-paid tabs remain open
+  esperadoCalcAt   DateTime?      // when the Clover snapshot was taken
+  totalDiffCents   Int?           // CIERRE only: blanca.diff + negra.diff
+  deltaTurnoCents  Int?           // blanca.diff minus previous corte's blanca.diff
+  posibleTraslado  Boolean        @default(false)
+  notas            String?
+  shareAttemptedAt DateTime?
+  anuladoAt        DateTime?
+  anuladoMotivo    String?
+  createdAt        DateTime       @default(now())
+  lineas           CajaCorteLinea[]
+  firmas           CajaFirma[]
+  @@unique([businessDate, seq])
+  @@index([businessDate])
+}
+
+model CajaCorteLinea {
+  id               String    @id @default(cuid())
+  corteId          String
+  corte            CajaCorte @relation(fields: [corteId], references: [id], onDelete: Cascade)
+  caja             CajaBox
+  contadoCents     Int
+  esperadoCents    Int?      // null = no reference (APERTURA, or NEGRA estimate)
+  esEstimado       Boolean   @default(false)
+  referenciaCents  Int?      // NEGRA mid-shift reference shown to staff
+  diffCents        Int?      // contado − esperado, firm lines only
+  motivo           String?
+  // Clover snapshot behind esperado (audit)
+  floatCents       Int?
+  cashVentasCents  Int?
+  cashRefundsCents Int?
+  abiertasCents    Int?
+  abiertasCount    Int?
+  pendientesCents  Int?
+  pendientesCount  Int?
+  @@unique([corteId, caja])
+}
+
+model CajaFirma {
+  id           String       @id @default(cuid())
+  corteId      String
+  corte        CajaCorte    @relation(fields: [corteId], references: [id], onDelete: Cascade)
+  rol          CajaFirmaRol
+  employeeId   String       // Clover employee id
+  employeeName String
+  firmaPath    String       // SVG path "d" of the drawn signature
+  firmaBox     String       // "W H" viewBox of the pad
+  signedAt     DateTime     @default(now())
+  @@index([corteId])
+}
+
 // ─────────────────────────────────────────────────────────────
 // Daily tip distribution
 // Worker identity is the Clover employeeId string, matching
