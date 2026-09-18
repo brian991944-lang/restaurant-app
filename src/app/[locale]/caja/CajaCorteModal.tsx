@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { getCajaEsperado, createCajaCorte, type CajaEsperadoResult } from '@/app/actions/caja';
 import { TOLERANCIA_CENTS, nivelFor } from '@/lib/cajaRules';
-import { toCents, formatMoney } from '@/lib/money';
+import { formatMoney } from '@/lib/money';
 import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
-import { NivelBadge, SinVerificar, PosibleTraslado, signedMoney } from './cajaUi';
+import { NivelBadge, SinVerificar, PosibleTraslado, signedMoney, parseAmount } from './cajaUi';
 
 type Tipo = 'APERTURA' | 'RELEVO' | 'CIERRE';
 type Rol = 'APERTURA' | 'SALIENTE' | 'ENTRANTE' | 'CIERRE';
@@ -21,18 +21,6 @@ const SIGNERS: Record<Tipo, Rol[]> = {
     RELEVO: ['SALIENTE', 'ENTRANTE'],
     CIERRE: ['CIERRE'],
 };
-
-/**
- * A typed amount as integer cents, or null when it is not a valid count.
- * Blank is not zero here: an empty box must be typed as 0 on purpose.
- */
-function parseCount(raw: string): number | null {
-    const t = raw.trim();
-    if (!t) return null;
-    const n = Number(t.replace(/[$,\s]/g, ''));
-    if (!Number.isFinite(n) || n < 0) return null;
-    return toCents(t);
-}
 
 type Comparison =
     | { status: 'idle' }
@@ -62,8 +50,8 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     const [signatures, setSignatures] = useState<Partial<Record<Rol, SignatureValue | null>>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const blancaCents = parseCount(blancaStr);
-    const negraCents = parseCount(negraStr);
+    const blancaCents = parseAmount(blancaStr);
+    const negraCents = parseAmount(negraStr);
     const countsValid = blancaCents !== null && negraCents !== null;
     const needsComparison = tipo !== 'APERTURA';
     const inputsLocked = comparison.status !== 'idle';
@@ -138,8 +126,8 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                 notas: undefined,
             });
             if (!result.success || !result.corteId) {
-                // Server-side messages are the action's own (Spanish) strings.
-                alert(result.error ?? t('save_failed'));
+                // errorKey is a Caja message key; `error` is the server's own Spanish fallback.
+                alert(result.errorKey ? t(result.errorKey) : (result.error ?? t('save_failed')));
                 return;
             }
             onSaved(result.corteId);
@@ -155,7 +143,7 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     const padLabels = { signHere: t('sign_here'), clear: t('clear') };
 
     const moneyInput = (caja: Box, value: string, setValue: (v: string) => void) => {
-        const invalid = value.trim() !== '' && parseCount(value) === null;
+        const invalid = value.trim() !== '' && parseAmount(value) === null;
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -177,7 +165,7 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                         disabled={inputsLocked || busy}
                         onChange={e => setValue(e.target.value)}
                         onBlur={() => {
-                            const cents = parseCount(value);
+                            const cents = parseAmount(value);
                             if (cents !== null) setValue((cents / 100).toFixed(2));
                         }}
                         style={{

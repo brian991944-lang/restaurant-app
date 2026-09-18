@@ -1,9 +1,21 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { formatMoney } from '@/lib/money';
+import { formatMoney, toCents } from '@/lib/money';
 import { formatBusinessDateEs } from '@/lib/businessDay';
 import type { CajaNivel } from '@/lib/cajaRules';
+
+/**
+ * A typed amount as integer cents, or null when it is not a valid amount.
+ * Blank is not zero here: an empty box must be typed as 0 on purpose.
+ */
+export function parseAmount(raw: string): number | null {
+    const t = raw.trim();
+    if (!t) return null;
+    const n = Number(t.replace(/[$,\s]/g, ''));
+    if (!Number.isFinite(n) || n < 0) return null;
+    return toCents(t);
+}
 
 /**
  * Presentation shared by the Caja tab and the corte modal: how a difference

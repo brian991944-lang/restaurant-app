@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import {
-    getCajaDia, getCajaEsperado, anularCorte, getCajaHistorial,
+    getCajaDia, getCajaEsperado, anularCorte, anularMovimiento, getCajaHistorial,
     type CajaEsperadoResult, type CajaHistorialResult,
 } from '@/app/actions/caja';
 import { nivelFor } from '@/lib/cajaRules';
@@ -12,6 +12,7 @@ import { formatMoney } from '@/lib/money';
 import { businessDateToUtcDate } from '@/lib/businessDay';
 import { DatePicker } from '@/components/ui/DatePicker';
 import CajaCorteModal from './CajaCorteModal';
+import CajaMovimientoModal from './CajaMovimientoModal';
 import {
     Chip, NivelBadge, SinVerificar, FondoInicial, PosibleTraslado,
     nyTime, longDate, signedMoney, shiftBusinessDate,
@@ -19,6 +20,7 @@ import {
 
 type Dia = Awaited<ReturnType<typeof getCajaDia>>;
 type Corte = Dia['cortes'][number];
+type Mov = Dia['movimientos'][number];
 type Tipo = Corte['tipo'];
 type EsperadoOk = Extract<CajaEsperadoResult, { success: true }>;
 type HistorialOk = Extract<CajaHistorialResult, { success: true }>;
@@ -43,6 +45,15 @@ const ESTADO_TONE: Record<Dia['estado'], 'grey' | 'green' | 'blue'> = {
     CERRADA: 'blue',
 };
 
+const MOV_TONE: Record<Mov['tipo'], 'red' | 'amber' | 'green'> = {
+    RETIRO: 'red',
+    COMPRA: 'amber',
+    INGRESO: 'green',
+};
+
+/** A movement as the signed amount it adds to its box. */
+const movSigned = (m: Mov): number => (m.tipo === 'INGRESO' ? m.amountCents : -m.amountCents);
+
 const secondaryBtn: React.CSSProperties = {
     minHeight: '56px', padding: '0.9rem 1.4rem', borderRadius: '8px',
     fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer',
@@ -63,6 +74,20 @@ const dangerBtn = (disabled: boolean): React.CSSProperties => ({
     background: 'var(--danger)', border: '1px solid var(--danger)',
     color: 'white', opacity: disabled ? 0.5 : 1,
 });
+
+/** A drawn signature at card size, on white, with its caption. */
+function SignatureBox({ firmaBox, firmaPath, caption }: { firmaBox: string; firmaPath: string; caption: string }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <div style={{ width: '160px', height: '54px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <svg viewBox={`0 0 ${firmaBox}`} width="160" height="54" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
+                    <path d={firmaPath} fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </div>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{caption}</span>
+        </div>
+    );
+}
 
 /**
  * One corte as a card. Used for today's timeline and, unchanged, for the
@@ -102,6 +127,11 @@ export function CorteCard({ corte, headerAction, footer }: {
                     <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>{esperado}</span>
                     <span>{badge}</span>
                 </div>
+                {linea.movimientosCents !== null && linea.movimientosCents !== 0 && (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {t('includes_movements', { amount: signedMoney(linea.movimientosCents) })}
+                    </span>
+                )}
                 {linea.motivo && (
                     <span style={{ fontSize: '0.95rem', fontStyle: 'italic', color: 'var(--text-secondary)' }}>{linea.motivo}</span>
                 )}
@@ -150,16 +180,12 @@ export function CorteCard({ corte, headerAction, footer }: {
             {corte.firmas.length > 0 && (
                 <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
                     {corte.firmas.map(f => (
-                        <div key={f.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                            <div style={{ width: '160px', height: '54px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                                <svg viewBox={`0 0 ${f.firmaBox}`} width="160" height="54" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
-                                    <path d={f.firmaPath} fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </div>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                {t('firma_caption', { rol: t(`rol_${f.rol}`), name: f.employeeName, time: nyTime(f.signedAt) })}
-                            </span>
-                        </div>
+                        <SignatureBox
+                            key={f.id}
+                            firmaBox={f.firmaBox}
+                            firmaPath={f.firmaPath}
+                            caption={t('firma_caption', { rol: t(`rol_${f.rol}`), name: f.employeeName, time: nyTime(f.signedAt) })}
+                        />
                     ))}
                 </div>
             )}
@@ -170,9 +196,64 @@ export function CorteCard({ corte, headerAction, footer }: {
 }
 
 /**
+ * One movimiento as a compact card: what kind, which box, the signed amount,
+ * what it was for, and who signed it. Same signature markup as a corte.
+ */
+export function MovimientoCard({ mov, headerAction, footer }: {
+    mov: Mov;
+    headerAction?: React.ReactNode;
+    footer?: React.ReactNode;
+}) {
+    const t = useTranslations('Caja');
+    const anulado = mov.anuladoAt !== null;
+    return (
+        <div className="glass-panel" style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', opacity: anulado ? 0.55 : 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', textDecoration: anulado ? 'line-through' : 'none' }}>
+                    <Chip tone={MOV_TONE[mov.tipo]}>{t(`mov_${mov.tipo}`)}</Chip>
+                    <span style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t(`box_${mov.caja}`)}</span>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{signedMoney(movSigned(mov))}</span>
+                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{nyTime(mov.at)}</span>
+                </div>
+                {headerAction}
+            </div>
+
+            {anulado && (
+                <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('voided_reason', { reason: mov.anuladoMotivo ?? '' })}</span>
+            )}
+
+            <span style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{mov.descripcion}</span>
+
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <SignatureBox
+                    firmaBox={mov.firmaBox}
+                    firmaPath={mov.firmaPath}
+                    caption={t('mov_caption', { name: mov.employeeName, time: nyTime(mov.at) })}
+                />
+            </div>
+
+            {footer}
+        </div>
+    );
+}
+
+type Entry =
+    | { kind: 'corte'; at: number; corte: Corte }
+    | { kind: 'mov'; at: number; mov: Mov };
+
+/** Cortes and movimientos as one list, oldest first. */
+function timelineOf(cortes: Corte[], movs: Mov[]): Entry[] {
+    return [
+        ...cortes.map(c => ({ kind: 'corte' as const, at: new Date(c.at).getTime(), corte: c })),
+        ...movs.map(m => ({ kind: 'mov' as const, at: new Date(m.at).getTime(), mov: m })),
+    ].sort((a, b) => a.at - b.at);
+}
+
+/**
  * The Cash Boxes page body: today's state, what Clover says the boxes should
- * hold right now, and the timeline of counts. Every write goes through the
- * modal; this component only reads, and re-reads after each save or void.
+ * hold right now, and the timeline of counts and movements. Every write goes
+ * through a modal; this component only reads, and re-reads after each save
+ * or void.
  */
 export default function CajaTab({ staff }: { staff: { id: string; name: string }[] }) {
     const t = useTranslations('Caja');
@@ -185,8 +266,10 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
 
     const [live, setLive] = useState<Live>({ status: 'loading' });
     const [modalTipo, setModalTipo] = useState<Tipo | null>(null);
+    const [movModalOpen, setMovModalOpen] = useState(false);
 
-    const [anulando, setAnulando] = useState<string | null>(null);
+    // One inline void form at a time; the id is a corte's or a movimiento's.
+    const [anulando, setAnulando] = useState<{ kind: 'corte' | 'mov'; id: string } | null>(null);
     const [anularMotivo, setAnularMotivo] = useState('');
     const [anularBusy, setAnularBusy] = useState(false);
 
@@ -254,15 +337,17 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         loadLive();
     };
 
-    const handleAnular = async (corteId: string) => {
+    const handleAnular = async () => {
         const motivo = anularMotivo.trim();
-        if (!motivo || anularBusy) return;
+        if (!anulando || !motivo || anularBusy) return;
         setAnularBusy(true);
         try {
-            const r = await anularCorte(corteId, motivo);
+            const r = anulando.kind === 'corte'
+                ? await anularCorte(anulando.id, motivo)
+                : await anularMovimiento(anulando.id, motivo);
             if (!r.success) {
-                // Server-side messages are the action's own (Spanish) strings.
-                alert(r.error ?? t('void_failed'));
+                // errorKey is a Caja message key; `error` is the server's own Spanish fallback.
+                alert(r.errorKey ? t(r.errorKey) : (r.error ?? t('void_failed')));
                 return;
             }
             setAnulando(null);
@@ -302,24 +387,32 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         }
         const d = live.data;
         const ventasNetas = d.blanca.cashVentasCents - d.blanca.cashRefundsCents;
+        const muted: React.CSSProperties = { fontSize: '1.05rem', color: 'var(--text-secondary)' };
         return (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t('box_BLANCA')}</span>
-                    <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
-                        {t('cash_sales_today', { amount: formatMoney(ventasNetas) })}
-                    </span>
+                    <span style={muted}>{t('cash_sales_today', { amount: formatMoney(ventasNetas) })}</span>
+                    {d.movimientos.BLANCA !== 0 && (
+                        <span style={muted}>{t('movements_line', { amount: signedMoney(d.movimientos.BLANCA) })}</span>
+                    )}
                     {d.blanca.esperadoCents !== null && (
-                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
+                        <span style={muted}>
                             {t('should_be_in', { box: t('box_BLANCA'), amount: formatMoney(d.blanca.esperadoCents) })}
                         </span>
                     )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     <span style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t('box_NEGRA')}</span>
-                    <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)' }}>
-                        {t('open_tables', { count: d.negra.abiertasCount, amount: formatMoney(d.negra.abiertasCents) })}
-                    </span>
+                    <span style={muted}>{t('open_tables', { count: d.negra.abiertasCount, amount: formatMoney(d.negra.abiertasCents) })}</span>
+                    {d.movimientos.NEGRA !== 0 && (
+                        <span style={muted}>{t('movements_line', { amount: signedMoney(d.movimientos.NEGRA) })}</span>
+                    )}
+                    {d.negra.referenciaCents !== null && (
+                        <span style={muted}>
+                            {t('should_be_in', { box: t('box_NEGRA'), amount: formatMoney(d.negra.referenciaCents) })}
+                        </span>
+                    )}
                 </div>
                 {d.negra.pendientesCount > 0 && (
                     <p style={{ gridColumn: '1 / -1', margin: 0, padding: '0.75rem 1rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontSize: '0.95rem' }}>
@@ -333,45 +426,71 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         );
     };
 
-    const voidButton = (corte: Corte) => (
-        isAdmin && corte.anuladoAt === null && ultimoActivo?.id === corte.id && anulando !== corte.id ? (
-            <button type="button" onClick={() => { setAnulando(corte.id); setAnularMotivo(''); }} className="btn-secondary" style={secondaryBtn}>
-                {t('void')}
-            </button>
-        ) : null
+    const voidButton = (kind: 'corte' | 'mov', id: string) => (
+        <button type="button" onClick={() => { setAnulando({ kind, id }); setAnularMotivo(''); }} className="btn-secondary" style={secondaryBtn}>
+            {t('void')}
+        </button>
     );
 
-    const voidForm = (corte: Corte) => (
-        isAdmin && anulando === corte.id ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
-                <label style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('void_reason_label')}</label>
-                <input
-                    type="text"
-                    value={anularMotivo}
-                    disabled={anularBusy}
-                    onChange={e => setAnularMotivo(e.target.value)}
-                    placeholder={t('void_reason_placeholder')}
-                    style={{
-                        minHeight: '56px', padding: '0 1rem', fontSize: '1.05rem', borderRadius: '10px',
-                        background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', border: '1px solid var(--border)',
-                    }}
-                />
-                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <button type="button" onClick={() => setAnulando(null)} disabled={anularBusy} className="btn-secondary" style={secondaryBtn}>
-                        {t('cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => handleAnular(corte.id)}
-                        disabled={anularBusy || !anularMotivo.trim()}
-                        style={dangerBtn(anularBusy || !anularMotivo.trim())}
-                    >
-                        {anularBusy ? t('voiding') : t('confirm_void')}
-                    </button>
-                </div>
+    const voidForm = (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+            <label style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{t('void_reason_label')}</label>
+            <input
+                type="text"
+                value={anularMotivo}
+                disabled={anularBusy}
+                onChange={e => setAnularMotivo(e.target.value)}
+                placeholder={t('void_reason_placeholder')}
+                style={{
+                    minHeight: '56px', padding: '0 1rem', fontSize: '1.05rem', borderRadius: '10px',
+                    background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', border: '1px solid var(--border)',
+                }}
+            />
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setAnulando(null)} disabled={anularBusy} className="btn-secondary" style={secondaryBtn}>
+                    {t('cancel')}
+                </button>
+                <button
+                    type="button"
+                    onClick={handleAnular}
+                    disabled={anularBusy || !anularMotivo.trim()}
+                    style={dangerBtn(anularBusy || !anularMotivo.trim())}
+                >
+                    {anularBusy ? t('voiding') : t('confirm_void')}
+                </button>
             </div>
-        ) : null
+        </div>
     );
+
+    /** Today's timeline carries void controls; history is read-only. */
+    const renderTimeline = (entries: Entry[], withVoid: boolean) => entries.map(e => {
+        if (e.kind === 'corte') {
+            const c = e.corte;
+            const canVoid = withVoid && isAdmin && c.anuladoAt === null && ultimoActivo?.id === c.id;
+            const open = anulando?.kind === 'corte' && anulando.id === c.id;
+            return (
+                <CorteCard
+                    key={c.id}
+                    corte={c}
+                    headerAction={canVoid && !open ? voidButton('corte', c.id) : null}
+                    footer={open ? voidForm : null}
+                />
+            );
+        }
+        const m = e.mov;
+        const canVoid = withVoid && isAdmin && m.anuladoAt === null;
+        const open = anulando?.kind === 'mov' && anulando.id === m.id;
+        return (
+            <MovimientoCard
+                key={m.id}
+                mov={m}
+                headerAction={canVoid && !open ? voidButton('mov', m.id) : null}
+                footer={open ? voidForm : null}
+            />
+        );
+    });
+
+    const todayEntries = timelineOf(dia.cortes, dia.movimientos);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -392,6 +511,7 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                 {dia.estado === 'ABIERTA' && (
                     <>
                         <button type="button" onClick={() => setModalTipo('RELEVO')} className="btn-secondary" style={secondaryBtn}>{t('record_RELEVO')}</button>
+                        <button type="button" onClick={() => setMovModalOpen(true)} className="btn-secondary" style={secondaryBtn}>{t('record_MOVIMIENTO')}</button>
                         <button type="button" onClick={() => setModalTipo('CIERRE')} style={primaryBtn}>{t('record_CIERRE')}</button>
                     </>
                 )}
@@ -414,13 +534,11 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
             </div>
 
             {/* 4 — Timeline */}
-            {dia.cortes.length === 0 ? (
+            {todayEntries.length === 0 ? (
                 <p style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-secondary)' }}>{t('empty_today')}</p>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {dia.cortes.map(corte => (
-                        <CorteCard key={corte.id} corte={corte} headerAction={voidButton(corte)} footer={voidForm(corte)} />
-                    ))}
+                    {renderTimeline(todayEntries, true)}
                 </div>
             )}
 
@@ -477,7 +595,7 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                                         </span>
                                         <Chip tone={ESTADO_TONE[day.estado]}>{t(`estado_${day.estado}`)}</Chip>
                                     </div>
-                                    {day.cortes.map(corte => <CorteCard key={corte.id} corte={corte} />)}
+                                    {renderTimeline(timelineOf(day.cortes, day.movimientos), false)}
                                 </div>
                             ))}
                         </div>
@@ -492,6 +610,17 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                     onClose={() => setModalTipo(null)}
                     onSaved={async () => {
                         setModalTipo(null);
+                        await reloadAll();
+                    }}
+                />
+            )}
+
+            {movModalOpen && (
+                <CajaMovimientoModal
+                    staff={staff}
+                    onClose={() => setMovModalOpen(false)}
+                    onSaved={async () => {
+                        setMovModalOpen(false);
                         await reloadAll();
                     }}
                 />
