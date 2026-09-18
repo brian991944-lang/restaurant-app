@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { marcarShiftCompartido, type ShiftListType } from '@/app/actions/shiftLists';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
+import type { CapturedPhoto } from '@/components/ui/PhotoCapture';
 
 type Staff = { id: string; name: string };
 
@@ -18,7 +19,15 @@ export type ShiftShareSnapshot = {
         name: string;
         tasks: { text: string; checked: boolean }[];
         staffNames: string[];
+        /** LIMPIEZA only: how many photos travel with this section. */
+        photos?: number;
     }[];
+};
+
+const TITULO: Record<ShiftListType, string> = {
+    APERTURA: '📋 *Apertura',
+    CIERRE: '📋 *Cierre',
+    LIMPIEZA: '🧽 *Limpieza Profunda',
 };
 
 /**
@@ -26,11 +35,10 @@ export type ShiftShareSnapshot = {
  * language the tablet is set to — and text rather than an image, because a
  * checklist reads fine as ✅/⬜ lines and stays searchable and copyable.
  */
-export function buildListaTexto(snapshot: ShiftShareSnapshot, sender: string): string {
-    const titulo = snapshot.listType === 'APERTURA' ? 'Apertura' : 'Cierre';
+export function buildListaTexto(snapshot: ShiftShareSnapshot, sender: string, extraText?: string): string {
     const fecha = formatBusinessDateEs(businessDateToUtcDate(snapshot.businessDate));
 
-    const lines: string[] = [`📋 *${titulo} — ${fecha}*`, ''];
+    const lines: string[] = [`${TITULO[snapshot.listType]} — ${fecha}*`, ''];
     let total = 0;
     let hechas = 0;
     for (const section of snapshot.sections) {
@@ -41,6 +49,13 @@ export function buildListaTexto(snapshot: ShiftShareSnapshot, sender: string): s
             lines.push(`${task.checked ? '✅' : '⬜'} ${task.text}`);
         }
         lines.push(`👤 ${section.staffNames.length > 0 ? section.staffNames.join(', ') : '—'}`);
+        if (section.photos !== undefined) {
+            lines.push(`📷 ${section.photos === 1 ? '1 foto' : `${section.photos} fotos`}`);
+        }
+        lines.push('');
+    }
+    if (extraText && extraText.trim()) {
+        lines.push(extraText.trim());
         lines.push('');
     }
     lines.push(`${hechas} de ${total} completadas`);
@@ -54,17 +69,22 @@ export function buildListaTexto(snapshot: ShiftShareSnapshot, sender: string): s
  * iOS refuses a share sheet that is not opened by a direct user gesture, so
  * it is never chained onto the completion await.
  */
-export default function ShiftShareModal({ snapshot, staff, onClose }: {
+export default function ShiftShareModal({ snapshot, staff, onClose, photos, extraText }: {
     snapshot: ShiftShareSnapshot;
     staff: Staff[];
     onClose: () => void;
+    /** In-memory photos to attach (LIMPIEZA). Never stored; gone on reload. */
+    photos?: CapturedPhoto[];
+    /** Free text appended before the footer. */
+    extraText?: string;
 }) {
     const [sender, setSender] = useState<Staff | null>(null);
     const [sharing, setSharing] = useState(false);
 
     const names = senderDisplayNames(staff);
     const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '—';
-    const texto = buildListaTexto(snapshot, senderLabel);
+    const texto = buildListaTexto(snapshot, senderLabel, extraText);
+    const files = (photos ?? []).map(p => p.file);
 
     const copiarFallback = async (text: string): Promise<boolean> => {
         try {
@@ -86,8 +106,14 @@ export default function ShiftShareModal({ snapshot, staff, onClose }: {
             let shared = false;
             if (navigator.share) {
                 try {
-                    await navigator.share({ text: texto });
+                    // Photos ride along only where the device can take them;
+                    // otherwise the text goes alone and the person is told.
+                    const withFiles = files.length > 0 && !!navigator.canShare && navigator.canShare({ files });
+                    await navigator.share(withFiles ? { files, text: texto } : { text: texto });
                     shared = true;
+                    if (files.length > 0 && !withFiles) {
+                        alert('Las fotos no se pudieron adjuntar en este dispositivo. Se compartió solo el texto.');
+                    }
                 } catch (err) {
                     // AbortError = the sheet was dismissed. Not a failure, and
                     // NOT a reason to copy to the clipboard behind their back.
@@ -96,6 +122,9 @@ export default function ShiftShareModal({ snapshot, staff, onClose }: {
                 }
             } else {
                 shared = await copiarFallback(texto);
+                if (shared && files.length > 0) {
+                    alert('Las fotos no se pudieron adjuntar en este dispositivo. Se copió solo el texto.');
+                }
             }
             // Best effort, never blocks: the share already happened.
             if (shared) void marcarShiftCompartido(snapshot.listType);
@@ -144,6 +173,11 @@ export default function ShiftShareModal({ snapshot, staff, onClose }: {
                     }}>
                         {texto}
                     </pre>
+                    {files.length > 0 && (
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                            📷 {files.length === 1 ? '1 foto adjunta' : `${files.length} fotos adjuntas`} — solo se envían con este mensaje, no se guardan.
+                        </span>
+                    )}
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', padding: '0.75rem 1.5rem 1.25rem', borderTop: '1px solid var(--border)' }}>
