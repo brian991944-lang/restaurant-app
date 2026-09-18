@@ -31,12 +31,16 @@ function strokePath(stroke: Point[]): string {
  * Finger/stylus signature pad on an SVG. Strokes are captured in viewBox
  * units (600×200) regardless of the rendered size, so a signature drawn on a
  * tablet and one drawn on a phone have the same coordinate space.
+ *
+ * The two visible labels come in as props so this stays a generic control:
+ * the caller owns the translation namespace, not the pad.
  */
-export default function SignaturePad({ value, onChange, disabled = false, height }: {
+export default function SignaturePad({ value, onChange, disabled = false, height, labels }: {
     value: SignatureValue | null;
     onChange: (v: SignatureValue | null) => void;
     disabled?: boolean;
     height?: number;
+    labels: { signHere: string; clear: string };
 }) {
     const svgRef = useRef<SVGSVGElement>(null);
     const strokesRef = useRef<Point[][]>([]);
@@ -100,6 +104,7 @@ export default function SignaturePad({ value, onChange, disabled = false, height
 
     // Nothing drawn here yet but a value handed in (a remount): show that.
     const path = strokes.length > 0 ? strokes.map(strokePath).join(' ') : (value?.path ?? '');
+    const empty = strokes.length === 0 && !value;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -128,21 +133,21 @@ export default function SignaturePad({ value, onChange, disabled = false, height
             </svg>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>Firma aquí</span>
+                <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{labels.signHere}</span>
                 <button
                     type="button"
                     data-no-capture="true"
                     onClick={clear}
-                    disabled={disabled || (strokes.length === 0 && !value)}
+                    disabled={disabled || empty}
                     style={{
                         minHeight: '56px', padding: '0 1.25rem', borderRadius: '8px',
                         fontSize: '1rem', fontWeight: 600, cursor: 'pointer',
                         color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)',
                         border: '1px solid var(--border)',
-                        opacity: disabled || (strokes.length === 0 && !value) ? 0.5 : 1,
+                        opacity: disabled || empty ? 0.5 : 1,
                     }}
                 >
-                    Borrar
+                    {labels.clear}
                 </button>
             </div>
         </div>

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { getCajaEsperado, createCajaCorte, type CajaEsperadoResult } from '@/app/actions/caja';
-import { TOLERANCIA_CENTS, nivelFor, CAJA_LABELS } from '@/lib/cajaRules';
+import { TOLERANCIA_CENTS, nivelFor } from '@/lib/cajaRules';
 import { toCents, formatMoney } from '@/lib/money';
 import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
 import { NivelBadge, SinVerificar, PosibleTraslado, signedMoney } from './cajaUi';
@@ -14,15 +15,11 @@ type Staff = { id: string; name: string };
 
 type EsperadoOk = Extract<CajaEsperadoResult, { success: true }>;
 
-const TITLES: Record<Tipo, string> = {
-    APERTURA: 'Registrar Apertura', RELEVO: 'Registrar Relevo', CIERRE: 'Registrar Cierre',
-};
-
 /** Who signs a corte of each type, in the order the blocks appear. */
-const SIGNERS: Record<Tipo, { rol: Rol; title: string }[]> = {
-    APERTURA: [{ rol: 'APERTURA', title: 'Firma de apertura' }],
-    RELEVO: [{ rol: 'SALIENTE', title: 'Sale' }, { rol: 'ENTRANTE', title: 'Entra' }],
-    CIERRE: [{ rol: 'CIERRE', title: 'Firma de cierre' }],
+const SIGNERS: Record<Tipo, Rol[]> = {
+    APERTURA: ['APERTURA'],
+    RELEVO: ['SALIENTE', 'ENTRANTE'],
+    CIERRE: ['CIERRE'],
 };
 
 /**
@@ -45,8 +42,8 @@ type Comparison =
 
 /**
  * The corte form. The count is blind: nothing from Clover is shown until
- * both boxes are typed and "Ver comparación" is tapped, and at that point
- * the amounts lock so the comparison and the count stay the same numbers.
+ * both boxes are typed and "Compare" is tapped, and at that point the
+ * amounts lock so the comparison and the count stay the same numbers.
  */
 export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     tipo: Tipo;
@@ -54,6 +51,8 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     onClose: () => void;
     onSaved: (corteId: string) => void;
 }) {
+    const t = useTranslations('Caja');
+
     const [blancaStr, setBlancaStr] = useState('');
     const [negraStr, setNegraStr] = useState('');
     const [tabsConfirmadas, setTabsConfirmadas] = useState(false);
@@ -96,7 +95,7 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     };
     const motivosOk = (['BLANCA', 'NEGRA'] as Box[]).every(b => !motivoRequired[b] || motivos[b].trim().length > 0);
 
-    const signersOk = SIGNERS[tipo].every(s => signers[s.rol] && signatures[s.rol]);
+    const signersOk = SIGNERS[tipo].every(rol => signers[rol] && signatures[rol]);
 
     const canCompare = countsValid && (tipo !== 'CIERRE' || tabsConfirmadas) && !busy;
     const canSave = countsValid
@@ -130,21 +129,22 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                     { caja: 'BLANCA', contadoCents: blancaCents, motivo: motivos.BLANCA.trim() || undefined },
                     { caja: 'NEGRA', contadoCents: negraCents, motivo: motivos.NEGRA.trim() || undefined },
                 ],
-                firmas: SIGNERS[tipo].map(s => {
-                    const who = signers[s.rol]!;
-                    const sig = signatures[s.rol]!;
-                    return { rol: s.rol, employeeId: who.id, employeeName: who.name, firmaPath: sig.path, firmaBox: sig.box };
+                firmas: SIGNERS[tipo].map(rol => {
+                    const who = signers[rol]!;
+                    const sig = signatures[rol]!;
+                    return { rol, employeeId: who.id, employeeName: who.name, firmaPath: sig.path, firmaBox: sig.box };
                 }),
                 tabsConfirmadas: tipo === 'CIERRE' ? tabsConfirmadas : undefined,
                 notas: undefined,
             });
             if (!result.success || !result.corteId) {
-                alert(result.error ?? 'No se pudo guardar el corte.');
+                // Server-side messages are the action's own (Spanish) strings.
+                alert(result.error ?? t('save_failed'));
                 return;
             }
             onSaved(result.corteId);
         } catch (e) {
-            alert(e instanceof Error ? e.message : String(e));
+            alert(e instanceof Error ? e.message : t('save_failed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -152,12 +152,14 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
 
     // ── Pieces ───────────────────────────────────────────────────────────────
 
-    const moneyInput = (caja: Box, value: string, setValue: (v: string) => void, hint: string) => {
+    const padLabels = { signHere: t('sign_here'), clear: t('clear') };
+
+    const moneyInput = (caja: Box, value: string, setValue: (v: string) => void) => {
         const invalid = value.trim() !== '' && parseCount(value) === null;
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                 <label style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {CAJA_LABELS[caja]}
+                    {t(`box_${caja}`)}
                 </label>
                 <div style={{
                     display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -186,7 +188,7 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                     />
                 </div>
                 <span style={{ fontSize: '0.95rem', color: invalid ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                    {invalid ? 'Escribe un monto válido, cero o mayor.' : hint}
+                    {invalid ? t('invalid_amount') : t(`hint_${caja}`)}
                 </span>
             </div>
         );
@@ -197,17 +199,17 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{label}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
                 <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Contado</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('col_counted')}</div>
                     <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatMoney(contado)}</div>
                 </div>
                 <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Esperado</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('col_expected')}</div>
                     <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         {esperado === null ? '—' : formatMoney(esperado)}
                     </div>
                 </div>
                 <div>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Diferencia</div>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('col_difference')}</div>
                     <div style={{ marginTop: '0.2rem' }}>{badge}</div>
                 </div>
             </div>
@@ -218,7 +220,7 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     const motivoField = (caja: Box, required: boolean) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
             <label style={{ fontSize: '1rem', fontWeight: 600, color: required ? 'var(--danger)' : 'var(--text-secondary)' }}>
-                {required ? 'Motivo (obligatorio)' : 'Motivo (opcional)'}
+                {required ? t('reason_required') : t('reason_optional')}
             </label>
             <textarea
                 value={motivos[caja]}
@@ -237,16 +239,14 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
 
     const renderComparison = () => {
         if (comparison.status === 'loading') {
-            return <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-secondary)' }}>Consultando Clover…</p>;
+            return <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--text-secondary)' }}>{t('checking_clover')}</p>;
         }
         if (comparison.status === 'error') {
             return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--danger)' }}>
-                        No se pudo consultar Clover. Intenta de nuevo.
-                    </p>
+                    <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--danger)' }}>{t('clover_unavailable_retry')}</p>
                     <button type="button" onClick={runComparison} className="btn-secondary" style={secondaryBtn}>
-                        Reintentar
+                        {t('retry')}
                     </button>
                 </div>
             );
@@ -255,39 +255,37 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
         const d = comparison.data;
 
         if (sinApertura) {
-            return (
-                <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--danger)' }}>
-                    Sin apertura registrada. Registra la apertura de hoy antes de este corte.
-                </p>
-            );
+            return <p style={{ margin: 0, fontSize: '1.05rem', color: 'var(--danger)' }}>{t('no_opening')}</p>;
         }
 
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                 {compareRow(
-                    CAJA_LABELS.BLANCA, blancaCents, blancaEsperado,
+                    t('box_BLANCA'), blancaCents, blancaEsperado,
                     blancaNivel !== null && blancaDiff !== null ? <NivelBadge nivel={blancaNivel} diffCents={blancaDiff} /> : null,
                     blancaNivel === 'DESCUADRE' || blancaNivel === 'MENOR' ? motivoField('BLANCA', blancaNivel === 'DESCUADRE') : undefined,
                 )}
 
                 {negraFirm
                     ? compareRow(
-                        CAJA_LABELS.NEGRA, negraCents, negraEsperado,
+                        t('box_NEGRA'), negraCents, negraEsperado,
                         negraNivel !== null && negraDiff !== null ? <NivelBadge nivel={negraNivel} diffCents={negraDiff} /> : null,
                         negraNivel === 'DESCUADRE' || negraNivel === 'MENOR' ? motivoField('NEGRA', negraNivel === 'DESCUADRE') : undefined,
                     )
                     : compareRow(
-                        CAJA_LABELS.NEGRA, negraCents, null,
+                        t('box_NEGRA'), negraCents, null,
                         <SinVerificar />,
                         <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                            Referencia estimada: {negraEsperado === null ? '—' : formatMoney(negraEsperado)}
-                            {' '}(mesas abiertas: {d.negra.abiertasCount}) — no se verifica en relevos
+                            {t('negra_reference', {
+                                amount: negraEsperado === null ? '—' : formatMoney(negraEsperado),
+                                count: d.negra.abiertasCount,
+                            })}
                         </p>,
                     )}
 
                 {negraFirm && totalDiff !== null && totalNivel !== null && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '1rem 0', borderTop: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>Total</span>
+                        <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t('total')}</span>
                         <span style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>{signedMoney(totalDiff)}</span>
                         <NivelBadge nivel={totalNivel} diffCents={totalDiff} />
                         {posibleTraslado && <PosibleTraslado />}
@@ -296,33 +294,29 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
 
                 {d.negra.pendientesCount > 0 && (
                     <p style={{ margin: 0, padding: '0.75rem 1rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontSize: '0.95rem' }}>
-                        {d.negra.pendientesCount} {d.negra.pendientesCount === 1 ? 'mesa' : 'mesas'} de días anteriores
-                        {' '}{d.negra.pendientesCount === 1 ? 'sigue abierta' : 'siguen abiertas'} en Clover ({formatMoney(d.negra.pendientesCents)}).
-                        {' '}No entran en el esperado.
+                        {t('pendientes_note', { count: d.negra.pendientesCount, amount: formatMoney(d.negra.pendientesCents) })}
                     </p>
                 )}
 
                 {d.truncated && (
-                    <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                        Clover devolvió demasiadas órdenes; el esperado puede estar incompleto.
-                    </p>
+                    <p style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{t('truncated_note')}</p>
                 )}
             </div>
         );
     };
 
-    const signerBlock = (s: { rol: Rol; title: string }) => {
-        const chosen = signers[s.rol] ?? null;
-        // In a relevo the same person cannot both hand over and receive.
+    const signerBlock = (rol: Rol) => {
+        const chosen = signers[rol] ?? null;
+        // In a shift change the same person cannot both hand over and receive.
         const takenElsewhere = new Set(
-            SIGNERS[tipo].filter(o => o.rol !== s.rol).map(o => signers[o.rol]?.id).filter(Boolean)
+            SIGNERS[tipo].filter(o => o !== rol).map(o => signers[o]?.id).filter(Boolean)
         );
         return (
-            <div key={s.rol} className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{s.title}</span>
+            <div key={rol} className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{t(`signer_${rol}`)}</span>
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
                     {staff.length === 0 && (
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>No hay personal disponible.</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
                     )}
                     {staff.map(person => {
                         const isOn = chosen?.id === person.id;
@@ -333,8 +327,8 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                                 type="button"
                                 disabled={taken || busy}
                                 onClick={() => {
-                                    setSigners(prev => ({ ...prev, [s.rol]: isOn ? undefined : person }));
-                                    setSignatures(prev => ({ ...prev, [s.rol]: null }));
+                                    setSigners(prev => ({ ...prev, [rol]: isOn ? undefined : person }));
+                                    setSignatures(prev => ({ ...prev, [rol]: null }));
                                 }}
                                 style={{
                                     padding: '0.8rem 1.3rem', minHeight: '56px',
@@ -355,12 +349,13 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         <SignaturePad
                             key={chosen.id}
-                            value={signatures[s.rol] ?? null}
-                            onChange={v => setSignatures(prev => ({ ...prev, [s.rol]: v }))}
+                            value={signatures[rol] ?? null}
+                            onChange={v => setSignatures(prev => ({ ...prev, [rol]: v }))}
                             disabled={busy}
+                            labels={padLabels}
                         />
                         <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                            {chosen.name} — la hora se registra al guardar
+                            {t('signature_time_note', { name: chosen.name })}
                         </span>
                     </div>
                 )}
@@ -388,14 +383,14 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                 style={{ padding: '2rem', maxWidth: '820px', width: '100%', maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
             >
                 <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {TITLES[tipo]}
+                    {t(`record_${tipo}`)}
                 </h3>
 
-                {/* 1 — Conteo */}
+                {/* 1 — Count */}
                 <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sectionTitle('Conteo')}
-                    {moneyInput('BLANCA', blancaStr, setBlancaStr, 'Efectivo de cuentas cerradas en Clover')}
-                    {moneyInput('NEGRA', negraStr, setNegraStr, 'Efectivo de cuentas que siguen abiertas')}
+                    {sectionTitle(t('section_count'))}
+                    {moneyInput('BLANCA', blancaStr, setBlancaStr)}
+                    {moneyInput('NEGRA', negraStr, setNegraStr)}
 
                     {tipo === 'CIERRE' && (
                         <label style={{
@@ -410,45 +405,43 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                                 onChange={e => setTabsConfirmadas(e.target.checked)}
                                 style={{ width: '28px', height: '28px', flexShrink: 0 }}
                             />
-                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                                Confirmo que solo quedan abiertas las mesas que pagaron en efectivo
-                            </span>
+                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>{t('confirm_tabs')}</span>
                         </label>
                     )}
 
                     {needsComparison && (
                         inputsLocked ? (
                             <button type="button" onClick={unlock} disabled={busy} className="btn-secondary" style={secondaryBtn}>
-                                Editar cantidades
+                                {t('edit_amounts')}
                             </button>
                         ) : (
                             <button type="button" onClick={runComparison} disabled={!canCompare} style={primaryBtn(!canCompare)}>
-                                Ver comparación
+                                {t('compare')}
                             </button>
                         )
                     )}
                 </section>
 
-                {/* 2 — Comparación */}
+                {/* 2 — Comparison */}
                 {needsComparison && comparison.status !== 'idle' && (
                     <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {sectionTitle('Comparación')}
+                        {sectionTitle(t('section_compare'))}
                         {renderComparison()}
                     </section>
                 )}
 
-                {/* 3 — Firmas */}
+                {/* 3 — Signatures */}
                 <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sectionTitle('Firmas')}
+                    {sectionTitle(t('section_signatures'))}
                     {SIGNERS[tipo].map(signerBlock)}
                 </section>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <button type="button" onClick={onClose} disabled={busy} className="btn-secondary" style={secondaryBtn}>
-                        Cancelar
+                        {t('cancel')}
                     </button>
                     <button type="button" onClick={handleSave} disabled={!canSave} style={primaryBtn(!canSave)}>
-                        {isSubmitting ? 'Guardando…' : 'Guardar corte'}
+                        {isSubmitting ? t('saving') : t('save')}
                     </button>
                 </div>
             </div>

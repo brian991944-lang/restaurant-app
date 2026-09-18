@@ -36,6 +36,3 @@ export function isCashTender(t: { label?: string; labelKey?: string } | undefine
     const label = t.label ?? '';
     return /cash|efectivo/i.test(label) && !/discount|descuento/i.test(label);
 }
-
-export const CAJA_LABELS = { BLANCA: 'Caja Blanca', NEGRA: 'Caja Negra' } as const;
-export const TIPO_LABELS = { APERTURA: 'Apertura', RELEVO: 'Relevo', CIERRE: 'Cierre' } as const;
