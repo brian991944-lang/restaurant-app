@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { marcarShiftCompartido, type ShiftListType } from '@/app/actions/shiftLists';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
+import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
 
 type Staff = { id: string; name: string };
 
@@ -47,21 +48,6 @@ export function buildListaTexto(snapshot: ShiftShareSnapshot, sender: string): s
     return lines.join('\n');
 }
 
-/** First name, with a last initial when two people share it ("José M."). */
-function displayNames(staff: Staff[]): Map<string, string> {
-    const first = (name: string) => name.trim().split(/\s+/)[0] ?? name;
-    const counts = new Map<string, number>();
-    for (const s of staff) counts.set(first(s.name), (counts.get(first(s.name)) ?? 0) + 1);
-    const out = new Map<string, string>();
-    for (const s of staff) {
-        const tokens = s.name.trim().split(/\s+/);
-        const f = tokens[0] ?? s.name;
-        const dup = (counts.get(f) ?? 0) > 1 && tokens.length > 1;
-        out.set(s.id, dup ? `${f} ${tokens[1].charAt(0).toUpperCase()}.` : f);
-    }
-    return out;
-}
-
 /**
  * Opens after "Completar y compartir" succeeds, and again from "Compartir"
  * on a completed list. The share itself runs from this modal's own button:
@@ -76,7 +62,7 @@ export default function ShiftShareModal({ snapshot, staff, onClose }: {
     const [sender, setSender] = useState<Staff | null>(null);
     const [sharing, setSharing] = useState(false);
 
-    const names = displayNames(staff);
+    const names = senderDisplayNames(staff);
     const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '—';
     const texto = buildListaTexto(snapshot, senderLabel);
 
@@ -144,35 +130,10 @@ export default function ShiftShareModal({ snapshot, staff, onClose }: {
                 </p>
 
                 <div style={{ overflowY: 'auto', padding: '0 1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontWeight: 500 }}>¿Quién envía?</span>
-                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                            {staff.length === 0 && (
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>No hay personal disponible.</span>
-                            )}
-                            {staff.map(person => {
-                                const isOn = sender?.id === person.id;
-                                return (
-                                    <button
-                                        key={person.id}
-                                        type="button"
-                                        disabled={sharing}
-                                        onClick={() => setSender(isOn ? null : person)}
-                                        style={{
-                                            padding: '0.8rem 1.3rem', minHeight: '56px',
-                                            borderRadius: '999px', fontSize: '1.1rem', fontWeight: 600,
-                                            cursor: 'pointer',
-                                            color: isOn ? 'white' : 'var(--text-secondary)',
-                                            background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                                            border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
-                                        }}
-                                    >
-                                        {names.get(person.id) ?? person.name}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    <SenderPicker staff={staff} value={sender} onChange={setSender} label="¿Quién envía?" />
+                    {staff.length === 0 && (
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>No hay personal disponible.</span>
+                    )}
 
                     {/* Preview of exactly what will be sent. */}
                     <pre style={{

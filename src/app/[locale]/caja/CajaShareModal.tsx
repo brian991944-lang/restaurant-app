@@ -7,6 +7,7 @@ import { getCajaDia, marcarCajaCompartido } from '@/app/actions/caja';
 import { nivelFor } from '@/lib/cajaRules';
 import { formatMoney } from '@/lib/money';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
+import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
 import { nyTime, signedMoney } from './cajaUi';
 
 type Dia = Awaited<ReturnType<typeof getCajaDia>>;
@@ -41,21 +42,6 @@ const TONE = {
     DESCUADRE: { bg: '#fee2e2', fg: '#991b1b' },
 } as const;
 
-/** First name, with a last initial when two people share it ("José M."). */
-function displayNames(staff: Staff[]): Map<string, string> {
-    const first = (name: string) => name.trim().split(/\s+/)[0] ?? name;
-    const counts = new Map<string, number>();
-    for (const s of staff) counts.set(first(s.name), (counts.get(first(s.name)) ?? 0) + 1);
-    const out = new Map<string, string>();
-    for (const s of staff) {
-        const tokens = s.name.trim().split(/\s+/);
-        const f = tokens[0] ?? s.name;
-        const dup = (counts.get(f) ?? 0) > 1 && tokens.length > 1;
-        out.set(s.id, dup ? `${f} ${tokens[1].charAt(0).toUpperCase()}.` : f);
-    }
-    return out;
-}
-
 const movSigned = (m: Mov) => (m.tipo === 'INGRESO' ? m.amountCents : -m.amountCents);
 
 /**
@@ -79,7 +65,7 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
     const [sender, setSender] = useState<Staff | null>(null);
     const [sharing, setSharing] = useState(false);
 
-    const names = displayNames(staff);
+    const names = senderDisplayNames(staff);
     const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '';
 
     const lineas = [...corte.lineas].sort((a, b) => a.caja.localeCompare(b.caja));
@@ -159,36 +145,11 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
 
                 <div style={{ overflowY: 'auto', padding: '0 1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
-                    {/* Sender — outside the capture ref, and marked anyway. */}
-                    <div data-no-capture="true" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{t('share_who')}</span>
-                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                            {staff.length === 0 && (
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
-                            )}
-                            {staff.map(person => {
-                                const isOn = sender?.id === person.id;
-                                return (
-                                    <button
-                                        key={person.id}
-                                        type="button"
-                                        disabled={sharing}
-                                        onClick={() => setSender(isOn ? null : person)}
-                                        style={{
-                                            padding: '0.8rem 1.3rem', minHeight: '56px',
-                                            borderRadius: '999px', fontSize: '1.1rem', fontWeight: 600,
-                                            cursor: 'pointer',
-                                            color: isOn ? 'white' : 'var(--text-secondary)',
-                                            background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
-                                            border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
-                                        }}
-                                    >
-                                        {names.get(person.id) ?? person.name}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    {/* Sender — outside the capture ref; the picker marks itself data-no-capture too. */}
+                    <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
+                    {staff.length === 0 && (
+                        <span data-no-capture="true" style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
+                    )}
 
                     {/* Capture surface. Hex colours only — see the constants above. */}
                     <div
