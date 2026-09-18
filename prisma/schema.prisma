@@ -658,6 +658,7 @@ model CajaCorteLinea {
   abiertasCount    Int?
   pendientesCents  Int?
   pendientesCount  Int?
+  movimientosCents Int?     // net of non-voided movements folded into esperado
   @@unique([corteId, caja])
 }
 
@@ -672,6 +673,30 @@ model CajaFirma {
   firmaBox     String       // "W H" viewBox of the pad
   signedAt     DateTime     @default(now())
   @@index([corteId])
+}
+
+enum CajaMovimientoTipo {
+  RETIRO
+  COMPRA
+  INGRESO
+}
+
+model CajaMovimiento {
+  id            String             @id @default(cuid())
+  businessDate  String             // YYYY-MM-DD, same convention as CajaCorte
+  caja          CajaBox
+  tipo          CajaMovimientoTipo
+  amountCents   Int                // always positive; the tipo carries the direction
+  descripcion   String
+  employeeId    String
+  employeeName  String
+  firmaPath     String
+  firmaBox      String
+  at            DateTime           @default(now())
+  anuladoAt     DateTime?
+  anuladoMotivo String?
+  createdAt     DateTime           @default(now())
+  @@index([businessDate])
 }
 
 // ─────────────────────────────────────────────────────────────
