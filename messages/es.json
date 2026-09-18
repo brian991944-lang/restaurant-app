@@ -720,6 +720,13 @@
     "err_void_only_last": "Solo se puede anular el último corte del día.",
     "err_amount_invalid": "El monto debe ser mayor que cero.",
     "err_desc_required": "Indica una descripción.",
-    "err_admin_only": "Solo un administrador puede hacer esto."
+    "err_admin_only": "Solo un administrador puede hacer esto.",
+    "share_title": "Compartir cierre",
+    "share_who": "¿Quién envía?",
+    "share_button": "Compartir",
+    "share_sharing": "Compartiendo…",
+    "share_pick_sender": "Elige quién envía.",
+    "share_failed": "No se pudo generar la imagen. Intenta de nuevo.",
+    "close": "Cerrar"
   }
 }

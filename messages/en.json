@@ -720,6 +720,13 @@
     "err_void_only_last": "Only the last count of the day can be voided.",
     "err_amount_invalid": "The amount must be greater than zero.",
     "err_desc_required": "A description is required.",
-    "err_admin_only": "Only an admin can do this."
+    "err_admin_only": "Only an admin can do this.",
+    "share_title": "Share closing",
+    "share_who": "Who is sending?",
+    "share_button": "Share",
+    "share_sharing": "Sharing…",
+    "share_pick_sender": "Pick who is sending.",
+    "share_failed": "Could not generate the image. Try again.",
+    "close": "Close"
   }
 }

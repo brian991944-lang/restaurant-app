@@ -13,6 +13,7 @@ import { businessDateToUtcDate } from '@/lib/businessDay';
 import { DatePicker } from '@/components/ui/DatePicker';
 import CajaCorteModal from './CajaCorteModal';
 import CajaMovimientoModal from './CajaMovimientoModal';
+import CajaShareModal from './CajaShareModal';
 import {
     Chip, NivelBadge, SinVerificar, FondoInicial, PosibleTraslado,
     nyTime, longDate, signedMoney, shiftBusinessDate,
@@ -267,6 +268,9 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     const [live, setLive] = useState<Live>({ status: 'loading' });
     const [modalTipo, setModalTipo] = useState<Tipo | null>(null);
     const [movModalOpen, setMovModalOpen] = useState(false);
+    // The closing being shared: opens on its own after a CIERRE saves, and
+    // again from the card's Share button if the first attempt failed.
+    const [shareCorteId, setShareCorteId] = useState<string | null>(null);
 
     // One inline void form at a time; the id is a corte's or a movimiento's.
     const [anulando, setAnulando] = useState<{ kind: 'corte' | 'mov'; id: string } | null>(null);
@@ -462,17 +466,28 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         </div>
     );
 
-    /** Today's timeline carries void controls; history is read-only. */
+    /** Today's timeline carries void and share controls; history is read-only. */
     const renderTimeline = (entries: Entry[], withVoid: boolean) => entries.map(e => {
         if (e.kind === 'corte') {
             const c = e.corte;
             const canVoid = withVoid && isAdmin && c.anuladoAt === null && ultimoActivo?.id === c.id;
+            const canShare = withVoid && c.tipo === 'CIERRE' && c.anuladoAt === null;
             const open = anulando?.kind === 'corte' && anulando.id === c.id;
+            const actions = (canShare || (canVoid && !open)) ? (
+                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    {canShare && (
+                        <button type="button" onClick={() => setShareCorteId(c.id)} className="btn-secondary" style={secondaryBtn}>
+                            {t('share_button')}
+                        </button>
+                    )}
+                    {canVoid && !open && voidButton('corte', c.id)}
+                </div>
+            ) : null;
             return (
                 <CorteCard
                     key={c.id}
                     corte={c}
-                    headerAction={canVoid && !open ? voidButton('corte', c.id) : null}
+                    headerAction={actions}
                     footer={open ? voidForm : null}
                 />
             );
@@ -608,12 +623,29 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                     tipo={modalTipo}
                     staff={staff}
                     onClose={() => setModalTipo(null)}
-                    onSaved={async () => {
+                    onSaved={async corteId => {
+                        const saved = modalTipo;
                         setModalTipo(null);
                         await reloadAll();
+                        // The share sheet itself only opens from a tap inside
+                        // the modal — never from this await.
+                        if (saved === 'CIERRE') setShareCorteId(corteId);
                     }}
                 />
             )}
+
+            {shareCorteId && (() => {
+                const corte = dia.cortes.find(c => c.id === shareCorteId);
+                return corte ? (
+                    <CajaShareModal
+                        corte={corte}
+                        movimientos={dia.movimientos.filter(m => m.anuladoAt === null)}
+                        businessDate={dia.businessDate}
+                        staff={staff}
+                        onClose={() => setShareCorteId(null)}
+                    />
+                ) : null;
+            })()}
 
             {movModalOpen && (
                 <CajaMovimientoModal
