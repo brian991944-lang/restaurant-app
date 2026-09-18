@@ -19,6 +19,14 @@ export function signedMoney(cents: number): string {
     return `+${formatMoney(cents)}`;
 }
 
+/** Whole days added to a 'YYYY-MM-DD' business date. Pure calendar math, no TZ. */
+export function shiftBusinessDate(businessDate: string, days: number): string {
+    const [y, m, d] = businessDate.split('-').map(Number);
+    const t = new Date(Date.UTC(y, m - 1, d + days));
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
 /** HH:MM in New York, where the boxes are. */
 export function nyTime(d: Date | string): string {
     return new Intl.DateTimeFormat('es', {

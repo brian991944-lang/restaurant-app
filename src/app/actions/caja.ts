@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { cloverFetch } from '@/lib/clover';
 import { getBusinessDate, getBusinessDayWindowUtc } from '@/lib/businessDay';
 import { formatMoney } from '@/lib/money';
+import { isAdminSession } from '@/lib/adminGuard';
 import { TOLERANCIA_CENTS, nivelFor, isCashTender, type CajaNivel } from '@/lib/cajaRules';
 
 /**
@@ -30,6 +31,9 @@ const MAX_PAGES = 50;
 /** How many earlier business days are scanned for tabs left open. */
 const PENDIENTES_DAYS = 2;
 
+/** Longest range one history call will serve. */
+const HISTORIAL_MAX_DAYS = 60;
+
 export type CajaEstado = 'SIN_APERTURA' | 'ABIERTA' | 'CERRADA';
 
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -47,6 +51,13 @@ function shiftBusinessDate(businessDate: string, days: number): string {
     const t = new Date(Date.UTC(y, m - 1, d + days));
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
+/** Calendar days from one 'YYYY-MM-DD' to another; negative when `to` is earlier. */
+function daysBetween(from: string, to: string): number {
+    const [fy, fm, fd] = from.split('-').map(Number);
+    const [ty, tm, td] = to.split('-').map(Number);
+    return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
 }
 
 // ─── Clover ──────────────────────────────────────────────────────────────────
@@ -218,24 +229,88 @@ function floatsOf(cortes: CorteRow[]): { BLANCA: number | null; NEGRA: number | 
 // ─── Reads ───────────────────────────────────────────────────────────────────
 
 /**
- * The day's cortes, anulados included (anuladoAt set), each firm line carrying
- * a derived nivel. Judged against the tolerance stored on its own corte, so
+ * Each firm line judged against the tolerance stored on its own corte, so
  * changing TOLERANCIA_CENTS later does not rewrite history.
  */
-export async function getCajaDia(businessDate?: string) {
-    const date = businessDate ?? getBusinessDate();
-    if (!isBusinessDate(date)) throw new Error('Fecha inválida.');
-
-    const rows = await loadCortes(date);
-    const cortes = rows.map(c => ({
+function withNivel(rows: CorteRow[]) {
+    return rows.map(c => ({
         ...c,
         lineas: c.lineas.map(l => ({
             ...l,
             nivel: (l.diffCents === null ? null : nivelFor(l.diffCents, c.toleranciaCents)) as CajaNivel | null,
         })),
     }));
+}
 
-    return { businessDate: date, cortes, estado: estadoOf(rows), toleranciaCents: TOLERANCIA_CENTS };
+/**
+ * The day's cortes, anulados included (anuladoAt set), each firm line carrying
+ * a derived nivel.
+ */
+export async function getCajaDia(businessDate?: string) {
+    const date = businessDate ?? getBusinessDate();
+    if (!isBusinessDate(date)) throw new Error('Fecha inválida.');
+
+    const rows = await loadCortes(date);
+    return { businessDate: date, cortes: withNivel(rows), estado: estadoOf(rows), toleranciaCents: TOLERANCIA_CENTS };
+}
+
+export type CajaHistorialResult =
+    | {
+        success: true;
+        from: string;
+        to: string;
+        /** True when the caller is not admin and the range was cut down to yesterday. */
+        limited: boolean;
+        days: { businessDate: string; estado: CajaEstado; cortes: ReturnType<typeof withNivel> }[];
+    }
+    | { success: false; error: string };
+
+/**
+ * Cortes over a range of business days, newest day first; days with no
+ * cortes are omitted. An admin may ask for any range up to
+ * HISTORIAL_MAX_DAYS; anyone else is cut down to yesterday.
+ *
+ * The admin check is the same fusionista_admin cookie the payroll actions
+ * trust. src/lib/adminGuard.ts is explicit that it is a client-set speed
+ * bump, not hardened auth — it keeps a server from handing a floor tablet
+ * sixty days of counts by accident, nothing more.
+ */
+export async function getCajaHistorial(opts: { from: string; to: string }): Promise<CajaHistorialResult> {
+    let { from, to } = opts;
+    if (!isBusinessDate(from) || !isBusinessDate(to)) return { success: false, error: 'Fecha inválida.' };
+    if (from > to) return { success: false, error: 'El rango de fechas es inválido.' };
+    if (daysBetween(from, to) + 1 > HISTORIAL_MAX_DAYS) {
+        return { success: false, error: `El rango no puede superar ${HISTORIAL_MAX_DAYS} días.` };
+    }
+
+    let limited = false;
+    if (!(await isAdminSession())) {
+        limited = true;
+        const yesterday = shiftBusinessDate(getBusinessDate(), -1);
+        if (from > yesterday || to < yesterday) return { success: true, from, to, limited, days: [] };
+        from = yesterday;
+        to = yesterday;
+    }
+
+    const rows = await prisma.cajaCorte.findMany({
+        where: { businessDate: { gte: from, lte: to } },
+        include: corteInclude,
+        orderBy: [{ businessDate: 'desc' }, { seq: 'asc' }],
+    });
+
+    const byDay = new Map<string, CorteRow[]>();
+    for (const row of rows) {
+        const bucket = byDay.get(row.businessDate);
+        if (bucket) bucket.push(row);
+        else byDay.set(row.businessDate, [row]);
+    }
+    const days = [...byDay.entries()].map(([businessDate, cortes]) => ({
+        businessDate,
+        estado: estadoOf(cortes),
+        cortes: withNivel(cortes),
+    }));
+
+    return { success: true, from, to, limited, days };
 }
 
 export type CajaEsperadoResult =

@@ -3,25 +3,39 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
-import { getCajaDia, getCajaEsperado, anularCorte, type CajaEsperadoResult } from '@/app/actions/caja';
+import {
+    getCajaDia, getCajaEsperado, anularCorte, getCajaHistorial,
+    type CajaEsperadoResult, type CajaHistorialResult,
+} from '@/app/actions/caja';
 import { nivelFor } from '@/lib/cajaRules';
 import { formatMoney } from '@/lib/money';
 import { businessDateToUtcDate } from '@/lib/businessDay';
+import { DatePicker } from '@/components/ui/DatePicker';
 import CajaCorteModal from './CajaCorteModal';
 import {
     Chip, NivelBadge, SinVerificar, FondoInicial, PosibleTraslado,
-    nyTime, longDate, signedMoney,
+    nyTime, longDate, signedMoney, shiftBusinessDate,
 } from './cajaUi';
 
 type Dia = Awaited<ReturnType<typeof getCajaDia>>;
 type Corte = Dia['cortes'][number];
 type Tipo = Corte['tipo'];
 type EsperadoOk = Extract<CajaEsperadoResult, { success: true }>;
+type HistorialOk = Extract<CajaHistorialResult, { success: true }>;
 
 type Live =
     | { status: 'loading' }
     | { status: 'error' }
     | { status: 'ready'; data: EsperadoOk };
+
+type Hist =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'error' }
+    | { status: 'ready'; data: HistorialOk };
+
+/** Default admin range: the seven business days before today. */
+const HISTORY_DEFAULT_DAYS = 7;
 
 const ESTADO_TONE: Record<Dia['estado'], 'grey' | 'green' | 'blue'> = {
     SIN_APERTURA: 'grey',
@@ -200,6 +214,41 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
 
     useEffect(() => { loadDia(); loadLive(); }, [loadDia, loadLive]);
 
+    // ── History. Servers see yesterday behind a toggle; admin picks a range.
+    // The server enforces the same split, so this only shapes what is asked.
+    const [showYesterday, setShowYesterday] = useState(false);
+    const [hist, setHist] = useState<Hist>({ status: 'idle' });
+    const [histFrom, setHistFrom] = useState('');
+    const [histTo, setHistTo] = useState('');
+
+    const today = dia?.businessDate ?? null;
+    const yesterday = today ? shiftBusinessDate(today, -1) : null;
+
+    useEffect(() => {
+        if (!today) return;
+        setHistFrom(shiftBusinessDate(today, -HISTORY_DEFAULT_DAYS));
+        setHistTo(shiftBusinessDate(today, -1));
+    }, [today]);
+
+    const loadHist = useCallback(async (from: string, to: string) => {
+        setHist({ status: 'loading' });
+        try {
+            const r = await getCajaHistorial({ from, to });
+            setHist(r.success ? { status: 'ready', data: r } : { status: 'error' });
+        } catch {
+            setHist({ status: 'error' });
+        }
+    }, []);
+
+    const histRangeValid = histFrom !== '' && histTo !== '' && histFrom <= histTo;
+    useEffect(() => {
+        if (isAdmin && histRangeValid) loadHist(histFrom, histTo);
+    }, [isAdmin, histRangeValid, histFrom, histTo, loadHist]);
+
+    useEffect(() => {
+        if (!isAdmin && showYesterday && yesterday) loadHist(yesterday, yesterday);
+    }, [isAdmin, showYesterday, yesterday, loadHist]);
+
     const reloadAll = async () => {
         await loadDia();
         loadLive();
@@ -374,6 +423,67 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                     ))}
                 </div>
             )}
+
+            {/* 5 — History */}
+            <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{t('history')}</h3>
+                    {!isAdmin && (
+                        <button type="button" onClick={() => setShowYesterday(v => !v)} className="btn-secondary" style={secondaryBtn}>
+                            {showYesterday ? t('hide_yesterday') : t('show_yesterday')}
+                        </button>
+                    )}
+                </div>
+
+                {isAdmin && (
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('from')}</span>
+                            <DatePicker value={histFrom} onChange={setHistFrom} locale={locale === 'es' ? 'es' : 'en'} max={histTo || dia.businessDate} />
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('to')}</span>
+                            <DatePicker value={histTo} onChange={setHistTo} locale={locale === 'es' ? 'es' : 'en'} max={dia.businessDate} />
+                        </div>
+                    </div>
+                )}
+
+                {(isAdmin || showYesterday) && (
+                    hist.status === 'loading' || hist.status === 'idle' ? (
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>{t('loading')}</p>
+                    ) : hist.status === 'error' ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                            <span style={{ color: 'var(--danger)', fontSize: '1.05rem' }}>{t('history_failed')}</span>
+                            <button
+                                type="button"
+                                onClick={() => (isAdmin ? histRangeValid && loadHist(histFrom, histTo) : yesterday && loadHist(yesterday, yesterday))}
+                                className="btn-secondary"
+                                style={secondaryBtn}
+                            >
+                                {t('retry')}
+                            </button>
+                        </div>
+                    ) : hist.data.days.length === 0 ? (
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>
+                            {isAdmin ? t('history_empty') : t('history_day_empty')}
+                        </p>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {hist.data.days.map(day => (
+                                <div key={day.businessDate} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                        <span style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            {longDate(businessDateToUtcDate(day.businessDate), locale)}
+                                        </span>
+                                        <Chip tone={ESTADO_TONE[day.estado]}>{t(`estado_${day.estado}`)}</Chip>
+                                    </div>
+                                    {day.cortes.map(corte => <CorteCard key={corte.id} corte={corte} />)}
+                                </div>
+                            ))}
+                        </div>
+                    )
+                )}
+            </div>
 
             {modalTipo && (
                 <CajaCorteModal
