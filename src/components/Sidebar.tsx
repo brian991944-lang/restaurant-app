@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
@@ -133,6 +133,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         { key: 'tips_reviews', name: t('tips_reviews'), href: `/${locale}/tips-reviews`, icon: TrendingUp, station: 'Salon' },
         { key: 'gift_cards', name: t('gift_cards'), href: `/${locale}/gift-cards`, icon: Tags, station: 'Salon' },
         { key: 'closing_lists', name: t('closing_lists'), href: `/${locale}/closing-lists`, icon: LayoutDashboard, station: 'Salon' },
+        { key: 'caja', name: t('caja'), href: `/${locale}/caja`, icon: Banknote, station: 'Salon' },
 
         { key: 'menu', name: t('menu'), href: `/${locale}/menu`, icon: ChefHat, station: 'Management' },
         { key: 'sales', name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp, station: 'Management' },

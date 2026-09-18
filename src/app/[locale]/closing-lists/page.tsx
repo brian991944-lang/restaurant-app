@@ -12,7 +12,6 @@ import {
     reorderShiftTask, createShiftSection, updateShiftSection,
     type ShiftListType
 } from '@/app/actions/shiftLists';
-import CajaTab from './CajaTab';
 
 type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type StaffMember = Awaited<ReturnType<typeof getWaitStaff>>['staff'][number];
@@ -1070,7 +1069,7 @@ export default function ClosingListsPage() {
     // Read now so admin-only controls can be added later without restructuring.
     const { isAdmin } = useAdmin();
     const locale = useLocale();
-    const [activeTab, setActiveTab] = useState<'APERTURA' | 'CIERRE' | 'CAJA'>('CIERRE');
+    const [activeTab, setActiveTab] = useState<'APERTURA' | 'CIERRE'>('CIERRE');
 
     // Fetched once here and shared by both checklists. RestockView keeps its
     // own copy so it stays self-contained.
@@ -1128,7 +1127,6 @@ export default function ClosingListsPage() {
                         <Users size={20} />
                         <span>Personal</span>
                     </button>
-                    {activeTab !== 'CAJA' && (
                     <button
                         onClick={() => setIsEditorOpen(true)}
                         className="btn-secondary"
@@ -1143,7 +1141,6 @@ export default function ClosingListsPage() {
                         <Pencil size={20} />
                         <span>Editar listas</span>
                     </button>
-                    )}
                     </div>
                 )}
             </div>
@@ -1155,8 +1152,7 @@ export default function ClosingListsPage() {
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px' }}>
                     {[
                         { id: 'APERTURA', label: 'Apertura' },
-                        { id: 'CIERRE', label: 'Cierre' },
-                        { id: 'CAJA', label: 'Caja' }
+                        { id: 'CIERRE', label: 'Cierre' }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -1205,8 +1201,6 @@ export default function ClosingListsPage() {
                 />
             )}
 
-            {activeTab === 'CAJA' && <CajaTab staff={staff} />}
-
             {isAdmin && isStaffOpen && (
                 <StaffVisibilityModal
                     onClose={async () => {
@@ -1221,7 +1215,7 @@ export default function ClosingListsPage() {
 
             {isAdmin && isEditorOpen && (
                 <ShiftListEditorModal
-                    listType={activeTab === 'CAJA' ? 'CIERRE' : activeTab}
+                    listType={activeTab}
                     onClose={() => {
                         setIsEditorOpen(false);
                         setListVersion(v => v + 1);

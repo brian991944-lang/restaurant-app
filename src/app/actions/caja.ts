@@ -22,7 +22,7 @@ import { TOLERANCIA_CENTS, nivelFor, isCashTender, type CajaNivel } from '@/lib/
  * 'YYYY-MM-DD' strings of getBusinessDate(), as on ShiftRun.
  */
 
-const CLOSING_LISTS_ROUTE = '/[locale]/closing-lists';
+const CAJA_ROUTE = '/[locale]/caja';
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 50;
@@ -511,7 +511,7 @@ export async function createCajaCorte(
             created = await write();
         }
 
-        revalidatePath(CLOSING_LISTS_ROUTE, 'page');
+        revalidatePath(CAJA_ROUTE, 'page');
         return { success: true, corteId: created.id };
     } catch (e) {
         console.error('Failed to create caja corte:', e);
@@ -550,7 +550,7 @@ export async function anularCorte(
             data: { anuladoAt: new Date(), anuladoMotivo: trimmed },
         });
 
-        revalidatePath(CLOSING_LISTS_ROUTE, 'page');
+        revalidatePath(CAJA_ROUTE, 'page');
         return { success: true };
     } catch (e) {
         console.error('Failed to anular caja corte:', e);
