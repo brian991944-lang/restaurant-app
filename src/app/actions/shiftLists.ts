@@ -4,7 +4,15 @@ import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { getBusinessDate, getBusinessDayOfWeek } from '@/lib/businessDay';
 
-export type ShiftListType = 'APERTURA' | 'CIERRE';
+export type ShiftListType = 'APERTURA' | 'CIERRE' | 'LIMPIEZA';
+
+/** When a postponed cleaning job is meant to be done. */
+export type DeferralPlan = 'ESTA_NOCHE' | 'PROXIMA_APERTURA';
+
+/** Machine-readable failure codes; this page shows the Spanish `error` text. */
+export type ShiftErrorKey =
+    | 'err_reason_required' | 'err_plan_invalid' | 'err_section_not_found'
+    | 'err_nothing_pending' | 'err_deferral_failed' | 'err_deferral_not_found' | 'err_resolve_failed';
 
 /**
  * Today's ISO weekday (1=Monday … 7=Sunday) for the current business date, so a
@@ -45,11 +53,14 @@ export async function getShiftList(listType: ShiftListType) {
     });
 
     // Day filtering is done here rather than in the query: daysOfWeek is a
-    // comma string, which Prisma cannot match numerically.
-    const filtered = sections.map(section => ({
-        ...section,
-        tasks: section.tasks.filter(t => appliesToday(t.daysOfWeek, isoDay))
-    }));
+    // comma string, which Prisma cannot match numerically. A section with its
+    // own dayOfWeek (LIMPIEZA) only exists on that day; null means every day.
+    const filtered = sections
+        .filter(section => section.dayOfWeek === null || section.dayOfWeek === isoDay)
+        .map(section => ({
+            ...section,
+            tasks: section.tasks.filter(t => appliesToday(t.daysOfWeek, isoDay))
+        }));
 
     const run = await prisma.shiftRun.findUnique({
         where: { listType_businessDate: { listType, businessDate } },
@@ -57,6 +68,138 @@ export async function getShiftList(listType: ShiftListType) {
     });
 
     return { sections: filtered, run, businessDate };
+}
+
+/**
+ * Today's deep-cleaning list. Each weekday has its own LIMPIEZA section, so
+ * on a day with none (Friday to Sunday as seeded) `sections` is simply empty —
+ * that is the normal case, not an error.
+ *
+ * `deferrals` are the jobs postponed and not yet resolved: today's, plus any
+ * from an earlier day that was planned for PROXIMA_APERTURA, so a postponed
+ * job resurfaces on the next opening instead of vanishing with its day.
+ * Deferrals are stored per task (the schema has no section on them), so the
+ * UI groups them back by section.
+ */
+export async function getLimpiezaDia() {
+    const businessDate = getBusinessDate();
+    const isoDay = todayIsoWeekday();
+
+    const [sections, run, deferrals] = await Promise.all([
+        prisma.shiftSection.findMany({
+            where: { listType: 'LIMPIEZA', isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: {
+                tasks: {
+                    where: { isActive: true },
+                    orderBy: { sortOrder: 'asc' }
+                }
+            }
+        }),
+        prisma.shiftRun.findUnique({
+            where: { listType_businessDate: { listType: 'LIMPIEZA', businessDate } },
+            include: { checks: true, staff: true }
+        }),
+        prisma.shiftDeferral.findMany({
+            where: {
+                resolvedAt: null,
+                run: { listType: 'LIMPIEZA' },
+                OR: [
+                    { run: { businessDate } },
+                    { plannedFor: 'PROXIMA_APERTURA', run: { businessDate: { lt: businessDate } } }
+                ]
+            },
+            include: {
+                task: { select: { id: true, text: true, section: { select: { id: true, name: true } } } },
+                run: { select: { businessDate: true } }
+            },
+            orderBy: { createdAt: 'asc' }
+        })
+    ]);
+
+    const todays = sections
+        .filter(section => section.dayOfWeek === null || section.dayOfWeek === isoDay)
+        .map(section => ({
+            ...section,
+            tasks: section.tasks.filter(t => appliesToday(t.daysOfWeek, isoDay))
+        }));
+
+    return { businessDate, dayOfWeek: isoDay, sections: todays, run, deferrals };
+}
+
+/**
+ * Postpone a section's unfinished tasks. One ShiftDeferral per pending task,
+ * all sharing the reason and the plan, attached to today's run. Tasks already
+ * checked, or already postponed today, are left alone.
+ */
+export async function createShiftDeferral(input: {
+    listType: ShiftListType;
+    sectionId: string;
+    reason: string;
+    plannedFor: DeferralPlan;
+}): Promise<{ success: boolean; count?: number; error?: string; errorKey?: ShiftErrorKey }> {
+    const reason = input.reason.trim();
+    if (!reason) {
+        return { success: false, error: 'Indica el motivo para posponer.', errorKey: 'err_reason_required' };
+    }
+    if (input.plannedFor !== 'ESTA_NOCHE' && input.plannedFor !== 'PROXIMA_APERTURA') {
+        return { success: false, error: 'Indica cuándo se hará.', errorKey: 'err_plan_invalid' };
+    }
+
+    try {
+        const section = await prisma.shiftSection.findFirst({
+            where: { id: input.sectionId, listType: input.listType, isActive: true },
+            include: { tasks: { where: { isActive: true }, select: { id: true, daysOfWeek: true } } }
+        });
+        if (!section) {
+            return { success: false, error: 'No se encontró la sección.', errorKey: 'err_section_not_found' };
+        }
+
+        const run = await ensureRun(input.listType);
+        const isoDay = todayIsoWeekday();
+        const [checks, open] = await Promise.all([
+            prisma.shiftTaskCheck.findMany({ where: { runId: run.id }, select: { taskId: true } }),
+            prisma.shiftDeferral.findMany({ where: { runId: run.id, resolvedAt: null }, select: { taskId: true } })
+        ]);
+        const done = new Set(checks.map(c => c.taskId));
+        const alreadyOpen = new Set(open.map(d => d.taskId));
+
+        const pending = section.tasks
+            .filter(t => appliesToday(t.daysOfWeek, isoDay))
+            .filter(t => !done.has(t.id) && !alreadyOpen.has(t.id));
+        if (pending.length === 0) {
+            return { success: false, error: 'No hay tareas pendientes en esta sección.', errorKey: 'err_nothing_pending' };
+        }
+
+        await prisma.shiftDeferral.createMany({
+            data: pending.map(t => ({ taskId: t.id, runId: run.id, reason, plannedFor: input.plannedFor }))
+        });
+
+        revalidatePath('/[locale]/closing-lists', 'page');
+        return { success: true, count: pending.length };
+    } catch (e) {
+        console.error('Failed to create shift deferral:', e);
+        return { success: false, error: 'No se pudo posponer la sección.', errorKey: 'err_deferral_failed' };
+    }
+}
+
+/** Mark one postponed task as done. Nothing is deleted; resolvedAt records it. */
+export async function resolveShiftDeferral(
+    id: string
+): Promise<{ success: boolean; error?: string; errorKey?: ShiftErrorKey }> {
+    try {
+        const existing = await prisma.shiftDeferral.findUnique({ where: { id }, select: { id: true } });
+        if (!existing) {
+            return { success: false, error: 'No se encontró la tarea pospuesta.', errorKey: 'err_deferral_not_found' };
+        }
+        await prisma.shiftDeferral.update({ where: { id }, data: { resolvedAt: new Date() } });
+
+        revalidatePath('/[locale]/closing-lists', 'page');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to resolve shift deferral:', e);
+        return { success: false, error: 'No se pudo marcar como resuelto.', errorKey: 'err_resolve_failed' };
+    }
 }
 
 /**
