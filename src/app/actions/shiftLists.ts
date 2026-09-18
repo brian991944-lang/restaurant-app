@@ -315,3 +315,24 @@ export async function completeShiftRun(
         return { success: false, error: 'No se pudo cerrar la lista.' };
     }
 }
+
+/**
+ * Records that the day's list was shared (or that someone tried). Best
+ * effort: the share already happened on the tablet, so a failure here must
+ * never be reported as a failure to share.
+ */
+export async function marcarShiftCompartido(listType: ShiftListType): Promise<{ success: boolean }> {
+    try {
+        const run = await ensureRun(listType);
+        await prisma.shiftRun.update({
+            where: { id: run.id },
+            data: { shareAttemptedAt: new Date() }
+        });
+
+        revalidatePath('/[locale]/closing-lists', 'page');
+        return { success: true };
+    } catch (e) {
+        console.error('Failed to mark shift run as shared:', e);
+        return { success: false };
+    }
+}

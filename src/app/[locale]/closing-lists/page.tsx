@@ -12,6 +12,7 @@ import {
     reorderShiftTask, createShiftSection, updateShiftSection,
     type ShiftListType
 } from '@/app/actions/shiftLists';
+import ShiftShareModal, { type ShiftShareSnapshot } from './ShiftShareModal';
 
 type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type StaffMember = Awaited<ReturnType<typeof getWaitStaff>>['staff'][number];
@@ -316,6 +317,9 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
 
     const [isCompleting, setIsCompleting] = useState(false);
     const [completed, setCompleted] = useState(false);
+    // What the share modal shows. Snapshotted before the completion await, so
+    // the refetch cannot change what the person pressed the button on.
+    const [shareSnapshot, setShareSnapshot] = useState<ShiftShareSnapshot | null>(null);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -386,7 +390,28 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
         }
     };
 
+    /** The list as it stands right now, in the shape the share modal sends. */
+    const takeSnapshot = (): ShiftShareSnapshot | null => {
+        if (!data) return null;
+        return {
+            listType,
+            businessDate: data.businessDate,
+            sections: data.sections.map(section => ({
+                name: section.name,
+                tasks: section.tasks.map(task => ({ text: task.text, checked: checked.has(task.id) })),
+                staffNames: (staffBySection[section.id] ?? [])
+                    .map(id => staff.find(s => s.id === id)?.name)
+                    .filter((n): n is string => !!n),
+            })),
+        };
+    };
+
     const handleComplete = async () => {
+        // Snapshot first, send second. Anything read after the await is
+        // post-mutation, which is not what the user pressed the button on.
+        const snapshot = takeSnapshot();
+        if (!snapshot) return;
+
         setIsCompleting(true);
         setActionError(null);
         try {
@@ -396,6 +421,9 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
                 return;
             }
             setCompleted(true);
+            // Opens the modal only. The share sheet itself runs from the
+            // modal's button — iOS needs a direct tap for it.
+            setShareSnapshot(snapshot);
         } catch (e) {
             setActionError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -574,15 +602,36 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
 
                 {completed && (
                     <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
                         padding: '1rem 1.25rem', borderRadius: '12px', fontSize: '1.1rem', fontWeight: 600,
                         color: 'var(--success)',
                         background: 'color-mix(in srgb, var(--success) 12%, transparent)',
                         border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)'
                     }}>
-                        ✓ Lista completada. El envío automático se añadirá pronto.
+                        <span>✓ Lista completada.</span>
+                        <button
+                            onClick={() => { const s = takeSnapshot(); if (s) setShareSnapshot(s); }}
+                            className="btn-secondary"
+                            style={{
+                                borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
+                                fontSize: '1.1rem', fontWeight: 600,
+                                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
+                                color: 'var(--text-primary)', cursor: 'pointer'
+                            }}
+                        >
+                            Compartir
+                        </button>
                     </div>
                 )}
             </div>
+
+            {shareSnapshot && (
+                <ShiftShareModal
+                    snapshot={shareSnapshot}
+                    staff={staff}
+                    onClose={() => setShareSnapshot(null)}
+                />
+            )}
         </div>
     );
 }
