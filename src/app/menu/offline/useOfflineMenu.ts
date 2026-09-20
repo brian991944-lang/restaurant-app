@@ -35,34 +35,48 @@ export function useOfflineMenu(initial: { categories: MenuCategoryData[]; items:
         const disposeInstallPrompt = suppressInstallPrompt();
         if (!isStandaloneDisplay()) return disposeInstallPrompt;
 
-        setStandalone(true);
-        const engine = getSyncEngine();
-        const unsubscribe = engine.subscribe(setSync);
+        // Nothing in here may throw into React: if the offline machinery
+        // fails to start, the page keeps rendering the server props.
+        let cleanup: (() => void) | null = null;
+        try {
+            setStandalone(true);
+            const engine = getSyncEngine();
+            const unsubscribe = engine.subscribe(setSync);
 
-        engine.setServiceWorker('registering');
-        void registerMenuServiceWorker().then(result => engine.setServiceWorker(result));
+            engine.setServiceWorker('registering');
+            registerMenuServiceWorker().then(result => engine.setServiceWorker(result)).catch(() => engine.setServiceWorker('failed'));
 
-        void requestPersistentStorage().then(p => engine.setPersisted(p));
-        // Retry inside the first gesture: some engines only grant persistence
-        // when asked from user activation.
-        const onGesture = () => {
-            window.removeEventListener('pointerdown', onGesture);
-            void requestPersistentStorage().then(p => engine.setPersisted(p));
-        };
-        window.addEventListener('pointerdown', onGesture, { once: true });
+            requestPersistentStorage().then(p => engine.setPersisted(p)).catch(() => {});
+            // Retry inside the first gesture: some engines only grant persistence
+            // when asked from user activation.
+            const onGesture = () => {
+                window.removeEventListener('pointerdown', onGesture);
+                requestPersistentStorage().then(p => engine.setPersisted(p)).catch(() => {});
+            };
+            window.addEventListener('pointerdown', onGesture, { once: true });
 
-        engine.start();
+            engine.start();
+            cleanup = () => {
+                unsubscribe();
+                window.removeEventListener('pointerdown', onGesture);
+                // The engine singleton keeps polling for the life of the launch.
+            };
+        } catch (e) {
+            console.error('[menu] offline mode failed to start; showing the server menu:', e);
+        }
         return () => {
-            unsubscribe();
-            window.removeEventListener('pointerdown', onGesture);
+            cleanup?.();
             disposeInstallPrompt();
-            // The engine singleton keeps polling for the life of the launch.
         };
     }, []);
 
     const snapshot = standalone ? sync?.snapshot ?? null : null;
     const data = useMemo(() => {
-        if (!snapshot) return { categories: initial.categories, items: initial.items };
+        // The stored snapshot is validated on load; this is the last line of
+        // defence so a bad record can never blank the menu.
+        if (!snapshot || !Array.isArray(snapshot.categories) || !Array.isArray(snapshot.items)) {
+            return { categories: initial.categories, items: initial.items };
+        }
         return {
             categories: snapshot.categories,
             items: snapshot.items.map(item => item as MenuItemData),
@@ -74,6 +88,8 @@ export function useOfflineMenu(initial: { categories: MenuCategoryData[]; items:
         items: data.items,
         standalone,
         sync: standalone ? sync : null,
-        syncNow: () => getSyncEngine().syncNow(),
+        syncNow: async () => {
+            try { await getSyncEngine().syncNow(); } catch { /* reported via sync.lastError */ }
+        },
     };
 }

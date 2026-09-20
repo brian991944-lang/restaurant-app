@@ -67,6 +67,8 @@ export type PersistedSyncState = {
     version: VersionInfo | null;
     /** Last successful sync of any kind (full or availability), ms epoch. */
     lastSyncAt: number | null;
+    /** What that last successful sync was: a full snapshot or availability only. */
+    lastSyncKind: 'full' | 'availability' | null;
     /** Last successful FULL snapshot sync, ms epoch. */
     lastFullSyncAt: number | null;
     /** Business date ('YYYY-MM-DD') of the last full sync — gates the 09:00 window. */

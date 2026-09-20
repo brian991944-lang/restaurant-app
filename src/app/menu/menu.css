@@ -284,6 +284,12 @@
   word-break: break-all;
 }
 
+.mp-staff-note {
+  font-size: 12px;
+  color: var(--m-muted);
+  margin-top: 10px;
+}
+
 .mp-staff-actions {
   display: flex;
   justify-content: flex-end;

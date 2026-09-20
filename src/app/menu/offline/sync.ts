@@ -40,6 +40,7 @@ const emptyPersisted: PersistedSyncState = {
     snapshot: null,
     version: null,
     lastSyncAt: null,
+    lastSyncKind: null,
     lastFullSyncAt: null,
     lastDataSyncBusinessDate: null,
     pendingDataHash: null,
@@ -98,8 +99,21 @@ class SyncEngine {
     load(): Promise<void> {
         if (!this.loadPromise) {
             this.loadPromise = (async () => {
-                const saved = await kvGet<PersistedSyncState>(STATE_KEY);
-                this.patch({ ...(saved ?? {}), loaded: true });
+                try {
+                    const saved = await kvGet<Partial<PersistedSyncState>>(STATE_KEY);
+                    // A malformed record (interrupted write, older shape) must
+                    // never take the menu down: fall back to the server props
+                    // and let the next sync rewrite it.
+                    const snap = saved?.snapshot;
+                    const snapshotOk = !!snap && Array.isArray(snap.categories) && Array.isArray(snap.items);
+                    this.patch({
+                        ...(saved ?? {}),
+                        snapshot: snapshotOk ? snap : null,
+                        loaded: true,
+                    });
+                } catch (e) {
+                    this.patch({ loaded: true, lastError: e instanceof Error ? e.message : String(e) });
+                }
                 void this.countMedia();
             })();
         }
@@ -112,6 +126,7 @@ class SyncEngine {
             snapshot: s.snapshot,
             version: s.version,
             lastSyncAt: s.lastSyncAt,
+            lastSyncKind: s.lastSyncKind,
             lastFullSyncAt: s.lastFullSyncAt,
             lastDataSyncBusinessDate: s.lastDataSyncBusinessDate,
             pendingDataHash: s.pendingDataHash,
@@ -149,8 +164,18 @@ class SyncEngine {
     private onOffline = () => { this.patch({ online: false }); };
     private onVisibility = () => { if (document.visibilityState === 'visible') void this.tick(); };
 
-    /** Staff panel "Sincronizar ahora": a full sync regardless of the 09:00 window. */
-    syncNow(): Promise<void> { return this.tick({ force: true }); }
+    /**
+     * Staff panel "Descargar menú ahora": a full snapshot + media sync
+     * regardless of the 09:00 window. Never rejects — failures land in
+     * lastError / lastAttemptOk and the cached menu keeps rendering.
+     */
+    async syncNow(): Promise<void> {
+        try {
+            await this.tick({ force: true });
+        } catch (e) {
+            this.patch({ syncing: false, lastError: e instanceof Error ? e.message : String(e) });
+        }
+    }
 
     private async tick(opts: { force?: boolean } = {}): Promise<void> {
         if (this.state.syncing) return;
@@ -219,6 +244,7 @@ class SyncEngine {
             snapshot,
             version,
             lastSyncAt: now,
+            lastSyncKind: 'full',
             lastFullSyncAt: now,
             lastDataSyncBusinessDate: today,
             pendingDataHash: null,
@@ -241,6 +267,7 @@ class SyncEngine {
             snapshot: { ...snapshot, items },
             version: local ? { ...local, soldOutHash: version.soldOutHash, serverTime: version.serverTime } : version,
             lastSyncAt: Date.now(),
+            lastSyncKind: 'availability',
         });
         await this.persist();
     }

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { updateCloverItemDescription } from './clover';
 import { revalidateMenuPaths } from '@/lib/menuRevalidate';
 import { newForceToken } from '@/lib/menuSnapshot';
+import { isAdminSession } from '@/lib/adminGuard';
 
 // ============ CATEGORÍAS ============
 
@@ -343,14 +344,20 @@ export async function setMenuItemSoldOut(itemId: string, soldOut: boolean) {
 // Rotates MenuPublishState.forceToken. Every offline client polling
 // /api/menu/version sees a new token and re-downloads the snapshot, even if
 // the content hashes did not change (e.g. a photo was replaced at the same URL).
+// Admin-only: gated on the same fusionista_admin cookie as the other admin
+// server actions (see src/lib/adminGuard.ts — a speed bump, not hardened auth).
 export async function forceMenuRepublish() {
     try {
+        if (!(await isAdminSession())) {
+            return { success: false, error: 'Solo un administrador puede actualizar los iPads.' };
+        }
         const token = newForceToken();
         const row = await prisma.menuPublishState.upsert({
             where: { id: 1 },
             update: { forceToken: token },
             create: { id: 1, forceToken: token }
         });
+        revalidateMenuPaths();
         return { success: true, forceToken: row.forceToken };
     } catch (e) {
         console.error('forceMenuRepublish failed:', e);

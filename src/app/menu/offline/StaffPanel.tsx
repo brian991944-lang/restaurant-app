@@ -1,10 +1,14 @@
 'use client';
 
 /**
- * Staff-only diagnostics for the installed menu. Opened by tapping the logo
+ * Staff-only panel for the installed menu. Opened by tapping the header logo
  * five times quickly; rendered only in standalone mode, so guests on phones
- * never see it. Spanish only — this is for the floor team.
+ * never see it. Spanish only — it is read by the floor team.
+ *
+ * Shows only what the sync engine already knows plus navigator.storage: no
+ * admin data, no auth, no links out of /menu.
  */
+import { useEffect, useState } from 'react';
 import type { SyncState } from './types';
 
 export function formatClock(ts: number | null | undefined): string {
@@ -17,17 +21,14 @@ export function formatClock(ts: number | null | undefined): string {
     return `${d.toLocaleDateString('es', { day: 'numeric', month: 'short' })} ${time}`;
 }
 
-function short(hash: string | null | undefined): string {
-    return hash ? hash.slice(0, 10) : '—';
+function formatBytes(n: number | null | undefined): string {
+    if (n === null || n === undefined) return '—';
+    if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+    if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-const SW_LABEL: Record<SyncState['serviceWorker'], string> = {
-    idle: 'sin registrar',
-    registering: 'registrando…',
-    active: 'registrado',
-    failed: 'falló el registro',
-    unsupported: 'no soportado',
-};
+const KIND_LABEL = { full: 'completa', availability: 'disponibilidad' } as const;
 
 export default function StaffPanel({
     sync,
@@ -38,29 +39,46 @@ export default function StaffPanel({
     onSyncNow: () => Promise<void>;
     onClose: () => void;
 }) {
+    // Cache size, read fresh each time the panel opens and after each sync.
+    const [estimate, setEstimate] = useState<{ usage: number | null; quota: number | null } | 'unsupported' | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                if (typeof navigator === 'undefined' || !navigator.storage?.estimate) { setEstimate('unsupported'); return; }
+                const e = await navigator.storage.estimate();
+                if (!cancelled) setEstimate({ usage: e.usage ?? null, quota: e.quota ?? null });
+            } catch {
+                if (!cancelled) setEstimate('unsupported');
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [sync?.lastSyncAt, sync?.syncing]);
+
+    const lastSync = sync?.lastSyncAt
+        ? `${formatClock(sync.lastSyncAt)}${sync.lastSyncKind ? ` (${KIND_LABEL[sync.lastSyncKind]})` : ''}`
+        : 'todavía ninguna';
     const persisted = sync?.persisted === null || sync?.persisted === undefined
         ? 'sin confirmar'
-        : sync.persisted ? 'sí (persistente)' : 'NO — el sistema podría borrar la caché';
+        : sync.persisted ? 'sí' : 'NO — el sistema podría borrar la caché';
+    const cacheSize = estimate === null
+        ? 'calculando…'
+        : estimate === 'unsupported'
+            ? 'no disponible'
+            : `${formatBytes(estimate.usage)}${estimate.quota ? ` de ${formatBytes(estimate.quota)}` : ''}`;
+
     const rows: [string, string][] = [
-        ['Modo', 'app instalada (standalone)'],
+        ['Última sincronización', lastSync],
         ['Conexión', sync?.online ? 'en línea' : 'sin conexión'],
+        ['Sin conexión desde', sync?.offlineSince ? formatClock(sync.offlineSince) : '—'],
         ['Almacenamiento persistente', persisted],
-        ['Service worker', sync ? SW_LABEL[sync.serviceWorker] : '—'],
-        ['Última sincronización', formatClock(sync?.lastSyncAt)],
-        ['Última descarga completa', formatClock(sync?.lastFullSyncAt)],
+        ['Tamaño de la caché', cacheSize],
+        ['Fotos y videos guardados', sync?.mediaCached === null || sync?.mediaCached === undefined ? '—' : String(sync.mediaCached)],
+        ['Platos en el menú local', sync?.snapshot ? String(sync.snapshot.items.length) : 'usando el menú del servidor'],
+        ['Cambio de menú en espera', sync?.pendingDataHash ? 'sí — se aplica a partir de las 9:00 AM' : 'no'],
         ['Último intento', sync?.lastAttemptAt
             ? `${formatClock(sync.lastAttemptAt)} · ${sync.lastAttemptOk ? 'ok' : 'falló'}`
             : '—'],
-        ['Sin conexión desde', sync?.offlineSince ? formatClock(sync.offlineSince) : '—'],
-        ['Cambio de menú en espera', sync?.pendingDataHash
-            ? 'sí — se aplica a partir de las 9:00 AM'
-            : 'no'],
-        ['Fecha de la última descarga (día de negocio)', sync?.lastDataSyncBusinessDate ?? '—'],
-        ['Fotos y videos en caché', sync?.mediaCached === null || sync?.mediaCached === undefined ? '—' : String(sync.mediaCached)],
-        ['Platos en el menú local', sync?.snapshot ? String(sync.snapshot.items.length) : '—'],
-        ['dataHash', short(sync?.version?.dataHash)],
-        ['soldOutHash', short(sync?.version?.soldOutHash)],
-        ['forceToken', sync?.version?.forceToken ?? '—'],
         ['Último error', sync?.lastError ?? '—'],
     ];
     return (
@@ -75,13 +93,16 @@ export default function StaffPanel({
                         </div>
                     ))}
                 </dl>
+                <p className="mp-staff-note">
+                    Descargar ahora trae el menú completo con fotos y videos, sin esperar a las 9:00 AM.
+                </p>
                 <div className="mp-staff-actions">
                     <button
                         className="mp-staff-btn mp-staff-btn-primary"
-                        disabled={!!sync?.syncing}
+                        disabled={!!sync?.syncing || sync?.online === false}
                         onClick={() => { void onSyncNow(); }}
                     >
-                        {sync?.syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+                        {sync?.syncing ? 'Descargando…' : 'Descargar menú ahora'}
                     </button>
                     <button className="mp-staff-btn" onClick={onClose}>Cerrar</button>
                 </div>

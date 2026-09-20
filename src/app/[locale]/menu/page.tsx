@@ -4,20 +4,35 @@ import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import {
     Plus, Pencil, Trash2, ChevronUp, ChevronDown, ExternalLink,
-    Image as ImageIcon, Star, Eye, EyeOff, X, RefreshCw
+    Image as ImageIcon, Star, Eye, EyeOff, X, RefreshCw, Ban, Tablet
 } from 'lucide-react';
 import {
     getMenuCategoriesAdmin, createMenuCategory, updateMenuCategory,
     reorderMenuCategories, deleteMenuCategory,
-    getMenuItemsAdmin, updateMenuItem, reorderMenuItems, deleteMenuItem
+    getMenuItemsAdmin, updateMenuItem, reorderMenuItems, deleteMenuItem,
+    setMenuItemSoldOut, forceMenuRepublish
 } from '@/app/actions/menuAdmin';
 import { syncMenuFromClover } from '@/app/actions/clover';
+import { getBusinessDate } from '@/lib/businessDay';
 import ItemEditorModal from './ItemEditorModal';
 import CostosTab from './CostosTab';
 
 type TabId = 'categorias' | 'platos' | 'costos';
 
 const UNCATEGORIZED = '__none__';
+
+// "Agotado hoy": soldOutAt counts only while it falls on the current business
+// date (5 AM NY cutover). Same rule as isSoldOut in src/lib/menuSnapshot.ts,
+// evaluated here on the client so the list reflects the mark expiring overnight.
+const isSoldOutToday = (soldOutAt: string | Date | null | undefined): boolean =>
+    !!soldOutAt && getBusinessDate(new Date(soldOutAt)) === getBusinessDate();
+
+const PUBLISH_CONFIRM =
+    '¿Actualizar todos los iPads ahora?\n\n' +
+    'Cada tablet del salón descargará el menú completo (platos, fotos y videos) ' +
+    'en su próxima comprobación, dentro de unos 2 minutos, aunque no sea la hora ' +
+    'habitual de las 9:00 AM. Los iPads que estén sin conexión lo harán en cuanto ' +
+    'vuelvan a conectarse.';
 
 // Small status pill used in the Platos list.
 const chipStyle = (color: string): React.CSSProperties => ({
@@ -55,6 +70,10 @@ export default function MenuAdminPage() {
     const [syncing, setSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<any>(null);
     const [showSkipped, setShowSkipped] = useState(false);
+
+    // "Actualizar iPads ahora" (forceToken rotation) state
+    const [publishing, setPublishing] = useState(false);
+    const [publishResult, setPublishResult] = useState<{ ok: boolean; text: string } | null>(null);
 
     const loadAll = async () => {
         const [cats, its] = await Promise.all([getMenuCategoriesAdmin(), getMenuItemsAdmin()]);
@@ -141,6 +160,36 @@ export default function MenuAdminPage() {
         if (!result.success) {
             setItemError(result.error || 'Error al guardar.');
             loadAll();
+        }
+    };
+
+    // "Agotado hoy" writes soldOutAt (app-owned; syncMenuFromClover never
+    // touches it). Optimistic like the Eye button: flip locally, then rollback
+    // by reloading if the action fails. Clearing writes null; otherwise the
+    // mark simply stops counting at the next business-day cutover.
+    const handleToggleSoldOut = async (item: any) => {
+        const soldOut = !isSoldOutToday(item.soldOutAt);
+        setItems(prev => prev.map(i => i.id === item.id ? { ...i, soldOutAt: soldOut ? new Date().toISOString() : null } : i));
+        const result = await setMenuItemSoldOut(item.id, soldOut);
+        if (!result.success) {
+            setItemError(result.error || 'Error al guardar.');
+            loadAll();
+        }
+    };
+
+    const handlePublish = async () => {
+        if (!confirm(PUBLISH_CONFIRM)) return;
+        setPublishing(true);
+        setPublishResult(null);
+        try {
+            const result = await forceMenuRepublish();
+            setPublishResult(result.success
+                ? { ok: true, text: 'Listo. Cada iPad descargará el menú completo en su próxima comprobación (unos 2 minutos). Los que estén sin conexión lo harán al reconectarse.' }
+                : { ok: false, text: result.error || 'No se pudo actualizar los iPads.' });
+        } catch (e) {
+            setPublishResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
+        } finally {
+            setPublishing(false);
         }
     };
 
@@ -312,11 +361,28 @@ export default function MenuAdminPage() {
                                 <RefreshCw size={16} style={syncing ? { animation: 'mp-spin 1s linear infinite' } : undefined} />
                                 {syncing ? 'Sincronizando…' : 'Sincronizar con Clover'}
                             </button>
+                            <button
+                                onClick={handlePublish}
+                                disabled={publishing}
+                                className="btn-secondary"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', minHeight: '44px', padding: '0 1rem', opacity: publishing ? 0.6 : 1, cursor: publishing ? 'wait' : 'pointer' }}
+                                title="Obliga a todos los iPads del salón a descargar el menú completo en su próxima comprobación (~2 min), sin esperar a las 9:00 AM"
+                            >
+                                <Tablet size={16} />
+                                {publishing ? 'Avisando a los iPads…' : 'Actualizar iPads ahora'}
+                            </button>
                         </div>
                         <button onClick={() => setItemModal({ open: true, editing: null })} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', minHeight: '44px' }}>
                             <Plus size={18} /> Nuevo Plato
                         </button>
                     </div>
+
+                    {publishResult && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', padding: '0.85rem 1rem', borderRadius: '8px', fontSize: '0.9rem', background: publishResult.ok ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.1)', border: publishResult.ok ? '1px solid rgba(34, 197, 94, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)', color: publishResult.ok ? 'inherit' : '#ef4444' }}>
+                            <span>{publishResult.text}</span>
+                            <button onClick={() => setPublishResult(null)} style={{ color: 'inherit', padding: '0.25rem' }} title="Cerrar"><X size={16} /></button>
+                        </div>
+                    )}
 
                     {syncResult && (
                         <div style={{ padding: '0.85rem 1rem', borderRadius: '8px', fontSize: '0.9rem', background: syncResult.error ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.08)', border: syncResult.error ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(34, 197, 94, 0.25)' }}>
@@ -404,8 +470,11 @@ export default function MenuAdminPage() {
                                         {item.menuCategory ? `${item.menuCategory.nameEs}` : 'Sin categoría'}
                                         {item.cloverId && <span title="Vinculado a Clover POS"> · Clover</span>}
                                     </div>
-                                    {(item.cloverMissingAt || (item.cloverId && (item._count?.recipeIngredients ?? 0) === 0)) && (
+                                    {(isSoldOutToday(item.soldOutAt) || item.cloverMissingAt || (item.cloverId && (item._count?.recipeIngredients ?? 0) === 0)) && (
                                         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                                            {isSoldOutToday(item.soldOutAt) && (
+                                                <span style={chipStyle('#ef4444')} title="Marcado como agotado hoy. Se quita solo al cambiar el día de negocio (5:00 AM).">Agotado hoy</span>
+                                            )}
                                             {item.cloverId && (item._count?.recipeIngredients ?? 0) === 0 && (
                                                 <span style={chipStyle('#f59e0b')} title="Vinculado a Clover pero sin receta: no aporta al costeo">Sin receta</span>
                                             )}
@@ -430,6 +499,17 @@ export default function MenuAdminPage() {
                                     }
                                 >
                                     {item.hiddenInApp ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                                <button
+                                    onClick={() => handleToggleSoldOut(item)}
+                                    style={{ ...iconBtnStyle, color: isSoldOutToday(item.soldOutAt) ? '#ef4444' : 'var(--text-secondary)', borderColor: isSoldOutToday(item.soldOutAt) ? '#ef444455' : 'var(--border)' }}
+                                    title={
+                                        isSoldOutToday(item.soldOutAt)
+                                            ? 'Agotado hoy — clic para volver a ofrecerlo'
+                                            : 'Marcar como agotado hoy (los iPads lo muestran en unos 2 minutos; se quita solo mañana)'
+                                    }
+                                >
+                                    <Ban size={18} />
                                 </button>
                                 <button
                                     onClick={() => handleQuickToggle(item, 'isFeatured')}
