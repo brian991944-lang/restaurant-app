@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { updateCloverItemDescription } from './clover';
 import { revalidateMenuPaths } from '@/lib/menuRevalidate';
+import { newForceToken } from '@/lib/menuSnapshot';
 
 // ============ CATEGORÍAS ============
 
@@ -318,6 +319,42 @@ export async function setFeaturedRank(itemId: string, rank: 1 | 2 | null) {
     } catch (e) {
         console.error('setFeaturedRank failed:', e);
         return { success: false, error: 'No se pudo actualizar el destacado.' };
+    }
+}
+
+// "Sold out for today". Writes soldOutAt (app-owned, never touched by the
+// Clover sync). The mark is only honoured while it falls on the current
+// business date (see isSoldOut in src/lib/menuSnapshot.ts), so un-marking is
+// optional — it expires on its own at the 5 AM cutover.
+export async function setMenuItemSoldOut(itemId: string, soldOut: boolean) {
+    try {
+        await prisma.menuItem.update({
+            where: { id: itemId },
+            data: { soldOutAt: soldOut ? new Date() : null }
+        });
+        revalidateMenuPaths();
+        return { success: true };
+    } catch (e) {
+        console.error('setMenuItemSoldOut failed:', e);
+        return { success: false, error: 'No se pudo actualizar el estado de agotado.' };
+    }
+}
+
+// Rotates MenuPublishState.forceToken. Every offline client polling
+// /api/menu/version sees a new token and re-downloads the snapshot, even if
+// the content hashes did not change (e.g. a photo was replaced at the same URL).
+export async function forceMenuRepublish() {
+    try {
+        const token = newForceToken();
+        const row = await prisma.menuPublishState.upsert({
+            where: { id: 1 },
+            update: { forceToken: token },
+            create: { id: 1, forceToken: token }
+        });
+        return { success: true, forceToken: row.forceToken };
+    } catch (e) {
+        console.error('forceMenuRepublish failed:', e);
+        return { success: false, error: 'No se pudo forzar la republicación del menú.' };
     }
 }
 

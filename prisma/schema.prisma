@@ -258,6 +258,12 @@ model MenuItem {
   // folding them into one column means each sync silently undoes the admin.
   // The public menu requires isAvailable AND NOT hiddenInApp.
   hiddenInApp     Boolean @default(false)
+  // App-owned, NEVER written by the sync. "Sold out for today": the item is
+  // sold out while getBusinessDate(soldOutAt) equals the current business date
+  // (src/lib/businessDay.ts, 5 AM NY cutover). No clearing job — the mark
+  // expires by itself when the business day rolls over. Distinct from
+  // isAvailable (86'd in the POS, Clover-owned) and hiddenInApp (admin hide).
+  soldOutAt       DateTime?
   isFeatured      Boolean @default(false)
   featuredRank    Int?    // "most ordered" band on the public menu: lower rank shows first (null = not featured)
   sortOrder       Int     @default(0)
@@ -268,6 +274,17 @@ model MenuItem {
 
   recipeIngredients RecipeIngredient[]
   modifiers         MenuItemModifier[]
+}
+
+// Single-row publish state for the offline menu clients (iPad). forceToken is
+// an opaque string surfaced by /api/menu/version; changing it tells every
+// client to re-download the snapshot even when the content hashes match.
+// One row (id = 1), seeded on first deploy and lazily upserted by
+// getForceToken() in src/lib/menuSnapshot.ts if it is ever missing.
+model MenuPublishState {
+  id         Int      @id @default(1)
+  forceToken String
+  updatedAt  DateTime @updatedAt
 }
 
 model MenuItemModifier {

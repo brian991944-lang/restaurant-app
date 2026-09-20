@@ -952,8 +952,9 @@ export async function syncSalonFromClover(): Promise<{
  *                              create, then app-owned), descriptionEs,
  *                              whyEn/Es, componentsEn/Es, tags, taglineEn/Es,
  *                              every photo/focal/zoom/fit field, featuredRank,
- *                              isFeatured, hiddenInApp, targetFoodCostPct,
- *                              hasInventoryModifiers, recipes, modifiers
+ *                              isFeatured, hiddenInApp, soldOutAt,
+ *                              targetFoodCostPct, hasInventoryModifiers,
+ *                              recipes, modifiers
  *   MenuCategory               cloverCategoryId is Clover-owned; nameEn,
  *                              nameEs, subtitleEn/Es, sortOrder and isActive
  *                              are seeded on CREATE and never touched again
