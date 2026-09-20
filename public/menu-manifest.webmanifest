@@ -1,0 +1,17 @@
+{
+  "name": "Fusionista",
+  "short_name": "Fusionista",
+  "description": "Menú digital de Fusionista — Modern Peruvian Cuisine",
+  "id": "/menu",
+  "start_url": "/menu",
+  "scope": "/menu",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#114a4d",
+  "background_color": "#f3eee6",
+  "icons": [
+    { "src": "/menu/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/menu/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/menu/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

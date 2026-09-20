@@ -3,6 +3,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { MENU_TAGS } from '@/lib/menuTags';
 import { MENU_GLOSSARY } from '@/lib/menuGlossary';
+import { useOfflineMenu } from './offline/useOfflineMenu';
+import StaffPanel, { formatClock } from './offline/StaffPanel';
+import type { MenuCategoryData, MenuItemData, SyncState } from './offline/types';
 
 const THEME_STORAGE_KEY = 'fusionista-menu-theme';
 
@@ -11,41 +14,8 @@ const THEME_STORAGE_KEY = 'fusionista-menu-theme';
 // menu-dark. Default (nothing stored) is light.
 const THEME_SYNC_SCRIPT = `try{document.body.classList.toggle('menu-dark',localStorage.getItem('${THEME_STORAGE_KEY}')==='dark')}catch(e){}`;
 
-type MenuCategoryData = {
-    id: string;
-    nameEn: string;
-    nameEs: string;
-    subtitleEn: string | null;
-    subtitleEs: string | null;
-    sortOrder: number;
-};
-
-type MenuItemData = {
-    id: string;
-    name: string;
-    nameEn: string | null;
-    nameEs: string | null;
-    descriptionEn: string | null;
-    descriptionEs: string | null;
-    taglineEn: string | null;
-    taglineEs: string | null;
-    tags: string[];
-    whyEn: string | null;
-    whyEs: string | null;
-    componentsEn: string[];
-    componentsEs: string[];
-    salePrice: number;
-    photoUrl: string | null;
-    photoUrls: string[];
-    photoFocalX: number;
-    photoFocalY: number;
-    photoZoom: number;
-    photoFit: string;
-    videoUrl: string | null;
-    isFeatured: boolean;
-    featuredRank: number | null;
-    menuCategoryId: string | null;
-};
+// MenuCategoryData / MenuItemData live in ./offline/types so the server page,
+// this component and the offline snapshot agree on one shape.
 
 type Lang = 'en' | 'es';
 type Theme = 'light' | 'dark';
@@ -54,7 +24,7 @@ type MediaTab = 'fotos' | 'video';
 const UI_TEXT: Record<Lang, {
     empty: string; comingSoon: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
-    hint: string; seeMore: string; glossaryTitle: string;
+    hint: string; seeMore: string; glossaryTitle: string; soldOut: string;
 }> = {
     en: {
         empty: 'Menu coming soon.',
@@ -68,6 +38,7 @@ const UI_TEXT: Record<Lang, {
         hint: "Browse, then tell your server what you'd like  ·  this menu doesn't take orders",
         seeMore: 'Details & photos',
         glossaryTitle: 'Words that help',
+        soldOut: 'Sold out',
     },
     es: {
         empty: 'Menú disponible próximamente.',
@@ -81,8 +52,30 @@ const UI_TEXT: Record<Lang, {
         hint: 'Elige con calma y dile al mesero qué deseas  ·  este menú no toma pedidos',
         seeMore: 'Detalles y fotos',
         glossaryTitle: 'Palabras que ayudan',
+        soldOut: 'Agotado',
     },
 };
+
+// Freshness line for the installed app (Spanish: it is read by the floor
+// team, not guests). Plain about being offline: a server must be able to tell
+// at a glance whether "Actualizado 9:14 AM" is still being refreshed.
+function syncLineOf(sync: SyncState | null): { text: string; offline: boolean } | null {
+    if (!sync || !sync.loaded) return null;
+    const updated = sync.lastSyncAt ? `Actualizado ${formatClock(sync.lastSyncAt)}` : 'Menú aún no sincronizado';
+    const offline = !sync.online || !!sync.offlineSince;
+    if (offline) {
+        const since = sync.offlineSince ?? sync.lastAttemptAt;
+        const sinceText = since ? ` desde ${formatClock(since)}` : '';
+        return {
+            text: `Sin conexión${sinceText} · ${sync.lastSyncAt ? `última actualización ${formatClock(sync.lastSyncAt)}` : 'sin menú sincronizado'}`,
+            offline: true,
+        };
+    }
+    return { text: sync.syncing && !sync.lastSyncAt ? 'Actualizando…' : updated, offline: false };
+}
+
+const STAFF_TAPS = 5;
+const STAFF_TAP_WINDOW_MS = 2000;
 
 function formatPrice(price: number): string {
     return price % 1 === 0 ? `$${price}` : `$${price.toFixed(2)}`;
@@ -114,16 +107,44 @@ const PlayGlyph = ({ size = 10 }: { size?: number }) => (
 );
 
 export default function MenuClient({
-    categories,
-    items,
+    categories: serverCategories,
+    items: serverItems,
 }: {
     categories: MenuCategoryData[];
     items: MenuItemData[];
 }) {
+    // Installed app: categories/items come from the IndexedDB snapshot as soon
+    // as it is read (offline-capable, never waits for the network). Normal
+    // browser tab: the server props, untouched.
+    const { categories, items, standalone, sync, syncNow } = useOfflineMenu({
+        categories: serverCategories,
+        items: serverItems,
+    });
     const [lang, setLang] = useState<Lang>('en');
     const [theme, setTheme] = useState<Theme>('light');
     // Tabbed navigation: one category shown at a time (server orders by sortOrder)
     const [activeCategory, setActiveCategory] = useState<string | null>(categories[0]?.id ?? null);
+
+    // A sync can replace the category list; never leave the tab pointing at a
+    // category that no longer exists.
+    useEffect(() => {
+        if (activeCategory && categories.some(c => c.id === activeCategory)) return;
+        setActiveCategory(categories[0]?.id ?? null);
+    }, [categories, activeCategory]);
+
+    // Staff panel: five quick taps on the logo, installed app only.
+    const [staffOpen, setStaffOpen] = useState(false);
+    const staffTaps = useRef<number[]>([]);
+    const onLogoTap = () => {
+        if (!standalone) return;
+        const now = Date.now();
+        staffTaps.current = [...staffTaps.current.filter(t => now - t < STAFF_TAP_WINDOW_MS), now];
+        if (staffTaps.current.length >= STAFF_TAPS) {
+            staffTaps.current = [];
+            setStaffOpen(true);
+        }
+    };
+    const syncLine = standalone ? syncLineOf(sync) : null;
 
     // Dish lightbox
     const [selected, setSelected] = useState<MenuItemData | null>(null);
@@ -246,8 +267,9 @@ export default function MenuClient({
                 },
             }
             : {};
+        const soldOut = item.soldOut === true;
         return (
-            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}`}>
+            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}${soldOut ? ' mp-card-soldout' : ''}`}>
                 {/* No cover AND no video -> text card: no media block at all,
                     the body carries the emblem watermark instead. clickable is
                     hasMedia(item), which is exactly cover-or-video. */}
@@ -305,7 +327,10 @@ export default function MenuClient({
                     )}
                     <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
                         <h3 className="mp-item-name">{itemName(item)}</h3>
-                        <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
+                        <span>
+                            <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
+                            {soldOut && <span className="mp-soldout">{t.soldOut}</span>}
+                        </span>
                     </div>
                     {desc && <p className="mp-item-desc">{desc}</p>}
                     {item.tags.length > 0 && (
@@ -372,7 +397,10 @@ export default function MenuClient({
                 </button>
                 <div className="mp-lb-content" onClick={(e) => e.stopPropagation()}>
                     <h2 className="mp-lb-name">{itemName(selected)}</h2>
-                    <div className="mp-lb-price">{formatPrice(selected.salePrice)}</div>
+                    <div className="mp-lb-price">
+                        {formatPrice(selected.salePrice)}
+                        {selected.soldOut === true && <span className="mp-soldout">{t.soldOut}</span>}
+                    </div>
 
                     {showTabs && (
                         <div className="mp-lb-tabs" role="tablist">
@@ -483,6 +511,7 @@ export default function MenuClient({
                         className="mp-logo-img"
                         src="/menu/logo.png"
                         alt="Fusionista — Modern Peruvian Cuisine"
+                        onClick={onLogoTap}
                     />
                     <div className="mp-header-controls">
                         <div className="mp-lang-toggle" role="group" aria-label="Language / Idioma">
@@ -511,6 +540,11 @@ export default function MenuClient({
                     </div>
                 </div>
                 <p className="mp-hint-line">{t.hint}</p>
+                {syncLine && (
+                    <p className={`mp-sync-line${syncLine.offline ? ' mp-sync-offline' : ''}`} aria-live="polite">
+                        {syncLine.text}
+                    </p>
+                )}
             </header>
 
             {categories.length > 0 && (
@@ -567,6 +601,10 @@ export default function MenuClient({
             </aside>
 
             {renderLightbox()}
+
+            {standalone && staffOpen && (
+                <StaffPanel sync={sync} onSyncNow={syncNow} onClose={() => setStaffOpen(false)} />
+            )}
         </div>
     );
 }

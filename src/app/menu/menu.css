@@ -84,6 +84,9 @@
   background-color: var(--m-header);
   color: var(--m-header-ink);
   padding: 10px 16px 12px;
+  /* Installed app: keep the logo row clear of the iPad status bar. Zero in a
+     normal browser tab. */
+  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   box-shadow: 0 8px 24px rgba(20, 104, 108, 0.28);
 }
 
@@ -177,6 +180,138 @@
   .mp-hint-line {
     font-size: 14px;
   }
+}
+
+/* Freshness line (installed app only): last successful sync, or offline notice. */
+.mp-sync-line {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(248, 238, 220, 0.6);
+  text-align: center;
+  margin: 6px auto 0;
+}
+
+.mp-sync-line.mp-sync-offline {
+  color: #f0c987;
+}
+
+/* ---------- Sold out (installed app: soldOut comes from the snapshot) ---------- */
+
+/* Opacity only — no filter/transform per this module's hard rules. */
+.mp-card-soldout {
+  opacity: 0.55;
+}
+
+.mp-card-soldout .mp-price {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.mp-soldout {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background-color: #7a2218;
+  color: #f8eedc;
+  white-space: nowrap;
+  vertical-align: middle;
+  margin-left: 8px;
+}
+
+/* ---------- Staff panel (installed app only, 5 taps on the logo) ---------- */
+
+.mp-staff {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 120;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.mp-staff-panel {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background-color: var(--m-card);
+  color: var(--m-ink);
+  border: 1px solid var(--m-hairline);
+  border-radius: 14px;
+  padding: 18px 20px 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.mp-staff-title {
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-teal);
+  margin-bottom: 10px;
+}
+
+.mp-staff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.mp-staff-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--m-hairline);
+}
+
+.mp-staff-row dt {
+  color: var(--m-muted);
+}
+
+.mp-staff-row dd {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
+.mp-staff-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.mp-staff-btn {
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 9px 16px;
+  border: 1px solid var(--m-hairline);
+  background-color: transparent;
+  color: var(--m-ink);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.mp-staff-btn-primary {
+  background-color: var(--m-header);
+  border-color: var(--m-header);
+  color: var(--m-header-ink);
+}
+
+.mp-staff-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* ---------- Sticky category nav (text tabs) ---------- */

@@ -31,15 +31,18 @@
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",
+    "@serwist/turbopack": "^9.5.12",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.3.1",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "prisma": "^5.22.0",
+    "serwist": "^9.5.12",
     "typescript": "^5"
   }
 }
