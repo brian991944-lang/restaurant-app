@@ -142,7 +142,9 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             photoZoom,
             photoFit,
             videoUrl,
-            isAvailable,
+            // Clover-owned on a linked dish: never sent, so a stale form value
+            // cannot fight the next sync. updateMenuItem drops it server-side too.
+            ...(isCloverLinked ? {} : { isAvailable }),
             isFeatured
         };
         const result = initialData
@@ -349,11 +351,28 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                         </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '2rem' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '44px' }}>
-                            <input type="checkbox" checked={isAvailable} onChange={e => setIsAvailable(e.target.checked)} style={{ width: '20px', height: '20px' }} />
-                            <span>Disponible</span>
-                        </label>
+                    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                        {/* isAvailable is Clover-owned on a linked dish (the sync mirrors
+                            Clover's `available` flag on every run), so it is shown
+                            read-only there — same rule as name and salePrice. App-only
+                            dishes have nothing to overwrite them and stay editable. */}
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: isCloverLinked ? 'not-allowed' : 'pointer', minHeight: '44px', ...(isCloverLinked ? { opacity: 0.6 } : {}) }}>
+                                <input
+                                    type="checkbox"
+                                    checked={isAvailable}
+                                    onChange={e => setIsAvailable(e.target.checked)}
+                                    disabled={isCloverLinked}
+                                    style={{ width: '20px', height: '20px' }}
+                                />
+                                <span>Disponible</span>
+                            </label>
+                            {isCloverLinked && (
+                                <span style={lockedNoteStyle}>
+                                    Se edita en Clover. Para quitarlo del menú usa el Ojo (ocultar) o «Agotado hoy» en la lista de platos.
+                                </span>
+                            )}
+                        </div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', minHeight: '44px' }}>
                             <input type="checkbox" checked={isFeatured} onChange={e => setIsFeatured(e.target.checked)} style={{ width: '20px', height: '20px' }} />
                             <span>Destacado</span>

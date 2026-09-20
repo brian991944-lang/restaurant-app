@@ -231,6 +231,15 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
         }
         const tagErr = taglineError(data);
         if (tagErr) return { success: false, error: tagErr };
+        // isAvailable is Clover-owned on a linked row: syncMenuFromClover
+        // rewrites it on every run, so accepting it here would be silently
+        // undone (the same two-owners bug the Eye button had before it moved
+        // to hiddenInApp). Dropped for linked rows; app-only dishes keep it.
+        let isAvailable = data.isAvailable;
+        if (isAvailable !== undefined) {
+            const existing = await prisma.menuItem.findUnique({ where: { id }, select: { cloverId: true } });
+            if (existing?.cloverId) isAvailable = undefined;
+        }
         const item = await prisma.menuItem.update({
             where: { id },
             data: {
@@ -255,7 +264,7 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.photoZoom !== undefined ? { photoZoom: data.photoZoom } : {}),
                 ...(data.photoFit !== undefined ? { photoFit: data.photoFit } : {}),
                 ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl?.trim() || null } : {}),
-                ...(data.isAvailable !== undefined ? { isAvailable: data.isAvailable } : {}),
+                ...(isAvailable !== undefined ? { isAvailable } : {}),
                 ...(data.hiddenInApp !== undefined ? { hiddenInApp: data.hiddenInApp } : {}),
                 ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {})
                 // cloverId / digitalRecipeId intentionally untouched — managed by the
