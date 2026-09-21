@@ -674,15 +674,22 @@
 .mp-favs-1 .mp-shot { aspect-ratio: 3 / 2; }
 .mp-favs-2 .mp-shot { aspect-ratio: 4 / 5; }
 
-/* Andean step band closing the favorites, before the grid starts. The pattern
-   tiles at its natural 44px instead of stretching, so the steps stay square at
-   any content width. */
-.mp-greca {
-  display: block;
+/* Hairline closing the favorites, before the grid starts. It fades out at both
+   ends rather than stopping dead, so it reads as a pause on the page instead
+   of a drawn box edge — the gold mats around the photos are the only hard
+   edges here. Same margins the greca it replaced had, so the rhythm of the
+   section is unchanged. */
+.mp-fav-rule {
+  height: 1px;
   width: 100%;
-  height: 14px;
   margin: 26px 0 2px;
-  color: var(--m-goldline);
+  background-image: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--m-goldline) 18%,
+    var(--m-goldline) 82%,
+    transparent 100%
+  );
 }
 
 /* ---------- Dish grid ---------- */

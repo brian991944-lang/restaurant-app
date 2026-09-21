@@ -154,25 +154,6 @@ const CameraGlyph = () => (
     </svg>
 );
 
-// Andean step band. Drawn as a tiling <pattern> at its natural 44px rather
-// than one stretched path, so the steps stay square whatever the content width
-// is — a viewBox scaled to fit would shear them on a wide iPad.
-const Greca = () => (
-    <svg className="mp-greca" height="14" aria-hidden="true">
-        <defs>
-            <pattern id="mp-greca-tile" width="44" height="14" patternUnits="userSpaceOnUse">
-                <path
-                    d="M0 12 H6 V6 H17 V2 H27 V6 H38 V12 H44"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.1"
-                />
-            </pattern>
-        </defs>
-        <rect width="100%" height="14" fill="url(#mp-greca-tile)" />
-    </svg>
-);
-
 /**
  * Faint suns drifting behind the page.
  *
@@ -791,7 +772,9 @@ export default function MenuClient({
                                             <div className={`mp-favs mp-favs-${featured.length}`}>
                                                 {featured.map(renderFavorite)}
                                             </div>
-                                            <Greca />
+                                            {/* Closes the favorites before the
+                                                grid starts. See .mp-fav-rule. */}
+                                            <div className="mp-fav-rule" aria-hidden="true" />
                                         </>
                                     )}
                                     {regularItems.length > 0 && (
