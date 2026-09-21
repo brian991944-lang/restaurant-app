@@ -25,7 +25,7 @@ type MediaTab = 'fotos' | 'video';
 const UI_TEXT: Record<Lang, {
     empty: string; comingSoon: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
-    seeMore: string; glossaryTitle: string; soldOut: string;
+    photoSoon: string; houseFavorite: string; glossaryTitle: string; soldOut: string;
 }> = {
     en: {
         empty: 'Menu coming soon.',
@@ -36,7 +36,8 @@ const UI_TEXT: Record<Lang, {
         view: 'View',
         prevPhoto: 'Previous photo',
         nextPhoto: 'Next photo',
-        seeMore: 'Details & photos',
+        photoSoon: 'Photo coming soon',
+        houseFavorite: 'House favorite',
         glossaryTitle: 'Words that help',
         soldOut: 'Sold out',
     },
@@ -49,7 +50,8 @@ const UI_TEXT: Record<Lang, {
         view: 'Ver',
         prevPhoto: 'Foto anterior',
         nextPhoto: 'Foto siguiente',
-        seeMore: 'Detalles y fotos',
+        photoSoon: 'Foto próximamente',
+        houseFavorite: 'Favorito de la casa',
         glossaryTitle: 'Palabras que ayudan',
         soldOut: 'Agotado',
     },
@@ -95,6 +97,58 @@ const PlayGlyph = ({ size = 10 }: { size?: number }) => (
         <path d="M1 0 L10 5 L1 10 Z" fill="currentColor" />
     </svg>
 );
+
+// Outline only — it sits in the empty photo frame and must not compete with
+// the dishes that do have one.
+const CameraGlyph = () => (
+    <svg width="34" height="28" viewBox="0 0 34 28" fill="none" aria-hidden="true">
+        <rect x="1" y="6" width="32" height="21" rx="3" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M11 6 L13.5 1.5 H20.5 L23 6" stroke="currentColor" strokeWidth="1.1" />
+        <circle cx="17" cy="16.5" r="6.5" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
+);
+
+// Andean step band. Drawn as a tiling <pattern> at its natural 44px rather
+// than one stretched path, so the steps stay square whatever the content width
+// is — a viewBox scaled to fit would shear them on a wide iPad.
+const Greca = () => (
+    <svg className="mp-greca" height="14" aria-hidden="true">
+        <defs>
+            <pattern id="mp-greca-tile" width="44" height="14" patternUnits="userSpaceOnUse">
+                <path
+                    d="M0 12 H6 V6 H17 V2 H27 V6 H38 V12 H44"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.1"
+                />
+            </pattern>
+        </defs>
+        <rect width="100%" height="14" fill="url(#mp-greca-tile)" />
+    </svg>
+);
+
+/**
+ * Faint suns drifting behind the page.
+ *
+ * One fixed pattern that repeats every SUN_CYCLE px down the page, so every
+ * category is furnished without anyone hand-placing art per category — and
+ * because the cycle is much taller than a screen, two screens rarely show the
+ * same arrangement. Negative and past-100% lefts are deliberate: .mp-suns
+ * clips them, which is what crops a sun against the page edge.
+ *
+ * No rotation — the module bans transform, and a tilted sun would fight the
+ * upright type anyway.
+ */
+const SUN_PATTERN: { top: number; left: string; size: number; tone: 'a' | 'b' | 'c' }[] = [
+    { top: 40, left: '-7%', size: 300, tone: 'b' },
+    { top: 430, left: '63%', size: 240, tone: 'a' },
+    { top: 840, left: '14%', size: 380, tone: 'c' },
+    { top: 1290, left: '78%', size: 260, tone: 'b' },
+    { top: 1660, left: '-9%', size: 340, tone: 'a' },
+    { top: 2060, left: '40%', size: 250, tone: 'c' },
+];
+const SUN_CYCLE = 2450;
+const SUN_REPEATS = 6;
 
 export default function MenuClient({
     categories: serverCategories,
@@ -228,15 +282,20 @@ export default function MenuClient({
         return tag ? (lang === 'es' ? tag.es : tag.en) : null;
     };
 
-    // One card component, two variants sharing ONE media element. Both honor
-    // photoFit / photoZoom / the focal point via mediaStyle (left/top pan math —
-    // no transform, per this module's hard rules). Featured differs only in
-    // size (full-row banner, taller media, gold frame — all CSS) and in
-    // playing its video inline when reduced motion is off.
-    const renderCard = (item: MenuItemData, opts?: { featured: boolean }) => {
-        const featured = opts?.featured ?? false;
+    /**
+     * The photo box, shared by every context a dish photo appears in.
+     *
+     * The fit maths is the part that must not drift: "Rellenar" is cover plus
+     * the admin's focal point and zoom, expressed as width/height/left/top pan
+     * rather than a transform (banned in this module), and "Foto completa" is
+     * contain with the dish's own blurred photo filling the letterbox behind
+     * it. Nothing here ever stretches a photo.
+     *
+     * `video` is passed only by favorites — inline autoplay belongs to them
+     * alone, and reduced-motion falls back to the still.
+     */
+    const renderShot = (item: MenuItemData, opts: { video: boolean }) => {
         const cover = coverOf(item, mediaVariant);
-        const desc = itemDescription(item);
         const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
         const zoom = item.photoZoom;
         const mediaStyle: React.CSSProperties = {
@@ -247,10 +306,55 @@ export default function MenuClient({
             left: `${-(zoom - 100) * (item.photoFocalX / 100)}%`,
             top: `${-(zoom - 100) * (item.photoFocalY / 100)}%`,
         };
-        const clickable = hasMedia(item);
-        // Video only on the featured variant; grid cards always show the photo.
-        const showVideo = featured && !!item.videoUrl && !reducedMotion;
-        const interactiveProps = clickable
+        const showVideo = opts.video && !!item.videoUrl && !reducedMotion;
+        return (
+            <div className="mp-shot">
+                {/* Blurred duplicate of the cover, behind the sharp media by DOM
+                    order. A cover-fit photo hides it; a contain-fit one shows it
+                    exactly where the letterbox would otherwise be flat colour. */}
+                {cover && (
+                    <img className="mp-shot-blur" src={cover} alt="" aria-hidden="true" loading="lazy" />
+                )}
+                {showVideo ? (
+                    <video
+                        className="mp-shot-fill"
+                        src={item.videoUrl!}
+                        poster={cover || undefined}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="auto"
+                        style={mediaStyle}
+                    />
+                ) : cover ? (
+                    <img
+                        className="mp-shot-fill"
+                        src={cover}
+                        alt={itemName(item)}
+                        loading="lazy"
+                        style={mediaStyle}
+                    />
+                ) : (
+                    // Every dish has a photo slot; this is the slot waiting.
+                    <div className="mp-noshot">
+                        <CameraGlyph />
+                        <span className="mp-noshot-text">{t.photoSoon}</span>
+                    </div>
+                )}
+                {item.videoUrl && !showVideo && (
+                    <span className="mp-play-badge" aria-hidden="true">
+                        <PlayGlyph size={12} />
+                    </span>
+                )}
+            </div>
+        );
+    };
+
+    // Opens the lightbox from the frame. Only dishes with something to show
+    // are interactive, so a placeholder is never a dead button.
+    const tapProps = (item: MenuItemData) =>
+        hasMedia(item)
             ? {
                 role: 'button' as const,
                 tabIndex: 0,
@@ -264,88 +368,66 @@ export default function MenuClient({
                 },
             }
             : {};
+
+    // A dish on the page: no card, no box, no shadow. The gold mat is the only
+    // edge, and only in daylight (see .mp-frame).
+    const renderDish = (item: MenuItemData) => {
+        const desc = itemDescription(item);
         const soldOut = item.soldOut === true;
+        const clickable = hasMedia(item);
         return (
-            <article key={item.id} className={`mp-card${featured ? ' mp-card-feat' : ''}${soldOut ? ' mp-card-soldout' : ''}`}>
-                {/* No cover AND no video -> text card: no media block at all,
-                    the body carries the emblem watermark instead. clickable is
-                    hasMedia(item), which is exactly cover-or-video. */}
-                {clickable && (
-                    <div className="mp-cardmedia mp-media-tappable" {...interactiveProps}>
-                        {/* Blurred duplicate of the cover as the backdrop. Behind the
-                            sharp media by DOM order; cover-fit photos hide it entirely,
-                            contain-fit ones show it in the letterbox area. */}
-                        {cover && (
-                            <img
-                                className="mp-cardmedia-blur"
-                                src={cover}
-                                alt=""
-                                aria-hidden="true"
-                                loading="lazy"
-                            />
-                        )}
-                        {showVideo ? (
-                            <video
-                                className="mp-cardmedia-fill"
-                                src={item.videoUrl!}
-                                poster={cover || undefined}
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                preload="auto"
-                                style={mediaStyle}
-                            />
-                        ) : cover ? (
-                            <img
-                                className="mp-cardmedia-fill"
-                                src={cover}
-                                alt={itemName(item)}
-                                loading="lazy"
-                                style={mediaStyle}
-                            />
-                        ) : null}
-                        {item.videoUrl && !showVideo && (
-                            <span className="mp-play-badge" aria-hidden="true">
-                                <PlayGlyph size={12} />
-                            </span>
-                        )}
+            <article key={item.id} className={`mp-dish${soldOut ? ' mp-dish-soldout' : ''}`}>
+                <div className={`mp-frame${clickable ? ' mp-media-tappable' : ''}`} {...tapProps(item)}>
+                    {renderShot(item, { video: false })}
+                </div>
+                <div className={`mp-dish-row${clickable ? ' mp-dish-row-tappable' : ''}`} onClick={clickable ? () => openLightbox(item) : undefined}>
+                    <h3 className="mp-dish-name">{itemName(item)}</h3>
+                    <span>
+                        <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
+                        {soldOut && <span className="mp-soldout">{t.soldOut}</span>}
+                    </span>
+                </div>
+                {desc && <p className="mp-dish-desc">{desc}</p>}
+                {item.tags.length > 0 && (
+                    <div className="mp-tags">
+                        {item.tags.map(key => {
+                            const label = tagLabel(key);
+                            return label ? <span key={key} className="mp-tag">{label}</span> : null;
+                        })}
                     </div>
                 )}
-                <div className={`mp-card-body${clickable ? '' : ' mp-card-body-text'}`}>
-                    {!clickable && (
-                        <img
-                            className="mp-card-emblem"
-                            src="/menu/icons/emblem.png"
-                            alt=""
-                            aria-hidden="true"
-                            loading="lazy"
-                        />
-                    )}
-                    <div className="mp-card-row mp-card-row-tappable" onClick={() => openLightbox(item)}>
-                        <h3 className="mp-item-name">{itemName(item)}</h3>
-                        <span>
-                            <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
-                            {soldOut && <span className="mp-soldout">{t.soldOut}</span>}
-                        </span>
-                    </div>
-                    {desc && <p className="mp-item-desc">{desc}</p>}
-                    {item.tags.length > 0 && (
-                        <div className="mp-tags">
-                            {item.tags.map(key => {
-                                const label = tagLabel(key);
-                                return label ? (
-                                    <span key={key} className={`mp-tag mp-tag-${key}`}>{label}</span>
-                                ) : null;
-                            })}
-                        </div>
-                    )}
-                    {clickable && (
-                        <button className="mp-seemore" onClick={() => openLightbox(item)}>
-                            {t.seeMore}
-                        </button>
-                    )}
+            </article>
+        );
+    };
+
+    // A house favorite. Same photo element, a gold edge with the bloom around
+    // it, and the label above a larger name. One runs the content width; two
+    // stand side by side in tall frames (the aspect comes from .mp-favs-N).
+    const renderFavorite = (item: MenuItemData) => {
+        const desc = itemDescription(item);
+        const soldOut = item.soldOut === true;
+        return (
+            <article key={item.id} className={`mp-fav${soldOut ? ' mp-dish-soldout' : ''}`}>
+                <div className="mp-fav-frame mp-media-tappable" {...tapProps(item)}>
+                    {renderShot(item, { video: true })}
                 </div>
+                <p className="mp-fav-label">{t.houseFavorite}</p>
+                <div className="mp-dish-row mp-dish-row-tappable" onClick={() => openLightbox(item)}>
+                    <h3 className="mp-fav-name">{itemName(item)}</h3>
+                    <span>
+                        <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
+                        {soldOut && <span className="mp-soldout">{t.soldOut}</span>}
+                    </span>
+                </div>
+                {desc && <p className="mp-dish-desc">{desc}</p>}
+                {item.tags.length > 0 && (
+                    <div className="mp-tags">
+                        {item.tags.map(key => {
+                            const label = tagLabel(key);
+                            return label ? <span key={key} className="mp-tag">{label}</span> : null;
+                        })}
+                    </div>
+                )}
             </article>
         );
     };
@@ -504,6 +586,23 @@ export default function MenuClient({
                 so this is inert for guests. See .mp-statusbar-scrim in menu.css. */}
             <div className="mp-statusbar-scrim" aria-hidden="true" />
 
+            {/* Decorative only: behind every layer of content, never hit-tested.
+                See SUN_PATTERN above for why the positions repeat. */}
+            <div className="mp-suns" aria-hidden="true">
+                {Array.from({ length: SUN_REPEATS }).flatMap((_, cycle) =>
+                    SUN_PATTERN.map((sun, n) => (
+                        <img
+                            key={`${cycle}-${n}`}
+                            className={`mp-sun mp-sun-${sun.tone}`}
+                            src="/menu/emblem.png"
+                            alt=""
+                            loading="lazy"
+                            style={{ top: sun.top + cycle * SUN_CYCLE, left: sun.left, width: sun.size }}
+                        />
+                    )),
+                )}
+            </div>
+
             {/* The header scrolls away; only the category nav below is sticky.
                 No shared wrapper: a sticky nav inside a wrapper that ends at the
                 nav would unstick the moment the wrapper scrolls past. */}
@@ -570,19 +669,41 @@ export default function MenuClient({
                     <main className="mp-main">
                         {/* key remounts the section per tab so the opacity fade replays */}
                         <section key={currentCategory.id} className="mp-section-fade">
-                            <div className="mp-section-head">
-                                <span className="mp-section-rule" aria-hidden="true" />
-                                <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
-                                <span className="mp-section-rule" aria-hidden="true" />
+                            {/* Gold rule, emblem, gold rule — then the name in
+                                spaced caps, then the category's own subtitle. */}
+                            <div className="mp-section-crest" aria-hidden="true">
+                                <span className="mp-rule-gold" />
+                                <img className="mp-crest-emblem" src="/menu/emblem.png" alt="" />
+                                <span className="mp-rule-gold" />
                             </div>
+                            <h2 className="mp-section-title">{categoryName(currentCategory)}</h2>
                             {sectionLead && <p className="mp-section-lead">{sectionLead}</p>}
                             {currentItems.length === 0 ? (
                                 <p className="mp-comingsoon">{t.comingSoon}</p>
                             ) : (
-                                <div className="mp-grid">
-                                    {featured.map(item => renderCard(item, { featured: true }))}
-                                    {regularItems.map(item => renderCard(item))}
-                                </div>
+                                <>
+                                    {/* Favorites sit above the grid, not inside it:
+                                        the count drives the whole treatment (one
+                                        banner vs two tall frames), which a grid
+                                        child spanning columns cannot express. */}
+                                    {featured.length > 0 && (
+                                        <>
+                                            <div className={`mp-favs mp-favs-${featured.length}`}>
+                                                {featured.map(renderFavorite)}
+                                            </div>
+                                            <Greca />
+                                        </>
+                                    )}
+                                    {regularItems.length > 0 && (
+                                        <div className="mp-grid">
+                                            {regularItems.map(renderDish)}
+                                        </div>
+                                    )}
+                                    <div className="mp-section-end">
+                                        <img className="mp-end-emblem" src="/menu/emblem.png" alt="" aria-hidden="true" />
+                                        <span className="mp-end-text">Buen provecho</span>
+                                    </div>
+                                </>
                             )}
                         </section>
                     </main>

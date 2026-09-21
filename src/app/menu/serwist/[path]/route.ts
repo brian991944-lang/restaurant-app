@@ -28,7 +28,8 @@ export const { dynamic, dynamicParams, revalidate, generateStaticParams, GET } =
     globPatterns: [
         'public/menu/header-logo-leather.png',
         'public/menu/leather-texture.jpg',
-        'public/menu/icons/emblem.png',        // text-card watermark, rendered by the page
+        'public/menu/paper-texture.jpg',       // the day page itself, tiled
+        'public/menu/emblem.png',              // section crests and the scattered suns
         'public/menu/icons/icon-*.png',        // manifest icons
         'public/menu/icons/apple-touch-icon.png',
         'public/menu-manifest.webmanifest',

@@ -4,65 +4,79 @@
    Hard rules for this module: NO backdrop-filter, transform, perspective,
    will-change, or contain. `filter` is permitted ONLY on a decorative leaf
    image with no descendants and no positioned content inside it (e.g. the
-   .mp-cardmedia-blur backdrop); NEVER on a container or any ancestor of
+   .mp-shot-blur backdrop); NEVER on a container or any ancestor of
    fixed/absolutely-positioned content. The ban's purpose is protecting
    position:fixed resolution (filter on an ancestor makes it the containing
    block, which is how modals and the fixed footer end up in the wrong
    place) — a leaf image cannot affect that. Feedback via background-color /
    border-color / color / opacity transitions only, <= 200ms. */
 
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=EB+Garamond:wght@400;500&display=swap');
 
-/* Instrument Serif is used ONLY for dish names, section titles and the
-   featured card name. Everything else is the system stack. */
+/* Two families, one job each, and neither is ever italicised here:
+     --m-display  Cormorant Garamond 600 — dish names, prices, section titles,
+                  and every piece of spaced small-caps lettering
+     --m-body     EB Garamond 400 — descriptions, subtitles, running text
+   The day page is paper over #f3ecdc; the night page is flat espresso with no
+   texture at all, because a paper grain lit from behind reads as dirt. */
 .menu-public {
-  /* Light palette */
-  --m-bg: #f3eee6;
-  --m-card: #fffcf7;
-  --m-ink: #1a1612;
-  --m-desc: #3a322b;
+  /* Light palette — paper */
+  --m-display: 'Cormorant Garamond', 'Iowan Old Style', Georgia, serif;
+  --m-body: 'EB Garamond', 'Iowan Old Style', Georgia, serif;
+  --m-bg: #f3ecdc;
+  --m-ink: #2c241c;
+  --m-desc: #463d34;
   --m-muted: #6a6158;
   --m-hairline: #ddd2c2;
-  --m-teal: #1e8a8f;
+  --m-teal: #2a5d61;
+  --m-tag: #2a5d61;
   --m-header: #1d3c40;
   --m-header-ink: #f8eedc;
-  --m-gold: #8b5e2b;
+  --m-gold: #8a6a2e;
   --m-gold-light: #d4b06a;
+  /* The hairline gold that draws mats, section rules and the greca. */
+  --m-goldline: #c9a45c;
   --m-sage: #2f5e55;
-  --m-img-bg: #e8dcc8;
+  --m-img-bg: #e8dfcb;
+  --m-noshot-bg: #e8dfcb;
+  --m-noshot-ink: #a2917a;
   --m-gloss-bg: #efe6d4;
-  --m-card-shadow: 0 6px 18px rgba(28, 20, 16, 0.05);
-  /* Gold frame + glow around the FEATURED photo itself (ring first, then bloom) */
-  --m-frame: 0 0 0 2px #d4b06a, 0 0 20px rgba(212, 176, 106, 0.65), 0 0 48px rgba(212, 176, 106, 0.38), 0 0 90px rgba(212, 176, 106, 0.18);
 
   margin: 0;
   box-sizing: border-box;
   background-color: var(--m-bg);
+  /* Tiled at the texture's own 512px so it never resamples. */
+  background-image: url('/menu/paper-texture.jpg');
+  background-size: 512px;
+  background-repeat: repeat;
   color: var(--m-ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--m-body);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .menu-dark {
-  /* Dark palette override */
-  --m-bg: #1a1612;
-  --m-card: #262019;
-  --m-ink: #f3eee6;
-  --m-desc: #d9cfc2;
-  --m-muted: #a89a8c;
-  --m-hairline: #3a322b;
-  --m-teal: #3aa7ac;
+  /* Dark palette — espresso. No texture, and no teal on the page. */
+  --m-bg: #16120f;
+  --m-ink: #efe6d4;
+  --m-desc: #c9bda9;
+  --m-muted: #9b8f7d;
+  --m-hairline: #362d24;
+  --m-teal: #a9c3bf;
+  --m-tag: #a9c3bf;
   --m-header: #1d3c40;
   --m-header-ink: #f8eedc;
   --m-gold: #d4b06a;
   --m-gold-light: #d4b06a;
-  --m-sage: #8fb3a8;
-  --m-img-bg: #3a2a22;
-  --m-gloss-bg: #262019;
-  --m-card-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  --m-frame: 0 0 0 2px #d4b06a, 0 0 20px rgba(212, 176, 106, 0.5), 0 0 48px rgba(212, 176, 106, 0.28), 0 0 90px rgba(212, 176, 106, 0.14);
+  --m-goldline: #8d6f3c;
+  --m-sage: #a9c3bf;
+  --m-img-bg: #221c17;
+  --m-noshot-bg: #221c17;
+  --m-noshot-ink: #6d6154;
+  --m-gloss-bg: #1e1814;
+
+  background-image: none;
 }
 
 .menu-public *,
@@ -73,10 +87,50 @@
   padding: 0;
 }
 
+/* position: relative WITHOUT a z-index — it must be the containing block for
+   the sun layer below while deliberately NOT creating a stacking context, or
+   that layer's negative z-index would be trapped here and paint over the page
+   background instead of behind the content. */
 .mp-page {
+  position: relative;
   max-width: 980px;
   margin: 0 auto;
 }
+
+/* ---------- Scattered suns (decorative) ---------- */
+
+/* Faint emblems drifting down the page behind everything. z-index: -1 puts the
+   layer under all content but still above the paper; overflow clips the suns
+   that hang off the edge, which is what gives the cropped ones. The clipping
+   lives HERE and not on .mp-page, because an overflow on an ancestor of the
+   sticky category bar would silently kill its stickiness. */
+.mp-suns {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.mp-sun {
+  position: absolute;
+  display: block;
+  height: auto;
+}
+
+/* The emblem art is tan. On paper it only needs a whisper; on espresso the
+   same whisper vanishes, so night runs roughly 2.5x stronger. Three tones so
+   a screenful never looks stamped. */
+.menu-public .mp-sun-a { opacity: 0.050; }
+.menu-public .mp-sun-b { opacity: 0.042; }
+.menu-public .mp-sun-c { opacity: 0.035; }
+
+.menu-dark .mp-sun-a { opacity: 0.110; }
+.menu-dark .mp-sun-b { opacity: 0.100; }
+.menu-dark .mp-sun-c { opacity: 0.090; }
 
 /* ---------- Header (scrolls away) ---------- */
 
@@ -108,6 +162,16 @@
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   box-shadow: 0 8px 24px rgba(16, 48, 52, 0.34);
+}
+
+/* A hairline of gold where the leather meets the paper — day only. On
+   espresso there is nothing for it to separate, and it reads as a scratch. */
+.menu-public .mp-header {
+  border-bottom: 1px solid var(--m-goldline);
+}
+
+.menu-dark .mp-header {
+  border-bottom: none;
 }
 
 /* The status bar's glyphs are white and unconditionally so. At the top of the
@@ -146,30 +210,30 @@
    no shadow. Anything with an edge would trace a rectangle the artwork spent
    its feather hiding.
 
-   The art is 2.79:1, so height drives width: 100px tall renders ~279px wide,
-   130px tall ~362px. The max-width is what the row can actually spare rather
-   than a round number — 190px is the header's side padding (32) plus the two
-   row gaps (24) plus the language and theme controls (~134), which never
-   shrink. Past that the lockup gives way instead of crowding them, so the
-   height below is a ceiling on a narrow phone, not a promise: the full 100px
-   arrives at about 470px of viewport and every iPad clears it outright.
+   The art is 2.79:1, so height drives width: 130px tall renders ~362px wide,
+   180px tall ~501px — the ~500px target on iPad portrait. The max-width is
+   what the row can actually spare rather than a round number: 190px is the
+   header's side padding (32) plus the two row gaps (24) plus the language and
+   theme controls (~134), which never shrink. Past that the lockup gives way
+   instead of crowding them, so the height is a ceiling on a narrow phone, not
+   a promise.
 
-   iPad portrait at 834px is the case to keep honest — 362 + 134 + 24 leaves
-   ~282px of slack, so nothing meets anything. .mp-header-row centres the
-   controls against whatever height this resolves to. */
+   iPad portrait at 834px is the case to keep honest — 501 + 134 + 24 = 659
+   against 802px of inner width, so ~143px stays free. .mp-header-row centres
+   the controls against whatever height this resolves to. */
 .mp-logo-img {
   grid-column: 2;
   display: block;
-  height: 100px;
+  height: 130px;
   width: auto;
-  max-width: min(280px, calc(100vw - 190px));
+  max-width: min(362px, calc(100vw - 190px));
   object-fit: contain;
 }
 
 @media (min-width: 720px) {
   .mp-logo-img {
-    height: 130px;
-    max-width: min(380px, calc(100vw - 190px));
+    height: 180px;
+    max-width: min(520px, calc(100vw - 190px));
   }
 }
 
@@ -240,11 +304,11 @@
 /* ---------- Sold out (installed app: soldOut comes from the snapshot) ---------- */
 
 /* Opacity only — no filter/transform per this module's hard rules. */
-.mp-card-soldout {
+.mp-dish-soldout {
   opacity: 0.55;
 }
 
-.mp-card-soldout .mp-price {
+.mp-dish-soldout .mp-price {
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
 }
@@ -285,7 +349,7 @@
   max-width: 560px;
   max-height: 90vh;
   overflow-y: auto;
-  background-color: var(--m-card);
+  background-color: var(--m-gloss-bg);
   color: var(--m-ink);
   border: 1px solid var(--m-hairline);
   border-radius: 14px;
@@ -387,9 +451,14 @@
   display: none;
 }
 
+/* Spaced caps in the display face, so the nav belongs to the same page as the
+   section openers rather than to the old system-font UI. */
 .mp-tab {
-  font-family: inherit;
-  font-size: 13px;
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   white-space: nowrap;
   background: transparent;
   border: none;
@@ -409,8 +478,8 @@
 
 .mp-main {
   padding: 8px 16px 48px;
-  /* Landscape on a notched phone: keep the dish cards out from under the
-     sensor housing. Zero everywhere else. */
+  /* Landscape on a notched phone: keep the dishes out from under the sensor
+     housing. Zero everywhere else. */
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -429,99 +498,217 @@
   padding: 3.5rem 0;
   text-align: center;
   color: var(--m-muted);
-  font-size: 0.95rem;
-  letter-spacing: 0.08em;
+  font-family: var(--m-body);
+  font-size: 17px;
+  letter-spacing: 0.06em;
 }
 
-/* Title centered between two hairlines. */
-.mp-section-head {
+/* ---------- Section opener / closer ---------- */
+
+/* Gold rule, emblem, gold rule. */
+.mp-section-crest {
   display: flex;
   align-items: center;
-  margin: 16px 0 0;
+  gap: 16px;
+  margin: 26px 0 0;
 }
 
-.mp-section-rule {
+.mp-rule-gold {
   flex: 1;
   height: 1px;
-  background-color: var(--m-hairline);
+  background-color: var(--m-goldline);
+}
+
+.mp-crest-emblem {
+  width: 34px;
+  height: 34px;
+  display: block;
+  opacity: 0.9;
 }
 
 .mp-section-title {
-  font-family: 'Instrument Serif', serif;
-  font-weight: 400;
-  font-size: 16px;
-  letter-spacing: 0.16em;
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--m-teal);
-  margin: 0;
-  padding: 0 16px;
-}
-
-.mp-section-lead {
-  font-family: 'Instrument Serif', serif;
-  font-style: italic;
-  font-size: 14px;
-  color: var(--m-muted);
   text-align: center;
-  max-width: 64ch;
-  margin: 6px auto 0;
+  color: var(--m-ink);
+  margin: 16px 0 0;
 }
 
-/* ---------- Card grid ---------- */
+/* Upright, never italic — the body voice on these pages is upright throughout. */
+.mp-section-lead {
+  font-family: var(--m-body);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--m-desc);
+  text-align: center;
+  max-width: 62ch;
+  margin: 10px auto 0;
+}
+
+/* Closes every category. */
+.mp-section-end {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 52px 0 4px;
+}
+
+.mp-end-emblem {
+  width: 44px;
+  height: 44px;
+  display: block;
+  opacity: 0.85;
+}
+
+.mp-end-text {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--m-gold);
+}
+
+@media (min-width: 720px) {
+  .mp-section-title { font-size: 27px; }
+  .mp-section-lead { font-size: 18px; }
+}
+
+/* ---------- House favorites ---------- */
+
+.mp-favs {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;
+  /* The glow is a box-shadow with a 64px spread; the padding keeps it off the
+     neighbouring content rather than letting it clip. */
+  margin: 28px 0 0;
+  padding: 10px 0;
+}
+
+@media (min-width: 720px) {
+  .mp-favs-2 {
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+  }
+}
+
+.mp-fav-label {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--m-gold);
+  /* Clear of the frame's glow, and tight to the name it introduces. */
+  margin: 16px 0 2px;
+}
+
+/* 1px gold edge plus a two-stop bloom: a tight ring of light on the frame and
+   a wide, weak halo past it. Both are box-shadow — filter and transform are
+   banned in this module, and a drop-shadow filter here would also make this
+   element the containing block for any fixed descendant. */
+.mp-fav-frame {
+  padding: 6px;
+  border: 1px solid #c9a45c;
+  box-shadow:
+    0 0 22px 6px rgba(190, 140, 50, 0.55),
+    0 0 64px 18px rgba(212, 170, 90, 0.40);
+}
+
+/* Night: same edge, softer bloom, and no mat — the photo meets the espresso. */
+.menu-dark .mp-fav-frame {
+  padding: 0;
+  box-shadow:
+    0 0 18px 5px rgba(190, 140, 50, 0.34),
+    0 0 52px 14px rgba(212, 170, 90, 0.24);
+}
+
+.mp-fav-name {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 25px;
+  line-height: 1.15;
+  color: var(--m-ink);
+}
+
+@media (min-width: 720px) {
+  .mp-fav-name { font-size: 30px; }
+}
+
+/* One favorite runs the content width as a banner; two stand side by side in
+   tall frames, which is what makes the pair read as a pair. */
+.mp-favs-1 .mp-shot { aspect-ratio: 3 / 2; }
+.mp-favs-2 .mp-shot { aspect-ratio: 4 / 5; }
+
+/* Andean step band closing the favorites, before the grid starts. The pattern
+   tiles at its natural 44px instead of stretching, so the steps stay square at
+   any content width. */
+.mp-greca {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin: 26px 0 2px;
+  color: var(--m-goldline);
+}
+
+/* ---------- Dish grid ---------- */
 
 .mp-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 30px 22px;
+  margin-top: 24px;
 }
 
 @media (min-width: 720px) {
-  .mp-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+  .mp-grid { grid-template-columns: 1fr 1fr; }
 }
 
-/* ---------- Cards ---------- */
+@media (min-width: 1100px) {
+  .mp-grid { grid-template-columns: repeat(3, 1fr); }
+}
 
-.mp-card {
-  background-color: var(--m-card);
-  border: 1px solid var(--m-hairline);
-  border-radius: 12px;
+/* ---------- Dishes (no card: they sit on the paper) ---------- */
+
+.mp-dish {
+  display: block;
+}
+
+/* Day: a thin gold mat around the photo, like a plate laid on the page.
+   Night: removed entirely, immediately below. */
+.mp-frame {
+  padding: 6px;
+  border: 1px solid var(--m-goldline);
+}
+
+.menu-dark .mp-frame {
+  padding: 0;
+  border: none;
+}
+
+.mp-shot {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 2;
   overflow: hidden;
-  box-shadow: var(--m-card-shadow);
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-
-/* Featured variant: a full-row banner. The media is the SAME cropped
-   .mp-cardmedia element regular cards use (fit/zoom/focal all honored) —
-   featured only sizes it taller and puts the gold frame (--m-frame) on the
-   media box. The card's own padding gives the glow room inside the card so it
-   does not clip against the card border; the body keeps its own padding.
-   Sized for the 11" iPad (834x1194 / 1194x834) — both orientations are above
-   the 720px breakpoint, so the >=720px height is the normal case. */
-.mp-card-feat {
-  grid-column: 1 / -1;
-  padding: 14px 14px 0;
-}
-
-.mp-card-feat .mp-cardmedia {
-  height: 300px;
-  box-shadow: var(--m-frame);
-}
-
-@media (min-width: 720px) {
-  .mp-card-feat .mp-cardmedia {
-    height: 420px;
-  }
+  background-color: var(--m-img-bg);
+  transition: background-color 0.2s ease;
 }
 
 /* Blurred duplicate of the dish's own photo, behind the sharp media. Only
-   visible where the sharp media does not fill the box (contain fit). Oversized
-   ~112% with negative offsets so the blur never samples past the edges and
-   leaves a dark halo — offsets, not transform. Leaf image: the filter
-   exception in the header rule applies here and nowhere else. */
-.mp-cardmedia-blur {
+   visible where the sharp media does not fill the box (Foto completa).
+   Oversized ~112% with negative offsets so the blur never samples past the
+   edges and leaves a dark halo — offsets, not transform. Leaf image: the
+   filter exception in this module's header rule applies here and nowhere
+   else. */
+.mp-shot-blur {
   position: absolute;
   width: 112%;
   height: 112%;
@@ -532,108 +719,108 @@
   pointer-events: none;
 }
 
-.mp-cardmedia {
-  position: relative;
-  width: 100%;
-  height: 220px;
-  overflow: hidden;
-  background-color: var(--m-img-bg);
-  transition: background-color 0.2s ease;
-}
-
-/* Inline style carries object-fit/position and the zoom pan (width/height/left/top) */
-.mp-cardmedia-fill {
+/* Inline style carries object-fit/position and the zoom pan
+   (width/height/left/top), so Rellenar and Foto completa both survive. */
+.mp-shot-fill {
   position: absolute;
   display: block;
 }
 
-.mp-card-body {
-  padding: 14px 16px 16px;
-}
-
-/* Photo-less dish: no media block at all; the emblem is a quiet watermark. */
-.mp-card-body-text {
-  position: relative;
-  padding: 22px 18px 18px;
-}
-
-.mp-card-emblem {
+/* No photo yet: the same 3:2 frame, quietly. */
+.mp-noshot {
   position: absolute;
-  right: 18px;
-  bottom: 14px;
-  width: 110px;
-  opacity: 0.07;
-  pointer-events: none;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: var(--m-noshot-bg);
+  color: var(--m-noshot-ink);
 }
 
-.mp-card-row {
+.mp-noshot-text {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.mp-dish-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 12px;
 }
 
-.mp-item-name {
-  font-family: 'Instrument Serif', serif;
-  font-weight: 400;
-  font-size: 18px;
-  line-height: 1.2;
+/* On a favorite the label already opened the gap. */
+.mp-fav-label + .mp-dish-row {
+  margin-top: 0;
 }
 
-.mp-card-feat .mp-item-name {
-  font-size: 20px;
+.mp-dish-name {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.18;
+  color: var(--m-ink);
 }
 
+/* No currency mark — the column is money by context. */
 .mp-price {
-  font-weight: 700;
-  font-size: 17px;
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 20px;
   color: var(--m-gold);
   white-space: nowrap;
 }
 
-.mp-item-desc {
-  font-size: 14px;
-  line-height: 1.45;
+.mp-dish-desc {
+  font-family: var(--m-body);
+  font-style: normal;
+  font-weight: 400;
+  font-size: 17px;
+  line-height: 1.5;
   color: var(--m-desc);
-  margin: 8px 0 10px;
+  margin-top: 6px;
 }
 
-/* ---------- Tag chips (identical colors in both themes) ---------- */
+@media (min-width: 720px) {
+  .mp-dish-name { font-size: 22px; }
+  .mp-price { font-size: 21px; }
+  .mp-dish-desc { font-size: 18px; }
+}
 
+/* ---------- Descriptor tags ---------- */
+
+/* Not chips any more: small spaced caps in the sage-teal, separated by a
+   hairline middot. The per-tag pill colours went with them. */
 .mp-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-top: 9px;
 }
 
 .mp-tag {
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-family: var(--m-display);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  border-radius: 999px;
-  padding: 4px 8px;
-  background-color: #efe4d2;
-  color: #5a4630;
+  color: var(--m-tag);
 }
 
-.mp-tag-sig { background-color: #efe3b8; color: #6a4e10; }
-.mp-tag-fish { background-color: #e4eef3; color: #24506a; }
-.mp-tag-shell { background-color: #efe6f4; color: #5a2d6e; }
-.mp-tag-nut { background-color: #f6e6d4; color: #7a3d12; }
-.mp-tag-spice { background-color: #f6ddd8; color: #7a2218; }
-.mp-tag-veg { background-color: #e3efe0; color: #2f5e34; }
-
-.mp-seemore {
-  margin-top: 10px;
-  font-family: inherit;
-  font-size: 13px;
-  color: var(--m-teal);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+.mp-tag + .mp-tag::before {
+  content: '\00b7';
+  margin-right: 10px;
+  opacity: 0.5;
 }
 
 /* ---------- Empty state ---------- */
@@ -652,7 +839,7 @@
   cursor: pointer;
 }
 
-.mp-card-row-tappable {
+.mp-dish-row-tappable {
   cursor: pointer;
 }
 
@@ -754,15 +941,15 @@
 }
 
 .mp-lb-name {
-  font-family: 'Instrument Serif', serif;
-  font-weight: 400;
-  font-size: clamp(24px, 4vw, 32px);
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: clamp(26px, 4vw, 34px);
   line-height: 1.15;
   color: #f0e7d6;
 }
 
 .mp-lb-price {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--m-display);
   font-size: 1.05rem;
   font-weight: 500;
   color: var(--m-gold);
@@ -779,7 +966,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--m-display);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.2em;
@@ -866,8 +1053,9 @@
 }
 
 .mp-lb-tagline {
-  font-family: 'Instrument Serif', serif;
-  font-style: italic;
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-style: normal;
   font-size: 17px;
   line-height: 1.4;
   color: var(--m-gold);
@@ -875,7 +1063,7 @@
 }
 
 .mp-lb-desc {
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--m-display);
   font-size: 13.5px;
   font-weight: 300;
   line-height: 1.6;
