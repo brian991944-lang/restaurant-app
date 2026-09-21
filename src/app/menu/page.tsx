@@ -37,6 +37,8 @@ export default async function PublicMenuPage() {
                 salePrice: true,
                 photoUrl: true,
                 photoUrls: true,
+                photoUrlFull: true,
+                photoUrlsFull: true,
                 photoFocalX: true,
                 photoFocalY: true,
                 photoZoom: true,

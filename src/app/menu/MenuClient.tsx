@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { MENU_TAGS } from '@/lib/menuTags';
 import { MENU_GLOSSARY } from '@/lib/menuGlossary';
+import { coverOf, hasMedia, photosOf, type MediaVariant } from './offline/media';
 import { useOfflineMenu } from './offline/useOfflineMenu';
 import StaffPanel, { formatClock } from './offline/StaffPanel';
 import type { MenuCategoryData, MenuItemData, SyncState } from './offline/types';
@@ -86,19 +87,10 @@ function formatPriceBare(price: number): string {
     return formatPrice(price).slice(1);
 }
 
-// Lightbox gallery: cover first, then extra photos, deduped, nulls removed.
-function galleryOf(item: MenuItemData): string[] {
-    return Array.from(new Set([item.photoUrl, ...(item.photoUrls || [])].filter((u): u is string => !!u)));
-}
-
-function hasMedia(item: MenuItemData): boolean {
-    return galleryOf(item).length > 0 || !!item.videoUrl;
-}
-
-// Card cover precedence: cover photo, else first gallery photo.
-function coverOf(item: MenuItemData): string | null {
-    return item.photoUrl || (item.photoUrls || [])[0] || null;
-}
+// Photo URLs come from ./offline/media, which resolves each photo's web/full
+// pair. Which variant this launch uses is decided once, below, from
+// `standalone` — the installed iPads get full-res, a phone browser gets the
+// web copy. Nothing else in this file touches photoUrl/photoUrlFull directly.
 
 const PlayGlyph = ({ size = 10 }: { size?: number }) => (
     <svg width={size} height={size} viewBox="0 0 10 10" aria-hidden="true">
@@ -145,6 +137,13 @@ export default function MenuClient({
         }
     };
     const syncLine = standalone ? syncLineOf(sync) : null;
+
+    // Which stored copy of every photo this launch shows. The installed iPads
+    // (standalone) are on the house wifi with a cache warmed to match, so they
+    // take the full-res copy; every browser tab takes the web copy. Read from
+    // the same `standalone` the sync engine is gated on, so the launch that
+    // caches full-res is exactly the launch that displays it.
+    const mediaVariant: MediaVariant = standalone ? 'full' : 'web';
 
     // Dish lightbox
     const [selected, setSelected] = useState<MenuItemData | null>(null);
@@ -197,7 +196,7 @@ export default function MenuClient({
         setSelected(item);
         setPhotoIndex(0);
         // Items with video but no photos open directly on VIDEO.
-        setMediaTab(galleryOf(item).length > 0 ? 'fotos' : 'video');
+        setMediaTab(photosOf(item, mediaVariant).length > 0 ? 'fotos' : 'video');
     };
 
     const closeLightbox = () => setSelected(null);
@@ -238,7 +237,7 @@ export default function MenuClient({
     // playing its video inline when reduced motion is off.
     const renderCard = (item: MenuItemData, opts?: { featured: boolean }) => {
         const featured = opts?.featured ?? false;
-        const cover = coverOf(item);
+        const cover = coverOf(item, mediaVariant);
         const desc = itemDescription(item);
         const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
         const zoom = item.photoZoom;
@@ -361,7 +360,7 @@ export default function MenuClient({
     // Featured dishes render as the FIRST cards in the grid and are removed
     // from the regular list so no dish appears twice.
     const featured = currentItems
-        .filter(i => i.featuredRank != null && !!coverOf(i))
+        .filter(i => i.featuredRank != null && !!coverOf(i, mediaVariant))
         .sort((a, b) => (a.featuredRank as number) - (b.featuredRank as number))
         .slice(0, 2);
     const featuredIds = new Set(featured.map(i => i.id));
@@ -374,7 +373,7 @@ export default function MenuClient({
 
     const renderLightbox = () => {
         if (!selected) return null;
-        const gallery = galleryOf(selected);
+        const gallery = photosOf(selected, mediaVariant);
         const showTabs = gallery.length > 0 && !!selected.videoUrl;
         const tagline = itemTagline(selected);
         const desc = itemDescription(selected);

@@ -53,6 +53,8 @@ export type SnapshotItem = {
     salePrice: number;
     photoUrl: string | null;
     photoUrls: string[];
+    photoUrlFull: string | null;
+    photoUrlsFull: string[];
     photoFocalX: number;
     photoFocalY: number;
     photoZoom: number;
@@ -112,6 +114,8 @@ export async function loadMenuSnapshot(now: Date = new Date()): Promise<MenuSnap
                 salePrice: true,
                 photoUrl: true,
                 photoUrls: true,
+                photoUrlFull: true,
+                photoUrlsFull: true,
                 photoFocalX: true,
                 photoFocalY: true,
                 photoZoom: true,
@@ -152,6 +156,8 @@ export async function loadMenuSnapshot(now: Date = new Date()): Promise<MenuSnap
             salePrice: i.salePrice,
             photoUrl: i.photoUrl,
             photoUrls: [...i.photoUrls],
+            photoUrlFull: i.photoUrlFull,
+            photoUrlsFull: [...i.photoUrlsFull],
             photoFocalX: i.photoFocalX,
             photoFocalY: i.photoFocalY,
             photoZoom: i.photoZoom,

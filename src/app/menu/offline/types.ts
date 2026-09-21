@@ -28,8 +28,12 @@ export type MenuItemData = {
     componentsEn: string[];
     componentsEs: string[];
     salePrice: number;
+    // Web copies (1200 px). The full-res twins live in the *Full fields and are
+    // resolved through ./media — never read one of these four directly.
     photoUrl: string | null;
     photoUrls: string[];
+    photoUrlFull: string | null;
+    photoUrlsFull: string[];
     photoFocalX: number;
     photoFocalY: number;
     photoZoom: number;

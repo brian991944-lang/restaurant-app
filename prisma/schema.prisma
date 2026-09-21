@@ -232,8 +232,16 @@ model MenuItem {
   nameEs          String?
   descriptionEn   String?
   descriptionEs   String?
+  // Every photo is uploaded once and stored twice: a web copy (1200 px, q80)
+  // for guests on phones and a full copy (2400 px, q88) for the installed
+  // iPads. photoUrl/photoUrls always hold the WEB variant — they predate the
+  // split, so a null *Full is simply a photo uploaded before it and the
+  // renderer falls back to the web URL. photoUrlsFull is index-aligned with
+  // photoUrls; a missing or short entry falls back the same way.
   photoUrl        String?
   photoUrls       String[] @default([]) // gallery photos for the lightbox; photoUrl remains the card cover
+  photoUrlFull    String?               // full-res twin of photoUrl (null = none uploaded yet, use photoUrl)
+  photoUrlsFull   String[] @default([]) // full-res twins of photoUrls, same order
   photoFocalX     Int      @default(50) // cover focal point X as 0-100 %, drives object-position crop on the public menu
   photoFocalY     Int      @default(50) // cover focal point Y as 0-100 %
   photoZoom       Int      @default(100) // favorites-band cover zoom, 100-300 % (image width/height, no transform)

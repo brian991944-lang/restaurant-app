@@ -951,13 +951,19 @@ export async function syncSalonFromClover(): Promise<{
  *   App-owned, never written   nameEn, nameEs, descriptionEn (seeded once on
  *                              create, then app-owned), descriptionEs,
  *                              whyEn/Es, componentsEn/Es, tags, taglineEn/Es,
- *                              every photo/focal/zoom/fit field, featuredRank,
+ *                              every photo/focal/zoom/fit field — photoUrl,
+ *                              photoUrls, photoUrlFull, photoUrlsFull,
+ *                              photoFocalX/Y, photoZoom, photoFit, videoUrl —
+ *                              featuredRank,
  *                              isFeatured, hiddenInApp, soldOutAt,
  *                              targetFoodCostPct, hasInventoryModifiers,
  *                              recipes, modifiers
  *   MenuCategory               cloverCategoryId is Clover-owned; nameEn,
  *                              nameEs, subtitleEn/Es, sortOrder and isActive
  *                              are seeded on CREATE and never touched again
+ *
+ * Media is app-owned end to end: Clover supplies no photos and no video, and
+ * this sync writes none of those columns on create or on update.
  *
  * Rows are never deleted. Recipes, modifiers and food-costing hang off
  * MenuItem, so an item that vanishes from Clover is flagged (cloverMissingAt)

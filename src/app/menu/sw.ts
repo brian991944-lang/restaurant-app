@@ -17,7 +17,10 @@
  *   fusionista-menu-fonts    Google Fonts CSS + woff2
  *   fusionista-menu-media    dish photos and videos — cache-first, with
  *                            RangeRequestsPlugin so a cached full video can
- *                            satisfy iPad Safari's byte-range requests
+ *                            satisfy iPad Safari's byte-range requests, and
+ *                            preferFullVariant so a request for a photo's web
+ *                            copy is answered from the full copy this tablet
+ *                            already holds
  *
  * Never cached: /api/menu/version, /api/menu/availability and
  * /api/menu/snapshot — the sync engine owns those and keeps the snapshot in
@@ -85,6 +88,30 @@ const warmShellAssets: SerwistPlugin = {
     },
 };
 
+// Dish photos are stored in two sizes, `<base>-web.webp` and `<base>-full.webp`
+// (src/components/ui/ImageUpload.tsx). An installed launch displays full-res
+// and the sync engine warms only that copy — but the first paint comes from the
+// cached /menu HTML, which was rendered before anything knew this was the
+// installed app and therefore still names the -web twins. Left alone, every
+// launch would download a second size of every visible photo just to throw it
+// away at the next sync.
+//
+// This worker only exists in standalone mode, so it can answer that request
+// from the full copy it already holds. A photo with no cached full twin (an
+// upload from before the split, or a sync still in flight) falls through to the
+// normal cache-first path unchanged.
+const preferFullVariant: SerwistPlugin = {
+    cacheKeyWillBeUsed: async ({ request, mode }) => {
+        if (mode !== 'read' || !request.url.endsWith('-web.webp')) return request;
+        try {
+            const fullUrl = request.url.replace(/-web\.webp$/, '-full.webp');
+            const cache = await caches.open(MEDIA_CACHE);
+            if (await cache.match(fullUrl, { ignoreVary: true })) return new Request(fullUrl);
+        } catch { /* fall through to the requested copy */ }
+        return request;
+    },
+};
+
 const runtimeCaching: RuntimeCaching[] = [
     // Sync endpoints: always the network, never a cache.
     {
@@ -145,6 +172,7 @@ const runtimeCaching: RuntimeCaching[] = [
             cacheName: MEDIA_CACHE,
             matchOptions: { ignoreVary: true, ignoreSearch: false },
             plugins: [
+                preferFullVariant,
                 new CacheableResponsePlugin({ statuses: [200] }),
                 new RangeRequestsPlugin(),
             ],

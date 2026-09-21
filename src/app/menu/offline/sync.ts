@@ -18,17 +18,30 @@
  * video URLs that are not already cached. Media whose URL is unchanged is
  * never re-downloaded; media no longer referenced is evicted.
  *
+ * Photos exist in two sizes (see ./media). This engine warms the full-res
+ * variant only — it runs on the installed tablets and nowhere else, and those
+ * are the ones rendering full-res. The web copies a phone would load are never
+ * downloaded here, and eviction removes them if an older build cached them.
+ *
  * Module singleton: MenuClient mounts once per launch, and the engine's timers
  * must not double up under React re-mounts.
  */
 import { getBusinessDate } from '@/lib/businessDay';
 import { kvGet, kvSet } from './db';
+import { mediaUrlsOf, type MediaVariant } from './media';
 import type {
     AvailabilityRow, OfflineSnapshot, PersistedSyncState, SyncState, VersionInfo,
 } from './types';
 
 // Must match MEDIA_CACHE in src/app/menu/sw.ts.
 export const MEDIA_CACHE = 'fusionista-menu-media-v1';
+
+// The variant this engine warms. The engine only ever runs in standalone mode
+// (useOfflineMenu starts it nowhere else), and MenuClient renders that same
+// launch at 'full' — so warming 'full' caches precisely what the tablet will
+// ask for. The web copies are never fetched here, and warmMedia's eviction
+// pass drops any that an earlier build left behind.
+const WARM_VARIANT: MediaVariant = 'full';
 const STATE_KEY = 'state';
 const POLL_MS = 2 * 60 * 1000;
 const DATA_SYNC_OPENS_AT_HOUR = 9;
@@ -53,17 +66,6 @@ async function fetchJson<T>(path: string): Promise<T> {
     const res = await fetch(path, { cache: 'no-store', headers: { Accept: 'application/json' } });
     if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
     return res.json() as Promise<T>;
-}
-
-export function mediaUrlsOf(snapshot: OfflineSnapshot | null): Set<string> {
-    const urls = new Set<string>();
-    if (!snapshot) return urls;
-    for (const item of snapshot.items) {
-        if (item.photoUrl) urls.add(item.photoUrl);
-        for (const u of item.photoUrls || []) if (u) urls.add(u);
-        if (item.videoUrl) urls.add(item.videoUrl);
-    }
-    return urls;
 }
 
 class SyncEngine {
@@ -250,7 +252,7 @@ class SyncEngine {
             pendingDataHash: null,
         });
         await this.persist();
-        await this.warmMedia(mediaUrlsOf(snapshot));
+        await this.warmMedia(mediaUrlsOf(snapshot, WARM_VARIANT));
     }
 
     private async availabilitySync(version: VersionInfo) {

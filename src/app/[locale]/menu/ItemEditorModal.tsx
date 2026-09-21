@@ -39,8 +39,14 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [menuCategoryId, setMenuCategoryId] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
     const [isFeatured, setIsFeatured] = useState(false);
+    // Every photo is stored twice: a web copy (what this editor previews) and a
+    // full-res twin for the iPads. The cover keeps them in two states; the
+    // gallery keeps PAIRS in one array, because the DB columns are two
+    // index-aligned lists and splitting them across two states is how they
+    // drift — a gallery off by one hands an iPad the wrong dish's photo.
     const [photoUrl, setPhotoUrl] = useState('');
-    const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+    const [photoUrlFull, setPhotoUrlFull] = useState('');
+    const [gallery, setGallery] = useState<{ web: string; full: string }[]>([]);
     const [photoFocalX, setPhotoFocalX] = useState(50);
     const [photoFocalY, setPhotoFocalY] = useState(50);
     const [photoZoom, setPhotoZoom] = useState(100);
@@ -75,7 +81,13 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setIsAvailable(initialData.isAvailable ?? true);
                 setIsFeatured(initialData.isFeatured ?? false);
                 setPhotoUrl(initialData.photoUrl || '');
-                setPhotoUrls(initialData.photoUrls || []);
+                setPhotoUrlFull(initialData.photoUrlFull || '');
+                // A photo uploaded before the two-variant split has no twin; it
+                // pairs with itself and keeps working everywhere.
+                setGallery((initialData.photoUrls || []).map((web: string, i: number) => ({
+                    web,
+                    full: (initialData.photoUrlsFull || [])[i] || web,
+                })));
                 setPhotoFocalX(initialData.photoFocalX ?? 50);
                 setPhotoFocalY(initialData.photoFocalY ?? 50);
                 setPhotoZoom(initialData.photoZoom ?? 100);
@@ -99,7 +111,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setIsAvailable(true);
                 setIsFeatured(false);
                 setPhotoUrl('');
-                setPhotoUrls([]);
+                setPhotoUrlFull('');
+                setGallery([]);
                 setPhotoFocalX(50);
                 setPhotoFocalY(50);
                 setPhotoZoom(100);
@@ -136,7 +149,9 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             salePrice: parseFloat(salePrice) || 0,
             menuCategoryId: menuCategoryId || null,
             photoUrl: photoUrl || null,
-            photoUrls,
+            photoUrls: gallery.map(g => g.web),
+            photoUrlFull: photoUrlFull || null,
+            photoUrlsFull: gallery.map(g => g.full),
             photoFocalX,
             photoFocalY,
             photoZoom,
@@ -161,7 +176,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
 
     // A live view of whether a cover photo exists in the modal; the server enforces
     // the same rule against the persisted row and is the real gate.
-    const hasPhoto = !!(photoUrl || photoUrls[0]);
+    const hasPhoto = !!(photoUrl || gallery[0]);
 
     const handleFeaturedChange = async (rank: 1 | 2 | null) => {
         if (!initialData || rank === featuredRank || featuredSaving) return;
@@ -427,9 +442,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                         <label style={labelStyle}>Foto principal <span style={{ fontSize: '0.8rem' }}>(portada de la tarjeta)</span></label>
                         <ImageUpload
                             bucketName="restaurant-assets"
+                            dualResolution
                             currentUrl={photoUrl || undefined}
-                            onUploadComplete={(url) => setPhotoUrl(url)}
-                            onRemove={() => setPhotoUrl('')}
+                            onUploadComplete={(url, fullUrl) => { setPhotoUrl(url); setPhotoUrlFull(fullUrl || ''); }}
+                            onRemove={() => { setPhotoUrl(''); setPhotoUrlFull(''); }}
                             placeholder="Subir foto principal"
                         />
                     </div>
@@ -589,15 +605,16 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                     )}
 
                     <div style={fieldStyle}>
-                        <label style={labelStyle}>Galería <span style={{ fontSize: '0.8rem' }}>({photoUrls.length}/6 — se muestra en la vista ampliada)</span></label>
-                        {photoUrls.length > 0 && (
+                        <label style={labelStyle}>Galería <span style={{ fontSize: '0.8rem' }}>({gallery.length}/6 — se muestra en la vista ampliada)</span></label>
+                        {gallery.length > 0 && (
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: '0.5rem' }}>
-                                {photoUrls.map((url, index) => (
-                                    <div key={`${url}-${index}`} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                        <img src={url} alt={`Galería ${index + 1}`} style={{ width: '100%', height: '96px', objectFit: 'cover', display: 'block' }} />
+                                {gallery.map((photo, index) => (
+                                    <div key={`${photo.web}-${index}`} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                        {/* The web copy previews here; the pair travels together. */}
+                                        <img src={photo.web} alt={`Galería ${index + 1}`} style={{ width: '100%', height: '96px', objectFit: 'cover', display: 'block' }} />
                                         <button
                                             type="button"
-                                            onClick={() => setPhotoUrls(prev => prev.filter((_, i) => i !== index))}
+                                            onClick={() => setGallery(prev => prev.filter((_, i) => i !== index))}
                                             title="Quitar foto"
                                             style={{
                                                 position: 'absolute', top: '4px', right: '4px',
@@ -612,19 +629,47 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                 ))}
                             </div>
                         )}
-                        {photoUrls.length < 6 && (
+                        {gallery.length < 6 && (
                             <ImageUpload
                                 bucketName="restaurant-assets"
-                                onUploadComplete={(url) => setPhotoUrls(prev => prev.length < 6 ? [...prev, url] : prev)}
+                                dualResolution
+                                onUploadComplete={(url, fullUrl) => setGallery(prev =>
+                                    prev.length < 6 ? [...prev, { web: url, full: fullUrl || url }] : prev
+                                )}
                                 placeholder="Agregar foto a la galería"
                             />
                         )}
                     </div>
 
+                    {/*
+                        Video is a pasted URL, not an upload: nothing here
+                        transcodes, so whatever is encoded is exactly what every
+                        iPad downloads and stores. Photos have two variants;
+                        video has ONE, shared by phones and tablets, and it is
+                        the single biggest thing in the offline cache. Encode to
+                        this target before uploading:
+
+                          ffmpeg -i in.mov -vf "scale=-2:1080" -r 30 \
+                            -c:v libx264 -profile:v high -pix_fmt yuv420p \
+                            -b:v 5M -maxrate 5M -bufsize 10M \
+                            -an -movflags +faststart out.mp4
+
+                          1080p        the card and lightbox never show more
+                          ~5 Mbps      ≈ 12 MB for a 20 s loop — budget it
+                          no audio     -an. The players are muted+autoplay;
+                                       an audio track is dead weight and can
+                                       block autoplay on iPadOS
+                          +faststart   moov atom first, so playback starts
+                                       before the whole file has arrived
+
+                        Keep loops short. The media cache warms the full file
+                        (the service worker slices Safari's Range requests out
+                        of it), so a 60 s clip is a 37 MB download per tablet.
+                    */}
                     <div style={fieldStyle}>
                         <label style={labelStyle}>Video URL</label>
                         <input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} type="text" className="input-field" placeholder="https://..." />
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>URL directa de video MP4 — opcional</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>URL directa de video MP4 — opcional · 1080p, ~5 Mbps, sin audio, faststart</span>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '1.25rem' }}>

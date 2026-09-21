@@ -143,8 +143,13 @@ interface MenuItemInput {
     componentsEs?: string[];
     salePrice?: number;
     menuCategoryId?: string | null;
-    photoUrl?: string | null;    // card cover
-    photoUrls?: string[];        // lightbox gallery, append order = display order
+    // Photos come in pairs: the *Url fields hold the web copy (1200 px) and the
+    // *Full fields its full-res twin (2400 px), index-aligned for the gallery.
+    // Both are written by the same upload; see src/components/ui/ImageUpload.tsx.
+    photoUrl?: string | null;      // card cover
+    photoUrls?: string[];          // lightbox gallery, append order = display order
+    photoUrlFull?: string | null;  // full-res cover (null = none, renderer falls back to photoUrl)
+    photoUrlsFull?: string[];      // full-res gallery twins, same order as photoUrls
     photoFocalX?: number;        // cover focal point X, 0-100 %
     photoFocalY?: number;        // cover focal point Y, 0-100 %
     photoZoom?: number;          // favorites-band cover zoom, 100-300 %
@@ -199,6 +204,8 @@ export async function createMenuItem(data: MenuItemInput) {
                 menuCategoryId: data.menuCategoryId || null,
                 photoUrl: data.photoUrl || null,
                 photoUrls: data.photoUrls ?? [],
+                photoUrlFull: data.photoUrlFull || null,
+                photoUrlsFull: data.photoUrlsFull ?? [],
                 photoFocalX: data.photoFocalX ?? 50,
                 photoFocalY: data.photoFocalY ?? 50,
                 photoZoom: data.photoZoom ?? 100,
@@ -259,6 +266,8 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.menuCategoryId !== undefined ? { menuCategoryId: data.menuCategoryId || null } : {}),
                 ...(data.photoUrl !== undefined ? { photoUrl: data.photoUrl || null } : {}),
                 ...(data.photoUrls !== undefined ? { photoUrls: data.photoUrls } : {}),
+                ...(data.photoUrlFull !== undefined ? { photoUrlFull: data.photoUrlFull || null } : {}),
+                ...(data.photoUrlsFull !== undefined ? { photoUrlsFull: data.photoUrlsFull } : {}),
                 ...(data.photoFocalX !== undefined ? { photoFocalX: data.photoFocalX } : {}),
                 ...(data.photoFocalY !== undefined ? { photoFocalY: data.photoFocalY } : {}),
                 ...(data.photoZoom !== undefined ? { photoZoom: data.photoZoom } : {}),
