@@ -24,7 +24,7 @@
   --m-muted: #6a6158;
   --m-hairline: #ddd2c2;
   --m-teal: #1e8a8f;
-  --m-header: #114a4d;
+  --m-header: #1d3c40;
   --m-header-ink: #f8eedc;
   --m-gold: #8b5e2b;
   --m-gold-light: #d4b06a;
@@ -54,7 +54,7 @@
   --m-muted: #a89a8c;
   --m-hairline: #3a322b;
   --m-teal: #3aa7ac;
-  --m-header: #114a4d;
+  --m-header: #1d3c40;
   --m-header-ink: #f8eedc;
   --m-gold: #d4b06a;
   --m-gold-light: #d4b06a;
@@ -80,14 +80,28 @@
 
 /* ---------- Header (scrolls away) ---------- */
 
+/* Leather, not a flat fill. Deliberately NOT scoped to a theme: the header is
+   the same physical material in light and dark, and --m-header (#1d3c40, the
+   texture's own average) is the solid fallback that shows while the jpg loads,
+   if it 404s, or behind the feathered edges of the logo patch. The same value
+   is the manifest theme_color and the viewport themeColor, so the iPad status
+   bar reads as one surface with it.
+
+   No filter/transform here (module hard rule) — the fixed footer and the
+   modals resolve against the viewport, and a filter on this element would
+   make it their containing block. */
 .mp-header {
   background-color: var(--m-header);
+  background-image: url('/menu/leather-texture.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: var(--m-header-ink);
   padding: 10px 16px 12px;
   /* Installed app: keep the logo row clear of the iPad status bar. Zero in a
      normal browser tab. */
   padding-top: calc(10px + env(safe-area-inset-top, 0px));
-  box-shadow: 0 8px 24px rgba(20, 104, 108, 0.28);
+  box-shadow: 0 8px 24px rgba(16, 48, 52, 0.34);
 }
 
 /* 1fr auto 1fr centers the logo on the header regardless of control width. */
@@ -98,11 +112,21 @@
   gap: 12px;
 }
 
-/* Transparent PNG sitting directly on the teal — no plaque, no shadow. */
+/* The lockup is a leather patch whose edges are FEATHERED into transparency so
+   it melts into the header leather behind it. That only works if nothing is
+   painted under or around it: no plaque, no background, no border, no radius,
+   no shadow. Anything with an edge would trace a rectangle the artwork spent
+   its feather hiding.
+
+   Heights are set so the wordmark renders at the width the old lockup did
+   (~189px / ~245px) — this art is 2.79:1 against the old 3.19:1, so matching
+   on height alone would have quietly shrunk it. Widest case is iPad landscape
+   at 245px, which leaves ~440px of free column beside the ~130px of language
+   and theme controls; portrait leaves ~260px. */
 .mp-logo-img {
   grid-column: 2;
   display: block;
-  height: 60px;
+  height: 68px;
   width: auto;
   max-width: min(340px, 62vw);
   object-fit: contain;
@@ -110,7 +134,7 @@
 
 @media (min-width: 720px) {
   .mp-logo-img {
-    height: 78px;
+    height: 88px;
   }
 }
 

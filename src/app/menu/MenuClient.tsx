@@ -318,7 +318,7 @@ export default function MenuClient({
                     {!clickable && (
                         <img
                             className="mp-card-emblem"
-                            src="/menu/emblem.png"
+                            src="/menu/icons/emblem.png"
                             alt=""
                             aria-hidden="true"
                             loading="lazy"
@@ -508,7 +508,7 @@ export default function MenuClient({
                 <div className="mp-header-row">
                     <img
                         className="mp-logo-img"
-                        src="/menu/logo.png"
+                        src="/menu/header-logo-leather.png"
                         alt="Fusionista — Modern Peruvian Cuisine"
                         onClick={onLogoTap}
                     />

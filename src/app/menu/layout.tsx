@@ -10,8 +10,10 @@ import './menu.css';
 // PWA metadata (manifest, apple-touch-icon, apple-mobile-web-app-*) is
 // declared HERE and only here — the admin layout never links the manifest, so
 // only /menu is installable. Colors come from menu.css tokens: theme_color is
-// --m-header (#114a4d), background_color is the light --m-bg (#f3eee6), which
-// is the effective default theme when nothing is stored.
+// --m-header (#1d3c40, the average of the header's leather texture — keep the
+// manifest, the viewport below and the CSS token in step so the status bar and
+// the header read as one surface), background_color is the light --m-bg
+// (#f3eee6), which is the effective default theme when nothing is stored.
 export const metadata: Metadata = {
     title: 'Fusionista — Menú',
     description: 'Fusionista digital menu / menú digital',
@@ -34,8 +36,25 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
-    themeColor: '#114a4d',
+    themeColor: '#1d3c40',
 };
+
+// iPadOS opening screen. iOS ignores the manifest's background_color and shows
+// a blank canvas unless an apple-touch-startup-image matches the device
+// EXACTLY, so each entry is pinned to one device's CSS size and DPR. These
+// dimensions are the 11" iPad (834x1194 @2x = 1668x2388) — the tablets on the
+// floor. A different model simply finds no match and launches blank, as it
+// does today; add its size here rather than loosening the query, because a
+// loose query hands iOS a wrongly-proportioned image and it stretches it.
+//
+// Rendered as plain <link>s (React hoists them into <head>): Next's Metadata
+// API has no field for startup images, and `other` emits <meta>, not <link>.
+const STARTUP_IMAGES = [
+    {
+        href: '/menu/splash-ipad-portrait.jpg',
+        media: '(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)',
+    },
+];
 
 export default function PublicMenuLayout({ children }: { children: React.ReactNode }) {
     return (
@@ -43,6 +62,9 @@ export default function PublicMenuLayout({ children }: { children: React.ReactNo
             {/* menu-dark pre-applied: default theme is dark, so first paint matches
                 before MenuClient syncs from localStorage */}
             <body className="menu-public menu-dark">
+                {STARTUP_IMAGES.map(img => (
+                    <link key={img.href} rel="apple-touch-startup-image" href={img.href} media={img.media} />
+                ))}
                 {/* register={false}: the provider only prepares window.serwist.
                     Registration happens in useOfflineMenu, and ONLY when the page
                     runs as an installed (standalone) app — a guest on a phone
