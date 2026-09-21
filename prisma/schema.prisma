@@ -252,6 +252,20 @@ model MenuItem {
   // Tag chips on the public menu card. Values are MenuTagKey strings from
   // src/lib/menuTags.ts — that file is the vocabulary; this column only stores keys.
   tags            String[] @default([])
+  // Allergens present in the dish. Values are AllergenKey strings from
+  // src/lib/allergens.ts (the nine major US allergens); Postgres cannot
+  // constrain an array's contents, so menuAdmin filters unknown keys on write
+  // and the public menu ignores any that slipped past. Empty means NOT YET
+  // REVIEWED, not "free of allergens" — nothing in the app may present an
+  // empty array as an assurance.
+  allergens       String[] @default([])
+  // Free text naming the specific ingredient behind a listed allergen
+  // ("walnut, almond"). Dish-level, not per allergen.
+  allergenNotesEn String?
+  allergenNotesEs String?
+  // Served raw or undercooked: adds the descriptor to the dish and triggers
+  // the consumer advisory at the foot of its category.
+  servedRaw       Boolean @default(false)
   // "Why order it" — a persuasive line for the redesigned card/lightbox.
   whyEn           String?
   whyEs           String?

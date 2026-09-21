@@ -951,6 +951,11 @@ export async function syncSalonFromClover(): Promise<{
  *   App-owned, never written   nameEn, nameEs, descriptionEn (seeded once on
  *                              create, then app-owned), descriptionEs,
  *                              whyEn/Es, componentsEn/Es, tags, taglineEn/Es,
+ *                              allergens, allergenNotesEn/Es, servedRaw —
+ *                              Clover has no concept of any of them and a
+ *                              sync that touched them could silently drop an
+ *                              allergy warning, so they are never written
+ *                              here on create OR update,
  *                              every photo/focal/zoom/fit field — photoUrl,
  *                              photoUrls, photoUrlFull, photoUrlsFull,
  *                              photoFocalX/Y, photoZoom, photoFit, videoUrl —

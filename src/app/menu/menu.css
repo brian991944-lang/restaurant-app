@@ -40,6 +40,10 @@
   --m-img-bg: #e8dfcb;
   --m-noshot-bg: #e8dfcb;
   --m-noshot-ink: #a2917a;
+  /* Allergen row — the only warm red in the palette. */
+  --m-allergen-bg: #f7e4da;
+  --m-allergen-border: rgba(138, 47, 24, 0.35);
+  --m-allergen-ink: #8a2f18;
   --m-gloss-bg: #efe6d4;
 
   margin: 0;
@@ -74,6 +78,9 @@
   --m-img-bg: #221c17;
   --m-noshot-bg: #221c17;
   --m-noshot-ink: #6d6154;
+  --m-allergen-bg: rgba(214, 110, 80, 0.16);
+  --m-allergen-border: rgba(240, 150, 120, 0.45);
+  --m-allergen-ink: #f2ad92;
   --m-gloss-bg: #1e1814;
 
   background-image: none;
@@ -815,6 +822,72 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--m-tag);
+}
+
+/* ---------- Allergens ---------- */
+
+/* The only warm red on the page, and that is the whole point: nothing else
+   competes for it, so a guest scanning for one of these finds it without
+   reading. Upright at 15px — larger than the descriptor tags above it,
+   because this is the line someone may be relying on. */
+.mp-allergens {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 10px;
+}
+
+.mp-allergens-label {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--m-allergen-ink);
+}
+
+.mp-allergen {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--m-body);
+  font-style: normal;
+  font-size: 15px;
+  line-height: 1.2;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background-color: var(--m-allergen-bg);
+  border: 1px solid var(--m-allergen-border);
+  color: var(--m-allergen-ink);
+}
+
+.mp-allergen-glyph {
+  flex-shrink: 0;
+}
+
+/* Dish-level specifics ("walnut, almond"). No pill: it qualifies the row. */
+.mp-allergen-notes {
+  font-family: var(--m-body);
+  font-size: 15px;
+  color: var(--m-allergen-ink);
+}
+
+/* Consumer advisory at the foot of a category that serves something raw. */
+.mp-advisory {
+  margin: 38px auto 0;
+  max-width: 76ch;
+  padding-top: 14px;
+  border-top: 1px solid var(--m-hairline);
+  font-family: var(--m-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--m-muted);
+  text-align: center;
+}
+
+.mp-advisory p + p {
+  margin-top: 6px;
 }
 
 .mp-tag + .mp-tag::before {

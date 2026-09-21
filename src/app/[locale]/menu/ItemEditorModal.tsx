@@ -5,6 +5,7 @@ import { X, Languages } from 'lucide-react';
 import ImageUpload from '@/components/ui/ImageUpload';
 import { createMenuItem, updateMenuItem, setFeaturedRank } from '@/app/actions/menuAdmin';
 import { MENU_TAGS } from '@/lib/menuTags';
+import { ALLERGENS } from '@/lib/allergens';
 
 interface ItemEditorModalProps {
     isOpen: boolean;
@@ -29,6 +30,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     const [taglineEn, setTaglineEn] = useState('');
     const [taglineEs, setTaglineEs] = useState('');
     const [tags, setTags] = useState<string[]>([]);
+    const [allergens, setAllergens] = useState<string[]>([]);
+    const [allergenNotesEn, setAllergenNotesEn] = useState('');
+    const [allergenNotesEs, setAllergenNotesEs] = useState('');
+    const [servedRaw, setServedRaw] = useState(false);
     const [whyEn, setWhyEn] = useState('');
     const [whyEs, setWhyEs] = useState('');
     // Components are edited as raw multiline text (one per line) and split into
@@ -72,6 +77,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setTaglineEn(initialData.taglineEn || '');
                 setTaglineEs(initialData.taglineEs || '');
                 setTags(initialData.tags || []);
+                setAllergens(initialData.allergens || []);
+                setAllergenNotesEn(initialData.allergenNotesEn || '');
+                setAllergenNotesEs(initialData.allergenNotesEs || '');
+                setServedRaw(initialData.servedRaw ?? false);
                 setWhyEn(initialData.whyEn || '');
                 setWhyEs(initialData.whyEs || '');
                 setComponentsEnText((initialData.componentsEn || []).join('\n'));
@@ -102,6 +111,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setTaglineEn('');
                 setTaglineEs('');
                 setTags([]);
+                setAllergens([]);
+                setAllergenNotesEn('');
+                setAllergenNotesEs('');
+                setServedRaw(false);
                 setWhyEn('');
                 setWhyEs('');
                 setComponentsEnText('');
@@ -142,6 +155,10 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             taglineEn,
             taglineEs,
             tags,
+            allergens,
+            allergenNotesEn,
+            allergenNotesEs,
+            servedRaw,
             whyEn,
             whyEs,
             componentsEn: linesToList(componentsEnText),
@@ -284,6 +301,85 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                                 );
                             })}
                         </div>
+                    </div>
+
+                    {/* Deliberately loud, and deliberately not part of "Etiquetas":
+                        a tag is a selling point, an allergen is a safety fact, and
+                        the two must not look like the same kind of decision. */}
+                    <div style={{
+                        border: '1px solid rgba(138, 47, 24, 0.35)',
+                        background: 'rgba(214, 110, 80, 0.07)',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        marginBottom: '1.25rem',
+                    }}>
+                        <label style={{ ...labelStyle, fontSize: '1rem', color: '#c0562f' }}>
+                            Alérgenos
+                        </label>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem' }}>
+                            Marca lo que el plato CONTIENE, según la receta — no según la descripción.
+                            Dejarlo vacío significa &laquo;sin revisar&raquo;, no &laquo;sin alérgenos&raquo;.
+                        </p>
+                        <div role="group" aria-label="Alérgenos" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {ALLERGENS.map(a => {
+                                const active = allergens.includes(a.key);
+                                return (
+                                    <button
+                                        key={a.key}
+                                        type="button"
+                                        onClick={() => setAllergens(prev => active ? prev.filter(k => k !== a.key) : [...prev, a.key])}
+                                        aria-pressed={active}
+                                        style={{
+                                            minHeight: '40px', padding: '0.4rem 0.9rem',
+                                            borderRadius: '999px',
+                                            border: active ? '1px solid #8a2f18' : '1px solid var(--border)',
+                                            background: active ? '#8a2f18' : 'transparent',
+                                            color: active ? 'white' : 'var(--text-primary)',
+                                            fontWeight: active ? 600 : 400,
+                                            fontSize: '0.85rem', cursor: 'pointer'
+                                        }}
+                                    >
+                                        {a.es}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>Especificar (ES)</label>
+                                <input
+                                    value={allergenNotesEs}
+                                    onChange={e => setAllergenNotesEs(e.target.value)}
+                                    className="input-field"
+                                    placeholder="nuez, almendra"
+                                />
+                            </div>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>Especificar (EN)</label>
+                                <input
+                                    value={allergenNotesEn}
+                                    onChange={e => setAllergenNotesEn(e.target.value)}
+                                    className="input-field"
+                                    placeholder="walnut, almond"
+                                />
+                            </div>
+                        </div>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', minHeight: '40px' }}>
+                            <input
+                                type="checkbox"
+                                checked={servedRaw}
+                                onChange={e => setServedRaw(e.target.checked)}
+                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                            />
+                            <span style={{ fontSize: '0.9rem' }}>
+                                Se sirve crudo
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                    {' '}— añade el aviso al pie de la categoría
+                                </span>
+                            </span>
+                        </label>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

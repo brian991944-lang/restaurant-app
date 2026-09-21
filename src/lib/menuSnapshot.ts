@@ -46,6 +46,10 @@ export type SnapshotItem = {
     taglineEn: string | null;
     taglineEs: string | null;
     tags: string[];
+    allergens: string[];
+    allergenNotesEn: string | null;
+    allergenNotesEs: string | null;
+    servedRaw: boolean;
     whyEn: string | null;
     whyEs: string | null;
     componentsEn: string[];
@@ -107,6 +111,10 @@ export async function loadMenuSnapshot(now: Date = new Date()): Promise<MenuSnap
                 taglineEn: true,
                 taglineEs: true,
                 tags: true,
+                allergens: true,
+                allergenNotesEn: true,
+                allergenNotesEs: true,
+                servedRaw: true,
                 whyEn: true,
                 whyEs: true,
                 componentsEn: true,
@@ -149,6 +157,10 @@ export async function loadMenuSnapshot(now: Date = new Date()): Promise<MenuSnap
             taglineEn: i.taglineEn,
             taglineEs: i.taglineEs,
             tags: [...i.tags],
+            allergens: [...i.allergens],
+            allergenNotesEn: i.allergenNotesEn,
+            allergenNotesEs: i.allergenNotesEs,
+            servedRaw: i.servedRaw,
             whyEn: i.whyEn,
             whyEs: i.whyEs,
             componentsEn: [...i.componentsEn],

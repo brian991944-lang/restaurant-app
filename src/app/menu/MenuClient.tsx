@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { MENU_TAGS } from '@/lib/menuTags';
+import { allergenLabel, normalizeAllergens, TAG_TO_ALLERGEN } from '@/lib/allergens';
 import { MENU_GLOSSARY } from '@/lib/menuGlossary';
 import { coverOf, hasMedia, photosOf, type MediaVariant } from './offline/media';
 import { useOfflineMenu } from './offline/useOfflineMenu';
@@ -26,6 +27,7 @@ const UI_TEXT: Record<Lang, {
     empty: string; comingSoon: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
     photoSoon: string; houseFavorite: string; glossaryTitle: string; soldOut: string;
+    contains: string; servedRaw: string; rawAdvisory: string; crossContact: string;
 }> = {
     en: {
         empty: 'Menu coming soon.',
@@ -40,6 +42,10 @@ const UI_TEXT: Record<Lang, {
         houseFavorite: 'House favorite',
         glossaryTitle: 'Words that help',
         soldOut: 'Sold out',
+        contains: 'Contains',
+        servedRaw: 'Served raw *',
+        rawAdvisory: '* Served raw. Consuming raw or undercooked meats, poultry, seafood, shellfish or eggs may increase your risk of foodborne illness.',
+        crossContact: 'Our kitchen handles milk, eggs, fish, shellfish, tree nuts, peanuts, wheat, soy and sesame. We cannot guarantee any dish is free of an allergen — please tell your server before you order.',
     },
     es: {
         empty: 'Menú disponible próximamente.',
@@ -54,6 +60,10 @@ const UI_TEXT: Record<Lang, {
         houseFavorite: 'Favorito de la casa',
         glossaryTitle: 'Palabras que ayudan',
         soldOut: 'Agotado',
+        contains: 'Contiene',
+        servedRaw: 'Se sirve crudo *',
+        rawAdvisory: '* Se sirve crudo. El consumo de carnes, aves, pescados, mariscos o huevos crudos o poco cocidos puede aumentar su riesgo de enfermedades transmitidas por alimentos.',
+        crossContact: 'Nuestra cocina maneja leche, huevo, pescado, mariscos, frutos secos, maní, trigo, soya y ajonjolí. No podemos garantizar que un plato esté libre de algún alérgeno — por favor avísele a su mesero antes de ordenar.',
     },
 };
 
@@ -97,6 +107,42 @@ const PlayGlyph = ({ size = 10 }: { size?: number }) => (
         <path d="M1 0 L10 5 L1 10 Z" fill="currentColor" />
     </svg>
 );
+
+// One line glyph per allergen, drawn on a 16x16 grid at 1.1 stroke so each
+// still reads at 15px. They are identification aids beside a word, never the
+// warning on their own — the label always ships with them.
+const ALLERGEN_GLYPHS: Record<string, React.ReactNode> = {
+    milk: <><path d="M6 2h4l1 3v9H5V5z" /><path d="M5 8h6" /></>,
+    eggs: <ellipse cx="8" cy="9.5" rx="4.2" ry="5.3" />,
+    fish: <><path d="M2 8c2.5-3 6-4.5 9-4.5 0 0 1.5 2 1.5 4.5S11 12.5 11 12.5C8 12.5 4.5 11 2 8z" /><path d="M11 3.5 14.5 2 13.5 8l1 6-3.5-1.5" /><circle cx="5" cy="7.2" r="0.6" /></>,
+    shellfish: <><path d="M13 3c-4 0-7.5 2.5-7.5 6 0 2.5 2 4.5 4.5 4.5" /><path d="M5.5 9H3M5.5 11H2.5M6.5 12.5 4.5 14" /><circle cx="11.5" cy="5" r="0.6" /></>,
+    tree_nuts: <><path d="M8 14c-2.8 0-4.5-2-4.5-4.5C3.5 6.5 5.5 4 8 4s4.5 2.5 4.5 5.5C12.5 12 10.8 14 8 14z" /><path d="M5 5.5h6" /><path d="M8 2v2" /></>,
+    peanuts: <><path d="M8 2.5c1.8 0 3 1.3 3 2.8 0 1-.5 1.6-.5 2.2s.5 1.2.5 2.2c0 1.5-1.2 2.8-3 2.8s-3-1.3-3-2.8c0-1 .5-1.6.5-2.2s-.5-1.2-.5-2.2c0-1.5 1.2-2.8 3-2.8z" /><path d="M5.6 7.5h4.8" /></>,
+    wheat: <><path d="M8 14V5" /><path d="M8 5.5 5.5 3.5M8 5.5l2.5-2M8 8.5 5.5 6.5M8 8.5l2.5-2M8 11.5 5.5 9.5M8 11.5l2.5-2" /></>,
+    soy: <><path d="M3 10c0-3.3 2.4-6 5.5-6C11 4 13 5.6 13 7.6c0 3-2.6 5.4-6 5.4-2.2 0-4-1.3-4-3z" /><circle cx="6.5" cy="9.5" r="1.2" /><circle cx="10" cy="7.5" r="1.2" /></>,
+    sesame: <><ellipse cx="5.5" cy="6" rx="1.8" ry="2.6" /><ellipse cx="10" cy="9" rx="1.8" ry="2.6" /><ellipse cx="6.5" cy="12" rx="1.5" ry="2.2" /></>,
+};
+
+const AllergenGlyph = ({ allergen }: { allergen: string }) => {
+    const paths = ALLERGEN_GLYPHS[allergen];
+    if (!paths) return null;
+    return (
+        <svg
+            className="mp-allergen-glyph"
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+        >
+            {paths}
+        </svg>
+    );
+};
 
 // Outline only — it sits in the empty photo frame and must not compete with
 // the dishes that do have one.
@@ -283,6 +329,56 @@ export default function MenuClient({
     };
 
     /**
+     * Descriptor tags for a dish.
+     *
+     * Once a dish carries any allergen, its fish / shell / nut TAGS stop
+     * rendering — the allergen row below states the same thing with more
+     * precision, and showing both reads as two different claims. A dish with
+     * no allergens recorded keeps them, because a dish nobody has reviewed yet
+     * is better off with a vague warning than with none.
+     *
+     * "Served raw *" is appended here rather than stored as a tag: it is a
+     * property of the dish, not a label someone remembered to attach.
+     */
+    const descriptorsOf = (item: MenuItemData): string[] => {
+        const reviewed = (item.allergens || []).length > 0;
+        const labels = (item.tags || [])
+            .filter(key => !(reviewed && key in TAG_TO_ALLERGEN))
+            .map(tagLabel)
+            .filter((l): l is string => !!l);
+        return item.servedRaw ? [...labels, t.servedRaw] : labels;
+    };
+
+    /**
+     * "Contains ..." — the allergen row, rendered under a dish and again in
+     * the lightbox.
+     *
+     * Unknown keys are dropped (normalizeAllergens also guards the write side)
+     * and the order is the vocabulary's, not the row's, so the same allergens
+     * always read in the same sequence. The specifics note is dish-level, so
+     * it trails the pills: with one allergen that reads exactly as intended —
+     * "Tree nuts — walnut, almond" — and with several it stays attached to the
+     * row rather than pretending to qualify a particular pill.
+     */
+    const renderAllergens = (item: MenuItemData) => {
+        const keys = normalizeAllergens(item.allergens || []);
+        if (keys.length === 0) return null;
+        const notes = (lang === 'es' ? item.allergenNotesEs : item.allergenNotesEn)?.trim();
+        return (
+            <div className="mp-allergens">
+                <span className="mp-allergens-label">{t.contains}</span>
+                {keys.map(key => (
+                    <span className="mp-allergen" key={key}>
+                        <AllergenGlyph allergen={key} />
+                        {allergenLabel(key, lang)}
+                    </span>
+                ))}
+                {notes && <span className="mp-allergen-notes">— {notes}</span>}
+            </div>
+        );
+    };
+
+    /**
      * The photo box, shared by every context a dish photo appears in.
      *
      * The fit maths is the part that must not drift: "Rellenar" is cover plus
@@ -375,6 +471,7 @@ export default function MenuClient({
         const desc = itemDescription(item);
         const soldOut = item.soldOut === true;
         const clickable = hasMedia(item);
+        const descriptors = descriptorsOf(item);
         return (
             <article key={item.id} className={`mp-dish${soldOut ? ' mp-dish-soldout' : ''}`}>
                 <div className={`mp-frame${clickable ? ' mp-media-tappable' : ''}`} {...tapProps(item)}>
@@ -388,12 +485,10 @@ export default function MenuClient({
                     </span>
                 </div>
                 {desc && <p className="mp-dish-desc">{desc}</p>}
-                {item.tags.length > 0 && (
+                {renderAllergens(item)}
+                {descriptors.length > 0 && (
                     <div className="mp-tags">
-                        {item.tags.map(key => {
-                            const label = tagLabel(key);
-                            return label ? <span key={key} className="mp-tag">{label}</span> : null;
-                        })}
+                        {descriptors.map(label => <span key={label} className="mp-tag">{label}</span>)}
                     </div>
                 )}
             </article>
@@ -406,6 +501,7 @@ export default function MenuClient({
     const renderFavorite = (item: MenuItemData) => {
         const desc = itemDescription(item);
         const soldOut = item.soldOut === true;
+        const descriptors = descriptorsOf(item);
         return (
             <article key={item.id} className={`mp-fav${soldOut ? ' mp-dish-soldout' : ''}`}>
                 <div className="mp-fav-frame mp-media-tappable" {...tapProps(item)}>
@@ -420,12 +516,10 @@ export default function MenuClient({
                     </span>
                 </div>
                 {desc && <p className="mp-dish-desc">{desc}</p>}
-                {item.tags.length > 0 && (
+                {renderAllergens(item)}
+                {descriptors.length > 0 && (
                     <div className="mp-tags">
-                        {item.tags.map(key => {
-                            const label = tagLabel(key);
-                            return label ? <span key={key} className="mp-tag">{label}</span> : null;
-                        })}
+                        {descriptors.map(label => <span key={label} className="mp-tag">{label}</span>)}
                     </div>
                 )}
             </article>
@@ -570,6 +664,9 @@ export default function MenuClient({
 
                     {tagline && <p className="mp-lb-tagline">{tagline}</p>}
                     {desc && <p className="mp-lb-desc">{desc}</p>}
+                    {/* The guest who opened a dish to look closer is exactly the
+                        one who may be checking. Same row as on the page. */}
+                    {renderAllergens(selected)}
                 </div>
             </div>
         );
@@ -697,6 +794,18 @@ export default function MenuClient({
                                     {regularItems.length > 0 && (
                                         <div className="mp-grid">
                                             {regularItems.map(renderDish)}
+                                        </div>
+                                    )}
+                                    {/* Footnote before the sign-off: the asterisk
+                                        on a dish above has to resolve somewhere
+                                        on the same screenful. The cross-contact
+                                        line rides with it, since a kitchen that
+                                        serves anything raw is the one where it
+                                        matters most. */}
+                                    {currentItems.some(i => i.servedRaw) && (
+                                        <div className="mp-advisory">
+                                            <p>{t.rawAdvisory}</p>
+                                            <p>{t.crossContact}</p>
                                         </div>
                                     )}
                                     <div className="mp-section-end">

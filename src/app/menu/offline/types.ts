@@ -23,6 +23,10 @@ export type MenuItemData = {
     taglineEn: string | null;
     taglineEs: string | null;
     tags: string[];
+    allergens: string[];
+    allergenNotesEn: string | null;
+    allergenNotesEs: string | null;
+    servedRaw: boolean;
     whyEn: string | null;
     whyEs: string | null;
     componentsEn: string[];

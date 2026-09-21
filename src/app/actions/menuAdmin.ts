@@ -1,6 +1,7 @@
 'use server';
 
 import prisma from '@/lib/prisma';
+import { normalizeAllergens } from '@/lib/allergens';
 import { updateCloverItemDescription } from './clover';
 import { revalidateMenuPaths } from '@/lib/menuRevalidate';
 import { newForceToken } from '@/lib/menuSnapshot';
@@ -137,6 +138,14 @@ interface MenuItemInput {
     taglineEn?: string | null;  // short "how we make it" line for the lightbox, max 60 chars
     taglineEs?: string | null;
     tags?: string[];             // MenuTagKey values from src/lib/menuTags.ts
+    // AllergenKey values from src/lib/allergens.ts. Normalised on write, never
+    // trusted as given: an unknown key would render as nothing on the public
+    // menu, which on this particular field means a warning that silently
+    // disappears. An empty array means "not reviewed yet", not "allergen-free".
+    allergens?: string[];
+    allergenNotesEn?: string | null;  // the specific ingredient ("walnut, almond")
+    allergenNotesEs?: string | null;
+    servedRaw?: boolean;
     whyEn?: string | null;       // "why order it" line for the redesigned card
     whyEs?: string | null;
     componentsEn?: string[];     // what arrives at the table, one entry per component
@@ -196,6 +205,10 @@ export async function createMenuItem(data: MenuItemInput) {
                 taglineEn: data.taglineEn?.trim() || null,
                 taglineEs: data.taglineEs?.trim() || null,
                 tags: data.tags ?? [],
+                allergens: normalizeAllergens(data.allergens ?? []),
+                allergenNotesEn: data.allergenNotesEn?.trim() || null,
+                allergenNotesEs: data.allergenNotesEs?.trim() || null,
+                servedRaw: data.servedRaw ?? false,
                 whyEn: data.whyEn?.trim() || null,
                 whyEs: data.whyEs?.trim() || null,
                 componentsEn: data.componentsEn ?? [],
@@ -258,6 +271,10 @@ export async function updateMenuItem(id: string, data: MenuItemInput) {
                 ...(data.taglineEn !== undefined ? { taglineEn: data.taglineEn?.trim() || null } : {}),
                 ...(data.taglineEs !== undefined ? { taglineEs: data.taglineEs?.trim() || null } : {}),
                 ...(data.tags !== undefined ? { tags: data.tags } : {}),
+                ...(data.allergens !== undefined ? { allergens: normalizeAllergens(data.allergens) } : {}),
+                ...(data.allergenNotesEn !== undefined ? { allergenNotesEn: data.allergenNotesEn?.trim() || null } : {}),
+                ...(data.allergenNotesEs !== undefined ? { allergenNotesEs: data.allergenNotesEs?.trim() || null } : {}),
+                ...(data.servedRaw !== undefined ? { servedRaw: data.servedRaw } : {}),
                 ...(data.whyEn !== undefined ? { whyEn: data.whyEn?.trim() || null } : {}),
                 ...(data.whyEs !== undefined ? { whyEs: data.whyEs?.trim() || null } : {}),
                 ...(data.componentsEn !== undefined ? { componentsEn: data.componentsEn } : {}),
