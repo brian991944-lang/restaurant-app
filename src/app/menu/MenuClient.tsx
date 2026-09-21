@@ -673,7 +673,7 @@ export default function MenuClient({
     };
 
     return (
-        <div className="mp-page">
+        <>
             {/* Pre-paint theme sync: corrects the menu-dark class layout.tsx ships
                 before the page paints (light is the default when nothing stored). */}
             <script dangerouslySetInnerHTML={{ __html: THEME_SYNC_SCRIPT }} />
@@ -682,23 +682,6 @@ export default function MenuClient({
                 zero wherever safe-area-inset-top is 0 — i.e. every browser tab —
                 so this is inert for guests. See .mp-statusbar-scrim in menu.css. */}
             <div className="mp-statusbar-scrim" aria-hidden="true" />
-
-            {/* Decorative only: behind every layer of content, never hit-tested.
-                See SUN_PATTERN above for why the positions repeat. */}
-            <div className="mp-suns" aria-hidden="true">
-                {Array.from({ length: SUN_REPEATS }).flatMap((_, cycle) =>
-                    SUN_PATTERN.map((sun, n) => (
-                        <img
-                            key={`${cycle}-${n}`}
-                            className={`mp-sun mp-sun-${sun.tone}`}
-                            src="/menu/emblem.png"
-                            alt=""
-                            loading="lazy"
-                            style={{ top: sun.top + cycle * SUN_CYCLE, left: sun.left, width: sun.size }}
-                        />
-                    )),
-                )}
-            </div>
 
             {/* The header scrolls away; only the category nav below is sticky.
                 No shared wrapper: a sticky nav inside a wrapper that ends at the
@@ -758,6 +741,26 @@ export default function MenuClient({
                     ))}
                 </nav>
             )}
+
+            {/* The 980px reading column. The leather and the nav above run the
+                full viewport width; everything that is read stays in here. */}
+            <div className="mp-page">
+            {/* Decorative only: behind every layer of content, never hit-tested.
+                See SUN_PATTERN above for why the positions repeat. */}
+            <div className="mp-suns" aria-hidden="true">
+                {Array.from({ length: SUN_REPEATS }).flatMap((_, cycle) =>
+                    SUN_PATTERN.map((sun, n) => (
+                        <img
+                            key={`${cycle}-${n}`}
+                            className={`mp-sun mp-sun-${sun.tone}`}
+                            src="/menu/emblem.png"
+                            alt=""
+                            loading="lazy"
+                            style={{ top: sun.top + cycle * SUN_CYCLE, left: sun.left, width: sun.size }}
+                        />
+                    )),
+                )}
+            </div>
 
             {categories.length === 0 ? (
                 <p className="mp-empty">{t.empty}</p>
@@ -836,6 +839,7 @@ export default function MenuClient({
             {standalone && staffOpen && (
                 <StaffPanel sync={sync} onSyncNow={syncNow} onClose={() => setStaffOpen(false)} />
             )}
-        </div>
+            </div>
+        </>
     );
 }

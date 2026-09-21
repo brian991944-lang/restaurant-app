@@ -94,10 +94,21 @@
   padding: 0;
 }
 
-/* position: relative WITHOUT a z-index — it must be the containing block for
-   the sun layer below while deliberately NOT creating a stacking context, or
-   that layer's negative z-index would be trapped here and paint over the page
-   background instead of behind the content. */
+/* The reading column.
+ *
+ * The leather header and the sticky nav are deliberately OUTSIDE this element
+ * in the markup, so their surfaces run the full viewport width while their
+ * contents are re-constrained to this same 980px measure (see .mp-header-row
+ * and .mp-catbar). Doing it that way rather than breaking the header out with
+ * width: 100vw is on purpose: 100vw includes the classic scrollbar on desktop,
+ * which would push a horizontal scrollbar onto the page, and the usual cure —
+ * overflow-x: hidden on the body — makes the body a scroll container and kills
+ * the category bar's stickiness.
+ *
+ * position: relative WITHOUT a z-index — it must be the containing block for
+ * the sun layer below while deliberately NOT creating a stacking context, or
+ * that layer's negative z-index would be trapped here and paint over the page
+ * background instead of behind the content. */
 .mp-page {
   position: relative;
   max-width: 980px;
@@ -203,12 +214,16 @@
   pointer-events: none;
 }
 
-/* 1fr auto 1fr centers the logo on the header regardless of control width. */
+/* 1fr auto 1fr centers the logo on the header regardless of control width.
+   The leather runs the full viewport; this row is what holds the logo and the
+   controls to the same 980px column the dishes below line up with. */
 .mp-header-row {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
+  max-width: 980px;
+  margin-inline: auto;
 }
 
 /* The lockup is a leather patch whose edges are FEATHERED into transparency so
@@ -446,8 +461,13 @@
   overflow-x: auto;
   scrollbar-width: none;
   padding: 6px 24px 0;
-  padding-left: max(24px, env(safe-area-inset-left, 0px));
-  padding-right: max(24px, env(safe-area-inset-right, 0px));
+  /* The bar spans the viewport like the leather above it — otherwise its
+     hairline and shadow would stop short of both edges under a full-width
+     header. The third term pushes the tabs in to the 980px column so they
+     start where the dishes do; it goes negative on a narrow screen, where
+     max() then falls back to the gutter. */
+  padding-left: max(24px, env(safe-area-inset-left, 0px), calc((100% - 980px) / 2));
+  padding-right: max(24px, env(safe-area-inset-right, 0px), calc((100% - 980px) / 2));
   background-color: var(--m-bg);
   border-bottom: 1px solid var(--m-hairline);
   box-shadow: 0 4px 12px rgba(28, 20, 16, 0.06);

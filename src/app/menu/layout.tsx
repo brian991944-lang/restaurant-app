@@ -63,17 +63,17 @@ export const viewport: Viewport = {
 //
 // Rendered as plain <link>s (React hoists them into <head>): Next's Metadata
 // API has no field for startup images, and `other` emits <meta>, not <link>.
-// Landscape belongs here too, as the same CSS size with (orientation:
-// landscape) — iOS keeps device-width/height in portrait terms and switches on
-// orientation alone, so only the last clause changes:
-//   { href: '/menu/splash-ipad-landscape.jpg', media: '(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)' }
-// It is left out until public/menu/splash-ipad-landscape.jpg (2388x1668)
-// exists — a link to a missing file just launches blank, the same as no link,
-// but noisily.
+// Both orientations share the same device-width/height: iOS states those in
+// portrait terms whatever way the iPad is held, and switches on `orientation`
+// alone. The files are 1668x2388 and 2388x1668 respectively.
 const STARTUP_IMAGES = [
     {
         href: '/menu/splash-ipad-portrait.jpg',
         media: '(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)',
+    },
+    {
+        href: '/menu/splash-ipad-landscape.jpg',
+        media: '(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)',
     },
 ];
 
