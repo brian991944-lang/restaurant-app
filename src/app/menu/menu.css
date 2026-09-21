@@ -990,8 +990,10 @@
   font-size: 13px;
 }
 
-/* ---------- Dish lightbox (always dark, both themes) ---------- */
+/* ---------- Dish lightbox (same in day and night) ---------- */
 
+/* The overlay is the scroll container: the page behind it is locked while
+   it is open, so a sheet taller than the screen scrolls in here. */
 .mp-lightbox {
   position: fixed;
   top: 0;
@@ -999,174 +1001,352 @@
   right: 0;
   bottom: 0;
   z-index: 100;
-  background-color: rgba(0, 0, 0, 0.92);
+  background-color: rgba(20, 16, 12, 0.74);
   overflow-y: auto;
-  display: flex;
-  padding: 3.5rem 1rem 2.5rem;
+  -webkit-overflow-scrolling: touch;
   animation: mp-fade 160ms ease-out;
-  /* lightbox is always dark: pin the gold accent to the dark-palette value */
-  --m-gold: #c99a52;
 }
 
-.mp-lb-content {
-  margin: auto; /* centers vertically, allows scroll when tall */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 0.85rem;
-  width: 100%;
-  max-width: min(92vw, 860px);
-}
-
-/* Fixed, so under viewport-fit: cover it would land under the status bar
-   glyphs; max() drops it below them on the tablets and leaves it put
-   everywhere else. */
-.mp-lb-close {
+/* Pill, fixed to the screen's top-right, clear of the status bar glyphs
+   under viewport-fit: cover. */
+.mp-lbx-close {
   position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top, 0px));
-  right: max(0.75rem, env(safe-area-inset-right, 0px));
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: #f0e7d6;
-  font-size: 1.35rem;
-  line-height: 1;
-  cursor: pointer;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(14px + env(safe-area-inset-right, 0px));
   z-index: 101;
-}
-
-.mp-lb-name {
-  font-family: var(--m-display);
-  font-weight: 600;
-  font-size: clamp(26px, 4vw, 34px);
-  line-height: 1.15;
-  color: #f0e7d6;
-}
-
-.mp-lb-price {
-  font-family: var(--m-display);
-  font-size: 1.05rem;
-  font-weight: 500;
-  color: var(--m-gold);
-}
-
-.mp-lb-tabs {
-  display: flex;
-  align-items: baseline;
-  gap: 1.75rem;
-  margin-top: 0.25rem;
-}
-
-.mp-lb-tab {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 9px;
+  height: 48px;
+  padding: 0 18px 0 16px;
+  border: none;
+  border-radius: 999px;
+  background-color: #f3ecdc;
+  color: #2c241c;
   font-family: var(--m-display);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.2em;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #8f7d6c;
-  background: none;
-  border: none;
-  border-bottom: 1.5px solid transparent;
-  padding: 0.35rem 0;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: background-color 0.15s ease;
 }
 
-.mp-lb-tab.mp-lb-tab-active {
-  color: #f0e7d6;
-  border-bottom-color: var(--m-gold);
+.mp-lbx-close:active {
+  background-color: #e6dcc6;
 }
 
-.mp-lb-media {
+/* The column: photo box, 14px of dark, then the sheet — all one width. */
+.mp-lbx {
+  --lbx-top: 72px;
+  width: min(92vw, 740px);
+  margin: var(--lbx-top) auto 48px;
+}
+
+@media (min-width: 720px) {
+  .mp-lbx {
+    --lbx-top: 96px;
+  }
+}
+
+/* ---- Photo box ---- */
+
+.mp-lbx-box {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-width: 92vw;
+  width: 100%;
+  aspect-ratio: 740 / 470;
+  overflow: hidden;
+  background-color: #0e0b09;
 }
 
-.mp-lb-photo {
-  display: block;
-  max-width: 92vw;
-  max-height: 62vh;
-  object-fit: contain;
-  animation: mp-fade 160ms ease-out;
-}
-
-.mp-lb-video {
-  display: block;
-  max-width: 92vw;
-  max-height: 62vh;
-  background-color: #000;
-}
-
-.mp-lb-chevron {
+/* Two stacked layers make the crossfade: the outgoing slide sits above the
+   incoming one and fades to nothing while the incoming fades in. Both are
+   opacity animations — no sliding, no transform. */
+.mp-lbx-layer {
   position: absolute;
-  top: calc(50% - 15px);
-  width: 30px;
-  height: 30px;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+@keyframes mp-lbx-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mp-lbx-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.mp-lbx-in {
+  animation: mp-lbx-fade-in 450ms ease both;
+}
+
+.mp-lbx-out {
+  z-index: 2;
+  pointer-events: none;
+  animation: mp-lbx-fade-out 450ms ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-lbx-in,
+  .mp-lbx-out {
+    animation: none;
+  }
+  .mp-lbx-out {
+    display: none;
+  }
+}
+
+/* The dish's own photo, blurred, behind the sharp one — visible in the
+   letterbox of a contain-fit photo. Leaf image: the module's one filter
+   exception, same as .mp-shot-blur on the page. */
+.mp-lbx-blur {
+  position: absolute;
+  width: 112%;
+  height: 112%;
+  left: -6%;
+  top: -6%;
+  object-fit: cover;
+  filter: blur(28px) brightness(0.9);
+  pointer-events: none;
+}
+
+/* Inline style carries object-fit/position and the cover's zoom pan. */
+.mp-lbx-photo {
+  position: absolute;
+  display: block;
+}
+
+.mp-lbx-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: transparent;
+}
+
+.mp-lbx-arrow {
+  position: absolute;
+  top: calc(50% - 28px);
+  z-index: 3;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: #f0e7d6;
-  border: none;
+  background-color: rgba(22, 18, 15, 0.55);
+  border: 1px solid rgba(212, 176, 106, 0.7);
+  color: #e9cf94;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-}
-
-.mp-lb-chevron-left {
-  left: 0.5rem;
-}
-
-.mp-lb-chevron-right {
-  right: 0.5rem;
-}
-
-.mp-lb-dots {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.mp-lb-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background-color: #4a3527;
-  border: none;
-  padding: 0;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }
 
-.mp-lb-dot.mp-lb-dot-active {
-  background-color: var(--m-gold);
+.mp-lbx-arrow:active {
+  background-color: rgba(22, 18, 15, 0.8);
 }
 
-.mp-lb-tagline {
+.mp-lbx-arrow-left {
+  left: 18px;
+}
+
+.mp-lbx-arrow-right {
+  right: 18px;
+}
+
+.mp-lbx-counter {
+  position: absolute;
+  z-index: 3;
+  bottom: 14px;
+  left: 50%;
+  margin-left: -34px;
+  min-width: 68px;
+  text-align: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background-color: rgba(22, 18, 15, 0.6);
+  color: #f3e9d6;
   font-family: var(--m-display);
   font-weight: 600;
-  font-style: normal;
-  font-size: 17px;
-  line-height: 1.4;
-  color: var(--m-gold);
-  margin-top: 0.35rem;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  pointer-events: none;
 }
 
-.mp-lb-desc {
+/* ---- Paper sheet ---- */
+
+/* Aged paper under a warm wash. The edges fade into the dark through a
+   mask (two gradients intersected), so there is no border and no glow.
+   Nothing inside is position:fixed — the mask would trap it. The sheet is
+   paper in both themes, so the allergen and tag colours are pinned to the
+   daylight values here rather than inherited from body. */
+.mp-lbx-sheet {
+  --m-allergen-bg: #f7e4da;
+  --m-allergen-border: rgba(138, 47, 24, 0.35);
+  --m-allergen-ink: #8a2f18;
+  --m-tag: #2a5d61;
+  position: relative;
+  margin-top: 14px;
+  background-color: #d9ccb2;
+  background-image:
+    linear-gradient(rgba(70, 48, 24, 0.16), rgba(70, 48, 24, 0.16)),
+    url('/menu/paper-texture.jpg');
+  background-size: auto, 512px;
+  background-repeat: repeat;
+  box-shadow: inset 0 0 70px 10px rgba(110, 74, 34, 0.24);
+  overflow: hidden;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 34px, #000 calc(100% - 34px), transparent),
+    linear-gradient(to bottom, transparent, #000 22px, #000 calc(100% - 40px), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 34px, #000 calc(100% - 34px), transparent),
+    linear-gradient(to bottom, transparent, #000 22px, #000 calc(100% - 40px), transparent);
+  mask-composite: intersect;
+}
+
+.mp-lbx-thumbs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 26px 48px 0;
+}
+
+.mp-lbx-thumb {
+  position: relative;
+  width: 92px;
+  height: 64px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  border: 1px solid rgba(120, 96, 64, 0.35);
+  background-color: #c8b99c;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.mp-lbx-thumb img,
+.mp-lbx-thumb-blank {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mp-lbx-thumb-active {
+  border: 2px solid #c9a45c;
+  opacity: 1;
+}
+
+.mp-lbx-thumb-play {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-color: rgba(27, 22, 15, 0.7);
+  color: #f0e7d6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 2px;
+}
+
+.mp-lbx-body {
+  position: relative;
+  z-index: 1;
+  padding: 18px 48px 56px;
+}
+
+@media (max-width: 600px) {
+  .mp-lbx-body {
+    padding: 18px 26px 48px;
+  }
+  .mp-lbx-thumbs {
+    padding-left: 26px;
+    padding-right: 26px;
+  }
+}
+
+.mp-lbx-favlabel {
   font-family: var(--m-display);
-  font-size: 13.5px;
-  font-weight: 300;
-  line-height: 1.6;
-  color: #a89482;
-  max-width: 46ch;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #8a6a2e;
+  margin: 0 0 6px;
+}
+
+.mp-lbx-titlerow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+.mp-lbx-name {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 40px;
+  line-height: 1.1;
+  color: #1f1a16;
+  margin: 0;
+}
+
+.mp-lbx-price {
+  font-family: var(--m-display);
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 1.1;
+  color: #8a6a2e;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .mp-lbx-name {
+    font-size: 32px;
+  }
+  .mp-lbx-price {
+    font-size: 26px;
+  }
+}
+
+.mp-lbx-desc {
+  font-family: var(--m-body);
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1.55;
+  color: #3a322a;
+  margin: 12px 0 0;
+}
+
+.mp-lbx-sheet .mp-allergens {
+  margin-top: 16px;
+}
+
+.mp-lbx-sheet .mp-tags {
+  margin-top: 12px;
+}
+
+/* Faint emblem at the sheet's foot, under the text (z-index 0 vs body 1). */
+.mp-lbx-watermark {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  width: 170px;
+  opacity: 0.05;
+  pointer-events: none;
+  z-index: 0;
 }

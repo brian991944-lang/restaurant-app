@@ -21,10 +21,14 @@ const THEME_SYNC_SCRIPT = `try{document.body.classList.toggle('menu-dark',localS
 
 type Lang = 'en' | 'es';
 type Theme = 'light' | 'dark';
-type MediaTab = 'fotos' | 'video';
+
+// A lightbox slide: one of the dish's photos, or its video as the last slide.
+type Slide = { kind: 'photo'; src: string; index: number } | { kind: 'video'; src: string; poster: string | null };
+
+const CROSSFADE_MS = 450;
 
 const UI_TEXT: Record<Lang, {
-    empty: string; comingSoon: string; photosTab: string; videoTab: string;
+    empty: string; comingSoon: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
     photoSoon: string; houseFavorite: string; glossaryTitle: string; soldOut: string;
     contains: string; servedRaw: string; rawAdvisory: string; crossContact: string;
@@ -32,8 +36,7 @@ const UI_TEXT: Record<Lang, {
     en: {
         empty: 'Menu coming soon.',
         comingSoon: 'Coming soon',
-        photosTab: 'PHOTOS',
-        videoTab: 'VIDEO',
+        videoTab: 'Video',
         close: 'Close',
         view: 'View',
         prevPhoto: 'Previous photo',
@@ -50,8 +53,7 @@ const UI_TEXT: Record<Lang, {
     es: {
         empty: 'Menú disponible próximamente.',
         comingSoon: 'Disponible próximamente',
-        photosTab: 'FOTOS',
-        videoTab: 'VIDEO',
+        videoTab: 'Video',
         close: 'Cerrar',
         view: 'Ver',
         prevPhoto: 'Foto anterior',
@@ -224,11 +226,15 @@ export default function MenuClient({
     // caches full-res is exactly the launch that displays it.
     const mediaVariant: MediaVariant = standalone ? 'full' : 'web';
 
-    // Dish lightbox
+    // Dish lightbox. `slide` is the visible slide; `leaving` is the slide on
+    // its way out during a crossfade (null once the fade has finished or
+    // when motion is reduced, in which case the swap is instant).
     const [selected, setSelected] = useState<MenuItemData | null>(null);
-    const [mediaTab, setMediaTab] = useState<MediaTab>('fotos');
-    const [photoIndex, setPhotoIndex] = useState(0);
-    const touchStartX = useRef<number | null>(null);
+    const [slide, setSlide] = useState(0);
+    const [leaving, setLeaving] = useState<number | null>(null);
+    const fadeTimer = useRef<number | null>(null);
+    const touchStart = useRef<{ x: number; y: number; atTop: boolean } | null>(null);
+    const overlayRef = useRef<HTMLDivElement | null>(null);
 
     const t = UI_TEXT[lang];
 
@@ -273,12 +279,33 @@ export default function MenuClient({
 
     const openLightbox = (item: MenuItemData) => {
         setSelected(item);
-        setPhotoIndex(0);
-        // Items with video but no photos open directly on VIDEO.
-        setMediaTab(photosOf(item, mediaVariant).length > 0 ? 'fotos' : 'video');
+        setSlide(0);
+        setLeaving(null);
+        if (overlayRef.current) overlayRef.current.scrollTop = 0;
     };
 
-    const closeLightbox = () => setSelected(null);
+    const closeLightbox = () => {
+        setSelected(null);
+        setLeaving(null);
+        if (fadeTimer.current !== null) window.clearTimeout(fadeTimer.current);
+    };
+
+    // Switch slides with a crossfade: the current slide becomes `leaving` and
+    // fades out on top of the incoming one, which fades in. Opacity only —
+    // no sliding, no transform. Reduced motion swaps instantly.
+    const goToSlide = (next: number, count: number) => {
+        if (count === 0) return;
+        const target = ((next % count) + count) % count;
+        setSlide(current => {
+            if (target === current) return current;
+            if (!reducedMotion) {
+                setLeaving(current);
+                if (fadeTimer.current !== null) window.clearTimeout(fadeTimer.current);
+                fadeTimer.current = window.setTimeout(() => setLeaving(null), CROSSFADE_MS + 30);
+            }
+            return target;
+        });
+    };
 
     const itemsByCategory = new Map<string, MenuItemData[]>();
     for (const item of items) {
@@ -300,8 +327,8 @@ export default function MenuClient({
         (lang === 'es' ? (i.nameEs || i.nameEn || i.name) : (i.nameEn || i.name));
     const itemDescription = (i: MenuItemData) =>
         lang === 'es' ? (i.descriptionEs || i.descriptionEn) : (i.descriptionEn || i.descriptionEs);
-    const itemTagline = (i: MenuItemData) =>
-        lang === 'es' ? (i.taglineEs || i.taglineEn) : (i.taglineEn || i.taglineEs);
+    // Tagline, why-order-it and components stay in the DB and the admin; the
+    // lightbox shows none of them — the server explains those at the table.
 
     // Tag chip label in the active language; unknown keys render nothing.
     const tagLabel = (key: string): string | null => {
@@ -526,113 +553,69 @@ export default function MenuClient({
         ? (lang === 'es' ? currentCategory.subtitleEs : currentCategory.subtitleEn)?.trim() || null
         : null;
 
+    /**
+     * The dish lightbox: a photo box standing on the dark backdrop, a 14px
+     * gap, then a paper sheet of the same width whose edges fade into the
+     * dark. Same in day and night — the sheet is paper in both, so the
+     * allergen row is pinned to its daylight colours (see .mp-lbx-sheet).
+     *
+     * Slides are the dish's photos in gallery order and, if it has one, the
+     * video as the last slide. The photo box reuses the page's fit maths
+     * (cover + focal pan on the cover photo, contain over the dish's own
+     * blurred photo otherwise) so a photo is never stretched. Switching is an
+     * opacity crossfade between two stacked layers; nothing slides.
+     */
     const renderLightbox = () => {
         if (!selected) return null;
-        const gallery = photosOf(selected, mediaVariant);
-        const showTabs = gallery.length > 0 && !!selected.videoUrl;
-        const tagline = itemTagline(selected);
-        const desc = itemDescription(selected);
-        const showPhotos = mediaTab === 'fotos' && gallery.length > 0;
-        const showVideo = mediaTab === 'video' && !!selected.videoUrl;
+        const item = selected;
+        const photos = photosOf(item, mediaVariant);
+        const slides: Slide[] = photos.map((src, index) => ({ kind: 'photo' as const, src, index }));
+        if (item.videoUrl) slides.push({ kind: 'video', src: item.videoUrl, poster: photos[0] ?? null });
+        const count = slides.length;
+        const current = slides[Math.min(slide, count - 1)] ?? null;
+        const outgoing = leaving !== null && leaving !== slide ? slides[leaving] ?? null : null;
+        const desc = itemDescription(item);
+        const descriptors = descriptorsOf(item);
+        const isFavorite = item.featuredRank != null;
+        const fit: 'cover' | 'contain' = item.photoFit === 'contain' ? 'contain' : 'cover';
 
-        const prevPhoto = () => setPhotoIndex(i => (i - 1 + gallery.length) % gallery.length);
-        const nextPhoto = () => setPhotoIndex(i => (i + 1) % gallery.length);
+        // The cover carries the admin's focal point and zoom; the rest of the
+        // gallery was never framed, so it sits centred at 100%.
+        const layerStyle = (s: Slide): React.CSSProperties => {
+            if (s.kind !== 'photo' || s.index !== 0) {
+                return { objectFit: fit, objectPosition: '50% 50%', width: '100%', height: '100%', left: 0, top: 0 };
+            }
+            const zoom = item.photoZoom;
+            return {
+                objectFit: fit,
+                objectPosition: `${item.photoFocalX}% ${item.photoFocalY}%`,
+                width: `${zoom}%`,
+                height: `${zoom}%`,
+                left: `${-(zoom - 100) * (item.photoFocalX / 100)}%`,
+                top: `${-(zoom - 100) * (item.photoFocalY / 100)}%`,
+            };
+        };
 
-        return (
-            <div
-                className="mp-lightbox"
-                role="dialog"
-                aria-modal="true"
-                aria-label={itemName(selected)}
-                onClick={closeLightbox}
-            >
-                <button className="mp-lb-close" onClick={(e) => { e.stopPropagation(); closeLightbox(); }} aria-label={t.close}>
-                    ✕
-                </button>
-                <div className="mp-lb-content" onClick={(e) => e.stopPropagation()}>
-                    <h2 className="mp-lb-name">{itemName(selected)}</h2>
-                    <div className="mp-lb-price">
-                        {formatPrice(selected.salePrice)}
-                        {selected.soldOut === true && <span className="mp-soldout">{t.soldOut}</span>}
-                    </div>
-
-                    {showTabs && (
-                        <div className="mp-lb-tabs" role="tablist">
-                            <button
-                                role="tab"
-                                aria-selected={mediaTab === 'fotos'}
-                                className={`mp-lb-tab${mediaTab === 'fotos' ? ' mp-lb-tab-active' : ''}`}
-                                onClick={() => setMediaTab('fotos')}
-                            >
-                                {t.photosTab}
-                            </button>
-                            <button
-                                role="tab"
-                                aria-selected={mediaTab === 'video'}
-                                className={`mp-lb-tab${mediaTab === 'video' ? ' mp-lb-tab-active' : ''}`}
-                                onClick={() => setMediaTab('video')}
-                            >
-                                <PlayGlyph size={9} />
-                                {t.videoTab}
-                            </button>
-                        </div>
-                    )}
-
-                    {showPhotos && (
-                        <>
-                            <div
-                                className="mp-lb-media"
-                                onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-                                onTouchEnd={(e) => {
-                                    if (touchStartX.current === null) return;
-                                    const dx = e.changedTouches[0].clientX - touchStartX.current;
-                                    touchStartX.current = null;
-                                    if (Math.abs(dx) > 40 && gallery.length > 1) {
-                                        if (dx < 0) nextPhoto(); else prevPhoto();
-                                    }
-                                }}
-                            >
-                                {/* key remount replays the opacity-only fade between photos */}
-                                <img
-                                    key={photoIndex}
-                                    className="mp-lb-photo"
-                                    src={gallery[photoIndex]}
-                                    alt={`${itemName(selected)} ${photoIndex + 1}/${gallery.length}`}
-                                />
-                                {gallery.length > 1 && (
-                                    <>
-                                        <button className="mp-lb-chevron mp-lb-chevron-left" onClick={prevPhoto} aria-label={t.prevPhoto}>
-                                            <svg width="9" height="14" viewBox="0 0 9 14" aria-hidden="true"><path d="M8 1 L2 7 L8 13" stroke="currentColor" strokeWidth="1.6" fill="none" /></svg>
-                                        </button>
-                                        <button className="mp-lb-chevron mp-lb-chevron-right" onClick={nextPhoto} aria-label={t.nextPhoto}>
-                                            <svg width="9" height="14" viewBox="0 0 9 14" aria-hidden="true"><path d="M1 1 L7 7 L1 13" stroke="currentColor" strokeWidth="1.6" fill="none" /></svg>
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                            {gallery.length > 1 && (
-                                <div className="mp-lb-dots">
-                                    {gallery.map((_, i) => (
-                                        <button
-                                            key={i}
-                                            className={`mp-lb-dot${i === photoIndex ? ' mp-lb-dot-active' : ''}`}
-                                            onClick={() => setPhotoIndex(i)}
-                                            aria-label={`${i + 1}/${gallery.length}`}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {/* Conditional mount: switching tabs or closing unmounts the
-                        <video>, which stops playback and audio. */}
-                    {showVideo && (
-                        <div className="mp-lb-media">
+        const renderLayer = (s: Slide, role: 'in' | 'out' | 'still', key: string) => (
+            <div key={key} className={`mp-lbx-layer${role === 'in' ? ' mp-lbx-in' : role === 'out' ? ' mp-lbx-out' : ''}`} aria-hidden={role === 'out'}>
+                {s.kind === 'photo' ? (
+                    <>
+                        {/* Blurred duplicate behind the sharp photo: the letterbox
+                            of a contain-fit photo shows it. Leaf image, the one
+                            place filter is allowed. */}
+                        <img className="mp-lbx-blur" src={s.src} alt="" aria-hidden="true" />
+                        <img className="mp-lbx-photo" src={s.src} alt={`${itemName(item)} ${s.index + 1}/${photos.length}`} style={layerStyle(s)} />
+                    </>
+                ) : (
+                    <>
+                        {s.poster && <img className="mp-lbx-blur" src={s.poster} alt="" aria-hidden="true" />}
+                        {/* Mounted only while this slide is current, so moving
+                            on or closing stops playback. */}
+                        {role !== 'out' && (
                             <video
-                                className="mp-lb-video"
-                                src={selected.videoUrl!}
-                                poster={gallery[0] || undefined}
+                                className="mp-lbx-video"
+                                src={s.src}
+                                poster={s.poster ?? undefined}
                                 autoPlay
                                 muted
                                 loop
@@ -640,14 +623,116 @@ export default function MenuClient({
                                 controls
                                 preload="auto"
                             />
-                        </div>
-                    )}
+                        )}
+                    </>
+                )}
+            </div>
+        );
 
-                    {tagline && <p className="mp-lb-tagline">{tagline}</p>}
-                    {desc && <p className="mp-lb-desc">{desc}</p>}
-                    {/* The guest who opened a dish to look closer is exactly the
-                        one who may be checking. Same row as on the page. */}
-                    {renderAllergens(selected)}
+        const chevron = (dir: 'left' | 'right') => (
+            <svg width="14" height="22" viewBox="0 0 14 22" aria-hidden="true">
+                <path d={dir === 'left' ? 'M12 1.5 2.5 11 12 20.5' : 'M2 1.5 11.5 11 2 20.5'} stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+        );
+
+        return (
+            <div
+                ref={overlayRef}
+                className="mp-lightbox"
+                role="dialog"
+                aria-modal="true"
+                aria-label={itemName(item)}
+                onClick={closeLightbox}
+                onTouchStart={(e) => {
+                    const tch = e.touches[0];
+                    touchStart.current = { x: tch.clientX, y: tch.clientY, atTop: (overlayRef.current?.scrollTop ?? 0) <= 0 };
+                }}
+                onTouchEnd={(e) => {
+                    const start = touchStart.current;
+                    touchStart.current = null;
+                    if (!start) return;
+                    const dx = e.changedTouches[0].clientX - start.x;
+                    const dy = e.changedTouches[0].clientY - start.y;
+                    // A downward swipe closes, but only from the top of the
+                    // overlay so it never competes with scrolling a tall sheet.
+                    if (dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.5 && start.atTop) { closeLightbox(); return; }
+                    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) && count > 1) {
+                        goToSlide(slide + (dx < 0 ? 1 : -1), count);
+                    }
+                }}
+            >
+                <button className="mp-lbx-close" onClick={(e) => { e.stopPropagation(); closeLightbox(); }} aria-label={t.close}>
+                    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M2.5 2.5l11 11M13.5 2.5l-11 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <span>{t.close}</span>
+                </button>
+
+                <div className="mp-lbx" onClick={(e) => e.stopPropagation()}>
+                    {/* ---- Photo box ---- */}
+                    <div className="mp-lbx-box">
+                        {outgoing && renderLayer(outgoing, 'out', `out-${leaving}`)}
+                        {current && renderLayer(current, outgoing ? 'in' : 'still', `slide-${slide}`)}
+                        {count > 1 && (
+                            <>
+                                <button className="mp-lbx-arrow mp-lbx-arrow-left" onClick={() => goToSlide(slide - 1, count)} aria-label={t.prevPhoto}>
+                                    {chevron('left')}
+                                </button>
+                                <button className="mp-lbx-arrow mp-lbx-arrow-right" onClick={() => goToSlide(slide + 1, count)} aria-label={t.nextPhoto}>
+                                    {chevron('right')}
+                                </button>
+                                <span className="mp-lbx-counter" aria-live="polite">{Math.min(slide, count - 1) + 1} / {count}</span>
+                            </>
+                        )}
+                    </div>
+
+                    {/* ---- Paper sheet ---- */}
+                    <div className="mp-lbx-sheet">
+                        {count > 1 && (
+                            <div className="mp-lbx-thumbs" role="tablist">
+                                {slides.map((s, i) => (
+                                    <button
+                                        key={i}
+                                        role="tab"
+                                        aria-selected={i === slide}
+                                        aria-label={s.kind === 'video' ? t.videoTab : `${i + 1} / ${count}`}
+                                        className={`mp-lbx-thumb${i === slide ? ' mp-lbx-thumb-active' : ''}`}
+                                        onClick={() => goToSlide(i, count)}
+                                    >
+                                        {(s.kind === 'photo' ? s.src : s.poster) ? (
+                                            <img src={s.kind === 'photo' ? s.src : (s.poster as string)} alt="" />
+                                        ) : (
+                                            <span className="mp-lbx-thumb-blank" />
+                                        )}
+                                        {s.kind === 'video' && (
+                                            <span className="mp-lbx-thumb-play" aria-hidden="true"><PlayGlyph size={10} /></span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <div className="mp-lbx-body">
+                            {isFavorite && <p className="mp-lbx-favlabel">{t.houseFavorite}</p>}
+                            <div className="mp-lbx-titlerow">
+                                <h2 className="mp-lbx-name">{itemName(item)}</h2>
+                                <span className="mp-lbx-price">
+                                    {formatPrice(item.salePrice)}
+                                    {item.soldOut === true && <span className="mp-soldout">{t.soldOut}</span>}
+                                </span>
+                            </div>
+                            {desc && <p className="mp-lbx-desc">{desc}</p>}
+                            {/* The guest who opened a dish to look closer is exactly
+                                the one who may be checking. Same row as on the page,
+                                always in the daylight colours (the sheet is paper). */}
+                            {renderAllergens(item)}
+                            {descriptors.length > 0 && (
+                                <div className="mp-tags">
+                                    {descriptors.map(label => <span key={label} className="mp-tag">{label}</span>)}
+                                </div>
+                            )}
+                        </div>
+                        <img className="mp-lbx-watermark" src="/menu/emblem.png" alt="" aria-hidden="true" />
+                    </div>
                 </div>
             </div>
         );
