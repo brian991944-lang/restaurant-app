@@ -98,10 +98,38 @@
   background-repeat: no-repeat;
   color: var(--m-header-ink);
   padding: 10px 16px 12px;
-  /* Installed app: keep the logo row clear of the iPad status bar. Zero in a
-     normal browser tab. */
+  /* Installed app (black-translucent + viewport-fit: cover): the leather runs
+     up behind the status bar, and this pushes the logo row and the controls
+     back down clear of it — 10px of breathing room below the glyphs, in both
+     orientations, since an iPad's status bar is the same height either way.
+     All three insets are zero in a normal browser tab, so a guest's phone
+     renders exactly as before. */
   padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
   box-shadow: 0 8px 24px rgba(16, 48, 52, 0.34);
+}
+
+/* The status bar's glyphs are white and unconditionally so. At the top of the
+   page they sit on the leather header and read perfectly — but the header
+   scrolls away, and what pins under them next is .mp-catbar, which is cream in
+   the light theme. White on cream is an invisible clock.
+
+   So: a strip of --m-header locked behind the status bar, above the catbar's
+   z-index, matching the leather's average tone (and the manifest theme_color)
+   rather than the texture itself — two crops of the same jpg at different box
+   heights would not line up, and a flat fill at this size is indistinguishable
+   under a translucent bar. It collapses to height 0 wherever the inset is 0,
+   which is every browser tab, so guests never see it. */
+.mp-statusbar-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 30;
+  background-color: var(--m-header);
+  pointer-events: none;
 }
 
 /* 1fr auto 1fr centers the logo on the header regardless of control width. */
@@ -348,13 +376,17 @@
 
 .mp-catbar {
   position: sticky;
-  top: 0;
+  /* Pins BELOW the status bar strip, not under it — otherwise the scrim would
+     cover the top of the tabs. Zero in a browser tab, so nothing moves there. */
+  top: env(safe-area-inset-top, 0px);
   z-index: 20;
   display: flex;
   gap: 28px;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 6px 24px 0;
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
   background-color: var(--m-bg);
   border-bottom: 1px solid var(--m-hairline);
   box-shadow: 0 4px 12px rgba(28, 20, 16, 0.06);
@@ -387,6 +419,10 @@
 
 .mp-main {
   padding: 8px 16px 48px;
+  /* Landscape on a notched phone: keep the dish cards out from under the
+     sensor housing. Zero everywhere else. */
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 
 /* Tab switch: opacity-only fade, replayed via key remount (<=180ms) */
@@ -706,10 +742,13 @@
   max-width: min(92vw, 860px);
 }
 
+/* Fixed, so under viewport-fit: cover it would land under the status bar
+   glyphs; max() drops it below them on the tablets and leaves it put
+   everywhere else. */
 .mp-lb-close {
   position: fixed;
-  top: 0.75rem;
-  right: 0.75rem;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
   width: 44px;
   height: 44px;
   display: flex;

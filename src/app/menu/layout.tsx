@@ -21,7 +21,15 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         title: 'Fusionista',
-        statusBarStyle: 'black',
+        // black-translucent = the web view runs the full height of the screen
+        // and the status bar floats over it, so the header's leather IS the
+        // status bar background. Its glyphs are always WHITE and iOS will not
+        // darken them, which is why .mp-statusbar-scrim keeps a dark strip
+        // under them once the leather header has scrolled away — see menu.css.
+        // Requires viewportFit: 'cover' below; without it the layout viewport
+        // still stops at the safe area, every env(safe-area-inset-*) reports
+        // 0px, and this setting changes nothing but the glyph colour.
+        statusBarStyle: 'black-translucent',
     },
     icons: {
         apple: '/menu/icons/apple-touch-icon.png',
@@ -37,6 +45,12 @@ export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
     themeColor: '#1d3c40',
+    // Lets the page paint into the status bar area (and, on a notched phone in
+    // landscape, beside the sensor housing) and turns on real values for
+    // env(safe-area-inset-*). Everything that holds text or controls pads
+    // itself off those insets in menu.css — the leather and the card surfaces
+    // deliberately do not, so backgrounds still bleed to the glass edge.
+    viewportFit: 'cover',
 };
 
 // iPadOS opening screen. iOS ignores the manifest's background_color and shows
@@ -49,6 +63,13 @@ export const viewport: Viewport = {
 //
 // Rendered as plain <link>s (React hoists them into <head>): Next's Metadata
 // API has no field for startup images, and `other` emits <meta>, not <link>.
+// Landscape belongs here too, as the same CSS size with (orientation:
+// landscape) — iOS keeps device-width/height in portrait terms and switches on
+// orientation alone, so only the last clause changes:
+//   { href: '/menu/splash-ipad-landscape.jpg', media: '(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)' }
+// It is left out until public/menu/splash-ipad-landscape.jpg (2388x1668)
+// exists — a link to a missing file just launches blank, the same as no link,
+// but noisily.
 const STARTUP_IMAGES = [
     {
         href: '/menu/splash-ipad-portrait.jpg',

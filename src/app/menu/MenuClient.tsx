@@ -501,6 +501,11 @@ export default function MenuClient({
                 before the page paints (light is the default when nothing stored). */}
             <script dangerouslySetInnerHTML={{ __html: THEME_SYNC_SCRIPT }} />
 
+            {/* Dark strip behind the translucent status bar. Height collapses to
+                zero wherever safe-area-inset-top is 0 — i.e. every browser tab —
+                so this is inert for guests. See .mp-statusbar-scrim in menu.css. */}
+            <div className="mp-statusbar-scrim" aria-hidden="true" />
+
             {/* The header scrolls away; only the category nav below is sticky.
                 No shared wrapper: a sticky nav inside a wrapper that ends at the
                 nav would unstick the moment the wrapper scrolls past. */}
