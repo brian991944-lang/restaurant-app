@@ -580,6 +580,9 @@ export default function MenuAdminPage() {
                 onClose={() => setItemModal({ open: false, editing: null })}
                 onSaved={loadAll}
                 categories={categories.filter((c: any) => c.isActive)}
+                // The framing preview needs the dish's siblings to know whether
+                // a favorite will stand alone or be paired.
+                allItems={items}
                 initialData={itemModal.editing}
                 defaultCategoryId={canReorderItems ? categoryFilter : null}
             />

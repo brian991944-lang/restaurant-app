@@ -12,11 +12,12 @@ interface ItemEditorModalProps {
     onClose: () => void;
     onSaved: () => void;
     categories: any[];       // active MenuCategory rows for the dropdown
+    allItems?: any[];        // every dish, so the framing preview can count favorites
     initialData?: any | null; // MenuItem row when editing, null when creating
     defaultCategoryId?: string | null; // preselected category for new items
 }
 
-export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, initialData, defaultCategoryId }: ItemEditorModalProps) {
+export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, allItems, initialData, defaultCategoryId }: ItemEditorModalProps) {
     // Clover owns name and salePrice on a linked dish: the sync rewrites both on
     // every run, so editing them here would be silently undone.
     const isCloverLinked = !!initialData?.cloverId;
@@ -137,6 +138,133 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
     }, [isOpen, initialData, defaultCategoryId]);
 
     if (!isOpen) return null;
+
+    /**
+     * Which frame the public menu will actually crop this photo into.
+     *
+     * An unranked dish lands in the grid at 3:2. A ranked one lands in the
+     * favorites block, whose shape depends on how many favorites its category
+     * ends up with: alone it runs the content width at 3:2, paired it stands
+     * in a tall 4:5 frame (see .mp-favs-1 / .mp-favs-2 in menu.css). Those are
+     * very different crops of the same photo, which is the whole reason this
+     * preview has to know the difference.
+     *
+     * The count mirrors MenuClient's own filter exactly — ranked AND carrying
+     * a cover, capped at two — because a rank without a photo is skipped there
+     * and counting it here would promise a shape the menu will never use. It
+     * reads the live category and rank from form state, not from initialData,
+     * so moving a dish between categories re-frames the preview immediately.
+     */
+    const favoriteSiblings = (allItems || []).filter((it: any) =>
+        it.id !== initialData?.id
+        && (it.menuCategoryId || null) === (menuCategoryId || null)
+        && it.featuredRank != null
+        && !!(it.photoUrl || (it.photoUrls || [])[0])
+    ).length;
+    const isFavorite = featuredRank != null;
+    const favoriteCount = Math.min(2, favoriteSiblings + (isFavorite ? 1 : 0));
+
+    // The frame that applies now, plus — for a favorite — the one it would
+    // flip to, since that depends on a sibling anyone can re-rank later and
+    // the same photo has to survive both crops.
+    const frames: { ratio: string; width: string; title: string; note: string | null }[] = !isFavorite
+        ? [{ ratio: '3 / 2', width: '100%', title: 'En la cuadrícula — 3:2', note: null }]
+        : favoriteCount >= 2
+            ? [
+                { ratio: '4 / 5', width: '320px', title: 'Favorito emparejado — 4:5', note: 'Hay dos favoritos en esta categoría: se muestran lado a lado, en vertical.' },
+                { ratio: '3 / 2', width: '100%', title: 'Si queda como único favorito — 3:2', note: 'Así se vería si quitas el otro favorito.' },
+            ]
+            : [
+                { ratio: '3 / 2', width: '100%', title: 'Favorito único — 3:2 a todo el ancho', note: 'Es el único favorito de su categoría.' },
+                { ratio: '4 / 5', width: '320px', title: 'Si añades un segundo favorito — 4:5', note: 'Los dos pasarían a marcos verticales.' },
+            ];
+
+    // One frame, rendered with the public menu's own maths: object-fit and
+    // object-position for the fit and focal point, width/height plus negative
+    // left/top for the zoom pan (never a transform — menu.css bans it), and
+    // the dish's own blurred photo behind, which is what fills the letterbox
+    // when the fit is "Foto completa".
+    const renderFrame = (frame: typeof frames[number], index: number) => (
+        <div key={frame.title} style={{ marginTop: index === 0 ? 0 : '0.9rem' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: index === 0 ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                {frame.title}
+            </span>
+            {frame.note && (
+                <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                    {frame.note}
+                </span>
+            )}
+            <div
+                onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                    setPhotoFocalX(Math.max(0, Math.min(100, x)));
+                    setPhotoFocalY(Math.max(0, Math.min(100, y)));
+                }}
+                style={{
+                    position: 'relative',
+                    aspectRatio: frame.ratio,
+                    width: '100%',
+                    maxWidth: frame.width,
+                    marginTop: '0.3rem',
+                    overflow: 'hidden',
+                    border: '1px solid var(--border)',
+                    cursor: 'crosshair',
+                    opacity: index === 0 ? 1 : 0.85,
+                }}
+            >
+                {/* Blurred backdrop — identical to .mp-shot-blur. Leaf image, no
+                    descendants; the filter cannot affect position:fixed. */}
+                <img
+                    src={photoUrl}
+                    alt=""
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        width: '112%',
+                        height: '112%',
+                        left: '-6%',
+                        top: '-6%',
+                        objectFit: 'cover',
+                        filter: 'blur(28px) brightness(0.92)',
+                        pointerEvents: 'none',
+                    }}
+                />
+                <img
+                    src={photoUrl}
+                    alt={frame.title}
+                    style={{
+                        position: 'absolute',
+                        width: `${photoZoom}%`,
+                        height: `${photoZoom}%`,
+                        objectFit: photoFit,
+                        objectPosition: `${photoFocalX}% ${photoFocalY}%`,
+                        left: `${-(photoZoom - 100) * (photoFocalX / 100)}%`,
+                        top: `${-(photoZoom - 100) * (photoFocalY / 100)}%`,
+                        display: 'block',
+                    }}
+                />
+                <span
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute',
+                        left: `${photoFocalX}%`,
+                        top: `${photoFocalY}%`,
+                        width: '18px',
+                        height: '18px',
+                        marginLeft: '-9px',
+                        marginTop: '-9px',
+                        borderRadius: '50%',
+                        border: '2px solid white',
+                        boxShadow: '0 0 0 2px rgba(0,0,0,0.55)',
+                        background: 'rgba(255,255,255,0.25)',
+                        pointerEvents: 'none',
+                    }}
+                />
+            </div>
+        </div>
+    );
 
     // "One per line" textarea -> array: split, trim, drop empty lines.
     const linesToList = (text: string) =>
@@ -552,94 +680,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                 Haz clic en la parte del plato que debe quedar centrada.
                             </span>
-                            {/* Same geometry as the featured card media at desktop /
-                                iPad-landscape width: 918x420 content box. The card's
-                                media height is FIXED at 420px while its width is
-                                fluid, so iPad portrait crops to ~772/420 — shown as
-                                the dashed guide, (772/420)/(918/420) = 84.1% width. */}
-                            <div
-                                onClick={(e) => {
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                                    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                                    setPhotoFocalX(Math.max(0, Math.min(100, x)));
-                                    setPhotoFocalY(Math.max(0, Math.min(100, y)));
-                                }}
-                                style={{
-                                    position: 'relative',
-                                    aspectRatio: '918 / 420',
-                                    overflow: 'hidden',
-                                    borderRadius: '8px',
-                                    border: '1px solid var(--border)',
-                                    cursor: 'crosshair'
-                                }}
-                            >
-                                {/* Blurred backdrop — identical to .mp-cardmedia-blur on the
-                                    public menu. Leaf image, no descendants; the filter cannot
-                                    affect position:fixed resolution. */}
-                                <img
-                                    src={photoUrl}
-                                    alt=""
-                                    aria-hidden="true"
-                                    style={{
-                                        position: 'absolute',
-                                        width: '112%',
-                                        height: '112%',
-                                        left: '-6%',
-                                        top: '-6%',
-                                        objectFit: 'cover',
-                                        filter: 'blur(28px) brightness(0.92)',
-                                        pointerEvents: 'none'
-                                    }}
-                                />
-                                <img
-                                    src={photoUrl}
-                                    alt="Encuadre de la foto"
-                                    style={{
-                                        position: 'absolute',
-                                        width: `${photoZoom}%`,
-                                        height: `${photoZoom}%`,
-                                        objectFit: photoFit,
-                                        objectPosition: `${photoFocalX}% ${photoFocalY}%`,
-                                        left: `${-(photoZoom - 100) * (photoFocalX / 100)}%`,
-                                        top: `${-(photoZoom - 100) * (photoFocalY / 100)}%`,
-                                        display: 'block'
-                                    }}
-                                />
-                                {/* iPad-portrait crop window (see comment above) */}
-                                <span
-                                    aria-hidden="true"
-                                    style={{
-                                        position: 'absolute',
-                                        top: 0,
-                                        height: '100%',
-                                        left: '7.95%',
-                                        width: '84.1%',
-                                        border: '1px dashed rgba(255,255,255,0.7)',
-                                        pointerEvents: 'none'
-                                    }}
-                                />
-                                <span
-                                    aria-hidden="true"
-                                    style={{
-                                        position: 'absolute',
-                                        left: `${photoFocalX}%`,
-                                        top: `${photoFocalY}%`,
-                                        width: '18px',
-                                        height: '18px',
-                                        marginLeft: '-9px',
-                                        marginTop: '-9px',
-                                        borderRadius: '50%',
-                                        border: '2px solid white',
-                                        boxShadow: '0 0 0 2px rgba(0,0,0,0.55)',
-                                        background: 'rgba(255,255,255,0.25)',
-                                        pointerEvents: 'none'
-                                    }}
-                                />
-                            </div>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                Línea punteada: lo que se ve en iPad vertical.
-                            </span>
+                            {frames.map(renderFrame)}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                 <label style={labelStyle}>Ajuste de la foto</label>
                                 <div role="group" aria-label="Ajuste de la foto" style={{ display: 'inline-flex', alignSelf: 'flex-start', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
