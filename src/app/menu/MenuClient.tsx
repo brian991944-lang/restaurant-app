@@ -25,7 +25,7 @@ type MediaTab = 'fotos' | 'video';
 const UI_TEXT: Record<Lang, {
     empty: string; comingSoon: string; photosTab: string; videoTab: string;
     close: string; view: string; prevPhoto: string; nextPhoto: string;
-    hint: string; seeMore: string; glossaryTitle: string; soldOut: string;
+    seeMore: string; glossaryTitle: string; soldOut: string;
 }> = {
     en: {
         empty: 'Menu coming soon.',
@@ -36,7 +36,6 @@ const UI_TEXT: Record<Lang, {
         view: 'View',
         prevPhoto: 'Previous photo',
         nextPhoto: 'Next photo',
-        hint: "Browse, then tell your server what you'd like  ·  this menu doesn't take orders",
         seeMore: 'Details & photos',
         glossaryTitle: 'Words that help',
         soldOut: 'Sold out',
@@ -50,7 +49,6 @@ const UI_TEXT: Record<Lang, {
         view: 'Ver',
         prevPhoto: 'Foto anterior',
         nextPhoto: 'Foto siguiente',
-        hint: 'Elige con calma y dile al mesero qué deseas  ·  este menú no toma pedidos',
         seeMore: 'Detalles y fotos',
         glossaryTitle: 'Palabras que ayudan',
         soldOut: 'Agotado',
@@ -543,7 +541,6 @@ export default function MenuClient({
                         </button>
                     </div>
                 </div>
-                <p className="mp-hint-line">{t.hint}</p>
                 {syncLine && (
                     <p className={`mp-sync-line${syncLine.offline ? ' mp-sync-offline' : ''}`} aria-live="polite">
                         {syncLine.text}

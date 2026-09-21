@@ -146,23 +146,30 @@
    no shadow. Anything with an edge would trace a rectangle the artwork spent
    its feather hiding.
 
-   Heights are set so the wordmark renders at the width the old lockup did
-   (~189px / ~245px) — this art is 2.79:1 against the old 3.19:1, so matching
-   on height alone would have quietly shrunk it. Widest case is iPad landscape
-   at 245px, which leaves ~440px of free column beside the ~130px of language
-   and theme controls; portrait leaves ~260px. */
+   The art is 2.79:1, so height drives width: 100px tall renders ~279px wide,
+   130px tall ~362px. The max-width is what the row can actually spare rather
+   than a round number — 190px is the header's side padding (32) plus the two
+   row gaps (24) plus the language and theme controls (~134), which never
+   shrink. Past that the lockup gives way instead of crowding them, so the
+   height below is a ceiling on a narrow phone, not a promise: the full 100px
+   arrives at about 470px of viewport and every iPad clears it outright.
+
+   iPad portrait at 834px is the case to keep honest — 362 + 134 + 24 leaves
+   ~282px of slack, so nothing meets anything. .mp-header-row centres the
+   controls against whatever height this resolves to. */
 .mp-logo-img {
   grid-column: 2;
   display: block;
-  height: 68px;
+  height: 100px;
   width: auto;
-  max-width: min(340px, 62vw);
+  max-width: min(280px, calc(100vw - 190px));
   object-fit: contain;
 }
 
 @media (min-width: 720px) {
   .mp-logo-img {
-    height: 88px;
+    height: 130px;
+    max-width: min(380px, calc(100vw - 190px));
   }
 }
 
@@ -215,23 +222,6 @@
   justify-content: center;
   cursor: pointer;
   transition: background-color 0.15s ease;
-}
-
-/* Quiet single-line instruction under the logo row. */
-.mp-hint-line {
-  font-family: 'Instrument Serif', serif;
-  font-style: italic;
-  font-size: 13px;
-  color: rgba(248, 238, 220, 0.85);
-  text-align: center;
-  margin: 8px auto 0;
-  max-width: 62ch;
-}
-
-@media (min-width: 720px) {
-  .mp-hint-line {
-    font-size: 14px;
-  }
 }
 
 /* Freshness line (installed app only): last successful sync, or offline notice. */
