@@ -1,23 +1,31 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Camera, RotateCcw } from 'lucide-react';
 import {
     getLimpiezaDia, toggleShiftTask, setShiftRunStaff, completeShiftRun,
     createShiftDeferral, resolveShiftDeferral, type DeferralPlan,
 } from '@/app/actions/shiftLists';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
-import PhotoCapture, { type CapturedPhoto } from '@/components/ui/PhotoCapture';
-import ShiftShareModal, { type ShiftShareSnapshot } from './ShiftShareModal';
+import ShiftShareModal, { type ShiftShareSnapshot, type SharePhoto } from './ShiftShareModal';
 
 type Dia = Awaited<ReturnType<typeof getLimpiezaDia>>;
 type Section = Dia['sections'][number];
+type Task = Section['tasks'][number];
 type Deferral = Dia['deferrals'][number];
 type Staff = { id: string; name: string };
+type PhotoKind = 'antes' | 'despues';
 
-/** Photos live here, in React state, and nowhere else. */
-type SectionPhotos = { antes: CapturedPhoto[]; despues: CapturedPhoto[] };
+/** One task's photo, held in memory only — nothing here is ever uploaded or stored. */
+type TaskPhoto = { url: string; file: File };
+type TaskPhotos = { antes?: TaskPhoto; despues?: TaskPhoto };
 
-const PHOTO_HINT = 'Las fotos solo se guardan hasta que compartas. Si recargas la página se pierden.';
+const PHOTO_HINT = 'Las fotos se guardan solo en este iPad hasta que compartas. Si recargas la página, se pierden.';
+const PHOTO_ERROR = 'No se pudo procesar la foto. Intenta de nuevo.';
+
+/** Long edge after downscaling, and JPEG quality for both capture and composite. */
+const MAX_EDGE = 1280;
+const JPEG_QUALITY = 0.7;
 
 const PLAN_LABEL: Record<DeferralPlan, string> = {
     ESTA_NOCHE: 'Esta noche',
@@ -25,6 +33,109 @@ const PLAN_LABEL: Record<DeferralPlan, string> = {
 };
 
 const fechaEs = (businessDate: string) => formatBusinessDateEs(businessDateToUtcDate(businessDate));
+
+const slug = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'foto';
+
+/** Downscale a captured file to a JPEG at most MAX_EDGE on its long side. */
+async function compressPhoto(file: File, name: string): Promise<TaskPhoto> {
+    const bitmap = await createImageBitmap(file);
+    try {
+        const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+        const w = Math.max(1, Math.round(bitmap.width * scale));
+        const h = Math.max(1, Math.round(bitmap.height * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error(PHOTO_ERROR);
+        ctx.drawImage(bitmap, 0, 0, w, h);
+
+        const blob = await new Promise<Blob>((resolve, reject) =>
+            canvas.toBlob(b => (b ? resolve(b) : reject(new Error(PHOTO_ERROR))), 'image/jpeg', JPEG_QUALITY)
+        );
+        canvas.width = 0;
+        canvas.height = 0;
+
+        return { url: URL.createObjectURL(blob), file: new File([blob], name, { type: 'image/jpeg' }) };
+    } finally {
+        bitmap.close();
+    }
+}
+
+/** Crop-to-fill draw, like CSS object-fit: cover. */
+function drawCover(ctx: CanvasRenderingContext2D, img: ImageBitmap, x: number, y: number, w: number, h: number) {
+    const imgRatio = img.width / img.height;
+    const targetRatio = w / h;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (imgRatio > targetRatio) {
+        sw = img.height * targetRatio;
+        sx = (img.width - sw) / 2;
+    } else {
+        sh = img.width / targetRatio;
+        sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+function wrapCenteredText(ctx: CanvasRenderingContext2D, text: string, cx: number, cy: number, maxWidth: number, lineHeight: number) {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(test).width > maxWidth) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = test;
+        }
+    }
+    if (line) lines.push(line);
+    const startY = cy - ((lines.length - 1) * lineHeight) / 2;
+    lines.forEach((l, i) => ctx.fillText(l, cx, startY + i * lineHeight));
+}
+
+/** One Antes | Después composite for a task, with its name printed on top. */
+async function buildTaskComposite(taskText: string, antes: TaskPhoto, despues: TaskPhoto): Promise<File> {
+    const [imgA, imgB] = await Promise.all([createImageBitmap(antes.file), createImageBitmap(despues.file)]);
+    try {
+        const PANEL_W = 480, PANEL_H = 480, LABEL_H = 64, CAPTION_H = 40, GAP = 8;
+        const canvas = document.createElement('canvas');
+        canvas.width = PANEL_W * 2 + GAP;
+        canvas.height = LABEL_H + PANEL_H + CAPTION_H;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('No se pudo generar la imagen.');
+
+        ctx.fillStyle = '#111827';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 28px sans-serif';
+        wrapCenteredText(ctx, taskText, canvas.width / 2, LABEL_H / 2, canvas.width - 24, 32);
+
+        drawCover(ctx, imgA, 0, LABEL_H, PANEL_W, PANEL_H);
+        drawCover(ctx, imgB, PANEL_W + GAP, LABEL_H, PANEL_W, PANEL_H);
+
+        ctx.font = '600 22px sans-serif';
+        ctx.fillText('Antes', PANEL_W / 2, LABEL_H + PANEL_H + CAPTION_H / 2);
+        ctx.fillText('Después', PANEL_W + GAP + PANEL_W / 2, LABEL_H + PANEL_H + CAPTION_H / 2);
+
+        const blob = await new Promise<Blob>((resolve, reject) =>
+            canvas.toBlob(b => (b ? resolve(b) : reject(new Error('No se pudo generar la imagen.'))), 'image/jpeg', 0.85)
+        );
+        canvas.width = 0;
+        canvas.height = 0;
+        return new File([blob], `${slug(taskText)}.jpg`, { type: 'image/jpeg' });
+    } finally {
+        imgA.close();
+        imgB.close();
+    }
+}
 
 /**
  * Deferrals are stored one per task; on screen they read as one postponed
@@ -54,8 +165,9 @@ function groupDeferrals(deferrals: Deferral[]) {
 /**
  * The deep-cleaning tab. One LIMPIEZA section per weekday as seeded; on a day
  * with none this is just an empty state. Tasks write through immediately like
- * the other lists. Photos are held in memory for the session and go out with
- * the share — nothing about them is ever stored.
+ * the other lists. Photos are per-task, held in memory for the session only —
+ * nothing about them is ever stored — and go out as one composite per task
+ * with the share.
  */
 export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     const [dia, setDia] = useState<Dia | null>(null);
@@ -64,8 +176,15 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
 
     const [checked, setChecked] = useState<Set<string>>(new Set());
     const [staffBySection, setStaffBySection] = useState<Record<string, string[]>>({});
-    const [photos, setPhotos] = useState<Record<string, SectionPhotos>>({});
     const [actionError, setActionError] = useState<string | null>(null);
+
+    const [taskPhotos, setTaskPhotos] = useState<Record<string, TaskPhotos>>({});
+    const taskPhotosRef = useRef(taskPhotos);
+    taskPhotosRef.current = taskPhotos;
+    const [photoBusy, setPhotoBusy] = useState<Record<string, boolean>>({});
+    const [photoError, setPhotoError] = useState<Record<string, string>>({});
+    const captureTargetRef = useRef<{ taskId: string; kind: PhotoKind } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [deferOpen, setDeferOpen] = useState<string | null>(null);
     const [deferReason, setDeferReason] = useState('');
@@ -75,8 +194,8 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
 
     const [isCompleting, setIsCompleting] = useState(false);
     const [completed, setCompleted] = useState(false);
-    const [shareSnapshot, setShareSnapshot] = useState<ShiftShareSnapshot | null>(null);
-    const [sharePhotos, setSharePhotos] = useState<CapturedPhoto[]>([]);
+    const [shareData, setShareData] = useState<{ snapshot: ShiftShareSnapshot; photos: SharePhoto[] } | null>(null);
+    const [shareModalOpen, setShareModalOpen] = useState(false);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -99,6 +218,17 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    // Revoke every outstanding object URL when the tab is left, so switching
+    // back and forth doesn't leak memory across the session.
+    useEffect(() => {
+        return () => {
+            for (const p of Object.values(taskPhotosRef.current)) {
+                if (p.antes) URL.revokeObjectURL(p.antes.url);
+                if (p.despues) URL.revokeObjectURL(p.despues.url);
+            }
+        };
+    }, []);
 
     const handleToggleTask = async (taskId: string) => {
         const next = !checked.has(taskId);
@@ -139,9 +269,46 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
         }
     };
 
-    const photosOf = (sectionId: string): SectionPhotos => photos[sectionId] ?? { antes: [], despues: [] };
-    const setSectionPhotos = (sectionId: string, kind: keyof SectionPhotos, list: CapturedPhoto[]) =>
-        setPhotos(prev => ({ ...prev, [sectionId]: { ...photosOf(sectionId), [kind]: list } }));
+    /** Opens the file picker directly on tap — iOS requires a direct user gesture. */
+    const openCapture = (taskId: string, kind: PhotoKind) => {
+        captureTargetRef.current = { taskId, kind };
+        fileInputRef.current?.click();
+    };
+
+    const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        const target = captureTargetRef.current;
+        captureTargetRef.current = null;
+        if (!file || !target) return;
+
+        const { taskId, kind } = target;
+        const key = `${taskId}:${kind}`;
+        const previous = taskPhotos[taskId]?.[kind];
+
+        // Immediate local preview while it processes, so the tap feels instant.
+        const tempUrl = URL.createObjectURL(file);
+        setTaskPhotos(prev => ({ ...prev, [taskId]: { ...(prev[taskId] ?? {}), [kind]: { url: tempUrl, file } } }));
+        setPhotoBusy(prev => ({ ...prev, [key]: true }));
+        setPhotoError(prev => { const next = { ...prev }; delete next[key]; return next; });
+
+        try {
+            const compressed = await compressPhoto(file, `${slug(taskId)}-${kind}.jpg`);
+            URL.revokeObjectURL(tempUrl);
+            if (previous) URL.revokeObjectURL(previous.url);
+            setTaskPhotos(prev => ({ ...prev, [taskId]: { ...(prev[taskId] ?? {}), [kind]: compressed } }));
+        } catch {
+            URL.revokeObjectURL(tempUrl);
+            setTaskPhotos(prev => {
+                const current = { ...(prev[taskId] ?? {}) };
+                if (previous) current[kind] = previous; else delete current[kind];
+                return { ...prev, [taskId]: current };
+            });
+            setPhotoError(prev => ({ ...prev, [key]: PHOTO_ERROR }));
+        } finally {
+            setPhotoBusy(prev => ({ ...prev, [key]: false }));
+        }
+    };
 
     const handleDefer = async (sectionId: string) => {
         if (!deferPlan || !deferReason.trim() || deferBusy) return;
@@ -180,34 +347,54 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
         }
     };
 
-    /** The list as it stands right now, in the shape the share modal sends. */
-    const takeSnapshot = (): { snapshot: ShiftShareSnapshot; photos: CapturedPhoto[] } | null => {
+    /**
+     * The list as it stands right now, in the shape the share modal sends —
+     * one composite photo per task that has both Antes and Después. A
+     * composite failure is skipped rather than thrown, so a bad photo never
+     * blocks the share, let alone Completar.
+     */
+    const buildShareData = async (): Promise<{ snapshot: ShiftShareSnapshot; photos: SharePhoto[] } | null> => {
         if (!dia) return null;
-        const all: CapturedPhoto[] = [];
+
         const snapshot: ShiftShareSnapshot = {
             listType: 'LIMPIEZA',
             businessDate: dia.businessDate,
-            sections: dia.sections.map(section => {
-                const p = photosOf(section.id);
-                all.push(...p.antes, ...p.despues);
-                return {
-                    name: section.name,
-                    tasks: section.tasks.map(task => ({ text: task.text, checked: checked.has(task.id) })),
-                    staffNames: (staffBySection[section.id] ?? [])
-                        .map(id => staff.find(s => s.id === id)?.name)
-                        .filter((n): n is string => !!n),
-                    photos: p.antes.length + p.despues.length,
-                };
-            }),
+            sections: dia.sections.map(section => ({
+                name: section.name,
+                tasks: section.tasks.map(task => {
+                    const p = taskPhotos[task.id];
+                    return { text: task.text, checked: checked.has(task.id), hasPhotos: !!(p?.antes && p?.despues) };
+                }),
+                staffNames: (staffBySection[section.id] ?? [])
+                    .map(id => staff.find(s => s.id === id)?.name)
+                    .filter((n): n is string => !!n),
+            })),
         };
-        return { snapshot, photos: all };
+
+        const photos: SharePhoto[] = [];
+        for (const section of dia.sections) {
+            for (const task of section.tasks) {
+                const p = taskPhotos[task.id];
+                if (!p?.antes || !p?.despues) continue;
+                try {
+                    const file = await buildTaskComposite(task.text, p.antes, p.despues);
+                    photos.push({ id: task.id, file });
+                } catch (e) {
+                    console.error('No se pudo generar la foto compuesta:', task.text, e);
+                }
+            }
+        }
+
+        return { snapshot, photos };
     };
 
     const handleComplete = async () => {
-        // Snapshot first, send second. Anything read after the await is
-        // post-mutation, which is not what the user pressed the button on.
-        const snap = takeSnapshot();
-        if (!snap) return;
+        // Built first, from the state as it stands right now — anything read
+        // after the completion await is post-mutation, which is not what the
+        // user pressed the button on.
+        const data = await buildShareData();
+        if (!data) return;
+
         setIsCompleting(true);
         setActionError(null);
         try {
@@ -217,10 +404,17 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                 return;
             }
             setCompleted(true);
-            // Opens the modal only. The share sheet itself runs from the
-            // modal's button — iOS needs a direct tap for it.
-            setShareSnapshot(snap.snapshot);
-            setSharePhotos(snap.photos);
+            setShareData(data);
+            setShareModalOpen(true);
+
+            // The composites are already built; the in-memory originals are done.
+            for (const p of Object.values(taskPhotosRef.current)) {
+                if (p.antes) URL.revokeObjectURL(p.antes.url);
+                if (p.despues) URL.revokeObjectURL(p.despues.url);
+            }
+            setTaskPhotos({});
+            setPhotoError({});
+            setPhotoBusy({});
         } catch (e) {
             setActionError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -236,13 +430,73 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     }
 
     const groups = groupDeferrals(dia.deferrals);
+    const deferredTaskIds = new Set(dia.deferrals.map(d => d.taskId));
     const allTasks = dia.sections.flatMap(s => s.tasks);
     const doneCount = allTasks.filter(t => checked.has(t.id)).length;
     const everySectionStaffed = dia.sections.every(s => (staffBySection[s.id] ?? []).length > 0);
 
+    const renderPhotoSlot = (task: Task, kind: PhotoKind, label: string, disabled: boolean) => {
+        const key = `${task.id}:${kind}`;
+        const photo = taskPhotos[task.id]?.[kind];
+        const busy = photoBusy[key] === true;
+        const error = photoError[key];
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</span>
+                {photo ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', width: '84px', height: '84px' }}>
+                            <img
+                                src={photo.url}
+                                alt=""
+                                style={{ width: '84px', height: '84px', objectFit: 'cover', borderRadius: '10px', border: '1px solid var(--border)', display: 'block', opacity: busy ? 0.5 : 1 }}
+                            />
+                            {busy && (
+                                <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                                    …
+                                </span>
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => openCapture(task.id, kind)}
+                            disabled={busy}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                minHeight: '44px', padding: '0.5rem 0.8rem', borderRadius: '8px',
+                                fontSize: '0.9rem', fontWeight: 600, color: 'var(--accent-primary)',
+                                background: 'none', border: 'none', cursor: busy ? 'not-allowed' : 'pointer',
+                                opacity: busy ? 0.5 : 1
+                            }}
+                        >
+                            <RotateCcw size={16} /> Repetir foto
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => openCapture(task.id, kind)}
+                        disabled={disabled || busy}
+                        style={{
+                            width: '84px', height: '84px', borderRadius: '10px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(255,255,255,0.05)', border: '1px dashed var(--border)',
+                            color: 'var(--text-secondary)',
+                            cursor: disabled || busy ? 'not-allowed' : 'pointer',
+                            opacity: disabled ? 0.4 : 1
+                        }}
+                    >
+                        <Camera size={28} />
+                    </button>
+                )}
+                {error && <span style={{ fontSize: '0.8rem', color: 'var(--danger)', textAlign: 'center', maxWidth: '110px' }}>{error}</span>}
+            </div>
+        );
+    };
+
     const renderSection = (section: Section) => {
         const selectedIds = staffBySection[section.id] ?? [];
-        const p = photosOf(section.id);
         const deferring = deferOpen === section.id;
         return (
             <div key={section.id} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -283,15 +537,21 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                     {section.tasks.map(task => {
                         const isOn = checked.has(task.id);
+                        const isDeferred = deferredTaskIds.has(task.id);
+                        const hasAntes = !!taskPhotos[task.id]?.antes;
+                        const hasDespues = !!taskPhotos[task.id]?.despues;
+                        const canToggle = isOn || isDeferred || (hasAntes && hasDespues);
+                        const missing = !isDeferred && !isOn
+                            ? (!hasAntes ? 'Falta foto de antes' : !hasDespues ? 'Falta foto de después' : null)
+                            : null;
+
                         return (
-                            <button
+                            <div
                                 key={task.id}
-                                onClick={() => handleToggleTask(task.id)}
                                 className="glass-panel"
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: '1rem',
-                                    padding: '1.1rem 1.25rem', minHeight: '72px',
-                                    textAlign: 'left', width: '100%', cursor: 'pointer',
+                                    display: 'flex', flexDirection: 'column', gap: '0.75rem',
+                                    padding: '1.1rem 1.25rem',
                                     border: isOn
                                         ? '1px solid color-mix(in srgb, var(--success) 45%, transparent)'
                                         : '1px solid var(--border)',
@@ -300,45 +560,51 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                                         : undefined
                                 }}
                             >
-                                <span
-                                    aria-hidden
+                                <button
+                                    onClick={() => handleToggleTask(task.id)}
+                                    disabled={!canToggle}
                                     style={{
-                                        flexShrink: 0,
-                                        width: '32px', height: '32px', borderRadius: '8px',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '1.3rem', fontWeight: 700, lineHeight: 1,
-                                        color: isOn ? 'white' : 'transparent',
-                                        background: isOn ? 'var(--success)' : 'transparent',
-                                        border: isOn ? '1px solid var(--success)' : '2px solid var(--border)'
+                                        display: 'flex', alignItems: 'center', gap: '1rem',
+                                        minHeight: '56px', textAlign: 'left', width: '100%',
+                                        background: 'none', border: 'none', padding: 0,
+                                        cursor: canToggle ? 'pointer' : 'not-allowed',
+                                        opacity: canToggle ? 1 : 0.7
                                     }}
                                 >
-                                    ✓
-                                </span>
-                                <span style={{
-                                    fontSize: '1.2rem',
-                                    color: isOn ? 'var(--text-secondary)' : 'var(--text-primary)',
-                                    textDecoration: isOn ? 'line-through' : 'none'
-                                }}>
-                                    {task.text}
-                                </span>
-                            </button>
+                                    <span
+                                        aria-hidden
+                                        style={{
+                                            flexShrink: 0,
+                                            width: '32px', height: '32px', borderRadius: '8px',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '1.3rem', fontWeight: 700, lineHeight: 1,
+                                            color: isOn ? 'white' : 'transparent',
+                                            background: isOn ? 'var(--success)' : 'transparent',
+                                            border: isOn ? '1px solid var(--success)' : '2px solid var(--border)'
+                                        }}
+                                    >
+                                        ✓
+                                    </span>
+                                    <span style={{
+                                        fontSize: '1.2rem',
+                                        color: isOn ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                        textDecoration: isOn ? 'line-through' : 'none'
+                                    }}>
+                                        {task.text}
+                                    </span>
+                                </button>
+
+                                <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                                    {renderPhotoSlot(task, 'antes', 'Antes', false)}
+                                    {renderPhotoSlot(task, 'despues', 'Después', !hasAntes)}
+                                </div>
+
+                                {missing && (
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{missing}</span>
+                                )}
+                            </div>
                         );
                     })}
-                </div>
-
-                <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <PhotoCapture
-                        label="Antes"
-                        photos={p.antes}
-                        onChange={list => setSectionPhotos(section.id, 'antes', list)}
-                        hint={PHOTO_HINT}
-                    />
-                    <PhotoCapture
-                        label="Después"
-                        photos={p.despues}
-                        onChange={list => setSectionPhotos(section.id, 'despues', list)}
-                        hint={PHOTO_HINT}
-                    />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -432,9 +698,21 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                Limpieza Profunda — {fechaEs(dia.businessDate)}
-            </h2>
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileSelected}
+                style={{ display: 'none' }}
+            />
+
+            <div>
+                <h2 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Limpieza Profunda — {fechaEs(dia.businessDate)}
+                </h2>
+                <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{PHOTO_HINT}</p>
+            </div>
 
             {groups.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -480,7 +758,7 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
 
             {dia.sections.length === 0 ? (
                 <p style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-secondary)' }}>
-                    No hay limpieza profunda programada para hoy.
+                    Hoy no hay limpieza profunda programada.
                 </p>
             ) : (
                 <>
@@ -526,13 +804,15 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                             }}>
                                 <span>✓ Lista completada.</span>
                                 <button
-                                    onClick={() => { const s = takeSnapshot(); if (s) { setShareSnapshot(s.snapshot); setSharePhotos(s.photos); } }}
+                                    onClick={() => setShareModalOpen(true)}
+                                    disabled={!shareData}
                                     className="btn-secondary"
                                     style={{
                                         borderRadius: '8px', padding: '0.9rem 1.4rem', minHeight: '56px',
                                         fontSize: '1.1rem', fontWeight: 600,
                                         background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                                        color: 'var(--text-primary)', cursor: 'pointer'
+                                        color: 'var(--text-primary)', cursor: shareData ? 'pointer' : 'not-allowed',
+                                        opacity: shareData ? 1 : 0.5
                                     }}
                                 >
                                     Compartir
@@ -543,12 +823,12 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                 </>
             )}
 
-            {shareSnapshot && (
+            {shareModalOpen && shareData && (
                 <ShiftShareModal
-                    snapshot={shareSnapshot}
+                    snapshot={shareData.snapshot}
                     staff={staff}
-                    photos={sharePhotos}
-                    onClose={() => setShareSnapshot(null)}
+                    photos={shareData.photos}
+                    onClose={() => setShareModalOpen(false)}
                 />
             )}
         </div>

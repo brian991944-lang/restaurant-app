@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { marcarShiftCompartido, type ShiftListType } from '@/app/actions/shiftLists';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
-import type { CapturedPhoto } from '@/components/ui/PhotoCapture';
 
 type Staff = { id: string; name: string };
+
+/** A photo attached to the share — in-memory only, gone on reload. */
+export type SharePhoto = { id: string; file: File };
 
 /**
  * What the modal shares. Taken BEFORE the completion round-trip, so the
@@ -17,10 +19,8 @@ export type ShiftShareSnapshot = {
     businessDate: string;
     sections: {
         name: string;
-        tasks: { text: string; checked: boolean }[];
+        tasks: { text: string; checked: boolean; /** LIMPIEZA only: this task has an Antes/Después composite. */ hasPhotos?: boolean }[];
         staffNames: string[];
-        /** LIMPIEZA only: how many photos travel with this section. */
-        photos?: number;
     }[];
 };
 
@@ -46,12 +46,9 @@ export function buildListaTexto(snapshot: ShiftShareSnapshot, sender: string, ex
         for (const task of section.tasks) {
             total++;
             if (task.checked) hechas++;
-            lines.push(`${task.checked ? '✅' : '⬜'} ${task.text}`);
+            lines.push(`${task.checked ? '✅' : '⬜'} ${task.text}${task.hasPhotos ? ' 📷' : ''}`);
         }
         lines.push(`👤 ${section.staffNames.length > 0 ? section.staffNames.join(', ') : '—'}`);
-        if (section.photos !== undefined) {
-            lines.push(`📷 ${section.photos === 1 ? '1 foto' : `${section.photos} fotos`}`);
-        }
         lines.push('');
     }
     if (extraText && extraText.trim()) {
@@ -74,7 +71,7 @@ export default function ShiftShareModal({ snapshot, staff, onClose, photos, extr
     staff: Staff[];
     onClose: () => void;
     /** In-memory photos to attach (LIMPIEZA). Never stored; gone on reload. */
-    photos?: CapturedPhoto[];
+    photos?: SharePhoto[];
     /** Free text appended before the footer. */
     extraText?: string;
 }) {
