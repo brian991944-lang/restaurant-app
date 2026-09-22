@@ -350,7 +350,7 @@ export async function createShiftSection(
 
 export async function updateShiftSection(
     id: string,
-    data: { name?: string; isActive?: boolean }
+    data: { name?: string; isActive?: boolean; dayOfWeek?: number | null }
 ): Promise<{ success: boolean; error?: string }> {
     if (data.name !== undefined && !data.name.trim()) {
         return { success: false, error: 'El nombre de la sección no puede estar vacío.' };
@@ -361,7 +361,9 @@ export async function updateShiftSection(
             where: { id },
             data: {
                 name: data.name !== undefined ? data.name.trim() : undefined,
-                isActive: data.isActive !== undefined ? data.isActive : undefined
+                isActive: data.isActive !== undefined ? data.isActive : undefined,
+                // null is meaningful here (every day), so only `undefined` skips.
+                dayOfWeek: data.dayOfWeek !== undefined ? data.dayOfWeek : undefined
             }
         });
 

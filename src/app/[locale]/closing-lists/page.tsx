@@ -649,6 +649,16 @@ const DAY_CHIPS: { iso: number; label: string }[] = [
     { iso: 7, label: 'D' }
 ];
 
+const DAY_NAME: Record<number, string> = {
+    1: 'Lunes', 2: 'Martes', 3: 'Miércoles', 4: 'Jueves', 5: 'Viernes', 6: 'Sábado', 7: 'Domingo'
+};
+
+const LIST_TYPE_LABEL: Record<ShiftListType, string> = {
+    APERTURA: 'Apertura',
+    CIERRE: 'Cierre',
+    LIMPIEZA: 'Limpieza Profunda'
+};
+
 const parseDays = (value: string | null): number[] =>
     value
         ? value.split(',').map(s => Number(s.trim())).filter(n => Number.isFinite(n))
@@ -690,6 +700,7 @@ function ShiftListEditorModal({ listType, onClose }: {
     const [sectionName, setSectionName] = useState<Record<string, string>>({});
     const [newTask, setNewTask] = useState<Record<string, string>>({});
     const [newSection, setNewSection] = useState('');
+    const [newSectionDay, setNewSectionDay] = useState<number>(1);
 
     const load = useCallback(async () => {
         try {
@@ -751,7 +762,7 @@ function ShiftListEditorModal({ listType, onClose }: {
                 style={{ padding: '2rem', maxWidth: '820px', width: '100%', maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
             >
                 <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Editar lista — {listType === 'APERTURA' ? 'Apertura' : 'Cierre'}
+                    Editar lista — {LIST_TYPE_LABEL[listType]}
                 </h3>
 
                 {error && (
@@ -801,6 +812,37 @@ function ShiftListEditorModal({ listType, onClose }: {
                                         {section.isActive ? 'Desactivar' : 'Activar'}
                                     </button>
                                 </div>
+
+                                {listType === 'LIMPIEZA' && (
+                                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                                            Día:
+                                        </span>
+                                        {DAY_CHIPS.map(day => {
+                                            const on = section.dayOfWeek === day.iso;
+                                            return (
+                                                <button
+                                                    key={day.iso}
+                                                    onClick={() => run(() => updateShiftSection(section.id, { dayOfWeek: day.iso }))}
+                                                    disabled={busy}
+                                                    title={DAY_NAME[day.iso]}
+                                                    style={{
+                                                        width: '48px', height: '48px', borderRadius: '999px',
+                                                        fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+                                                        color: on ? 'white' : 'var(--text-secondary)',
+                                                        background: on ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                        border: on ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                                    }}
+                                                >
+                                                    {day.label}
+                                                </button>
+                                            );
+                                        })}
+                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                            {section.dayOfWeek != null ? DAY_NAME[section.dayOfWeek] : 'sin día asignado'}
+                                        </span>
+                                    </div>
+                                )}
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                     {section.tasks.length === 0 && (
@@ -855,6 +897,9 @@ function ShiftListEditorModal({ listType, onClose }: {
                                                     >
                                                         {task.isActive ? 'Activa' : 'Inactiva'}
                                                     </button>
+                                                    {/* Limpieza never hard-deletes: Desactivar preserves the
+                                                        task's check/deferral history, which a delete cascades away. */}
+                                                    {listType !== 'LIMPIEZA' && (
                                                     <button
                                                         onClick={() => run(() => deleteShiftTask(task.id))}
                                                         disabled={busy}
@@ -868,6 +913,7 @@ function ShiftListEditorModal({ listType, onClose }: {
                                                     >
                                                         <Trash2 size={20} />
                                                     </button>
+                                                    )}
                                                 </div>
 
                                                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -930,30 +976,64 @@ function ShiftListEditorModal({ listType, onClose }: {
                             </div>
                         ))}
 
-                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                            <input
-                                type="text"
-                                value={newSection}
-                                onChange={e => setNewSection(e.target.value)}
-                                placeholder="Nueva sección"
-                                style={{ ...editorInput, flex: '1 1 240px', width: 'auto' }}
-                            />
-                            <button
-                                onClick={async () => {
-                                    const ok = await run(() => createShiftSection(listType, newSection));
-                                    if (ok) setNewSection('');
-                                }}
-                                disabled={busy || !newSection.trim()}
-                                className="btn-primary"
-                                style={{
-                                    borderRadius: '8px', padding: '0.7rem 1.3rem', minHeight: '52px',
-                                    fontSize: '1rem', fontWeight: 600,
-                                    opacity: busy || !newSection.trim() ? 0.5 : 1,
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Añadir sección
-                            </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                            {listType === 'LIMPIEZA' && (
+                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                                        Día de la nueva sección:
+                                    </span>
+                                    {DAY_CHIPS.map(day => {
+                                        const on = newSectionDay === day.iso;
+                                        return (
+                                            <button
+                                                key={day.iso}
+                                                onClick={() => setNewSectionDay(day.iso)}
+                                                disabled={busy}
+                                                title={DAY_NAME[day.iso]}
+                                                style={{
+                                                    width: '48px', height: '48px', borderRadius: '999px',
+                                                    fontSize: '1rem', fontWeight: 700, cursor: 'pointer',
+                                                    color: on ? 'white' : 'var(--text-secondary)',
+                                                    background: on ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                                    border: on ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                                }}
+                                            >
+                                                {day.label}
+                                            </button>
+                                        );
+                                    })}
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                        {DAY_NAME[newSectionDay]}
+                                    </span>
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <input
+                                    type="text"
+                                    value={newSection}
+                                    onChange={e => setNewSection(e.target.value)}
+                                    placeholder="Nueva sección"
+                                    style={{ ...editorInput, flex: '1 1 240px', width: 'auto' }}
+                                />
+                                <button
+                                    onClick={async () => {
+                                        const ok = await run(() =>
+                                            createShiftSection(listType, newSection, listType === 'LIMPIEZA' ? newSectionDay : null)
+                                        );
+                                        if (ok) setNewSection('');
+                                    }}
+                                    disabled={busy || !newSection.trim()}
+                                    className="btn-primary"
+                                    style={{
+                                        borderRadius: '8px', padding: '0.7rem 1.3rem', minHeight: '52px',
+                                        fontSize: '1rem', fontWeight: 600,
+                                        opacity: busy || !newSection.trim() ? 0.5 : 1,
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Añadir sección
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
@@ -1174,12 +1254,9 @@ export default function ClosingListsPage() {
                             cursor: 'pointer'
                         }}
                     >
-                        <Users size={20} />
+        <Users size={20} />
                         <span>Personal</span>
                     </button>
-                    {/* The editor cannot set a section's dayOfWeek, so it does
-                        not genuinely support LIMPIEZA lists — hidden there. */}
-                    {activeTab !== 'LIMPIEZA' && (
                     <button
                         onClick={() => setIsEditorOpen(true)}
                         className="btn-secondary"
@@ -1194,7 +1271,6 @@ export default function ClosingListsPage() {
                         <Pencil size={20} />
                         <span>Editar listas</span>
                     </button>
-                    )}
                     </div>
                 )}
             </div>
@@ -1272,7 +1348,7 @@ export default function ClosingListsPage() {
 
             {isAdmin && isEditorOpen && (
                 <ShiftListEditorModal
-                    listType={activeTab === 'LIMPIEZA' ? 'CIERRE' : activeTab}
+                    listType={activeTab}
                     onClose={() => {
                         setIsEditorOpen(false);
                         setListVersion(v => v + 1);
