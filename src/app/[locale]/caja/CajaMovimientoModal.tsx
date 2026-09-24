@@ -1,18 +1,31 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
-import { createCajaMovimiento } from '@/app/actions/caja';
+import { createCajaMovimiento, getCajaEsperado, type CajaEsperadoResult } from '@/app/actions/caja';
+import { formatMoney } from '@/lib/money';
 import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
 import { parseAmount } from './cajaUi';
 
 type Tipo = 'RETIRO' | 'COMPRA' | 'INGRESO';
 type Box = 'BLANCA' | 'NEGRA';
 type Staff = { id: string; name: string };
+type RetiroMode = 'amount' | 'remaining';
+type EsperadoOk = Extract<CajaEsperadoResult, { success: true }>;
+type Esperado =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'error' }
+    | { status: 'ready'; data: EsperadoOk };
 
 const TIPOS: Tipo[] = ['RETIRO', 'COMPRA', 'INGRESO'];
 const BOXES: Box[] = ['BLANCA', 'NEGRA'];
+
+/** What Clover says should be in `caja` right now, or null without a float yet. */
+function expectedFor(caja: Box, data: EsperadoOk): number | null {
+    return caja === 'BLANCA' ? data.blanca.esperadoCents : data.negra.referenciaCents;
+}
 
 /**
  * Cash leaving or entering a box between counts. One type, one box, an
@@ -31,16 +44,70 @@ export default function CajaMovimientoModal({ staff, onClose, onSaved }: {
     const [tipo, setTipo] = useState<Tipo | null>(null);
     const [caja, setCaja] = useState<Box | null>(null);
     const [amountStr, setAmountStr] = useState('');
+    const [remainingStr, setRemainingStr] = useState('');
+    const [retiroMode, setRetiroMode] = useState<RetiroMode>('amount');
+    const [esperado, setEsperado] = useState<Esperado>({ status: 'idle' });
     const [descripcion, setDescripcion] = useState('');
     const [signer, setSigner] = useState<Staff | null>(null);
     const [signature, setSignature] = useState<SignatureValue | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const amountCents = parseAmount(amountStr);
-    const amountInvalid = amountStr.trim() !== '' && (amountCents === null || amountCents <= 0);
+    // Fetched once, the moment RETIRO is picked — both boxes come back in the
+    // one call, so a later box switch never needs a second round-trip.
+    useEffect(() => {
+        if (tipo !== 'RETIRO' || esperado.status !== 'idle') return;
+        setEsperado({ status: 'loading' });
+        getCajaEsperado()
+            .then(r => setEsperado(r.success ? { status: 'ready', data: r } : { status: 'error' }))
+            .catch(() => setEsperado({ status: 'error' }));
+    }, [tipo, esperado.status]);
+
+    const expectedCents = caja !== null && esperado.status === 'ready' ? expectedFor(caja, esperado.data) : null;
+    const remainingUnavailableReason =
+        caja === null ? t('mov_choose_box_first')
+            : esperado.status === 'loading' ? t('checking_clover')
+                : esperado.status === 'error' ? t('clover_unavailable')
+                    : expectedCents === null ? t('mov_no_float_yet')
+                        : null;
+    const remainingAvailable = remainingUnavailableReason === null;
+
+    const handleRetiroModeChange = (next: RetiroMode) => {
+        if (next === retiroMode) return;
+        if (expectedCents !== null) {
+            if (next === 'remaining') {
+                const amt = parseAmount(amountStr);
+                if (amt !== null) setRemainingStr(((expectedCents - amt) / 100).toFixed(2));
+            } else {
+                const rem = parseAmount(remainingStr);
+                if (rem !== null) setAmountStr(((expectedCents - rem) / 100).toFixed(2));
+            }
+        }
+        setRetiroMode(next);
+    };
+
+    const typedAmountCents = parseAmount(amountStr);
+    const typedRemainingCents = parseAmount(remainingStr);
+    const usesRemaining = tipo === 'RETIRO' && retiroMode === 'remaining';
+
+    let amountCents: number | null;
+    let remainingError: string | null = null;
+    if (usesRemaining) {
+        amountCents = null;
+        if (expectedCents !== null && typedRemainingCents !== null) {
+            if (typedRemainingCents > expectedCents) remainingError = t('mov_remaining_too_high');
+            else if (typedRemainingCents === expectedCents) remainingError = t('mov_remaining_equal');
+            else amountCents = expectedCents - typedRemainingCents;
+        }
+    } else {
+        amountCents = typedAmountCents;
+    }
+
+    const amountInvalid = !usesRemaining && amountStr.trim() !== '' && (amountCents === null || amountCents <= 0);
+    const remainingInvalid = usesRemaining && remainingStr.trim() !== '' && typedRemainingCents === null;
     const canSave = tipo !== null
         && caja !== null
         && amountCents !== null && amountCents > 0
+        && (!usesRemaining || remainingAvailable)
         && descripcion.trim().length > 0
         && signer !== null
         && signature !== null
@@ -133,33 +200,84 @@ export default function CajaMovimientoModal({ staff, onClose, onSaved }: {
 
                 {/* Amount */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                    {fieldLabel(t('mov_amount_label'))}
+                    {tipo === 'RETIRO' && (
+                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                            {pill(t('mov_retiro_mode_amount'), retiroMode === 'amount', () => handleRetiroModeChange('amount'))}
+                            {pill(
+                                t('mov_retiro_mode_remaining'), retiroMode === 'remaining',
+                                () => handleRetiroModeChange('remaining'),
+                                !remainingAvailable,
+                            )}
+                        </div>
+                    )}
+                    {tipo === 'RETIRO' && retiroMode === 'remaining' && !remainingAvailable && (
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{remainingUnavailableReason}</span>
+                    )}
+
+                    {fieldLabel(usesRemaining ? t('mov_remaining_amount_label') : t('mov_amount_label'))}
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: '0.5rem',
                         padding: '0 1rem', minHeight: '64px', borderRadius: '12px',
                         background: 'rgba(0,0,0,0.2)',
-                        border: amountInvalid ? '1px solid var(--danger)' : '1px solid var(--border)',
+                        border: (usesRemaining ? remainingInvalid || remainingError !== null : amountInvalid)
+                            ? '1px solid var(--danger)' : '1px solid var(--border)',
                     }}>
                         <span style={{ fontSize: '1.6rem', color: 'var(--text-secondary)' }}>$</span>
-                        <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="0.00"
-                            value={amountStr}
-                            disabled={isSubmitting}
-                            onChange={e => setAmountStr(e.target.value)}
-                            onBlur={() => {
-                                const cents = parseAmount(amountStr);
-                                if (cents !== null) setAmountStr((cents / 100).toFixed(2));
-                            }}
-                            style={{
-                                flex: 1, minWidth: 0, fontSize: '1.6rem', fontWeight: 600,
-                                background: 'transparent', border: 'none', outline: 'none',
-                                color: 'var(--text-primary)', minHeight: '56px',
-                            }}
-                        />
+                        {usesRemaining ? (
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                                value={remainingStr}
+                                disabled={isSubmitting}
+                                onChange={e => setRemainingStr(e.target.value)}
+                                onBlur={() => {
+                                    const cents = parseAmount(remainingStr);
+                                    if (cents !== null) setRemainingStr((cents / 100).toFixed(2));
+                                }}
+                                style={{
+                                    flex: 1, minWidth: 0, fontSize: '1.6rem', fontWeight: 600,
+                                    background: 'transparent', border: 'none', outline: 'none',
+                                    color: 'var(--text-primary)', minHeight: '56px',
+                                }}
+                            />
+                        ) : (
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                                value={amountStr}
+                                disabled={isSubmitting}
+                                onChange={e => setAmountStr(e.target.value)}
+                                onBlur={() => {
+                                    const cents = parseAmount(amountStr);
+                                    if (cents !== null) setAmountStr((cents / 100).toFixed(2));
+                                }}
+                                style={{
+                                    flex: 1, minWidth: 0, fontSize: '1.6rem', fontWeight: 600,
+                                    background: 'transparent', border: 'none', outline: 'none',
+                                    color: 'var(--text-primary)', minHeight: '56px',
+                                }}
+                            />
+                        )}
                     </div>
-                    {amountInvalid && (
+                    {tipo === 'RETIRO' && caja !== null && expectedCents !== null && (
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                            {t('mov_should_have_now', { amount: formatMoney(expectedCents) })}
+                        </span>
+                    )}
+                    {usesRemaining && remainingError && (
+                        <span style={{ fontSize: '0.95rem', color: 'var(--danger)' }}>{remainingError}</span>
+                    )}
+                    {usesRemaining && !remainingError && remainingInvalid && (
+                        <span style={{ fontSize: '0.95rem', color: 'var(--danger)' }}>{t('err_amount_invalid')}</span>
+                    )}
+                    {usesRemaining && !remainingError && amountCents !== null && (
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                            {t('mov_will_record', { amount: formatMoney(amountCents) })}
+                        </span>
+                    )}
+                    {!usesRemaining && amountInvalid && (
                         <span style={{ fontSize: '0.95rem', color: 'var(--danger)' }}>{t('err_amount_invalid')}</span>
                     )}
                 </div>
