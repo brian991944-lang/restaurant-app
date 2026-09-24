@@ -401,6 +401,64 @@ export async function getCajaHistorial(opts: { from: string; to: string }): Prom
     return { success: true, from, to, limited, days };
 }
 
+export type CajaRetirosResult =
+    | {
+        success: true;
+        from: string;
+        to: string;
+        totals: { BLANCA: number; NEGRA: number; total: number };
+        rows: {
+            id: string;
+            businessDate: string;
+            at: Date;
+            caja: CajaBox;
+            amountCents: number;
+            descripcion: string;
+            employeeName: string;
+            anuladoAt: Date | null;
+            anuladoMotivo: string | null;
+        }[];
+    }
+    | Fail;
+
+/**
+ * Every RETIRO in a date range, admin only — this is the owners' money
+ * leaving the boxes, not floor data a server should be able to pull up.
+ * Voided withdrawals are returned, flagged via anuladoAt, but excluded from
+ * the totals, same as everywhere else a movimiento is anulado. Same date
+ * validation and range cap as getCajaHistorial.
+ */
+export async function getCajaRetiros(opts: { from: string; to: string }): Promise<CajaRetirosResult> {
+    const { from, to } = opts;
+    if (!isBusinessDate(from) || !isBusinessDate(to)) return fail('err_invalid_date', 'Fecha inválida.');
+    if (from > to) return fail('err_range_invalid', 'El rango de fechas es inválido.');
+    if (daysBetween(from, to) + 1 > HISTORIAL_MAX_DAYS) {
+        return fail('err_range_too_long', `El rango no puede superar ${HISTORIAL_MAX_DAYS} días.`);
+    }
+    if (!(await isAdminSession())) {
+        return fail('err_admin_only', 'Solo un administrador puede ver los retiros.');
+    }
+
+    const rows = await prisma.cajaMovimiento.findMany({
+        where: { businessDate: { gte: from, lte: to }, tipo: 'RETIRO' },
+        orderBy: { at: 'asc' },
+        select: {
+            id: true, businessDate: true, at: true, caja: true,
+            amountCents: true, descripcion: true, employeeName: true,
+            anuladoAt: true, anuladoMotivo: true,
+        },
+    });
+
+    const totals = { BLANCA: 0, NEGRA: 0, total: 0 };
+    for (const r of rows) {
+        if (r.anuladoAt !== null) continue;
+        totals[r.caja] += r.amountCents;
+        totals.total += r.amountCents;
+    }
+
+    return { success: true, from, to, totals, rows };
+}
+
 export type CajaEsperadoResult =
     | {
         success: true;
