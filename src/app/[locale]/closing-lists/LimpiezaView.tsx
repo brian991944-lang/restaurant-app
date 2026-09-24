@@ -9,6 +9,9 @@ import {
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
 import ShiftShareModal, { buildListaTexto, type ShiftShareSnapshot, type SharePhoto } from './ShiftShareModal';
+import {
+    savePhoto, loadPhotosForDate, deletePhotosForDate, deletePhotosNotForDate, requestPersistentStorage,
+} from '@/lib/limpiezaPhotoStore';
 
 type Dia = Awaited<ReturnType<typeof getLimpiezaDia>>;
 type Section = Dia['sections'][number];
@@ -17,11 +20,15 @@ type Deferral = Dia['deferrals'][number];
 type Staff = { id: string; name: string };
 type PhotoKind = 'antes' | 'despues';
 
-/** One task's photo, held in memory only — nothing here is ever uploaded or stored. */
+/**
+ * One task's photo. Kept in memory for display and mirrored into this
+ * device's IndexedDB (see limpiezaPhotoStore) so it survives a tab switch or
+ * reload — never uploaded anywhere.
+ */
 type TaskPhoto = { url: string; file: File };
 type TaskPhotos = { antes?: TaskPhoto; despues?: TaskPhoto };
 
-const PHOTO_HINT = 'Las fotos se guardan solo en este iPad hasta que compartas. Si recargas la página, se pierden.';
+const PHOTO_HINT = 'Las fotos se guardan en este iPad hasta que completes la lista.';
 const PHOTO_ERROR = 'No se pudo procesar la foto. Intenta de nuevo.';
 
 /** Long edge after downscaling, and JPEG quality for both capture and composite. */
@@ -166,9 +173,9 @@ function groupDeferrals(deferrals: Deferral[]) {
 /**
  * The deep-cleaning tab. One LIMPIEZA section per weekday as seeded; on a day
  * with none this is just an empty state. Tasks write through immediately like
- * the other lists. Photos are per-task, held in memory for the session only —
- * nothing about them is ever stored — and go out as one composite per task
- * with the share.
+ * the other lists. Photos are per-task, kept on this device only (memory plus
+ * IndexedDB, cleared once Completar succeeds) and go out as one composite per
+ * task with the share.
  */
 export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     const [dia, setDia] = useState<Dia | null>(null);
@@ -196,7 +203,9 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     // Composite built as soon as a task has both Antes and Después, so it is
     // ready before the completion tap rather than built from it — iOS refuses
     // a share sheet that isn't opened from the tap's own user activation.
-    const [composites, setComposites] = useState<Record<string, File>>({});
+    // Each composite remembers the photo-URL signature it was built from, so
+    // the button can tell when a retake has left one still building.
+    const [composites, setComposites] = useState<Record<string, { sig: string; file: File | null }>>({});
     const builtForRef = useRef<Record<string, string>>({});
 
     const [isCompleting, setIsCompleting] = useState(false);
@@ -230,6 +239,35 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    // Once per page load: ask iOS not to evict our storage. Result ignored.
+    useEffect(() => { requestPersistentStorage(); }, []);
+
+    // Bring back today's photos from this device's IndexedDB (a tab switch
+    // unmounts this view; a reload drops everything), and drop any photos
+    // left over from another business date. Runs once per business date.
+    // In-memory photos win over stored ones, in case a capture landed while
+    // the restore was still reading.
+    const businessDate = dia?.businessDate ?? null;
+    useEffect(() => {
+        if (!businessDate) return;
+        let cancelled = false;
+        (async () => {
+            const stored = await loadPhotosForDate(businessDate);
+            void deletePhotosNotForDate(businessDate);
+            if (cancelled || stored.length === 0) return;
+            setTaskPhotos(prev => {
+                const next = { ...prev };
+                for (const row of stored) {
+                    if (next[row.taskId]?.[row.kind]) continue;
+                    const file = new File([row.blob], `${slug(row.taskId)}-${row.kind}.jpg`, { type: 'image/jpeg' });
+                    next[row.taskId] = { ...(next[row.taskId] ?? {}), [row.kind]: { url: URL.createObjectURL(file), file } };
+                }
+                return next;
+            });
+        })();
+        return () => { cancelled = true; };
+    }, [businessDate]);
 
     // Revoke every outstanding object URL when the tab is left, so switching
     // back and forth doesn't leak memory across the session.
@@ -309,6 +347,10 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
             URL.revokeObjectURL(tempUrl);
             if (previous) URL.revokeObjectURL(previous.url);
             setTaskPhotos(prev => ({ ...prev, [taskId]: { ...(prev[taskId] ?? {}), [kind]: compressed } }));
+            // Mirror to this device's store right away so the photo outlives a
+            // tab switch or reload. A retake overwrites the same key. Failures
+            // are logged inside savePhoto and never block the capture.
+            if (dia) void savePhoto({ businessDate: dia.businessDate, taskId, kind, blob: compressed.file });
         } catch {
             URL.revokeObjectURL(tempUrl);
             setTaskPhotos(prev => {
@@ -377,9 +419,13 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                         const file = await buildTaskComposite(task.text, p.antes, p.despues);
                         if (cancelled) return;
                         builtForRef.current[task.id] = sig;
-                        setComposites(prev => ({ ...prev, [task.id]: file }));
+                        setComposites(prev => ({ ...prev, [task.id]: { sig, file } }));
                     } catch (e) {
                         console.error('No se pudo generar la foto compuesta:', task.text, e);
+                        if (cancelled) return;
+                        // Recorded as attempted so the button doesn't wait on it forever.
+                        builtForRef.current[task.id] = sig;
+                        setComposites(prev => ({ ...prev, [task.id]: { sig, file: null } }));
                     }
                 }
             }
@@ -414,18 +460,22 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
      * and only then is the save promise awaited.
      */
     const handleComplete = async () => {
+        // Lock first, before any data is assembled, so a second tap that
+        // lands while the first is still running is a no-op.
+        if (isCompleting || !dia || !sender) return;
+        setIsCompleting(true);
+        setActionError(null);
+        setShareBanner(null);
+
         const snapshot = buildSnapshot();
-        if (!snapshot || !sender) return;
+        if (!snapshot) { setIsCompleting(false); return; }
 
         const names = senderDisplayNames(staff);
         const senderLabel = names.get(sender.id) ?? sender.name;
         const texto = buildListaTexto(snapshot, senderLabel);
-        const photos: SharePhoto[] = Object.entries(composites).map(([id, file]) => ({ id, file }));
+        const photos: SharePhoto[] = Object.entries(composites).flatMap(([id, c]) => (c.file ? [{ id, file: c.file }] : []));
         const files = photos.map(p => p.file);
-
-        setIsCompleting(true);
-        setActionError(null);
-        setShareBanner(null);
+        const todayDate = dia.businessDate;
 
         const savePromise = completeShiftRun('LIMPIEZA');
 
@@ -451,6 +501,10 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
             setCompleted(true);
             setShareData({ snapshot, photos });
             if (shared) void marcarShiftCompartido('LIMPIEZA');
+
+            // Saved on the server: today's on-device copies have done their
+            // job. Only here — a failed save keeps them for the retry.
+            void deletePhotosForDate(todayDate);
 
             // The composites are already sent (or ready for a manual retry);
             // the in-memory originals are done.
@@ -483,6 +537,14 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     const allTasks = dia.sections.flatMap(s => s.tasks);
     const doneCount = allTasks.filter(t => checked.has(t.id)).length;
     const everySectionStaffed = dia.sections.every(s => (staffBySection[s.id] ?? []).length > 0);
+    // A task with both photos whose composite hasn't caught up yet (first
+    // build, or a retake) — Completar waits for it so no photo is left out.
+    const compositesPending = allTasks.some(t => {
+        const p = taskPhotos[t.id];
+        if (!p?.antes || !p?.despues) return false;
+        return composites[t.id]?.sig !== `${p.antes.url}|${p.despues.url}`;
+    });
+    const completeDisabled = !everySectionStaffed || !sender || isCompleting || compositesPending;
 
     const renderPhotoSlot = (task: Task, kind: PhotoKind, label: string, disabled: boolean) => {
         const key = `${task.id}:${kind}`;
@@ -842,17 +904,17 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
 
                         <button
                             onClick={handleComplete}
-                            disabled={!everySectionStaffed || !sender || isCompleting}
+                            disabled={completeDisabled}
                             className="btn-primary"
                             style={{
                                 alignSelf: 'flex-start',
                                 borderRadius: '10px', padding: '1rem 2rem', minHeight: '72px',
                                 fontSize: '1.25rem', fontWeight: 700,
-                                opacity: !everySectionStaffed || !sender || isCompleting ? 0.5 : 1,
-                                cursor: !everySectionStaffed || !sender || isCompleting ? 'not-allowed' : 'pointer'
+                                opacity: completeDisabled ? 0.5 : 1,
+                                cursor: completeDisabled ? 'not-allowed' : 'pointer'
                             }}
                         >
-                            {isCompleting ? 'Guardando...' : 'Completar y compartir'}
+                            {isCompleting ? 'Guardando...' : compositesPending ? 'Preparando fotos…' : 'Completar y compartir'}
                         </button>
 
                         {completed && (
