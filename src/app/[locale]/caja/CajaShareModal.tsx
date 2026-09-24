@@ -5,44 +5,14 @@ import { useTranslations } from 'next-intl';
 import { toPng } from 'html-to-image';
 import { getCajaDia, marcarCajaCompartido } from '@/app/actions/caja';
 import { nivelFor } from '@/lib/cajaRules';
-import { formatMoney } from '@/lib/money';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
-import { nyTime, signedMoney } from './cajaUi';
+import CajaShareCapture, { type ShareCorteData, type ShareMovData } from './CajaShareCapture';
 
 type Dia = Awaited<ReturnType<typeof getCajaDia>>;
 type Corte = Dia['cortes'][number];
 type Mov = Dia['movimientos'][number];
 type Staff = { id: string; name: string };
-
-/**
- * The captured content is ALWAYS Spanish: it goes to the staff WhatsApp
- * group, whatever language the tablet is set to. Only the modal chrome
- * (sender picker, buttons) is translated.
- */
-const ES = {
-    box: { BLANCA: 'Caja Blanca', NEGRA: 'Caja Negra' } as const,
-    rol: { APERTURA: 'Apertura', SALIENTE: 'Sale', ENTRANTE: 'Entra', CIERRE: 'Cierre' } as const,
-    mov: { RETIRO: 'Retiro', COMPRA: 'Compra', INGRESO: 'Ingreso de cambio' } as const,
-    nivel: { OK: 'Cuadra', MENOR: 'Diferencia menor', DESCUADRE: 'DESCUADRE' } as const,
-};
-
-/**
- * Hex literals only. The capture is rasterised by html-to-image, which does
- * not resolve the app's CSS variables reliably, and the image must read the
- * same on a phone in dark mode as on the tablet that made it.
- */
-const INK = '#111827';
-const MUTED = '#6b7280';
-const LINE = '#e5e7eb';
-const PAPER = '#ffffff';
-const TONE = {
-    OK: { bg: '#dcfce7', fg: '#166534' },
-    MENOR: { bg: '#fef3c7', fg: '#92400e' },
-    DESCUADRE: { bg: '#fee2e2', fg: '#991b1b' },
-} as const;
-
-const movSigned = (m: Mov) => (m.tipo === 'INGRESO' ? m.amountCents : -m.amountCents);
 
 /**
  * Share the day's closing as one image: both boxes with their verdicts, the
@@ -68,9 +38,25 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
     const names = senderDisplayNames(staff);
     const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '';
 
-    const lineas = [...corte.lineas].sort((a, b) => a.caja.localeCompare(b.caja));
-    const totalNivel = corte.totalDiffCents === null ? null : nivelFor(corte.totalDiffCents, corte.toleranciaCents);
     const fechaLarga = formatBusinessDateEs(businessDateToUtcDate(businessDate));
+
+    const shareData: ShareCorteData = {
+        seq: corte.seq,
+        at: corte.at,
+        lineas: corte.lineas.map(l => ({
+            id: l.id, caja: l.caja, contadoCents: l.contadoCents, esperadoCents: l.esperadoCents,
+            nivel: l.nivel, diffCents: l.diffCents, motivo: l.motivo, movimientosCents: l.movimientosCents,
+        })),
+        totalDiffCents: corte.totalDiffCents,
+        totalNivel: corte.totalDiffCents === null ? null : nivelFor(corte.totalDiffCents, corte.toleranciaCents),
+        posibleTraslado: corte.posibleTraslado,
+        firmas: corte.firmas.map(f => ({
+            id: f.id, rol: f.rol, employeeName: f.employeeName, firmaPath: f.firmaPath, firmaBox: f.firmaBox, signedAt: f.signedAt,
+        })),
+    };
+    const shareMovs: ShareMovData[] = movimientos.map(m => ({
+        id: m.id, tipo: m.tipo, caja: m.caja, amountCents: m.amountCents, descripcion: m.descripcion,
+    }));
 
     // Runs from the button's own tap. iOS refuses a share sheet that is not
     // opened by a direct user gesture, so nothing here is chained to a save.
@@ -80,9 +66,8 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
         try {
             const dataUrl = await toPng(captureRef.current, {
                 pixelRatio: 2,
-                backgroundColor: PAPER,
+                backgroundColor: '#ffffff',
                 cacheBust: true,
-                filter: node => !(node instanceof HTMLElement && node.dataset.noCapture === 'true'),
             });
             const blob = await (await fetch(dataUrl)).blob();
             const file = new File([blob], `cierre-caja-${businessDate}.png`, { type: 'image/png' });
@@ -107,18 +92,6 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
         } finally {
             setSharing(false);
         }
-    };
-
-    const verdict = (nivel: 'OK' | 'MENOR' | 'DESCUADRE', diff: number) => {
-        const tone = TONE[nivel];
-        return (
-            <span style={{
-                display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '999px',
-                background: tone.bg, color: tone.fg, fontWeight: nivel === 'DESCUADRE' ? 700 : 600, fontSize: '0.9rem',
-            }}>
-                {ES.nivel[nivel]} {nivel === 'OK' ? '' : signedMoney(diff)}
-            </span>
-        );
     };
 
     return (
@@ -151,99 +124,14 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
                         <span data-no-capture="true" style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
                     )}
 
-                    {/* Capture surface. Hex colours only — see the constants above. */}
-                    <div
-                        ref={captureRef}
-                        style={{
-                            background: PAPER, color: INK,
-                            padding: '1.25rem', borderRadius: '8px',
-                            border: `1px solid ${LINE}`,
-                            display: 'flex', flexDirection: 'column', gap: '0.9rem',
-                            fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-                        }}
-                    >
-                        <div>
-                            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: INK }}>Cierre de Caja — {fechaLarga}</div>
-                            <div style={{ fontSize: '0.85rem', color: MUTED, marginTop: '0.15rem' }}>
-                                Corte #{corte.seq} · {nyTime(corte.at)}
-                            </div>
-                        </div>
-
-                        {lineas.map(l => (
-                            <div key={l.id} style={{ borderTop: `1px solid ${LINE}`, paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>{ES.box[l.caja]}</div>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: '0.5rem', alignItems: 'center' }}>
-                                    <div>
-                                        <div style={{ fontSize: '0.75rem', color: MUTED }}>Contado</div>
-                                        <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>{formatMoney(l.contadoCents)}</div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.75rem', color: MUTED }}>Esperado</div>
-                                        <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>
-                                            {l.esperadoCents === null ? '—' : formatMoney(l.esperadoCents)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.75rem', color: MUTED }}>Diferencia</div>
-                                        <div style={{ marginTop: '0.15rem' }}>
-                                            {l.nivel !== null && l.diffCents !== null ? verdict(l.nivel, l.diffCents) : <span style={{ color: MUTED }}>—</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                                {l.movimientosCents !== null && l.movimientosCents !== 0 && (
-                                    <div style={{ fontSize: '0.8rem', color: MUTED }}>incluye movimientos: {signedMoney(l.movimientosCents)}</div>
-                                )}
-                                {l.motivo && (
-                                    <div style={{ fontSize: '0.9rem', fontStyle: 'italic', color: MUTED }}>{l.motivo}</div>
-                                )}
-                            </div>
-                        ))}
-
-                        {movimientos.length > 0 && (
-                            <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: INK }}>Movimientos</div>
-                                {movimientos.map(m => (
-                                    <div key={m.id} style={{ fontSize: '0.9rem', color: INK }}>
-                                        {ES.mov[m.tipo]} · {ES.box[m.caja]} · {signedMoney(movSigned(m))} · {m.descripcion}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {corte.totalDiffCents !== null && totalNivel !== null && (
-                            <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: '0.7rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '1rem', fontWeight: 700, color: INK }}>Total</span>
-                                <span style={{ fontSize: '1rem', color: INK }}>{signedMoney(corte.totalDiffCents)}</span>
-                                {verdict(totalNivel, corte.totalDiffCents)}
-                                {corte.posibleTraslado && (
-                                    <span style={{ display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '999px', background: TONE.MENOR.bg, color: TONE.MENOR.fg, fontWeight: 600, fontSize: '0.9rem' }}>
-                                        Posible traslado entre cajas
-                                    </span>
-                                )}
-                            </div>
-                        )}
-
-                        {corte.firmas.length > 0 && (
-                            <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: '0.7rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                                {corte.firmas.map(f => (
-                                    <div key={f.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                        <div style={{ width: '160px', height: '54px', background: PAPER, borderRadius: '6px', border: `1px solid ${LINE}`, overflow: 'hidden' }}>
-                                            <svg viewBox={`0 0 ${f.firmaBox}`} width="160" height="54" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
-                                                <path d={f.firmaPath} fill="none" stroke={INK} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        </div>
-                                        <span style={{ fontSize: '0.8rem', color: MUTED }}>
-                                            {ES.rol[f.rol]} · {f.employeeName} · {nyTime(f.signedAt)}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        <div style={{ borderTop: `1px solid ${LINE}`, paddingTop: '0.6rem', fontSize: '0.85rem', color: MUTED }}>
-                            Enviado por {senderLabel || '—'} · {nyTime(new Date())}
-                        </div>
-                    </div>
+                    {/* Capture surface — shared with CajaCorteModal's save-and-share preview. */}
+                    <CajaShareCapture
+                        captureRef={captureRef}
+                        businessDate={businessDate}
+                        data={shareData}
+                        movimientos={shareMovs}
+                        senderLabel={senderLabel}
+                    />
                 </div>
 
                 <div data-no-capture="true" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', padding: '0.75rem 1.5rem 1.25rem', borderTop: '1px solid var(--border)' }}>

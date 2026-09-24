@@ -779,14 +779,17 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                 <CajaCorteModal
                     tipo={modalTipo}
                     staff={staff}
+                    businessDate={dia.businessDate}
+                    nextSeq={dia.cortes.length + 1}
+                    movimientos={dia.movimientos.filter(m => m.anuladoAt === null)}
                     onClose={() => setModalTipo(null)}
-                    onSaved={async corteId => {
-                        const saved = modalTipo;
+                    onSaved={async () => {
+                        // For CIERRE, sharing already happened (or was declined)
+                        // inside the modal's own save-and-share button — this
+                        // callback only ever closes and reloads. Retries go
+                        // through the closing card's own Share button.
                         setModalTipo(null);
                         await reloadAll();
-                        // The share sheet itself only opens from a tap inside
-                        // the modal — never from this await.
-                        if (saved === 'CIERRE') setShareCorteId(corteId);
                     }}
                 />
             )}

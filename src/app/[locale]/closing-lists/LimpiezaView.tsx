@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Camera, RotateCcw } from 'lucide-react';
 import {
-    getLimpiezaDia, toggleShiftTask, setShiftRunStaff, completeShiftRun,
+    getLimpiezaDia, toggleShiftTask, setShiftRunStaff, completeShiftRun, marcarShiftCompartido,
     createShiftDeferral, resolveShiftDeferral, type DeferralPlan,
 } from '@/app/actions/shiftLists';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
-import ShiftShareModal, { type ShiftShareSnapshot, type SharePhoto } from './ShiftShareModal';
+import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
+import ShiftShareModal, { buildListaTexto, type ShiftShareSnapshot, type SharePhoto } from './ShiftShareModal';
 
 type Dia = Awaited<ReturnType<typeof getLimpiezaDia>>;
 type Section = Dia['sections'][number];
@@ -192,10 +193,21 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
     const [deferBusy, setDeferBusy] = useState(false);
     const [resolvingKey, setResolvingKey] = useState<string | null>(null);
 
+    // Composite built as soon as a task has both Antes and Después, so it is
+    // ready before the completion tap rather than built from it — iOS refuses
+    // a share sheet that isn't opened from the tap's own user activation.
+    const [composites, setComposites] = useState<Record<string, File>>({});
+    const builtForRef = useRef<Record<string, string>>({});
+
     const [isCompleting, setIsCompleting] = useState(false);
     const [completed, setCompleted] = useState(false);
+    // For a manual re-share from the completed banner only, via ShiftShareModal.
     const [shareData, setShareData] = useState<{ snapshot: ShiftShareSnapshot; photos: SharePhoto[] } | null>(null);
     const [shareModalOpen, setShareModalOpen] = useState(false);
+    const [sender, setSender] = useState<Staff | null>(null);
+    // Set only when the list WAS shared but the save came back failed — the
+    // person has to know the message went out against nothing.
+    const [shareBanner, setShareBanner] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -347,16 +359,38 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
         }
     };
 
-    /**
-     * The list as it stands right now, in the shape the share modal sends —
-     * one composite photo per task that has both Antes and Después. A
-     * composite failure is skipped rather than thrown, so a bad photo never
-     * blocks the share, let alone Completar.
-     */
-    const buildShareData = async (): Promise<{ snapshot: ShiftShareSnapshot; photos: SharePhoto[] } | null> => {
-        if (!dia) return null;
+    // Builds each task's Antes|Después composite as soon as both photos exist,
+    // keyed by a signature of the two photo URLs so a "Repetir foto" retake
+    // rebuilds it. A composite failure is skipped rather than thrown, so a
+    // bad photo never blocks Completar.
+    useEffect(() => {
+        if (!dia) return;
+        let cancelled = false;
+        (async () => {
+            for (const section of dia.sections) {
+                for (const task of section.tasks) {
+                    const p = taskPhotos[task.id];
+                    if (!p?.antes || !p?.despues) continue;
+                    const sig = `${p.antes.url}|${p.despues.url}`;
+                    if (builtForRef.current[task.id] === sig) continue;
+                    try {
+                        const file = await buildTaskComposite(task.text, p.antes, p.despues);
+                        if (cancelled) return;
+                        builtForRef.current[task.id] = sig;
+                        setComposites(prev => ({ ...prev, [task.id]: file }));
+                    } catch (e) {
+                        console.error('No se pudo generar la foto compuesta:', task.text, e);
+                    }
+                }
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [dia, taskPhotos]);
 
-        const snapshot: ShiftShareSnapshot = {
+    /** The list as it stands right now, in the shape the share modal sends. */
+    const buildSnapshot = (): ShiftShareSnapshot | null => {
+        if (!dia) return null;
+        return {
             listType: 'LIMPIEZA',
             businessDate: dia.businessDate,
             sections: dia.sections.map(section => ({
@@ -370,44 +404,56 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                     .filter((n): n is string => !!n),
             })),
         };
-
-        const photos: SharePhoto[] = [];
-        for (const section of dia.sections) {
-            for (const task of section.tasks) {
-                const p = taskPhotos[task.id];
-                if (!p?.antes || !p?.despues) continue;
-                try {
-                    const file = await buildTaskComposite(task.text, p.antes, p.despues);
-                    photos.push({ id: task.id, file });
-                } catch (e) {
-                    console.error('No se pudo generar la foto compuesta:', task.text, e);
-                }
-            }
-        }
-
-        return { snapshot, photos };
     };
 
+    /**
+     * The one-button flow. iOS Safari refuses navigator.share unless it runs
+     * from the tap's own user activation, so nothing may be awaited before
+     * it: the composites are already built (see the effect above), the save
+     * starts and is held as a promise, the share fires immediately after,
+     * and only then is the save promise awaited.
+     */
     const handleComplete = async () => {
-        // Built first, from the state as it stands right now — anything read
-        // after the completion await is post-mutation, which is not what the
-        // user pressed the button on.
-        const data = await buildShareData();
-        if (!data) return;
+        const snapshot = buildSnapshot();
+        if (!snapshot || !sender) return;
+
+        const names = senderDisplayNames(staff);
+        const senderLabel = names.get(sender.id) ?? sender.name;
+        const texto = buildListaTexto(snapshot, senderLabel);
+        const photos: SharePhoto[] = Object.entries(composites).map(([id, file]) => ({ id, file }));
+        const files = photos.map(p => p.file);
 
         setIsCompleting(true);
         setActionError(null);
+        setShareBanner(null);
+
+        const savePromise = completeShiftRun('LIMPIEZA');
+
+        let shared = false;
         try {
-            const result = await completeShiftRun('LIMPIEZA');
+            if (navigator.share) {
+                const withFiles = files.length > 0 && !!navigator.canShare && navigator.canShare({ files });
+                await navigator.share(withFiles ? { files, text: texto } : { text: texto });
+                shared = true;
+            }
+        } catch {
+            // AbortError = the sheet was dismissed; any other share error is
+            // treated the same way — the save is still the source of truth.
+        }
+
+        try {
+            const result = await savePromise;
             if (!result.success) {
+                if (shared) { setShareBanner('Se compartió la lista pero NO se guardó. Vuelve a intentar.'); return; }
                 setActionError(result.error ?? 'No se pudo cerrar la lista.');
                 return;
             }
             setCompleted(true);
-            setShareData(data);
-            setShareModalOpen(true);
+            setShareData({ snapshot, photos });
+            if (shared) void marcarShiftCompartido('LIMPIEZA');
 
-            // The composites are already built; the in-memory originals are done.
+            // The composites are already sent (or ready for a manual retry);
+            // the in-memory originals are done.
             for (const p of Object.values(taskPhotosRef.current)) {
                 if (p.antes) URL.revokeObjectURL(p.antes.url);
                 if (p.despues) URL.revokeObjectURL(p.despues.url);
@@ -415,8 +461,11 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
             setTaskPhotos({});
             setPhotoError({});
             setPhotoBusy({});
+            setComposites({});
+            builtForRef.current = {};
         } catch (e) {
-            setActionError(e instanceof Error ? e.message : String(e));
+            if (shared) setShareBanner('Se compartió la lista pero NO se guardó. Vuelve a intentar.');
+            else setActionError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsCompleting(false);
         }
@@ -779,16 +828,28 @@ export default function LimpiezaView({ staff }: { staff: Staff[] }) {
                             </p>
                         )}
 
+                        <SenderPicker staff={staff} value={sender} onChange={setSender} label="¿Quién envía?" />
+
+                        {shareBanner && (
+                            <div style={{
+                                padding: '1rem 1.25rem', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600,
+                                color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                                border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)',
+                            }}>
+                                {shareBanner}
+                            </div>
+                        )}
+
                         <button
                             onClick={handleComplete}
-                            disabled={!everySectionStaffed || isCompleting}
+                            disabled={!everySectionStaffed || !sender || isCompleting}
                             className="btn-primary"
                             style={{
                                 alignSelf: 'flex-start',
                                 borderRadius: '10px', padding: '1rem 2rem', minHeight: '72px',
                                 fontSize: '1.25rem', fontWeight: 700,
-                                opacity: !everySectionStaffed || isCompleting ? 0.5 : 1,
-                                cursor: !everySectionStaffed || isCompleting ? 'not-allowed' : 'pointer'
+                                opacity: !everySectionStaffed || !sender || isCompleting ? 0.5 : 1,
+                                cursor: !everySectionStaffed || !sender || isCompleting ? 'not-allowed' : 'pointer'
                             }}
                         >
                             {isCompleting ? 'Guardando...' : 'Completar y compartir'}

@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { getCajaEsperado, createCajaCorte, type CajaEsperadoResult } from '@/app/actions/caja';
+import { toPng } from 'html-to-image';
+import { getCajaEsperado, createCajaCorte, marcarCajaCompartido, type CajaEsperadoResult } from '@/app/actions/caja';
 import { TOLERANCIA_CENTS, nivelFor } from '@/lib/cajaRules';
 import { formatMoney } from '@/lib/money';
+import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
+import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
+import CajaShareCapture, { type ShareCorteData, type ShareMovData } from './CajaShareCapture';
 import { NivelBadge, SinVerificar, PosibleTraslado, signedMoney, parseAmount } from './cajaUi';
 
 type Tipo = 'APERTURA' | 'RELEVO' | 'CIERRE';
@@ -33,9 +37,14 @@ type Comparison =
  * both boxes are typed and "Compare" is tapped, and at that point the
  * amounts lock so the comparison and the count stay the same numbers.
  */
-export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
+export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, movimientos, onClose, onSaved }: {
     tipo: Tipo;
     staff: Staff[];
+    /** For the CIERRE save-and-share preview: today's date and live movements. */
+    businessDate: string;
+    /** Best-known seq this corte will get, for the preview only — cosmetic. */
+    nextSeq: number;
+    movimientos: ShareMovData[];
     onClose: () => void;
     onSaved: (corteId: string) => void;
 }) {
@@ -49,6 +58,16 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
     const [signers, setSigners] = useState<Partial<Record<Rol, Staff>>>({});
     const [signatures, setSignatures] = useState<Partial<Record<Rol, SignatureValue | null>>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // CIERRE only: who sends the share, and the PNG built ahead of the tap so
+    // the share sheet can open from the tap's own user activation.
+    const [sender, setSender] = useState<Staff | null>(null);
+    const [shareFile, setShareFile] = useState<File | null>(null);
+    // Set only when the closing WAS shared but the save came back failed —
+    // the person has to know the message went out against nothing.
+    const [sharedButNotSaved, setSharedButNotSaved] = useState(false);
+    const captureRef = useRef<HTMLDivElement>(null);
+    const genTokenRef = useRef(0);
 
     const blancaCents = parseAmount(blancaStr);
     const negraCents = parseAmount(negraStr);
@@ -90,7 +109,72 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
         && (!needsComparison || (comparison.status === 'ready' && !sinApertura))
         && motivosOk
         && signersOk
+        && (tipo !== 'CIERRE' || sender !== null)
         && !busy;
+
+    // ── CIERRE save-and-share preview. Built the moment the comparison has
+    // been viewed and every signature is present, so the PNG is ready before
+    // the tap that needs it — iOS refuses a share sheet chained onto a save.
+    const showCaptureSurface = tipo === 'CIERRE' && comparison.status === 'ready' && !sinApertura && signersOk;
+
+    const names = senderDisplayNames(staff);
+    const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '';
+    const fechaLarga = formatBusinessDateEs(businessDateToUtcDate(businessDate));
+
+    const previewData: ShareCorteData | null = useMemo(() => {
+        if (!showCaptureSurface || blancaCents === null || negraCents === null) return null;
+        return {
+            seq: nextSeq,
+            at: new Date(),
+            lineas: [
+                {
+                    id: 'BLANCA', caja: 'BLANCA', contadoCents: blancaCents,
+                    esperadoCents: blancaEsperado, nivel: blancaNivel, diffCents: blancaDiff,
+                    motivo: motivos.BLANCA.trim() || null, movimientosCents: data?.movimientos.BLANCA ?? null,
+                },
+                {
+                    id: 'NEGRA', caja: 'NEGRA', contadoCents: negraCents,
+                    esperadoCents: negraEsperado, nivel: negraNivel, diffCents: negraDiff,
+                    motivo: motivos.NEGRA.trim() || null, movimientosCents: data?.movimientos.NEGRA ?? null,
+                },
+            ],
+            totalDiffCents: totalDiff,
+            totalNivel,
+            posibleTraslado,
+            firmas: SIGNERS[tipo].map(rol => {
+                const who = signers[rol]!;
+                const sig = signatures[rol]!;
+                return { id: rol, rol, employeeName: who.name, firmaPath: sig.path, firmaBox: sig.box, signedAt: new Date() };
+            }),
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        showCaptureSurface, blancaCents, negraCents, blancaEsperado, blancaDiff, blancaNivel,
+        negraEsperado, negraDiff, negraNivel, totalDiff, totalNivel, posibleTraslado,
+        motivos, signers, signatures, nextSeq, tipo, data,
+    ]);
+
+    // Regenerated whenever an input that appears in the capture changes. The
+    // effect runs after the DOM has committed the new previewData, so the
+    // offscreen node already reflects it by the time toPng reads it.
+    useEffect(() => {
+        if (!previewData) { setShareFile(null); return; }
+        const token = ++genTokenRef.current;
+        setShareFile(null);
+        (async () => {
+            if (!captureRef.current) return;
+            try {
+                const dataUrl = await toPng(captureRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+                if (genTokenRef.current !== token) return;
+                const blob = await (await fetch(dataUrl)).blob();
+                if (genTokenRef.current !== token) return;
+                setShareFile(new File([blob], `cierre-caja-${businessDate}.png`, { type: 'image/png' }));
+            } catch {
+                if (genTokenRef.current === token) setShareFile(null);
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [previewData, senderLabel, businessDate]);
 
     const runComparison = async () => {
         setComparison({ status: 'loading' });
@@ -107,24 +191,30 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
         setMotivos({ BLANCA: '', NEGRA: '' });
     };
 
+    const buildCorteInput = () => {
+        if (blancaCents === null || negraCents === null) return null;
+        return {
+            tipo,
+            lineas: [
+                { caja: 'BLANCA' as const, contadoCents: blancaCents, motivo: motivos.BLANCA.trim() || undefined },
+                { caja: 'NEGRA' as const, contadoCents: negraCents, motivo: motivos.NEGRA.trim() || undefined },
+            ],
+            firmas: SIGNERS[tipo].map(rol => {
+                const who = signers[rol]!;
+                const sig = signatures[rol]!;
+                return { rol, employeeId: who.id, employeeName: who.name, firmaPath: sig.path, firmaBox: sig.box };
+            }),
+            tabsConfirmadas: tipo === 'CIERRE' ? tabsConfirmadas : undefined,
+            notas: undefined,
+        };
+    };
+
     const handleSave = async () => {
-        if (!canSave || blancaCents === null || negraCents === null) return;
+        const input = buildCorteInput();
+        if (!canSave || !input) return;
         setIsSubmitting(true);
         try {
-            const result = await createCajaCorte({
-                tipo,
-                lineas: [
-                    { caja: 'BLANCA', contadoCents: blancaCents, motivo: motivos.BLANCA.trim() || undefined },
-                    { caja: 'NEGRA', contadoCents: negraCents, motivo: motivos.NEGRA.trim() || undefined },
-                ],
-                firmas: SIGNERS[tipo].map(rol => {
-                    const who = signers[rol]!;
-                    const sig = signatures[rol]!;
-                    return { rol, employeeId: who.id, employeeName: who.name, firmaPath: sig.path, firmaBox: sig.box };
-                }),
-                tabsConfirmadas: tipo === 'CIERRE' ? tabsConfirmadas : undefined,
-                notas: undefined,
-            });
+            const result = await createCajaCorte(input);
             if (!result.success || !result.corteId) {
                 // errorKey is a Caja message key; `error` is the server's own Spanish fallback.
                 alert(result.errorKey ? t(result.errorKey) : (result.error ?? t('save_failed')));
@@ -133,6 +223,49 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
             onSaved(result.corteId);
         } catch (e) {
             alert(e instanceof Error ? e.message : t('save_failed'));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    /**
+     * The one-button CIERRE flow. iOS Safari refuses navigator.share unless it
+     * runs from the tap's own user activation, so nothing may be awaited
+     * before it: the save starts and is held as a promise, the share fires
+     * immediately after with the File already built, and only then is the
+     * save promise awaited.
+     */
+    const handleSaveAndShare = async () => {
+        const input = buildCorteInput();
+        if (!canSave || !input || !shareFile) return;
+        setIsSubmitting(true);
+        setSharedButNotSaved(false);
+
+        const savePromise = createCajaCorte(input);
+
+        let shared = false;
+        try {
+            if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                await navigator.share({ files: [shareFile], title: `Cierre de Caja — ${fechaLarga}` });
+                shared = true;
+            }
+        } catch {
+            // AbortError = the sheet was dismissed; any other share error is
+            // treated the same way — the save is still the source of truth.
+        }
+
+        try {
+            const result = await savePromise;
+            if (!result.success || !result.corteId) {
+                if (shared) { setSharedButNotSaved(true); return; }
+                alert(result.errorKey ? t(result.errorKey) : (result.error ?? t('save_failed')));
+                return;
+            }
+            if (shared) void marcarCajaCompartido(result.corteId);
+            onSaved(result.corteId);
+        } catch (e) {
+            if (shared) setSharedButNotSaved(true);
+            else alert(e instanceof Error ? e.message : t('save_failed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -422,17 +555,55 @@ export default function CajaCorteModal({ tipo, staff, onClose, onSaved }: {
                 <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {sectionTitle(t('section_signatures'))}
                     {SIGNERS[tipo].map(signerBlock)}
+                    {tipo === 'CIERRE' && (
+                        <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
+                    )}
                 </section>
+
+                {sharedButNotSaved && (
+                    <div style={{
+                        padding: '1rem 1.25rem', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600,
+                        color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)',
+                    }}>
+                        {t('share_but_not_saved')}
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <button type="button" onClick={onClose} disabled={busy} className="btn-secondary" style={secondaryBtn}>
                         {t('cancel')}
                     </button>
-                    <button type="button" onClick={handleSave} disabled={!canSave} style={primaryBtn(!canSave)}>
-                        {isSubmitting ? t('saving') : t('save')}
-                    </button>
+                    {tipo === 'CIERRE' ? (
+                        <button
+                            type="button"
+                            onClick={handleSaveAndShare}
+                            disabled={!canSave || !shareFile}
+                            style={primaryBtn(!canSave || !shareFile)}
+                        >
+                            {isSubmitting ? t('saving') : !shareFile && canSave ? t('preparing') : t('save_and_share')}
+                        </button>
+                    ) : (
+                        <button type="button" onClick={handleSave} disabled={!canSave} style={primaryBtn(!canSave)}>
+                            {isSubmitting ? t('saving') : t('save')}
+                        </button>
+                    )}
                 </div>
             </div>
+
+            {/* Offscreen capture surface for the CIERRE share preview — not
+                display:none, which html-to-image cannot render. */}
+            {previewData && (
+                <div style={{ position: 'fixed', left: '-10000px', top: 0, pointerEvents: 'none' }} aria-hidden="true">
+                    <CajaShareCapture
+                        captureRef={captureRef}
+                        businessDate={businessDate}
+                        data={previewData}
+                        movimientos={movimientos}
+                        senderLabel={senderLabel}
+                    />
+                </div>
+            )}
         </div>
     );
 }

@@ -7,12 +7,13 @@ import { useAdmin } from '@/components/AdminContext';
 import { getWaitStaff, getWaitStaffForAdmin } from '@/app/actions/clover';
 import { getSalonStock, restockSalonItem, setStaffVisibility } from '@/app/actions/inventory';
 import {
-    getShiftList, toggleShiftTask, setShiftRunStaff, completeShiftRun,
+    getShiftList, toggleShiftTask, setShiftRunStaff, completeShiftRun, marcarShiftCompartido,
     getAllShiftSections, createShiftTask, updateShiftTask, deleteShiftTask,
     reorderShiftTask, createShiftSection, updateShiftSection,
     type ShiftListType
 } from '@/app/actions/shiftLists';
-import ShiftShareModal, { type ShiftShareSnapshot } from './ShiftShareModal';
+import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
+import ShiftShareModal, { buildListaTexto, type ShiftShareSnapshot } from './ShiftShareModal';
 import LimpiezaView from './LimpiezaView';
 
 type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
@@ -318,9 +319,18 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
 
     const [isCompleting, setIsCompleting] = useState(false);
     const [completed, setCompleted] = useState(false);
-    // What the share modal shows. Snapshotted before the completion await, so
-    // the refetch cannot change what the person pressed the button on.
+    // What the share modal shows, for a manual re-share from the completed
+    // banner. Snapshotted before that completion await, so the refetch cannot
+    // change what the person pressed the button on.
     const [shareSnapshot, setShareSnapshot] = useState<ShiftShareSnapshot | null>(null);
+
+    // Required before "Completar y compartir" — the one-button flow builds
+    // the text and fires the share itself, so ShiftShareModal's own picker is
+    // only reached from the retry button below.
+    const [sender, setSender] = useState<{ id: string; name: string } | null>(null);
+    // Set only when the list WAS shared but the save came back failed — the
+    // person has to know the message went out against nothing.
+    const [shareBanner, setShareBanner] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -407,26 +417,50 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
         };
     };
 
+    /**
+     * The one-button flow. iOS Safari refuses navigator.share unless it runs
+     * from the tap's own user activation, so nothing may be awaited before
+     * it: the save starts and is held as a promise, the share fires
+     * immediately after with the text already built, and only then is the
+     * save promise awaited.
+     */
     const handleComplete = async () => {
-        // Snapshot first, send second. Anything read after the await is
-        // post-mutation, which is not what the user pressed the button on.
         const snapshot = takeSnapshot();
-        if (!snapshot) return;
+        if (!snapshot || !sender) return;
+
+        const names = senderDisplayNames(staff);
+        const senderLabel = names.get(sender.id) ?? sender.name;
+        const texto = buildListaTexto(snapshot, senderLabel);
 
         setIsCompleting(true);
         setActionError(null);
+        setShareBanner(null);
+
+        const savePromise = completeShiftRun(listType);
+
+        let shared = false;
         try {
-            const result = await completeShiftRun(listType);
+            if (navigator.share) {
+                await navigator.share({ text: texto });
+                shared = true;
+            }
+        } catch {
+            // AbortError = the sheet was dismissed; any other share error is
+            // treated the same way — the save is still the source of truth.
+        }
+
+        try {
+            const result = await savePromise;
             if (!result.success) {
+                if (shared) { setShareBanner('Se compartió la lista pero NO se guardó. Vuelve a intentar.'); return; }
                 setActionError(result.error ?? 'No se pudo cerrar la lista.');
                 return;
             }
             setCompleted(true);
-            // Opens the modal only. The share sheet itself runs from the
-            // modal's button — iOS needs a direct tap for it.
-            setShareSnapshot(snapshot);
+            if (shared) void marcarShiftCompartido(listType);
         } catch (e) {
-            setActionError(e instanceof Error ? e.message : String(e));
+            if (shared) setShareBanner('Se compartió la lista pero NO se guardó. Vuelve a intentar.');
+            else setActionError(e instanceof Error ? e.message : String(e));
         } finally {
             setIsCompleting(false);
         }
@@ -586,16 +620,28 @@ function ShiftChecklist({ listType, staff, staffError, footer, onSelectedStaffCh
                     </p>
                 )}
 
+                <SenderPicker staff={staff} value={sender} onChange={setSender} label="¿Quién envía?" />
+
+                {shareBanner && (
+                    <div style={{
+                        padding: '1rem 1.25rem', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600,
+                        color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)',
+                    }}>
+                        {shareBanner}
+                    </div>
+                )}
+
                 <button
                     onClick={handleComplete}
-                    disabled={!everySectionStaffed || isCompleting}
+                    disabled={!everySectionStaffed || !sender || isCompleting}
                     className="btn-primary"
                     style={{
                         alignSelf: 'flex-start',
                         borderRadius: '10px', padding: '1rem 2rem', minHeight: '72px',
                         fontSize: '1.25rem', fontWeight: 700,
-                        opacity: !everySectionStaffed || isCompleting ? 0.5 : 1,
-                        cursor: !everySectionStaffed || isCompleting ? 'not-allowed' : 'pointer'
+                        opacity: !everySectionStaffed || !sender || isCompleting ? 0.5 : 1,
+                        cursor: !everySectionStaffed || !sender || isCompleting ? 'not-allowed' : 'pointer'
                     }}
                 >
                     {isCompleting ? 'Guardando...' : 'Completar y compartir'}
