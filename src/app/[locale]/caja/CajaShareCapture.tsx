@@ -6,6 +6,7 @@ import type { CajaNivel } from '@/lib/cajaRules';
 import { nyTime, signedMoney } from './cajaUi';
 
 type CajaBox = 'BLANCA' | 'NEGRA';
+type CajaCorteTipo = 'APERTURA' | 'RELEVO' | 'CIERRE';
 type CajaFirmaRol = 'APERTURA' | 'SALIENTE' | 'ENTRANTE' | 'CIERRE';
 type CajaMovimientoTipo = 'RETIRO' | 'COMPRA' | 'INGRESO';
 
@@ -18,6 +19,7 @@ type CajaMovimientoTipo = 'RETIRO' | 'COMPRA' | 'INGRESO';
  * will be when the pre-save preview is built.
  */
 export type ShareCorteData = {
+    tipo: CajaCorteTipo;
     seq: number;
     at: Date;
     lineas: {
@@ -25,6 +27,9 @@ export type ShareCorteData = {
         caja: CajaBox;
         contadoCents: number;
         esperadoCents: number | null;
+        /** NEGRA at RELEVO: unverified, `referenciaCents` is the estimate. */
+        esEstimado: boolean;
+        referenciaCents: number | null;
         nivel: CajaNivel | null;
         diffCents: number | null;
         motivo: string | null;
@@ -49,10 +54,14 @@ export type ShareMovData = {
  * group, whatever language the tablet is set to.
  */
 const ES = {
+    titulo: { APERTURA: 'Apertura de Caja', RELEVO: 'Relevo de Caja', CIERRE: 'Cierre de Caja' } as const,
     box: { BLANCA: 'Caja Blanca', NEGRA: 'Caja Negra' } as const,
     rol: { APERTURA: 'Apertura', SALIENTE: 'Sale', ENTRANTE: 'Entra', CIERRE: 'Cierre' } as const,
     mov: { RETIRO: 'Retiro', COMPRA: 'Compra', INGRESO: 'Ingreso de cambio' } as const,
     nivel: { OK: 'Cuadra', MENOR: 'Diferencia menor', DESCUADRE: 'DESCUADRE' } as const,
+    fondoInicial: 'Fondo inicial',
+    sinVerificar: 'Sin verificar',
+    refEstimada: 'Ref. estimada',
 };
 
 /**
@@ -68,6 +77,7 @@ const TONE = {
     OK: { bg: '#dcfce7', fg: '#166534' },
     MENOR: { bg: '#fef3c7', fg: '#92400e' },
     DESCUADRE: { bg: '#fee2e2', fg: '#991b1b' },
+    GREY: { bg: '#e5e7eb', fg: '#374151' },
 } as const;
 
 const movSigned = (m: ShareMovData) => (m.tipo === 'INGRESO' ? m.amountCents : -m.amountCents);
@@ -87,6 +97,7 @@ export default function CajaShareCapture({ captureRef, businessDate, data, movim
 }) {
     const lineas = [...data.lineas].sort((a, b) => a.caja.localeCompare(b.caja));
     const fechaLarga = formatBusinessDateEs(businessDateToUtcDate(businessDate));
+    const esApertura = data.tipo === 'APERTURA';
 
     const verdict = (nivel: CajaNivel, diff: number) => {
         const tone = TONE[nivel];
@@ -100,6 +111,15 @@ export default function CajaShareCapture({ captureRef, businessDate, data, movim
         );
     };
 
+    const greyChip = (text: string) => (
+        <span style={{
+            display: 'inline-block', padding: '0.2rem 0.6rem', borderRadius: '999px',
+            background: TONE.GREY.bg, color: TONE.GREY.fg, fontWeight: 600, fontSize: '0.9rem',
+        }}>
+            {text}
+        </span>
+    );
+
     return (
         <div
             ref={captureRef}
@@ -112,7 +132,7 @@ export default function CajaShareCapture({ captureRef, businessDate, data, movim
             }}
         >
             <div>
-                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: INK }}>Cierre de Caja — {fechaLarga}</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: INK }}>{ES.titulo[data.tipo]} — {fechaLarga}</div>
                 <div style={{ fontSize: '0.85rem', color: MUTED, marginTop: '0.15rem' }}>
                     Corte #{data.seq} · {nyTime(data.at)}
                 </div>
@@ -121,21 +141,28 @@ export default function CajaShareCapture({ captureRef, businessDate, data, movim
             {lineas.map(l => (
                 <div key={l.id} style={{ borderTop: `1px solid ${LINE}`, paddingTop: '0.7rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                     <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>{ES.box[l.caja]}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: esApertura ? '1fr 1.4fr' : '1fr 1fr 1.4fr', gap: '0.5rem', alignItems: 'center' }}>
                         <div>
                             <div style={{ fontSize: '0.75rem', color: MUTED }}>Contado</div>
                             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>{formatMoney(l.contadoCents)}</div>
                         </div>
-                        <div>
-                            <div style={{ fontSize: '0.75rem', color: MUTED }}>Esperado</div>
-                            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>
-                                {l.esperadoCents === null ? '—' : formatMoney(l.esperadoCents)}
+                        {!esApertura && (
+                            <div>
+                                <div style={{ fontSize: '0.75rem', color: MUTED }}>Esperado</div>
+                                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: INK }}>
+                                    {l.esEstimado
+                                        ? `${ES.refEstimada} ${l.referenciaCents === null ? '—' : formatMoney(l.referenciaCents)}`
+                                        : l.esperadoCents === null ? '—' : formatMoney(l.esperadoCents)}
+                                </div>
                             </div>
-                        </div>
+                        )}
                         <div>
-                            <div style={{ fontSize: '0.75rem', color: MUTED }}>Diferencia</div>
+                            {!esApertura && <div style={{ fontSize: '0.75rem', color: MUTED }}>Diferencia</div>}
                             <div style={{ marginTop: '0.15rem' }}>
-                                {l.nivel !== null && l.diffCents !== null ? verdict(l.nivel, l.diffCents) : <span style={{ color: MUTED }}>—</span>}
+                                {esApertura ? greyChip(ES.fondoInicial)
+                                    : l.esEstimado ? greyChip(ES.sinVerificar)
+                                        : l.nivel !== null && l.diffCents !== null ? verdict(l.nivel, l.diffCents)
+                                            : <span style={{ color: MUTED }}>—</span>}
                             </div>
                         </div>
                     </div>

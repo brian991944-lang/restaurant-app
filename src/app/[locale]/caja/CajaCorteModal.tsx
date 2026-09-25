@@ -124,17 +124,20 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
     const previewData: ShareCorteData | null = useMemo(() => {
         if (!showCaptureSurface || blancaCents === null || negraCents === null) return null;
         return {
+            tipo,
             seq: nextSeq,
             at: new Date(),
             lineas: [
                 {
                     id: 'BLANCA', caja: 'BLANCA', contadoCents: blancaCents,
-                    esperadoCents: blancaEsperado, nivel: blancaNivel, diffCents: blancaDiff,
+                    esperadoCents: blancaEsperado, esEstimado: false, referenciaCents: null,
+                    nivel: blancaNivel, diffCents: blancaDiff,
                     motivo: motivos.BLANCA.trim() || null, movimientosCents: data?.movimientos.BLANCA ?? null,
                 },
                 {
                     id: 'NEGRA', caja: 'NEGRA', contadoCents: negraCents,
-                    esperadoCents: negraEsperado, nivel: negraNivel, diffCents: negraDiff,
+                    esperadoCents: negraEsperado, esEstimado: !negraFirm, referenciaCents: negraEsperado,
+                    nivel: negraNivel, diffCents: negraDiff,
                     motivo: motivos.NEGRA.trim() || null, movimientosCents: data?.movimientos.NEGRA ?? null,
                 },
             ],

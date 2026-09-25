@@ -14,6 +14,9 @@ type Corte = Dia['cortes'][number];
 type Mov = Dia['movimientos'][number];
 type Staff = { id: string; name: string };
 
+const TITULO: Record<Corte['tipo'], string> = { APERTURA: 'Apertura de Caja', RELEVO: 'Relevo de Caja', CIERRE: 'Cierre de Caja' };
+const FILE_PREFIX: Record<Corte['tipo'], string> = { APERTURA: 'apertura-caja', RELEVO: 'relevo-caja', CIERRE: 'cierre-caja' };
+
 /**
  * Share the day's closing as one image: both boxes with their verdicts, the
  * movements, the total, and every signature — signatures only exist as
@@ -41,10 +44,12 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
     const fechaLarga = formatBusinessDateEs(businessDateToUtcDate(businessDate));
 
     const shareData: ShareCorteData = {
+        tipo: corte.tipo,
         seq: corte.seq,
         at: corte.at,
         lineas: corte.lineas.map(l => ({
             id: l.id, caja: l.caja, contadoCents: l.contadoCents, esperadoCents: l.esperadoCents,
+            esEstimado: l.esEstimado, referenciaCents: l.referenciaCents,
             nivel: l.nivel, diffCents: l.diffCents, motivo: l.motivo, movimientosCents: l.movimientosCents,
         })),
         totalDiffCents: corte.totalDiffCents,
@@ -70,10 +75,10 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
                 cacheBust: true,
             });
             const blob = await (await fetch(dataUrl)).blob();
-            const file = new File([blob], `cierre-caja-${businessDate}.png`, { type: 'image/png' });
+            const file = new File([blob], `${FILE_PREFIX[corte.tipo]}-${businessDate}.png`, { type: 'image/png' });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({ files: [file], title: `Cierre de Caja — ${fechaLarga}` });
+                await navigator.share({ files: [file], title: `${TITULO[corte.tipo]} — ${fechaLarga}` });
             } else {
                 // Desktop fallback: download the PNG.
                 const a = document.createElement('a');
