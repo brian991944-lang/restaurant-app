@@ -784,10 +784,10 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                     movimientos={dia.movimientos.filter(m => m.anuladoAt === null)}
                     onClose={() => setModalTipo(null)}
                     onSaved={async () => {
-                        // For CIERRE, sharing already happened (or was declined)
-                        // inside the modal's own save-and-share button — this
-                        // callback only ever closes and reloads. Retries go
-                        // through the closing card's own Share button.
+                        // Sharing already happened (or was declined) inside the
+                        // modal's own save-and-share button, for every tipo —
+                        // this callback only ever closes and reloads. Retries go
+                        // through the card's own Share button.
                         setModalTipo(null);
                         await reloadAll();
                     }}

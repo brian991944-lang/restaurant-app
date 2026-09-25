@@ -26,6 +26,10 @@ const SIGNERS: Record<Tipo, Rol[]> = {
     CIERRE: ['CIERRE'],
 };
 
+/** The captured content is always Spanish; only the modal chrome is translated. */
+const TITULO: Record<Tipo, string> = { APERTURA: 'Apertura de Caja', RELEVO: 'Relevo de Caja', CIERRE: 'Cierre de Caja' };
+const FILE_PREFIX: Record<Tipo, string> = { APERTURA: 'apertura-caja', RELEVO: 'relevo-caja', CIERRE: 'cierre-caja' };
+
 type Comparison =
     | { status: 'idle' }
     | { status: 'loading' }
@@ -40,7 +44,7 @@ type Comparison =
 export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, movimientos, onClose, onSaved }: {
     tipo: Tipo;
     staff: Staff[];
-    /** For the CIERRE save-and-share preview: today's date and live movements. */
+    /** For the save-and-share preview: today's date and live movements. */
     businessDate: string;
     /** Best-known seq this corte will get, for the preview only — cosmetic. */
     nextSeq: number;
@@ -59,8 +63,8 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
     const [signatures, setSignatures] = useState<Partial<Record<Rol, SignatureValue | null>>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // CIERRE only: who sends the share, and the PNG built ahead of the tap so
-    // the share sheet can open from the tap's own user activation.
+    // Every tipo shares on save now: who sends it, and the PNG built ahead of
+    // the tap so the share sheet can open from the tap's own user activation.
     const [sender, setSender] = useState<Staff | null>(null);
     const [shareFile, setShareFile] = useState<File | null>(null);
     // Set only when the closing WAS shared but the save came back failed —
@@ -109,13 +113,16 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
         && (!needsComparison || (comparison.status === 'ready' && !sinApertura))
         && motivosOk
         && signersOk
-        && (tipo !== 'CIERRE' || sender !== null)
+        && sender !== null
         && !busy;
 
-    // ── CIERRE save-and-share preview. Built the moment the comparison has
-    // been viewed and every signature is present, so the PNG is ready before
-    // the tap that needs it — iOS refuses a share sheet chained onto a save.
-    const showCaptureSurface = tipo === 'CIERRE' && comparison.status === 'ready' && !sinApertura && signersOk;
+    // ── Save-and-share preview, every tipo. Built the moment the count is
+    // complete for that tipo — APERTURA has no comparison to wait on, so its
+    // count alone is enough — and every signature is present, so the PNG is
+    // ready before the tap that needs it: iOS refuses a share sheet chained
+    // onto a save.
+    const countComplete = tipo === 'APERTURA' ? countsValid : (comparison.status === 'ready' && !sinApertura);
+    const showCaptureSurface = countComplete && signersOk;
 
     const names = senderDisplayNames(staff);
     const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '';
@@ -171,7 +178,7 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
                 if (genTokenRef.current !== token) return;
                 const blob = await (await fetch(dataUrl)).blob();
                 if (genTokenRef.current !== token) return;
-                setShareFile(new File([blob], `cierre-caja-${businessDate}.png`, { type: 'image/png' }));
+                setShareFile(new File([blob], `${FILE_PREFIX[tipo]}-${businessDate}.png`, { type: 'image/png' }));
             } catch {
                 if (genTokenRef.current === token) setShareFile(null);
             }
@@ -212,31 +219,12 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
         };
     };
 
-    const handleSave = async () => {
-        const input = buildCorteInput();
-        if (!canSave || !input) return;
-        setIsSubmitting(true);
-        try {
-            const result = await createCajaCorte(input);
-            if (!result.success || !result.corteId) {
-                // errorKey is a Caja message key; `error` is the server's own Spanish fallback.
-                alert(result.errorKey ? t(result.errorKey) : (result.error ?? t('save_failed')));
-                return;
-            }
-            onSaved(result.corteId);
-        } catch (e) {
-            alert(e instanceof Error ? e.message : t('save_failed'));
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
     /**
-     * The one-button CIERRE flow. iOS Safari refuses navigator.share unless it
-     * runs from the tap's own user activation, so nothing may be awaited
-     * before it: the save starts and is held as a promise, the share fires
-     * immediately after with the File already built, and only then is the
-     * save promise awaited.
+     * The one-button flow, every tipo. iOS Safari refuses navigator.share
+     * unless it runs from the tap's own user activation, so nothing may be
+     * awaited before it: the save starts and is held as a promise, the share
+     * fires immediately after with the File already built, and only then is
+     * the save promise awaited. There is no path that saves without sharing.
      */
     const handleSaveAndShare = async () => {
         const input = buildCorteInput();
@@ -249,7 +237,7 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
         let shared = false;
         try {
             if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
-                await navigator.share({ files: [shareFile], title: `Cierre de Caja — ${fechaLarga}` });
+                await navigator.share({ files: [shareFile], title: `${TITULO[tipo]} — ${fechaLarga}` });
                 shared = true;
             }
         } catch {
@@ -558,9 +546,7 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
                 <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {sectionTitle(t('section_signatures'))}
                     {SIGNERS[tipo].map(signerBlock)}
-                    {tipo === 'CIERRE' && (
-                        <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
-                    )}
+                    <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
                 </section>
 
                 {sharedButNotSaved && (
@@ -577,24 +563,18 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
                     <button type="button" onClick={onClose} disabled={busy} className="btn-secondary" style={secondaryBtn}>
                         {t('cancel')}
                     </button>
-                    {tipo === 'CIERRE' ? (
-                        <button
-                            type="button"
-                            onClick={handleSaveAndShare}
-                            disabled={!canSave || !shareFile}
-                            style={primaryBtn(!canSave || !shareFile)}
-                        >
-                            {isSubmitting ? t('saving') : !shareFile && canSave ? t('preparing') : t('save_and_share')}
-                        </button>
-                    ) : (
-                        <button type="button" onClick={handleSave} disabled={!canSave} style={primaryBtn(!canSave)}>
-                            {isSubmitting ? t('saving') : t('save')}
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={handleSaveAndShare}
+                        disabled={!canSave || !shareFile}
+                        style={primaryBtn(!canSave || !shareFile)}
+                    >
+                        {isSubmitting ? t('saving') : !shareFile && canSave ? t('preparing') : t('save_and_share')}
+                    </button>
                 </div>
             </div>
 
-            {/* Offscreen capture surface for the CIERRE share preview — not
+            {/* Offscreen capture surface for the save-and-share preview — not
                 display:none, which html-to-image cannot render. */}
             {previewData && (
                 <div style={{ position: 'fixed', left: '-10000px', top: 0, pointerEvents: 'none' }} aria-hidden="true">
