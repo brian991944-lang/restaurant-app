@@ -20,6 +20,28 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Environment variables
+
+Copy `.env.example` to `.env.local` for local development. In production these are set in the Vercel dashboard.
+
+| Variable | Required | Used by |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | Prisma (pooled Postgres connection) |
+| `DIRECT_URL` | yes | Prisma migrations (direct Postgres connection) |
+| `NEXT_PUBLIC_SUPABASE_URL` | yes | Supabase client |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | Supabase client (publishable key) |
+| `CLOVER_MERCHANT_ID` | yes | Clover POS sync |
+| `CLOVER_API_TOKEN` | yes | Clover POS sync |
+| `GOOGLE_PLACES_API_KEY` | for `/api/public/reviews` | Google Places API (New) Place Details. Server-only; never logged or returned. Without it the route answers `503`. |
+| `GOOGLE_PLACE_ID` | no | Overrides the default Fusionista place id for `/api/public/reviews`. |
+
+## Public API (website feeds)
+
+Read-only, CORS-allowlisted for the Squarespace site. Nothing intercepts `/api/public/*` (the next-intl middleware matcher and the admin cookie gate only cover pages).
+
+- `GET /api/public/menu` — current menu, grouped by section.
+- `GET /api/public/reviews` — up to five recent five-star Google reviews plus overall rating and count. Google is fetched at most every six hours; the CDN caches for an hour.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
