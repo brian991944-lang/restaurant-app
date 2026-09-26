@@ -3,32 +3,27 @@
 import { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toPng } from 'html-to-image';
-import { getCajaDia, marcarCajaCompartido } from '@/app/actions/caja';
-import { nivelFor } from '@/lib/cajaRules';
+import { getCajaDia } from '@/app/actions/caja';
 import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
-import CajaShareCapture, { type ShareCorteData, type ShareMovData } from './CajaShareCapture';
+import CajaMovimientoCapture, { type ShareMovimientoData } from './CajaMovimientoCapture';
 
 type Dia = Awaited<ReturnType<typeof getCajaDia>>;
-type Corte = Dia['cortes'][number];
 type Mov = Dia['movimientos'][number];
 type Staff = { id: string; name: string };
 
-const TITULO: Record<Corte['tipo'], string> = { APERTURA: 'Apertura de Caja', RELEVO: 'Relevo de Caja', CIERRE: 'Cierre de Caja' };
-const FILE_PREFIX: Record<Corte['tipo'], string> = { APERTURA: 'apertura-caja', RELEVO: 'relevo-caja', CIERRE: 'cierre-caja' };
-
 /**
- * Share the day's closing as one image: both boxes with their verdicts, the
- * movements, the total, and every signature — signatures only exist as
- * pictures, which is why this is an image and the shift lists are text.
+ * Re-share a saved movimiento, reached from its timeline card's Share button
+ * when the original save-and-share attempt was dismissed or failed. No
+ * esperado snapshot survives on a CajaMovimiento row — unlike a CajaCorte
+ * line, it keeps none — so a retry's capture never shows the box's expected
+ * amount after; only the original, pre-save capture had that available.
  *
  * Plain inline modal, deliberately: no glass-panel, no backdrop-filter, no
  * transform anywhere inside, because html-to-image renders none of those.
  */
-export default function CajaShareModal({ corte, movimientos, businessDate, staff, onClose }: {
-    corte: Corte;
-    /** The day's live movements, oldest first. */
-    movimientos: Mov[];
+export default function CajaMovimientoShareModal({ mov, businessDate, staff, onClose }: {
+    mov: Mov;
     businessDate: string;
     staff: Staff[];
     onClose: () => void;
@@ -40,28 +35,13 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
 
     const names = senderDisplayNames(staff);
     const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '';
-
     const fechaLarga = formatBusinessDateEs(businessDateToUtcDate(businessDate));
 
-    const shareData: ShareCorteData = {
-        tipo: corte.tipo,
-        seq: corte.seq,
-        at: corte.at,
-        lineas: corte.lineas.map(l => ({
-            id: l.id, caja: l.caja, contadoCents: l.contadoCents, esperadoCents: l.esperadoCents,
-            esEstimado: l.esEstimado, referenciaCents: l.referenciaCents,
-            nivel: l.nivel, diffCents: l.diffCents, motivo: l.motivo, movimientosCents: l.movimientosCents,
-        })),
-        totalDiffCents: corte.totalDiffCents,
-        totalNivel: corte.totalDiffCents === null ? null : nivelFor(corte.totalDiffCents, corte.toleranciaCents),
-        posibleTraslado: corte.posibleTraslado,
-        firmas: corte.firmas.map(f => ({
-            id: f.id, rol: f.rol, employeeName: f.employeeName, firmaPath: f.firmaPath, firmaBox: f.firmaBox, signedAt: f.signedAt,
-        })),
+    const shareData: ShareMovimientoData = {
+        tipo: mov.tipo, caja: mov.caja, amountCents: mov.amountCents, descripcion: mov.descripcion,
+        expectedAfterCents: null,
+        firma: { employeeName: mov.employeeName, firmaPath: mov.firmaPath, firmaBox: mov.firmaBox, signedAt: mov.at },
     };
-    const shareMovs: ShareMovData[] = movimientos.map(m => ({
-        id: m.id, tipo: m.tipo, caja: m.caja, amountCents: m.amountCents, descripcion: m.descripcion,
-    }));
 
     // Runs from the button's own tap. iOS refuses a share sheet that is not
     // opened by a direct user gesture, so nothing here is chained to a save.
@@ -75,10 +55,10 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
                 cacheBust: true,
             });
             const blob = await (await fetch(dataUrl)).blob();
-            const file = new File([blob], `${FILE_PREFIX[corte.tipo]}-${businessDate}.png`, { type: 'image/png' });
+            const file = new File([blob], `movimiento-caja-${businessDate}.png`, { type: 'image/png' });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({ files: [file], title: `${TITULO[corte.tipo]} — ${fechaLarga}` });
+                await navigator.share({ files: [file], title: `Movimiento de Caja — ${fechaLarga}` });
             } else {
                 // Desktop fallback: download the PNG.
                 const a = document.createElement('a');
@@ -86,12 +66,10 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
                 a.download = file.name;
                 a.click();
             }
-            // Best effort, never blocks: the share already happened.
-            void marcarCajaCompartido(corte.id);
         } catch (err) {
             // AbortError = the share sheet was dismissed; that is not a failure.
             if ((err as Error).name !== 'AbortError') {
-                console.error('Error al compartir el cierre:', err);
+                console.error('Error al compartir el movimiento:', err);
                 alert(t('share_failed'));
             }
         } finally {
@@ -118,28 +96,24 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
                 }}
             >
                 <h2 style={{ margin: 0, padding: '1.25rem 1.5rem 0.75rem', fontSize: '1.4rem', color: 'var(--text-primary)' }}>
-                    {t(`share_title_${corte.tipo}`)}
+                    {t('share_title_MOVIMIENTO')}
                 </h2>
 
                 <div style={{ overflowY: 'auto', padding: '0 1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-
-                    {/* Sender — outside the capture ref; the picker marks itself data-no-capture too. */}
                     <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
                     {staff.length === 0 && (
-                        <span data-no-capture="true" style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
                     )}
 
-                    {/* Capture surface — shared with CajaCorteModal's save-and-share preview. */}
-                    <CajaShareCapture
+                    <CajaMovimientoCapture
                         captureRef={captureRef}
                         businessDate={businessDate}
                         data={shareData}
-                        movimientos={shareMovs}
                         senderLabel={senderLabel}
                     />
                 </div>
 
-                <div data-no-capture="true" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', padding: '0.75rem 1.5rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap', padding: '0.75rem 1.5rem 1.25rem', borderTop: '1px solid var(--border)' }}>
                     {!sender && (
                         <span style={{ alignSelf: 'center', marginRight: 'auto', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{t('share_pick_sender')}</span>
                     )}

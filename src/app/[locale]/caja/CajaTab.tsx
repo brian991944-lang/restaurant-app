@@ -14,6 +14,7 @@ import { DatePicker } from '@/components/ui/DatePicker';
 import CajaCorteModal from './CajaCorteModal';
 import CajaMovimientoModal from './CajaMovimientoModal';
 import CajaShareModal from './CajaShareModal';
+import CajaMovimientoShareModal from './CajaMovimientoShareModal';
 import {
     Chip, NivelBadge, SinVerificar, FondoInicial, PosibleTraslado,
     nyTime, longDate, signedMoney, shiftBusinessDate,
@@ -281,9 +282,10 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     const [live, setLive] = useState<Live>({ status: 'loading' });
     const [modalTipo, setModalTipo] = useState<Tipo | null>(null);
     const [movModalOpen, setMovModalOpen] = useState(false);
-    // The closing being shared: opens on its own after a CIERRE saves, and
-    // again from the card's Share button if the first attempt failed.
+    // Retry shares, reached from a timeline card's Share button when the
+    // original save-and-share attempt was dismissed or failed.
     const [shareCorteId, setShareCorteId] = useState<string | null>(null);
+    const [shareMovId, setShareMovId] = useState<string | null>(null);
 
     // One inline void form at a time; the id is a corte's or a movimiento's.
     const [anulando, setAnulando] = useState<{ kind: 'corte' | 'mov'; id: string } | null>(null);
@@ -505,12 +507,17 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         </div>
     );
 
-    /** Today's timeline carries void and share controls; history is read-only. */
+    /**
+     * Today's timeline carries void and share controls; history is
+     * read-only. Every non-voided count and movement shares now, so every
+     * non-voided card gets a Share button — the retry path for whichever
+     * one's original save-and-share attempt was dismissed or failed.
+     */
     const renderTimeline = (entries: Entry[], withVoid: boolean) => entries.map(e => {
         if (e.kind === 'corte') {
             const c = e.corte;
             const canVoid = withVoid && isAdmin && c.anuladoAt === null && ultimoActivo?.id === c.id;
-            const canShare = withVoid && c.tipo === 'CIERRE' && c.anuladoAt === null;
+            const canShare = withVoid && c.anuladoAt === null;
             const open = anulando?.kind === 'corte' && anulando.id === c.id;
             const actions = (canShare || (canVoid && !open)) ? (
                 <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
@@ -533,12 +540,23 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         }
         const m = e.mov;
         const canVoid = withVoid && isAdmin && m.anuladoAt === null;
+        const canShare = withVoid && m.anuladoAt === null;
         const open = anulando?.kind === 'mov' && anulando.id === m.id;
+        const actions = (canShare || (canVoid && !open)) ? (
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                {canShare && (
+                    <button type="button" onClick={() => setShareMovId(m.id)} className="btn-secondary" style={secondaryBtn}>
+                        {t('share_button')}
+                    </button>
+                )}
+                {canVoid && !open && voidButton('mov', m.id)}
+            </div>
+        ) : null;
         return (
             <MovimientoCard
                 key={m.id}
                 mov={m}
-                headerAction={canVoid && !open ? voidButton('mov', m.id) : null}
+                headerAction={actions}
                 footer={open ? voidForm : null}
             />
         );
@@ -807,9 +825,22 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                 ) : null;
             })()}
 
+            {shareMovId && (() => {
+                const mov = dia.movimientos.find(m => m.id === shareMovId);
+                return mov ? (
+                    <CajaMovimientoShareModal
+                        mov={mov}
+                        businessDate={dia.businessDate}
+                        staff={staff}
+                        onClose={() => setShareMovId(null)}
+                    />
+                ) : null;
+            })()}
+
             {movModalOpen && (
                 <CajaMovimientoModal
                     staff={staff}
+                    businessDate={dia.businessDate}
                     onClose={() => setMovModalOpen(false)}
                     onSaved={async () => {
                         setMovModalOpen(false);

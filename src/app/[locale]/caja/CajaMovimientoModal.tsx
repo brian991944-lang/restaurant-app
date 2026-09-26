@@ -1,11 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
+import { toPng } from 'html-to-image';
 import { useAdmin } from '@/components/AdminContext';
 import { createCajaMovimiento, getCajaEsperado, type CajaEsperadoResult } from '@/app/actions/caja';
 import { formatMoney } from '@/lib/money';
+import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
+import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
+import CajaMovimientoCapture, { type ShareMovimientoData } from './CajaMovimientoCapture';
 import { parseAmount } from './cajaUi';
 
 type Tipo = 'RETIRO' | 'COMPRA' | 'INGRESO';
@@ -33,8 +37,10 @@ function expectedFor(caja: Box, data: EsperadoOk): number | null {
  * signature a count takes. RETIRO is only offered to an admin; the server
  * enforces that again.
  */
-export default function CajaMovimientoModal({ staff, onClose, onSaved }: {
+export default function CajaMovimientoModal({ staff, businessDate, onClose, onSaved }: {
     staff: Staff[];
+    /** For the save-and-share preview: today's date, for the capture's title and filename. */
+    businessDate: string;
     onClose: () => void;
     onSaved: (movimientoId: string) => void;
 }) {
@@ -52,10 +58,22 @@ export default function CajaMovimientoModal({ staff, onClose, onSaved }: {
     const [signature, setSignature] = useState<SignatureValue | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Fetched once, the moment RETIRO is picked — both boxes come back in the
-    // one call, so a later box switch never needs a second round-trip.
+    // Who sends the share, and the PNG built ahead of the tap so the share
+    // sheet can open from the tap's own user activation.
+    const [sender, setSender] = useState<Staff | null>(null);
+    const [shareFile, setShareFile] = useState<File | null>(null);
+    // Set only when the movement WAS shared but the save came back failed —
+    // the person has to know the message went out against nothing.
+    const [sharedButNotSaved, setSharedButNotSaved] = useState(false);
+    const captureRef = useRef<HTMLDivElement>(null);
+    const genTokenRef = useRef(0);
+
+    // Fetched once, the moment any type is picked — both boxes come back in
+    // the one call, so a later box or type switch never needs a second
+    // round-trip. RETIRO's "left in the box" mode needs it to convert; every
+    // type needs it for the capture's "should be in the box now" line.
     useEffect(() => {
-        if (tipo !== 'RETIRO' || esperado.status !== 'idle') return;
+        if (tipo === null || esperado.status !== 'idle') return;
         setEsperado({ status: 'loading' });
         getCajaEsperado()
             .then(r => setEsperado(r.success ? { status: 'ready', data: r } : { status: 'error' }))
@@ -104,34 +122,106 @@ export default function CajaMovimientoModal({ staff, onClose, onSaved }: {
 
     const amountInvalid = !usesRemaining && amountStr.trim() !== '' && (amountCents === null || amountCents <= 0);
     const remainingInvalid = usesRemaining && remainingStr.trim() !== '' && typedRemainingCents === null;
-    const canSave = tipo !== null
+
+    // Every field the record needs, independent of the sender and of
+    // isSubmitting — this is also exactly what the capture is ready to be
+    // built from, so it is not re-gated separately below.
+    const readyToSave = tipo !== null
         && caja !== null
         && amountCents !== null && amountCents > 0
         && (!usesRemaining || remainingAvailable)
         && descripcion.trim().length > 0
         && signer !== null
-        && signature !== null
-        && !isSubmitting;
+        && signature !== null;
+    const canSave = readyToSave && sender !== null && !isSubmitting;
+    const showCaptureSurface = readyToSave && sender !== null;
 
-    const handleSave = async () => {
-        if (!canSave || !tipo || !caja || amountCents === null || !signer || !signature) return;
+    const names = senderDisplayNames(staff);
+    const senderLabel = sender ? (names.get(sender.id) ?? sender.name) : '';
+    const fechaLarga = formatBusinessDateEs(businessDateToUtcDate(businessDate));
+
+    // The movement's own sign, so "expected after" reflects what this record
+    // will do to the box: INGRESO adds, RETIRO and COMPRA subtract.
+    const movSignedAmount = amountCents !== null ? (tipo === 'INGRESO' ? amountCents : -amountCents) : null;
+    const expectedAfterCents = expectedCents !== null && movSignedAmount !== null ? expectedCents + movSignedAmount : null;
+
+    const previewMovData: ShareMovimientoData | null = useMemo(() => {
+        if (!showCaptureSurface || tipo === null || caja === null || amountCents === null || !signer || !signature) return null;
+        return {
+            tipo, caja, amountCents,
+            descripcion: descripcion.trim(),
+            expectedAfterCents,
+            firma: { employeeName: signer.name, firmaPath: signature.path, firmaBox: signature.box, signedAt: new Date() },
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showCaptureSurface, tipo, caja, amountCents, descripcion, signer, signature, expectedAfterCents]);
+
+    // Regenerated whenever an input that appears in the capture changes. The
+    // effect runs after the DOM has committed the new previewMovData, so the
+    // offscreen node already reflects it by the time toPng reads it.
+    useEffect(() => {
+        if (!previewMovData) { setShareFile(null); return; }
+        const token = ++genTokenRef.current;
+        setShareFile(null);
+        (async () => {
+            if (!captureRef.current) return;
+            try {
+                const dataUrl = await toPng(captureRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+                if (genTokenRef.current !== token) return;
+                const blob = await (await fetch(dataUrl)).blob();
+                if (genTokenRef.current !== token) return;
+                setShareFile(new File([blob], `movimiento-caja-${businessDate}.png`, { type: 'image/png' }));
+            } catch {
+                if (genTokenRef.current === token) setShareFile(null);
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [previewMovData, senderLabel, businessDate]);
+
+    /**
+     * The one-button flow. iOS Safari refuses navigator.share unless it runs
+     * from the tap's own user activation, so nothing may be awaited before
+     * it: the save starts and is held as a promise, the share fires
+     * immediately after with the File already built, and only then is the
+     * save promise awaited. There is no path that saves without sharing.
+     */
+    const handleSaveAndShare = async () => {
+        if (!canSave || !tipo || !caja || amountCents === null || !signer || !signature || !shareFile) return;
         setIsSubmitting(true);
+        setSharedButNotSaved(false);
+
+        const savePromise = createCajaMovimiento({
+            caja, tipo, amountCents,
+            descripcion: descripcion.trim(),
+            employeeId: signer.id,
+            employeeName: signer.name,
+            firmaPath: signature.path,
+            firmaBox: signature.box,
+        });
+
+        let shared = false;
         try {
-            const result = await createCajaMovimiento({
-                caja, tipo, amountCents,
-                descripcion: descripcion.trim(),
-                employeeId: signer.id,
-                employeeName: signer.name,
-                firmaPath: signature.path,
-                firmaBox: signature.box,
-            });
+            if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                await navigator.share({ files: [shareFile], title: `Movimiento de Caja — ${fechaLarga}` });
+                shared = true;
+            }
+        } catch {
+            // AbortError = the sheet was dismissed; any other share error is
+            // treated the same way — the save is still the source of truth.
+        }
+
+        try {
+            const result = await savePromise;
             if (!result.success || !result.movimientoId) {
+                if (shared) { setSharedButNotSaved(true); return; }
                 alert(result.errorKey ? t(result.errorKey) : (result.error ?? t('movement_save_failed')));
                 return;
             }
+            // Nothing to mark: CajaMovimiento keeps no shareAttemptedAt field.
             onSaved(result.movimientoId);
         } catch (e) {
-            alert(e instanceof Error ? e.message : t('movement_save_failed'));
+            if (shared) setSharedButNotSaved(true);
+            else alert(e instanceof Error ? e.message : t('movement_save_failed'));
         } finally {
             setIsSubmitting(false);
         }
@@ -329,15 +419,45 @@ export default function CajaMovimientoModal({ staff, onClose, onSaved }: {
                     )}
                 </div>
 
+                <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
+
+                {sharedButNotSaved && (
+                    <div style={{
+                        padding: '1rem 1.25rem', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600,
+                        color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                        border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)',
+                    }}>
+                        {t('share_but_not_saved')}
+                    </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <button type="button" onClick={onClose} disabled={isSubmitting} className="btn-secondary" style={secondaryBtn}>
                         {t('cancel')}
                     </button>
-                    <button type="button" onClick={handleSave} disabled={!canSave} style={primaryBtn(!canSave)}>
-                        {isSubmitting ? t('saving') : t('save_movement')}
+                    <button
+                        type="button"
+                        onClick={handleSaveAndShare}
+                        disabled={!canSave || !shareFile}
+                        style={primaryBtn(!canSave || !shareFile)}
+                    >
+                        {isSubmitting ? t('saving') : !shareFile && canSave ? t('preparing') : t('save_and_share')}
                     </button>
                 </div>
             </div>
+
+            {/* Offscreen capture surface for the save-and-share preview — not
+                display:none, which html-to-image cannot render. */}
+            {previewMovData && (
+                <div style={{ position: 'fixed', left: '-10000px', top: 0, pointerEvents: 'none' }} aria-hidden="true">
+                    <CajaMovimientoCapture
+                        captureRef={captureRef}
+                        businessDate={businessDate}
+                        data={previewMovData}
+                        senderLabel={senderLabel}
+                    />
+                </div>
+            )}
         </div>
     );
 }
