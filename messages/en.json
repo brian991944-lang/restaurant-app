@@ -653,6 +653,8 @@
     "cancel": "Cancel",
     "save": "Save count",
     "save_and_share": "Save and share",
+    "save_plain": "Save",
+    "back_to_caja": "← Back",
     "preparing": "Preparing…",
     "saving": "Saving…",
     "save_failed": "Could not save the count.",

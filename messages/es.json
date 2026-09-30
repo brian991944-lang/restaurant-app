@@ -653,6 +653,8 @@
     "cancel": "Cancelar",
     "save": "Guardar corte",
     "save_and_share": "Guardar y compartir",
+    "save_plain": "Guardar",
+    "back_to_caja": "← Volver",
     "preparing": "Preparando…",
     "saving": "Guardando…",
     "save_failed": "No se pudo guardar el corte.",

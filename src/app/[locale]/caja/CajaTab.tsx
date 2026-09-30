@@ -4,14 +4,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import {
-    getCajaDia, getCajaEsperado, anularCorte, anularMovimiento, getCajaHistorial,
-    type CajaEsperadoResult, type CajaHistorialResult,
+    getCajaDia, getCajaEsperado, anularCorte, anularMovimiento, getCajaHistorial, getCajaRetiros,
+    type CajaEsperadoResult, type CajaHistorialResult, type CajaRetirosResult,
 } from '@/app/actions/caja';
 import { nivelFor } from '@/lib/cajaRules';
 import { formatMoney } from '@/lib/money';
 import { businessDateToUtcDate } from '@/lib/businessDay';
 import { DatePicker } from '@/components/ui/DatePicker';
 import CajaCountPanel from './CajaCountPanel';
+import CajaMovimientoPanel from './CajaMovimientoPanel';
 import CajaShareModal from './CajaShareModal';
 import CajaMovimientoShareModal from './CajaMovimientoShareModal';
 import {
@@ -25,6 +26,7 @@ type Mov = Dia['movimientos'][number];
 type Tipo = Corte['tipo'];
 type EsperadoOk = Extract<CajaEsperadoResult, { success: true }>;
 type HistorialOk = Extract<CajaHistorialResult, { success: true }>;
+type RetirosOk = Extract<CajaRetirosResult, { success: true }>;
 
 type Live =
     | { status: 'loading' }
@@ -37,11 +39,28 @@ type Hist =
     | { status: 'error' }
     | { status: 'ready'; data: HistorialOk };
 
+type Retiros =
+    | { status: 'idle' }
+    | { status: 'loading' }
+    | { status: 'error' }
+    | { status: 'ready'; data: RetirosOk };
+
 /** Default admin range: the seven business days before today. */
 const HISTORY_DEFAULT_DAYS = 7;
 
+/** Default range for the admin withdrawals table. */
+const RETIROS_DEFAULT_DAYS = 30;
+
 /** The three tabs, in the order the day moves through them. */
 const TABS: Tipo[] = ['APERTURA', 'RELEVO', 'CIERRE'];
+
+/** Distinct from the accent colour on purpose — this reads as separate from the day's flow. */
+const orangeBtn: React.CSSProperties = {
+    minHeight: '56px', padding: '0.9rem 1.6rem', borderRadius: '8px',
+    fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer',
+    background: '#c2620f', border: '1px solid #c2620f',
+    color: 'white',
+};
 
 const ESTADO_TONE: Record<Dia['estado'], 'grey' | 'green' | 'blue'> = {
     SIN_APERTURA: 'grey',
@@ -266,6 +285,9 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     // Chosen once from the day's state on first load; the user's own taps
     // afterward are never overridden by a reload.
     const [activeTab, setActiveTab] = useState<Tipo | null>(null);
+    // The orange button replaces the tab content with the withdrawals panel
+    // while open; the tabs themselves are untouched underneath.
+    const [withdrawalsOpen, setWithdrawalsOpen] = useState(false);
 
     // Retry shares, reached from a card's Share button when the original
     // save-and-share attempt was dismissed or failed.
@@ -343,6 +365,32 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     useEffect(() => {
         if (!isAdmin && showYesterday && yesterday) loadHist(yesterday, yesterday);
     }, [isAdmin, showYesterday, yesterday, loadHist]);
+
+    // ── Withdrawals table. Admin only; fetched only while the panel is open.
+    const [retiros, setRetiros] = useState<Retiros>({ status: 'idle' });
+    const [retirosFrom, setRetirosFrom] = useState('');
+    const [retirosTo, setRetirosTo] = useState('');
+
+    useEffect(() => {
+        if (!today) return;
+        setRetirosFrom(shiftBusinessDate(today, -(RETIROS_DEFAULT_DAYS - 1)));
+        setRetirosTo(today);
+    }, [today]);
+
+    const loadRetiros = useCallback(async (from: string, to: string) => {
+        setRetiros({ status: 'loading' });
+        try {
+            const r = await getCajaRetiros({ from, to });
+            setRetiros(r.success ? { status: 'ready', data: r } : { status: 'error' });
+        } catch {
+            setRetiros({ status: 'error' });
+        }
+    }, []);
+
+    const retirosRangeValid = retirosFrom !== '' && retirosTo !== '' && retirosFrom <= retirosTo;
+    useEffect(() => {
+        if (isAdmin && withdrawalsOpen && retirosRangeValid) loadRetiros(retirosFrom, retirosTo);
+    }, [isAdmin, withdrawalsOpen, retirosRangeValid, retirosFrom, retirosTo, loadRetiros]);
 
     const reloadAll = async () => {
         await loadDia();
@@ -593,37 +641,160 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                 <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {t('header_date', { date: longDate(businessDateToUtcDate(dia.businessDate), locale) })}
                 </h2>
-                <Chip tone={ESTADO_TONE[dia.estado]}>{t(`estado_${dia.estado}`)}</Chip>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <Chip tone={ESTADO_TONE[dia.estado]}>{t(`estado_${dia.estado}`)}</Chip>
+                    <button type="button" onClick={() => setWithdrawalsOpen(v => !v)} style={orangeBtn}>
+                        {t('view_retiros')}
+                    </button>
+                </div>
             </div>
 
-            {/* 2 — Tabs */}
-            <div style={{ display: 'inline-flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px', alignSelf: 'flex-start' }}>
-                {TABS.map(tab => (
+            {withdrawalsOpen ? (
+                /* 2' — Withdrawals panel, replacing the tabs and their content while open */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <button
-                        key={tab}
                         type="button"
-                        onClick={() => setActiveTab(tab)}
+                        onClick={() => setWithdrawalsOpen(false)}
                         style={{
-                            padding: '0.8rem 1.6rem', minHeight: '56px', borderRadius: '8px',
-                            fontWeight: 600, fontSize: '1.1rem', cursor: 'pointer',
-                            color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
-                            background: activeTab === tab ? 'var(--bg-primary)' : 'transparent',
-                            border: activeTab === tab ? '1px solid var(--border)' : '1px solid transparent',
+                            alignSelf: 'flex-start', background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--accent-primary)', fontSize: '1.05rem', fontWeight: 600, padding: 0,
                         }}
                     >
-                        {t(`tab_${tab}`)}
+                        {t('back_to_caja')}
                     </button>
-                ))}
-            </div>
 
-            {/* 3 — Selected tab's content */}
-            {activeTab && renderCountTab(activeTab)}
+                    <CajaMovimientoPanel
+                        key={dia.movimientos.length}
+                        staff={staff}
+                        businessDate={dia.businessDate}
+                        onSaved={async () => { await reloadAll(); }}
+                    />
 
-            {/* 4 — Today's movements (every type, including withdrawals) */}
-            {dia.movimientos.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {renderTimeline(movEntries, true)}
+                    {isAdmin && (
+                        <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{t('retiros_title')}</h3>
+
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('from')}</span>
+                                    <DatePicker value={retirosFrom} onChange={setRetirosFrom} locale={locale === 'es' ? 'es' : 'en'} max={retirosTo || dia.businessDate} />
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('to')}</span>
+                                    <DatePicker value={retirosTo} onChange={setRetirosTo} locale={locale === 'es' ? 'es' : 'en'} max={dia.businessDate} />
+                                </div>
+                            </div>
+
+                            {retiros.status === 'loading' || retiros.status === 'idle' ? (
+                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>{t('loading')}</p>
+                            ) : retiros.status === 'error' ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                    <span style={{ color: 'var(--danger)', fontSize: '1.05rem' }}>{t('history_failed')}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => retirosRangeValid && loadRetiros(retirosFrom, retirosTo)}
+                                        className="btn-secondary"
+                                        style={secondaryBtn}
+                                    >
+                                        {t('retry')}
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('box_BLANCA')}</span>
+                                            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatMoney(retiros.data.totals.BLANCA)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('box_NEGRA')}</span>
+                                            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatMoney(retiros.data.totals.NEGRA)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('total')}</span>
+                                            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{formatMoney(retiros.data.totals.total)}</span>
+                                        </div>
+                                    </div>
+
+                                    {retiros.data.rows.length === 0 ? (
+                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>{t('retiros_empty')}</p>
+                                    ) : (
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1rem' }}>
+                                                <thead>
+                                                    <tr style={{ textAlign: 'left', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>{t('retiros_col_date')}</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>{t('retiros_col_time')}</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>{t('mov_box_label')}</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>{t('mov_amount_label')}</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>{t('mov_desc_label')}</th>
+                                                        <th style={{ padding: '0.5rem 0.75rem' }}>{t('retiros_col_who')}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {retiros.data.rows.map(r => {
+                                                        const voided = r.anuladoAt !== null;
+                                                        return (
+                                                            <tr key={r.id} style={{ borderTop: '1px solid var(--border)', opacity: voided ? 0.55 : 1 }}>
+                                                                <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>
+                                                                    {longDate(businessDateToUtcDate(r.businessDate), locale)}
+                                                                </td>
+                                                                <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>{nyTime(r.at)}</td>
+                                                                <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>{t(`box_${r.caja}`)}</td>
+                                                                <td style={{ padding: '0.6rem 0.75rem', fontWeight: 700, textDecoration: voided ? 'line-through' : 'none' }}>{formatMoney(r.amountCents)}</td>
+                                                                <td style={{ padding: '0.6rem 0.75rem' }}>
+                                                                    <div style={{ textDecoration: voided ? 'line-through' : 'none' }}>{r.descripcion}</div>
+                                                                    {voided && (
+                                                                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                                            {t('voided_reason', { reason: r.anuladoMotivo ?? '' })}
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>{r.employeeName}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
                 </div>
+            ) : (
+                <>
+                    {/* 2 — Tabs */}
+                    <div style={{ display: 'inline-flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px', alignSelf: 'flex-start' }}>
+                        {TABS.map(tab => (
+                            <button
+                                key={tab}
+                                type="button"
+                                onClick={() => setActiveTab(tab)}
+                                style={{
+                                    padding: '0.8rem 1.6rem', minHeight: '56px', borderRadius: '8px',
+                                    fontWeight: 600, fontSize: '1.1rem', cursor: 'pointer',
+                                    color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+                                    background: activeTab === tab ? 'var(--bg-primary)' : 'transparent',
+                                    border: activeTab === tab ? '1px solid var(--border)' : '1px solid transparent',
+                                }}
+                            >
+                                {t(`tab_${tab}`)}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* 3 — Selected tab's content */}
+                    {activeTab && renderCountTab(activeTab)}
+
+                    {/* 4 — Today's movements (every type, including withdrawals) */}
+                    {dia.movimientos.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {renderTimeline(movEntries, true)}
+                        </div>
+                    )}
+                </>
             )}
 
             {/* 5 — Live */}
