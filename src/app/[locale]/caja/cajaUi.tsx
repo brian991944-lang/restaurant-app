@@ -46,6 +46,16 @@ export function nyTime(d: Date | string): string {
     }).format(new Date(d));
 }
 
+/** The hour (0–23) in New York, for a same-day cutoff check like the late-opening warning. */
+export function nyHour(d: Date = new Date()): number {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York', hour: '2-digit', hour12: false,
+    }).formatToParts(d);
+    const h = Number(parts.find(p => p.type === 'hour')?.value ?? '0');
+    // Intl can render midnight as hour '24' in some engines; normalize to 0.
+    return h === 24 ? 0 : h;
+}
+
 /**
  * A business date as a long-form heading in the viewer's language. The value
  * is a calendar date pinned to UTC midnight (businessDateToUtcDate), so the

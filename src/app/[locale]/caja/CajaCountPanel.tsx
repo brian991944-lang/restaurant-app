@@ -10,7 +10,7 @@ import { businessDateToUtcDate, formatBusinessDateEs } from '@/lib/businessDay';
 import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
 import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
 import CajaShareCapture, { type ShareCorteData, type ShareMovData } from './CajaShareCapture';
-import { NivelBadge, SinVerificar, PosibleTraslado, signedMoney, parseAmount } from './cajaUi';
+import { NivelBadge, SinVerificar, PosibleTraslado, signedMoney, parseAmount, nyHour } from './cajaUi';
 
 type Tipo = 'APERTURA' | 'RELEVO' | 'CIERRE';
 type Rol = 'APERTURA' | 'SALIENTE' | 'ENTRANTE' | 'CIERRE';
@@ -26,9 +26,12 @@ const SIGNERS: Record<Tipo, Rol[]> = {
     CIERRE: ['CIERRE'],
 };
 
-/** The captured content is always Spanish; only the modal chrome is translated. */
+/** The captured content is always Spanish; only the panel chrome is translated. */
 const TITULO: Record<Tipo, string> = { APERTURA: 'Apertura de Caja', RELEVO: 'Relevo de Caja', CIERRE: 'Cierre de Caja' };
 const FILE_PREFIX: Record<Tipo, string> = { APERTURA: 'apertura-caja', RELEVO: 'relevo-caja', CIERRE: 'cierre-caja' };
+
+/** An Opening recorded from this hour on is late enough that today's cash may already be mixed in. */
+const LATE_OPENING_HOUR = 18;
 
 type Comparison =
     | { status: 'idle' }
@@ -37,11 +40,12 @@ type Comparison =
     | { status: 'ready'; data: EsperadoOk };
 
 /**
- * The corte form. The count is blind: nothing from Clover is shown until
- * both boxes are typed and "Compare" is tapped, and at that point the
- * amounts lock so the comparison and the count stay the same numbers.
+ * The corte form, inline in its tab (no modal, no backdrop, nothing to
+ * dismiss). The count is blind: nothing from Clover is shown until both
+ * boxes are typed and "Compare" is tapped, and at that point the amounts
+ * lock so the comparison and the count stay the same numbers.
  */
-export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, movimientos, onClose, onSaved }: {
+export default function CajaCountPanel({ tipo, staff, businessDate, nextSeq, movimientos, onSaved }: {
     tipo: Tipo;
     staff: Staff[];
     /** For the save-and-share preview: today's date and live movements. */
@@ -49,7 +53,6 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
     /** Best-known seq this corte will get, for the preview only — cosmetic. */
     nextSeq: number;
     movimientos: ShareMovData[];
-    onClose: () => void;
     onSaved: (corteId: string) => void;
 }) {
     const t = useTranslations('Caja');
@@ -67,8 +70,8 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
     // the tap so the share sheet can open from the tap's own user activation.
     const [sender, setSender] = useState<Staff | null>(null);
     const [shareFile, setShareFile] = useState<File | null>(null);
-    // Set only when the closing WAS shared but the save came back failed —
-    // the person has to know the message went out against nothing.
+    // Set only when the count WAS shared but the save came back failed — the
+    // person has to know the message went out against nothing.
     const [sharedButNotSaved, setSharedButNotSaved] = useState(false);
     const captureRef = useRef<HTMLDivElement>(null);
     const genTokenRef = useRef(0);
@@ -480,98 +483,88 @@ export default function CajaCorteModal({ tipo, staff, businessDate, nextSeq, mov
     );
 
     return (
-        <div
-            onClick={() => { if (!busy) onClose(); }}
-            style={{
-                position: 'fixed', inset: 0, zIndex: 1000,
-                background: 'rgba(0,0,0,0.5)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '1.5rem'
-            }}
-        >
-            <div
-                onClick={e => e.stopPropagation()}
-                className="glass-panel"
-                style={{ padding: '2rem', maxWidth: '820px', width: '100%', maxHeight: '88vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
-            >
-                <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {t(`record_${tipo}`)}
-                </h3>
+        <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {t(`record_${tipo}`)}
+            </h3>
 
-                {/* 1 — Count */}
-                <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sectionTitle(t('section_count'))}
-                    {moneyInput('BLANCA', blancaStr, setBlancaStr)}
-                    {moneyInput('NEGRA', negraStr, setNegraStr)}
+            {/* 1 — Count */}
+            <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {sectionTitle(t('section_count'))}
 
-                    {tipo === 'CIERRE' && (
-                        <label style={{
-                            display: 'flex', alignItems: 'center', gap: '0.9rem', padding: '1rem 1.1rem',
-                            borderRadius: '12px', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)',
-                            cursor: inputsLocked ? 'default' : 'pointer', minHeight: '64px',
-                        }}>
-                            <input
-                                type="checkbox"
-                                checked={tabsConfirmadas}
-                                disabled={inputsLocked || busy}
-                                onChange={e => setTabsConfirmadas(e.target.checked)}
-                                style={{ width: '28px', height: '28px', flexShrink: 0 }}
-                            />
-                            <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>{t('confirm_tabs')}</span>
-                        </label>
-                    )}
-
-                    {needsComparison && (
-                        inputsLocked ? (
-                            <button type="button" onClick={unlock} disabled={busy} className="btn-secondary" style={secondaryBtn}>
-                                {t('edit_amounts')}
-                            </button>
-                        ) : (
-                            <button type="button" onClick={runComparison} disabled={!canCompare} style={primaryBtn(!canCompare)}>
-                                {t('compare')}
-                            </button>
-                        )
-                    )}
-                </section>
-
-                {/* 2 — Comparison */}
-                {needsComparison && comparison.status !== 'idle' && (
-                    <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {sectionTitle(t('section_compare'))}
-                        {renderComparison()}
-                    </section>
+                {tipo === 'APERTURA' && nyHour() >= LATE_OPENING_HOUR && (
+                    <p style={{ margin: 0, padding: '0.75rem 1rem', borderRadius: '10px', background: '#fef3c7', color: '#92400e', fontSize: '0.95rem' }}>
+                        {t('apertura_late_warning')}
+                    </p>
                 )}
 
-                {/* 3 — Signatures */}
-                <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {sectionTitle(t('section_signatures'))}
-                    {SIGNERS[tipo].map(signerBlock)}
-                    <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
-                </section>
+                {moneyInput('BLANCA', blancaStr, setBlancaStr)}
+                {moneyInput('NEGRA', negraStr, setNegraStr)}
 
-                {sharedButNotSaved && (
-                    <div style={{
-                        padding: '1rem 1.25rem', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600,
-                        color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
-                        border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)',
+                {tipo === 'CIERRE' && (
+                    <label style={{
+                        display: 'flex', alignItems: 'center', gap: '0.9rem', padding: '1rem 1.1rem',
+                        borderRadius: '12px', border: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)',
+                        cursor: inputsLocked ? 'default' : 'pointer', minHeight: '64px',
                     }}>
-                        {t('share_but_not_saved')}
-                    </div>
+                        <input
+                            type="checkbox"
+                            checked={tabsConfirmadas}
+                            disabled={inputsLocked || busy}
+                            onChange={e => setTabsConfirmadas(e.target.checked)}
+                            style={{ width: '28px', height: '28px', flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>{t('confirm_tabs')}</span>
+                    </label>
                 )}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <button type="button" onClick={onClose} disabled={busy} className="btn-secondary" style={secondaryBtn}>
-                        {t('cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleSaveAndShare}
-                        disabled={!canSave || !shareFile}
-                        style={primaryBtn(!canSave || !shareFile)}
-                    >
-                        {isSubmitting ? t('saving') : !shareFile && canSave ? t('preparing') : t('save_and_share')}
-                    </button>
+                {needsComparison && (
+                    inputsLocked ? (
+                        <button type="button" onClick={unlock} disabled={busy} className="btn-secondary" style={secondaryBtn}>
+                            {t('edit_amounts')}
+                        </button>
+                    ) : (
+                        <button type="button" onClick={runComparison} disabled={!canCompare} style={primaryBtn(!canCompare)}>
+                            {t('compare')}
+                        </button>
+                    )
+                )}
+            </section>
+
+            {/* 2 — Comparison */}
+            {needsComparison && comparison.status !== 'idle' && (
+                <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {sectionTitle(t('section_compare'))}
+                    {renderComparison()}
+                </section>
+            )}
+
+            {/* 3 — Signatures */}
+            <section style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {sectionTitle(t('section_signatures'))}
+                {SIGNERS[tipo].map(signerBlock)}
+                <SenderPicker staff={staff} value={sender} onChange={setSender} label={t('share_who')} />
+            </section>
+
+            {sharedButNotSaved && (
+                <div style={{
+                    padding: '1rem 1.25rem', borderRadius: '10px', fontSize: '1.05rem', fontWeight: 600,
+                    color: 'var(--danger)', background: 'color-mix(in srgb, var(--danger) 12%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--danger) 40%, transparent)',
+                }}>
+                    {t('share_but_not_saved')}
                 </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                    type="button"
+                    onClick={handleSaveAndShare}
+                    disabled={!canSave || !shareFile}
+                    style={primaryBtn(!canSave || !shareFile)}
+                >
+                    {isSubmitting ? t('saving') : !shareFile && canSave ? t('preparing') : t('save_and_share')}
+                </button>
             </div>
 
             {/* Offscreen capture surface for the save-and-share preview — not

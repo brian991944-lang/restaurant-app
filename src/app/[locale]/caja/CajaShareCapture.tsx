@@ -13,7 +13,7 @@ type CajaMovimientoTipo = 'RETIRO' | 'COMPRA' | 'INGRESO';
 /**
  * Everything the capture needs to draw one corte, independent of whether it
  * came from a saved CajaCorte (CajaShareModal, re-sharing) or from the corte
- * form's own state before it has been saved at all (CajaCorteModal, the
+ * form's own state before it has been saved at all (CajaCountPanel, the
  * save-and-share button). `at` and each firma's `signedAt` are the DB's
  * defaulted timestamps once saved, or "now" as the best guess of what they
  * will be when the pre-save preview is built.

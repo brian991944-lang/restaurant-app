@@ -129,7 +129,7 @@ export default function CajaShareModal({ corte, movimientos, businessDate, staff
                         <span data-no-capture="true" style={{ color: 'var(--text-secondary)', fontSize: '1rem' }}>{t('no_staff')}</span>
                     )}
 
-                    {/* Capture surface — shared with CajaCorteModal's save-and-share preview. */}
+                    {/* Capture surface — shared with CajaCountPanel's save-and-share preview. */}
                     <CajaShareCapture
                         captureRef={captureRef}
                         businessDate={businessDate}

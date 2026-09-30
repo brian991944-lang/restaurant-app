@@ -4,15 +4,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import {
-    getCajaDia, getCajaEsperado, anularCorte, anularMovimiento, getCajaHistorial, getCajaRetiros,
-    type CajaEsperadoResult, type CajaHistorialResult, type CajaRetirosResult,
+    getCajaDia, getCajaEsperado, anularCorte, anularMovimiento, getCajaHistorial,
+    type CajaEsperadoResult, type CajaHistorialResult,
 } from '@/app/actions/caja';
 import { nivelFor } from '@/lib/cajaRules';
 import { formatMoney } from '@/lib/money';
 import { businessDateToUtcDate } from '@/lib/businessDay';
 import { DatePicker } from '@/components/ui/DatePicker';
-import CajaCorteModal from './CajaCorteModal';
-import CajaMovimientoModal from './CajaMovimientoModal';
+import CajaCountPanel from './CajaCountPanel';
 import CajaShareModal from './CajaShareModal';
 import CajaMovimientoShareModal from './CajaMovimientoShareModal';
 import {
@@ -26,7 +25,6 @@ type Mov = Dia['movimientos'][number];
 type Tipo = Corte['tipo'];
 type EsperadoOk = Extract<CajaEsperadoResult, { success: true }>;
 type HistorialOk = Extract<CajaHistorialResult, { success: true }>;
-type RetirosOk = Extract<CajaRetirosResult, { success: true }>;
 
 type Live =
     | { status: 'loading' }
@@ -39,17 +37,11 @@ type Hist =
     | { status: 'error' }
     | { status: 'ready'; data: HistorialOk };
 
-type Retiros =
-    | { status: 'idle' }
-    | { status: 'loading' }
-    | { status: 'error' }
-    | { status: 'ready'; data: RetirosOk };
-
 /** Default admin range: the seven business days before today. */
 const HISTORY_DEFAULT_DAYS = 7;
 
-/** Default range for the admin Withdrawals tab. */
-const RETIROS_DEFAULT_DAYS = 30;
+/** The three tabs, in the order the day moves through them. */
+const TABS: Tipo[] = ['APERTURA', 'RELEVO', 'CIERRE'];
 
 const ESTADO_TONE: Record<Dia['estado'], 'grey' | 'green' | 'blue'> = {
     SIN_APERTURA: 'grey',
@@ -71,13 +63,6 @@ const secondaryBtn: React.CSSProperties = {
     fontSize: '1.1rem', fontWeight: 600, cursor: 'pointer',
     background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
     color: 'var(--text-primary)',
-};
-
-const primaryBtn: React.CSSProperties = {
-    minHeight: '56px', padding: '0.9rem 1.6rem', borderRadius: '8px',
-    fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer',
-    background: 'var(--accent-primary)', border: '1px solid var(--accent-primary)',
-    color: 'white',
 };
 
 const dangerBtn = (disabled: boolean): React.CSSProperties => ({
@@ -102,9 +87,9 @@ function SignatureBox({ firmaBox, firmaPath, caption }: { firmaBox: string; firm
 }
 
 /**
- * One corte as a card. Used for today's timeline and, unchanged, for the
- * history days — only today's last live corte gets the void controls, which
- * the parent passes in as slots.
+ * One corte as a card. Used inside its tab and, unchanged, for the history
+ * days — only today's last live corte gets the void control, which the
+ * parent passes in as a slot.
  */
 export function CorteCard({ corte, headerAction, footer }: {
     corte: Corte;
@@ -262,10 +247,11 @@ function timelineOf(cortes: Corte[], movs: Mov[]): Entry[] {
 }
 
 /**
- * The Cash Boxes page body: today's state, what Clover says the boxes should
- * hold right now, and the timeline of counts and movements. Every write goes
- * through a modal; this component only reads, and re-reads after each save
- * or void.
+ * The Cash Boxes page body: today's three moments as tabs (Opening,
+ * Afternoon Shift, Closing), each with its own inline form, what Clover says
+ * the boxes should hold right now, and today's movements. Every write goes
+ * through a panel or a retry modal; this component only reads, and re-reads
+ * after each save or void.
  */
 export default function CajaTab({ staff }: { staff: { id: string; name: string }[] }) {
     const t = useTranslations('Caja');
@@ -276,14 +262,13 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     const [diaLoading, setDiaLoading] = useState(true);
     const [diaError, setDiaError] = useState<string | null>(null);
 
-    // Admin-only tab row: everyone else always sees 'HOY', with no row at all.
-    const [cajaView, setCajaView] = useState<'HOY' | 'RETIROS'>('HOY');
-
     const [live, setLive] = useState<Live>({ status: 'loading' });
-    const [modalTipo, setModalTipo] = useState<Tipo | null>(null);
-    const [movModalOpen, setMovModalOpen] = useState(false);
-    // Retry shares, reached from a timeline card's Share button when the
-    // original save-and-share attempt was dismissed or failed.
+    // Chosen once from the day's state on first load; the user's own taps
+    // afterward are never overridden by a reload.
+    const [activeTab, setActiveTab] = useState<Tipo | null>(null);
+
+    // Retry shares, reached from a card's Share button when the original
+    // save-and-share attempt was dismissed or failed.
     const [shareCorteId, setShareCorteId] = useState<string | null>(null);
     const [shareMovId, setShareMovId] = useState<string | null>(null);
 
@@ -303,7 +288,7 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         }
     }, []);
 
-    // Non-blocking: the timeline renders whether or not Clover answers.
+    // Non-blocking: the page renders whether or not Clover answers.
     const loadLive = useCallback(async () => {
         setLive({ status: 'loading' });
         try {
@@ -315,6 +300,14 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     }, []);
 
     useEffect(() => { loadDia(); loadLive(); }, [loadDia, loadLive]);
+
+    // Default tab: the first moment the day has no active record for yet.
+    useEffect(() => {
+        if (activeTab !== null || !dia) return;
+        const hasApertura = dia.cortes.some(c => c.tipo === 'APERTURA' && c.anuladoAt === null);
+        const hasRelevo = dia.cortes.some(c => c.tipo === 'RELEVO' && c.anuladoAt === null);
+        setActiveTab(!hasApertura ? 'APERTURA' : !hasRelevo ? 'RELEVO' : 'CIERRE');
+    }, [dia, activeTab]);
 
     // ── History. Servers see yesterday behind a toggle; admin picks a range.
     // The server enforces the same split, so this only shapes what is asked.
@@ -350,32 +343,6 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     useEffect(() => {
         if (!isAdmin && showYesterday && yesterday) loadHist(yesterday, yesterday);
     }, [isAdmin, showYesterday, yesterday, loadHist]);
-
-    // ── Withdrawals tab. Admin only; fetched only while that tab is open.
-    const [retiros, setRetiros] = useState<Retiros>({ status: 'idle' });
-    const [retirosFrom, setRetirosFrom] = useState('');
-    const [retirosTo, setRetirosTo] = useState('');
-
-    useEffect(() => {
-        if (!today) return;
-        setRetirosFrom(shiftBusinessDate(today, -(RETIROS_DEFAULT_DAYS - 1)));
-        setRetirosTo(today);
-    }, [today]);
-
-    const loadRetiros = useCallback(async (from: string, to: string) => {
-        setRetiros({ status: 'loading' });
-        try {
-            const r = await getCajaRetiros({ from, to });
-            setRetiros(r.success ? { status: 'ready', data: r } : { status: 'error' });
-        } catch {
-            setRetiros({ status: 'error' });
-        }
-    }, []);
-
-    const retirosRangeValid = retirosFrom !== '' && retirosTo !== '' && retirosFrom <= retirosTo;
-    useEffect(() => {
-        if (isAdmin && cajaView === 'RETIROS' && retirosRangeValid) loadRetiros(retirosFrom, retirosTo);
-    }, [isAdmin, cajaView, retirosRangeValid, retirosFrom, retirosTo, loadRetiros]);
 
     const reloadAll = async () => {
         await loadDia();
@@ -413,8 +380,13 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
     }
 
     const activos = dia.cortes.filter(c => c.anuladoAt === null);
-    const cierre = activos.find(c => c.tipo === 'CIERRE');
     const ultimoActivo = activos[activos.length - 1];
+
+    const cortesByTipo: Record<Tipo, Corte[]> = {
+        APERTURA: dia.cortes.filter(c => c.tipo === 'APERTURA'),
+        RELEVO: dia.cortes.filter(c => c.tipo === 'RELEVO'),
+        CIERRE: dia.cortes.filter(c => c.tipo === 'CIERRE'),
+    };
 
     // ── Pieces ───────────────────────────────────────────────────────────────
 
@@ -507,33 +479,34 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         </div>
     );
 
-    /**
-     * Today's timeline carries void and share controls; history is
-     * read-only. Every non-voided count and movement shares now, so every
-     * non-voided card gets a Share button — the retry path for whichever
-     * one's original save-and-share attempt was dismissed or failed.
-     */
+    /** A corte card's header actions: Share for a retry, Void on the day's last live count. */
+    const corteActions = (c: Corte, withVoid: boolean) => {
+        const canVoid = withVoid && isAdmin && c.anuladoAt === null && ultimoActivo?.id === c.id;
+        const canShare = withVoid && c.anuladoAt === null;
+        const open = anulando?.kind === 'corte' && anulando.id === c.id;
+        if (!canShare && !(canVoid && !open)) return null;
+        return (
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                {canShare && (
+                    <button type="button" onClick={() => setShareCorteId(c.id)} className="btn-secondary" style={secondaryBtn}>
+                        {t('share_button')}
+                    </button>
+                )}
+                {canVoid && !open && voidButton('corte', c.id)}
+            </div>
+        );
+    };
+
+    /** Today's cards carry void and share controls; history is read-only. */
     const renderTimeline = (entries: Entry[], withVoid: boolean) => entries.map(e => {
         if (e.kind === 'corte') {
             const c = e.corte;
-            const canVoid = withVoid && isAdmin && c.anuladoAt === null && ultimoActivo?.id === c.id;
-            const canShare = withVoid && c.anuladoAt === null;
             const open = anulando?.kind === 'corte' && anulando.id === c.id;
-            const actions = (canShare || (canVoid && !open)) ? (
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                    {canShare && (
-                        <button type="button" onClick={() => setShareCorteId(c.id)} className="btn-secondary" style={secondaryBtn}>
-                            {t('share_button')}
-                        </button>
-                    )}
-                    {canVoid && !open && voidButton('corte', c.id)}
-                </div>
-            ) : null;
             return (
                 <CorteCard
                     key={c.id}
                     corte={c}
-                    headerAction={actions}
+                    headerAction={corteActions(c, withVoid)}
                     footer={open ? voidForm : null}
                 />
             );
@@ -562,7 +535,55 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
         );
     });
 
-    const todayEntries = timelineOf(dia.cortes, dia.movimientos);
+    /**
+     * One tab's content: the saved record(s) for that moment, if any, then
+     * the form — if that moment can still be recorded — or, for Afternoon
+     * Shift and Closing before an Opening exists, one plain line saying so.
+     */
+    const renderCountTab = (tipoTab: Tipo) => {
+        const cortes = cortesByTipo[tipoTab];
+        const hasActive = cortes.some(c => c.anuladoAt === null);
+        const blockedBySinApertura = tipoTab !== 'APERTURA' && dia.estado === 'SIN_APERTURA';
+        const canRecordMore = tipoTab === 'APERTURA' ? !hasActive : dia.estado === 'ABIERTA';
+
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {cortes.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {cortes.map(c => {
+                            const open = anulando?.kind === 'corte' && anulando.id === c.id;
+                            return (
+                                <CorteCard
+                                    key={c.id}
+                                    corte={c}
+                                    headerAction={corteActions(c, true)}
+                                    footer={open ? voidForm : null}
+                                />
+                            );
+                        })}
+                    </div>
+                )}
+
+                {blockedBySinApertura && (
+                    <p style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-secondary)' }}>{t('no_opening')}</p>
+                )}
+
+                {!blockedBySinApertura && canRecordMore && (
+                    <CajaCountPanel
+                        key={`${tipoTab}-${cortes.length}`}
+                        tipo={tipoTab}
+                        staff={staff}
+                        businessDate={dia.businessDate}
+                        nextSeq={dia.cortes.length + 1}
+                        movimientos={dia.movimientos.filter(m => m.anuladoAt === null)}
+                        onSaved={async () => { await reloadAll(); }}
+                    />
+                )}
+            </div>
+        );
+    };
+
+    const movEntries = timelineOf([], dia.movimientos);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -575,142 +596,37 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                 <Chip tone={ESTADO_TONE[dia.estado]}>{t(`estado_${dia.estado}`)}</Chip>
             </div>
 
-            {/* 1b — Admin tab row */}
-            {isAdmin && (
-                <div style={{ display: 'inline-flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px', alignSelf: 'flex-start' }}>
-                    {(['HOY', 'RETIROS'] as const).map(v => (
-                        <button
-                            key={v}
-                            type="button"
-                            onClick={() => setCajaView(v)}
-                            style={{
-                                padding: '0.8rem 1.6rem', minHeight: '56px', borderRadius: '8px',
-                                fontWeight: 600, fontSize: '1.1rem', cursor: 'pointer',
-                                color: cajaView === v ? 'var(--text-primary)' : 'var(--text-secondary)',
-                                background: cajaView === v ? 'var(--bg-primary)' : 'transparent',
-                                border: cajaView === v ? '1px solid var(--border)' : '1px solid transparent',
-                            }}
-                        >
-                            {t(v === 'HOY' ? 'view_today' : 'view_retiros')}
-                        </button>
-                    ))}
+            {/* 2 — Tabs */}
+            <div style={{ display: 'inline-flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px', alignSelf: 'flex-start' }}>
+                {TABS.map(tab => (
+                    <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveTab(tab)}
+                        style={{
+                            padding: '0.8rem 1.6rem', minHeight: '56px', borderRadius: '8px',
+                            fontWeight: 600, fontSize: '1.1rem', cursor: 'pointer',
+                            color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+                            background: activeTab === tab ? 'var(--bg-primary)' : 'transparent',
+                            border: activeTab === tab ? '1px solid var(--border)' : '1px solid transparent',
+                        }}
+                    >
+                        {t(`tab_${tab}`)}
+                    </button>
+                ))}
+            </div>
+
+            {/* 3 — Selected tab's content */}
+            {activeTab && renderCountTab(activeTab)}
+
+            {/* 4 — Today's movements (every type, including withdrawals) */}
+            {dia.movimientos.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {renderTimeline(movEntries, true)}
                 </div>
             )}
 
-            {cajaView === 'RETIROS' && isAdmin ? (
-                /* 2' — Withdrawals */
-                <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{t('retiros_title')}</h3>
-
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('from')}</span>
-                            <DatePicker value={retirosFrom} onChange={setRetirosFrom} locale={locale === 'es' ? 'es' : 'en'} max={retirosTo || dia.businessDate} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('to')}</span>
-                            <DatePicker value={retirosTo} onChange={setRetirosTo} locale={locale === 'es' ? 'es' : 'en'} max={dia.businessDate} />
-                        </div>
-                    </div>
-
-                    {retiros.status === 'loading' || retiros.status === 'idle' ? (
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>{t('loading')}</p>
-                    ) : retiros.status === 'error' ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                            <span style={{ color: 'var(--danger)', fontSize: '1.05rem' }}>{t('history_failed')}</span>
-                            <button
-                                type="button"
-                                onClick={() => retirosRangeValid && loadRetiros(retirosFrom, retirosTo)}
-                                className="btn-secondary"
-                                style={secondaryBtn}
-                            >
-                                {t('retry')}
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('box_BLANCA')}</span>
-                                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatMoney(retiros.data.totals.BLANCA)}</span>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('box_NEGRA')}</span>
-                                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatMoney(retiros.data.totals.NEGRA)}</span>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{t('total')}</span>
-                                    <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{formatMoney(retiros.data.totals.total)}</span>
-                                </div>
-                            </div>
-
-                            {retiros.data.rows.length === 0 ? (
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '1.05rem' }}>{t('retiros_empty')}</p>
-                            ) : (
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '1rem' }}>
-                                        <thead>
-                                            <tr style={{ textAlign: 'left', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                                <th style={{ padding: '0.5rem 0.75rem' }}>{t('retiros_col_date')}</th>
-                                                <th style={{ padding: '0.5rem 0.75rem' }}>{t('retiros_col_time')}</th>
-                                                <th style={{ padding: '0.5rem 0.75rem' }}>{t('mov_box_label')}</th>
-                                                <th style={{ padding: '0.5rem 0.75rem' }}>{t('mov_amount_label')}</th>
-                                                <th style={{ padding: '0.5rem 0.75rem' }}>{t('mov_desc_label')}</th>
-                                                <th style={{ padding: '0.5rem 0.75rem' }}>{t('retiros_col_who')}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {retiros.data.rows.map(r => {
-                                                const voided = r.anuladoAt !== null;
-                                                return (
-                                                    <tr key={r.id} style={{ borderTop: '1px solid var(--border)', opacity: voided ? 0.55 : 1 }}>
-                                                        <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>
-                                                            {longDate(businessDateToUtcDate(r.businessDate), locale)}
-                                                        </td>
-                                                        <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>{nyTime(r.at)}</td>
-                                                        <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>{t(`box_${r.caja}`)}</td>
-                                                        <td style={{ padding: '0.6rem 0.75rem', fontWeight: 700, textDecoration: voided ? 'line-through' : 'none' }}>{formatMoney(r.amountCents)}</td>
-                                                        <td style={{ padding: '0.6rem 0.75rem' }}>
-                                                            <div style={{ textDecoration: voided ? 'line-through' : 'none' }}>{r.descripcion}</div>
-                                                            {voided && (
-                                                                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                                                    {t('voided_reason', { reason: r.anuladoMotivo ?? '' })}
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td style={{ padding: '0.6rem 0.75rem', textDecoration: voided ? 'line-through' : 'none' }}>{r.employeeName}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
-            ) : (
-            <>
-            {/* 2 — Actions */}
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                {dia.estado === 'SIN_APERTURA' && (
-                    <button type="button" onClick={() => setModalTipo('APERTURA')} style={primaryBtn}>{t('record_APERTURA')}</button>
-                )}
-                {dia.estado === 'ABIERTA' && (
-                    <>
-                        <button type="button" onClick={() => setModalTipo('RELEVO')} className="btn-secondary" style={secondaryBtn}>{t('record_RELEVO')}</button>
-                        <button type="button" onClick={() => setMovModalOpen(true)} className="btn-secondary" style={secondaryBtn}>{t('record_MOVIMIENTO')}</button>
-                        <button type="button" onClick={() => setModalTipo('CIERRE')} style={primaryBtn}>{t('record_CIERRE')}</button>
-                    </>
-                )}
-                {dia.estado === 'CERRADA' && cierre && (
-                    <span style={{ fontSize: '1.1rem', color: 'var(--text-secondary)' }}>
-                        {t('closing_recorded_at', { time: nyTime(cierre.at) })}
-                    </span>
-                )}
-            </div>
-
-            {/* 3 — Live */}
+            {/* 5 — Live */}
             <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                     <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{t('live_title')}</h3>
@@ -721,16 +637,7 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                 {renderLive()}
             </div>
 
-            {/* 4 — Timeline */}
-            {todayEntries.length === 0 ? (
-                <p style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-secondary)' }}>{t('empty_today')}</p>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {renderTimeline(todayEntries, true)}
-                </div>
-            )}
-
-            {/* 5 — History */}
+            {/* 6 — History */}
             <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                     <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-primary)' }}>{t('history')}</h3>
@@ -790,27 +697,6 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                     )
                 )}
             </div>
-            </>
-            )}
-
-            {modalTipo && (
-                <CajaCorteModal
-                    tipo={modalTipo}
-                    staff={staff}
-                    businessDate={dia.businessDate}
-                    nextSeq={dia.cortes.length + 1}
-                    movimientos={dia.movimientos.filter(m => m.anuladoAt === null)}
-                    onClose={() => setModalTipo(null)}
-                    onSaved={async () => {
-                        // Sharing already happened (or was declined) inside the
-                        // modal's own save-and-share button, for every tipo —
-                        // this callback only ever closes and reloads. Retries go
-                        // through the card's own Share button.
-                        setModalTipo(null);
-                        await reloadAll();
-                    }}
-                />
-            )}
 
             {shareCorteId && (() => {
                 const corte = dia.cortes.find(c => c.id === shareCorteId);
@@ -836,18 +722,6 @@ export default function CajaTab({ staff }: { staff: { id: string; name: string }
                     />
                 ) : null;
             })()}
-
-            {movModalOpen && (
-                <CajaMovimientoModal
-                    staff={staff}
-                    businessDate={dia.businessDate}
-                    onClose={() => setMovModalOpen(false)}
-                    onSaved={async () => {
-                        setMovModalOpen(false);
-                        await reloadAll();
-                    }}
-                />
-            )}
         </div>
     );
 }
