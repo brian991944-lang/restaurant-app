@@ -3,10 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, RefreshCw, Trash2, Unlock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
-import { saveShift, addShift, removeShift, reopenTipDay } from '@/app/actions/tips';
-import { syncCloverTips } from '@/app/actions/tipSync';
+import { saveShift, addShift, removeShift, reopenTipDay, setTipTargets } from '@/app/actions/tips';
 // Type-only: avoids shipping a client reference to an action never called here.
 import type { getTipDay } from '@/app/actions/tips';
 import { toCents, sumCents, formatMoney } from '@/lib/money';
@@ -185,9 +184,17 @@ export default function TipDayEditor({
     const [shiftErrors, setShiftErrors] = useState<Record<string, string>>({});
     const [notice, setNotice] = useState<string | null>(null);
 
-    const [syncing, setSyncing] = useState(false);
-    const [syncError, setSyncError] = useState<string | null>(null);
-    const [syncSummary, setSyncSummary] = useState<string | null>(null);
+    const [totalCredit, setTotalCredit] = useState(() => day.totalCreditTips.toFixed(2));
+    const [totalService, setTotalService] = useState(() => day.totalServiceCharge.toFixed(2));
+    const [totalsActor, setTotalsActor] = useState('');
+    const [totalsBusy, setTotalsBusy] = useState(false);
+    const [totalsMessage, setTotalsMessage] = useState<{ text: string; error: boolean } | null>(null);
+
+    // Follow the stored totals after a save or refresh.
+    useEffect(() => {
+        setTotalCredit(day.totalCreditTips.toFixed(2));
+        setTotalService(day.totalServiceCharge.toFixed(2));
+    }, [day.totalCreditTips, day.totalServiceCharge]);
 
     const [breakdownOpen, setBreakdownOpen] = useState(false);
 
@@ -427,32 +434,47 @@ export default function TipDayEditor({
         { key: 'service' as const, label: t('service_charge'), target: toCents(day.totalServiceCharge) }
     ];
 
-    const handleSync = async () => {
-        setSyncing(true);
-        setSyncError(null);
-        setSyncSummary(null);
+    // Day totals: editable by an admin on any draft day, historical included
+    // once edit mode is on. The server re-checks the submitted-day guard.
+    const canEditTotals = isAdmin && !readOnly;
+    const totalsDirty =
+        toCents(totalCredit) !== toCents(day.totalCreditTips) ||
+        toCents(totalService) !== toCents(day.totalServiceCharge);
+    const canSaveTotals =
+        canEditTotals && totalsDirty && !!totalsActor && !totalsBusy &&
+        isAmount(totalCredit) && isAmount(totalService);
+
+    const handleSaveTotals = async () => {
+        if (!canSaveTotals) return;
+        const person = staff.find(s => s.id === totalsActor);
+        setTotalsBusy(true);
+        setTotalsMessage(null);
         try {
-            const result = await syncCloverTips();
-            if (!result.success) {
-                setSyncError(result.error ?? t('sync_failed'));
-                return;
-            }
-            const s = result.summary;
-            if (s) {
-                // Counted over scanned, so excluded delivery payments are
-                // visible as the gap rather than silently missing.
-                setSyncSummary(
-                    `${t('sync_summary')}: ${s.paymentsCounted}/${s.paymentsScanned} ${t('payments')}` +
-                    ` · ${t('card_tips_col')} ${formatMoney(s.cardTipsCents)}` +
-                    ` · ${t('service_charge')} ${formatMoney(s.serviceChargeCents)}` +
-                    ` · ${(s.durationMs / 1000).toFixed(1)}s`
+            const changes = [
+                { field: 'CREDIT_TIPS' as const, raw: totalCredit, current: day.totalCreditTips },
+                { field: 'SERVICE_CHARGE' as const, raw: totalService, current: day.totalServiceCharge }
+            ].filter(c => toCents(c.raw) !== toCents(c.current));
+
+            for (const c of changes) {
+                const result = await setTipTargets(
+                    day.id,
+                    c.field,
+                    toCents(c.raw) / 100,
+                    totalsActor,
+                    person?.name ?? '',
+                    'Total de Toast'
                 );
+                if (!result.success) {
+                    setTotalsMessage({ text: result.error ?? 'No se pudo guardar el total.', error: true });
+                    return;
+                }
             }
+            setTotalsMessage({ text: 'Totales guardados.', error: false });
             router.refresh();
         } catch (e) {
-            setSyncError(e instanceof Error ? e.message : t('sync_failed'));
+            setTotalsMessage({ text: e instanceof Error ? e.message : 'No se pudo guardar el total.', error: true });
         } finally {
-            setSyncing(false);
+            setTotalsBusy(false);
         }
     };
 
@@ -460,7 +482,6 @@ export default function TipDayEditor({
 
     const allRows = day.shifts.flatMap(s => shiftRows(s.id));
     const canSave = !readOnly && dirtyShifts.length > 0 && !busy;
-    const canSync = !syncing && !readOnly && !isHistorical;
 
     // Not gated on isHistorical: today can be submitted too, and a day sent by
     // mistake an hour ago is the likeliest thing anyone needs to undo.
@@ -718,57 +739,84 @@ export default function TipDayEditor({
                     );
                 })}
 
-                {/* Sync sits with the balances because that is what it moves. */}
-                <div style={{
-                    display: 'flex', flexDirection: 'column', gap: '0.6rem',
-                    borderTop: '1px solid var(--border)', paddingTop: '1rem'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                        <button
-                            onClick={handleSync}
-                            // Historical days are excluded whatever the admin
-                            // state: the sync sets the targets outright, so
-                            // re-running it would move the figures a finished
-                            // day was reconciled against. It also always syncs
-                            // today, since the action is called without a date.
-                            disabled={syncing || readOnly || isHistorical}
-                            style={{
-                                ...quietButton,
-                                minHeight: '52px',
-                                color: canSync ? 'white' : 'var(--text-secondary)',
-                                background: canSync ? 'var(--success)' : 'rgba(255,255,255,0.05)',
-                                border: canSync ? '1px solid var(--success)' : '1px solid var(--border)',
-                                cursor: canSync ? 'pointer' : 'not-allowed',
-                                opacity: canSync ? 1 : 0.5
-                            }}
-                        >
-                            <RefreshCw size={18} />
-                            {syncing ? t('syncing') : t('sync_clover')}
-                        </button>
+                {/* Day totals. Admin only, and only while the day can still be
+                    edited: setTipTargets refuses a submitted day. Saved through
+                    setTipTargets so every change leaves an audit row. */}
+                {canEditTotals && (
+                    <div style={{
+                        display: 'flex', flexDirection: 'column', gap: '0.9rem',
+                        borderTop: '1px solid var(--border)', paddingTop: '1rem'
+                    }}>
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            {([
+                                { key: 'credit' as const, label: 'Total propinas con tarjeta (Toast)', value: totalCredit, set: setTotalCredit },
+                                { key: 'service' as const, label: 'Total cargo de servicio (Toast)', value: totalService, set: setTotalService }
+                            ]).map(f => (
+                                <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: '1 1 260px' }}>
+                                    <span style={{ fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                        {f.label}
+                                    </span>
+                                    <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={f.value}
+                                        onFocus={selectAllOnFocus}
+                                        onChange={e => f.set(e.target.value)}
+                                        style={inputStyle}
+                                    />
+                                </label>
+                            ))}
+                        </div>
 
-                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                            {day.cloverSyncedAt
-                                ? `${t('synced_at')}: ${new Date(day.cloverSyncedAt).toLocaleString('es')}`
-                                : t('never_synced')}
+                        <span style={{ fontSize: '1.05rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            Quién hace el cambio
                         </span>
+                        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                            {staff.map(person => {
+                                const isOn = totalsActor === person.id;
+                                return (
+                                    <button
+                                        key={person.id}
+                                        onClick={() => setTotalsActor(person.id)}
+                                        style={{
+                                            padding: '0.8rem 1.3rem', minHeight: '56px',
+                                            borderRadius: '999px', fontSize: '1.1rem', fontWeight: 600,
+                                            cursor: 'pointer',
+                                            color: isOn ? 'white' : 'var(--text-secondary)',
+                                            background: isOn ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                            border: isOn ? '1px solid var(--accent-primary)' : '1px solid var(--border)'
+                                        }}
+                                    >
+                                        {person.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                            <button
+                                onClick={handleSaveTotals}
+                                disabled={!canSaveTotals}
+                                style={{
+                                    minHeight: '56px', padding: '0 1.6rem', borderRadius: '8px',
+                                    fontSize: '1.1rem', fontWeight: 700,
+                                    color: canSaveTotals ? 'white' : 'var(--text-secondary)',
+                                    background: canSaveTotals ? 'var(--accent-primary)' : 'rgba(255,255,255,0.05)',
+                                    border: canSaveTotals ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
+                                    opacity: totalsBusy ? 0.5 : 1,
+                                    cursor: canSaveTotals ? 'pointer' : 'not-allowed'
+                                }}
+                            >
+                                {totalsBusy ? t('saving') : 'Guardar totales'}
+                            </button>
+                            {totalsMessage && (
+                                <span style={{ fontSize: '1.05rem', color: totalsMessage.error ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                                    {totalsMessage.text}
+                                </span>
+                            )}
+                        </div>
                     </div>
-
-                    {isHistorical ? (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                            {t('viewing_history')}
-                        </span>
-                    ) : submitted && (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
-                            {t('sync_blocked_submitted')}
-                        </span>
-                    )}
-                    {syncSummary && (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>{syncSummary}</span>
-                    )}
-                    {syncError && (
-                        <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{syncError}</p>
-                    )}
-                </div>
+                )}
 
                 {!readOnly && (
                     <div style={{

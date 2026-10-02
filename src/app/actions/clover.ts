@@ -629,11 +629,11 @@ export async function getTipEligibleStaff(): Promise<{
     error: string | null;
 }> {
     try {
-        const [cloverStaff, flagged, hidden] = await Promise.all([
-            fetchWaitStaffFromClover(),
+        // DB only: Clover is no longer reachable, so the list is built from
+        // EmployeeRate (the cached Clover role, plus the includeInTips flag).
+        const [rates, hidden] = await Promise.all([
             prisma.employeeRate.findMany({
-                where: { includeInTips: true },
-                select: { cloverEmployeeId: true, employeeName: true },
+                select: { cloverEmployeeId: true, employeeName: true, cloverRole: true, includeInTips: true },
             }),
             prisma.salonStaffVisibility.findMany({
                 where: { isVisible: false },
@@ -641,14 +641,11 @@ export async function getTipEligibleStaff(): Promise<{
             }),
         ]);
 
-        const byId = new Map(cloverStaff.map(s => [s.id, s.name]));
-
-        // Clover's name wins where it has one. It is the live source and the
-        // same name the rest of the tip flow stores, so preferring the local
-        // copy would put a second spelling of one person into TipShiftEntry.
-        for (const row of flagged) {
+        const byId = new Map<string, string>();
+        for (const row of rates) {
             if (!row.cloverEmployeeId) continue;
-            if (!byId.has(row.cloverEmployeeId)) {
+            const isWaitStaff = (row.cloverRole ?? '').trim().toLowerCase() === 'wait staff';
+            if (isWaitStaff || row.includeInTips) {
                 byId.set(row.cloverEmployeeId, row.employeeName);
             }
         }

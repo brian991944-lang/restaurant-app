@@ -562,6 +562,9 @@ export async function setTipTargets(
     changedByName: string,
     reason?: string
 ): Promise<{ success: boolean; error?: string }> {
+    if (!(await isAdminSession())) {
+        return { success: false, error: 'Solo un administrador puede cambiar los totales del día.' };
+    }
     const column = TOTAL_FIELD[field];
     if (!column) return { success: false, error: 'Ese campo no es un total editable.' };
     if (!Number.isFinite(newValue) || newValue < 0) {
