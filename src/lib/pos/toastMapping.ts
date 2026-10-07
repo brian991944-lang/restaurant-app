@@ -96,7 +96,10 @@ export async function seedToastMappingsCore(): Promise<MappingSeedReport> {
     // ── App side ──
     const [menuItems, existing] = await Promise.all([
         prisma.menuItem.findMany({
-            select: { id: true, name: true, nameEn: true, modifiers: { select: { id: true, name: true, menuItemId: true } } }
+            select: {
+                id: true, name: true, nameEn: true,
+                modifiers: { select: { id: true, name: true, menuItemId: true, _count: { select: { ingredients: true } } } }
+            }
         }),
         prisma.posItemMapping.findMany({ where: { source: PosSource.TOAST } })
     ]);
@@ -140,9 +143,15 @@ export async function seedToastMappingsCore(): Promise<MappingSeedReport> {
         });
     }
 
-    // ── Modifiers: protein/seafood only ──
+    // ── Modifiers that can move inventory ──
+    // A protein/seafood add-on, or a choice the app already gives ingredients
+    // on that same dish (Ronda Fusionista's "Classic Ceviche"). Removals,
+    // doneness and prep notes match neither and get no row.
     for (const mod of modifiers.values()) {
-        if (!isProteinModifier(mod.name)) continue;
+        const parentId = itemTarget.get(mod.parentItemGuid);
+        const parentDish = parentId ? menuItemById.get(parentId) : undefined;
+        const appHasIt = (parentDish?.modifiers ?? []).some(am => am._count.ingredients > 0 && sameTokens(am.name, mod.name));
+        if (!isProteinModifier(mod.name) && !appHasIt) continue;
         const parentName = items.get(mod.parentItemGuid)?.name ?? mod.parentItemGuid;
         const displayName = `${mod.name} (${parentName})`;
         const prior = existingByKey.get(`MODIFIER|${mod.key}`);

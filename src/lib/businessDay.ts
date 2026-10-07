@@ -59,7 +59,7 @@ function addDays(dateStr: string, days: number): string {
  * Iterative Intl-based inversion (two passes converge across DST changes);
  * derives the NY offset per-date rather than assuming -05:00/-04:00.
  */
-function nyWallToUtc(dateStr: string, hour: number, minute = 0): Date {
+export function nyWallToUtc(dateStr: string, hour: number, minute = 0): Date {
     const [y, m, d] = dateStr.split('-').map(Number);
     const desired = Date.UTC(y, m - 1, d, hour, minute, 0);
     let guess = desired; // start as if NY were UTC, then correct

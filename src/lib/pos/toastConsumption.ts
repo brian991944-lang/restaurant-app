@@ -25,12 +25,23 @@ const LOCK_STALE_MS = 30 * 60 * 1000;
 const round4 = (n: number) => Math.round(n * 10000) / 10000;
 const num = (d: Prisma.Decimal | number | null | undefined) => (d == null ? 0 : Number(d));
 
+export type ConsumptionOptions = {
+    dryRun: boolean;
+    /** false: record lines only, move no stock (used when fixing a baseline). Default true. */
+    stock?: boolean;
+    /** Use this baseline instead of the stored one (baseline preview). */
+    baselineAt?: Date | null;
+};
+
 export type ConsumptionReport = {
     date: string;
     skipped?: string;
     lines: number;
     applied: number;
     reversed: number;
+    /** Lines from before the baseline: recorded as consumed, stock untouched. */
+    baselined: number;
+    baselineAt: string | null;
     unmapped: { name: string; guid: string; qty: number }[];
     unmappedModifiers: { name: string; parent: string; key: string; qty: number }[];
     /** What moved (or, in a dry run, would move), per ingredient. */
@@ -75,24 +86,37 @@ type TargetLine = {
     qty: number;
     voided: boolean;
     approvalStatus: string | null;
+    /** When the sale happened: opened, or a FUTURE order's promised time. */
+    orderAt: Date | null;
+    /** From the item mapping: how much of the app dish one unit is. */
+    qtyMultiplier: number;
     /** Per one unit of the selection: mapped modifiers with their quantity. */
     modifiers: { menuItemModifierId: string; qty: number }[];
 };
 
+const validDate = (v: unknown): Date | null => {
+    const d = v ? new Date(String(v)) : null;
+    return d && !Number.isNaN(d.getTime()) ? d : null;
+};
+
 export async function runToastConsumptionCore(
     businessDates: string[],
-    { dryRun }: { dryRun: boolean }
+    options: ConsumptionOptions
 ): Promise<ConsumptionReport[]> {
+    const baselineAt = options.baselineAt !== undefined
+        ? options.baselineAt
+        : (await prisma.posConsumptionBaseline.findUnique({ where: { source: PosSource.TOAST } }))?.baselineAt ?? null;
     const reports: ConsumptionReport[] = [];
     for (const date of businessDates) {
-        reports.push(await runOneDay(date, dryRun));
+        reports.push(await runOneDay(date, options.dryRun, options.stock ?? true, baselineAt));
     }
     return reports;
 }
 
-async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionReport> {
+async function runOneDay(date: string, dryRun: boolean, moveStock: boolean, baselineAt: Date | null): Promise<ConsumptionReport> {
     const report: ConsumptionReport = {
-        date, lines: 0, applied: 0, reversed: 0, unmapped: [], unmappedModifiers: [], deductions: [], warnings: [], errors: []
+        date, lines: 0, applied: 0, reversed: 0, baselined: 0, baselineAt: baselineAt?.toISOString() ?? null,
+        unmapped: [], unmappedModifiers: [], deductions: [], warnings: [], errors: []
     };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         report.skipped = 'Fecha no válida.';
@@ -139,6 +163,10 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
             const lineDate = order?.approvalStatus === 'FUTURE' && promised
                 ? toastBusinessDateOf(new Date(promised))
                 : (fromToastBusinessDate(order?.businessDate) ?? date);
+            // The moment compared with the baseline: a scheduled order is
+            // made at its promised time, so that is when it consumes.
+            const orderAt = (order?.approvalStatus === 'FUTURE' ? validDate(promised) : null)
+                ?? validDate(order?.openedDate) ?? validDate(order?.createdDate);
 
             for (const check of order?.checks ?? []) {
                 const checkVoid = !!(check?.voided || check?.deleted);
@@ -193,6 +221,8 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
                         qty,
                         voided,
                         approvalStatus: order?.approvalStatus ?? null,
+                        orderAt,
+                        qtyMultiplier: mapping?.menuItemId && Number.isFinite(mapping.qtyMultiplier) ? mapping.qtyMultiplier : 1,
                         modifiers
                     });
                 }
@@ -263,9 +293,11 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
                     wants.push({ ingredientId: r.ingredientId, qty: q * m.qty, sourceKind: 'MODIFIER', menuItemModifierId: m.menuItemModifierId });
                 }
             }
-            // One row per ingredient and source.
+            // One row per ingredient and source, scaled by the mapping's
+            // multiplier (½ dozen consumes half the dozen dish).
             const merged = new Map<string, Want>();
-            for (const w of wants) {
+            for (const w0 of wants) {
+                const w = { ...w0, qty: w0.qty * t.qtyMultiplier };
                 const k = `${w.ingredientId}|${w.sourceKind}|${w.menuItemModifierId ?? ''}`;
                 const prev = merged.get(k);
                 merged.set(k, prev ? { ...prev, qty: prev.qty + w.qty } : { ...w });
@@ -286,13 +318,19 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
             const applied = line?.appliedQty ?? 0;
             const want = target && !target.voided ? target.qty : 0;
             const delta = want - applied;
+            const orderAt = target?.orderAt ?? line?.orderAt ?? null;
+            // Before the counting point: the counted stock already reflects
+            // this sale. It is recorded as consumed and never moves stock —
+            // not now, and not on a later void either.
+            const beforeBaseline = !!(baselineAt && orderAt && orderAt < baselineAt);
+            const mayMove = moveStock && !beforeBaseline;
 
             try {
                 // ── Plan the stock moves for this line ──
                 type Move = { key: string; ingredientId: string; sourceKind: string; menuItemModifierId: string | null; addThaw: number; addFrozen: number; addClamped: number; existingId?: string };
                 const moves: Move[] = [];
 
-                if (delta > 0) {
+                if (delta > 0 && mayMove) {
                     let perUnit: Want[];
                     const existing = line?.deductions ?? [];
                     if (applied > 0 && existing.length > 0) {
@@ -328,7 +366,7 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
                             addThaw: take.fromThawing, addFrozen: take.fromFrozen, addClamped: take.clamped, existingId: existingRow?.id
                         });
                     }
-                } else if (delta < 0 && line) {
+                } else if (delta < 0 && line && mayMove) {
                     // Reverse proportionally from what was recorded — never from the recipe.
                     const p = -delta / applied;
                     for (const d of line.deductions) {
@@ -355,9 +393,14 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
                 // A line that took nothing stays unapplied, so mapping it or
                 // giving it a recipe later still consumes it on a re-run.
                 const consumes = delta > 0 && moves.length > 0;
-                const newApplied = delta < 0 ? want : consumes ? want : applied;
-                if (consumes) report.applied++;
-                if (delta < 0) report.reversed++;
+                const newApplied = beforeBaseline ? want
+                    : !moveStock ? applied
+                    : delta < 0 ? want : consumes ? want : applied;
+                if (beforeBaseline) report.baselined++;
+                else if (moveStock) {
+                    if (consumes) report.applied++;
+                    if (delta < 0) report.reversed++;
+                }
 
                 if (dryRun) continue;
 
@@ -374,6 +417,7 @@ async function runOneDay(date: string, dryRun: boolean): Promise<ConsumptionRepo
                         qty: target?.qty ?? line!.qty,
                         voided: target ? target.voided : true,
                         approvalStatus: target?.approvalStatus ?? line!.approvalStatus,
+                        orderAt,
                         appliedQty: newApplied,
                         lastRunAt: now,
                         ...(consumes && !line?.firstAppliedAt ? { firstAppliedAt: now } : {})

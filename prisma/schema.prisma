@@ -1342,6 +1342,9 @@ model PosItemMapping {
   menuItemModifierId String?
   menuItemModifier   MenuItemModifier? @relation(fields: [menuItemModifierId], references: [id], onDelete: SetNull)
   matchedBy          String // NAME | NAME_GF | MANUAL | NONE. MANUAL is never overwritten by a re-seed.
+  // How much of the app dish one POS unit is (½ dozen = 0.5 of the dozen dish).
+  // Applied to what a line consumes, fixed at its first apply.
+  qtyMultiplier      Float             @default(1)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -1368,6 +1371,9 @@ model PosSalesLine {
   qty             Int
   voided          Boolean             @default(false)
   approvalStatus  String?
+  // When the sale happened (opened; a FUTURE order's promised time), compared
+  // against PosConsumptionBaseline. Null only on rows written before it existed.
+  orderAt         DateTime?
   appliedQty      Int                 @default(0)
   firstAppliedAt  DateTime?
   lastRunAt       DateTime            @default(now())
@@ -1406,4 +1412,14 @@ model PosSyncRun {
   finishedAt   DateTime?
 
   @@unique([source, businessDate, startedAt])
+}
+
+// The stock-count point for a POS: sales from before it are already reflected
+// in the counted stock, so they are recorded as consumed without moving stock,
+// and the engine never deducts or reverses them.
+model PosConsumptionBaseline {
+  source     PosSource @id
+  baselineAt DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
