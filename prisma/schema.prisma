@@ -1078,6 +1078,10 @@ model EmployeeRate {
   // column named for tips deciding who can be recorded on a closing checklist is
   // exactly the kind of coupling nobody would trace back to here.
   includeInTips    Boolean     @default(false)
+  // This person's employee GUID in Toast, so a Toast check's server can be
+  // credited to the same row the rest of the app keys on cloverEmployeeId.
+  // Set by hand (one-time mapping), never guessed from names by the sync.
+  toastEmployeeGuid String?    @unique
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 }

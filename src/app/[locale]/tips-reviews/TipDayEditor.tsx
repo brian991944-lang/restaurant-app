@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Lock, Pencil, Plus, RefreshCw, Trash2, Unlock } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
 import { saveShift, addShift, removeShift, reopenTipDay, setTipTargets } from '@/app/actions/tips';
+import { syncToastTips, type ToastTipSyncSummary } from '@/app/actions/toastTipSync';
 // Type-only: avoids shipping a client reference to an action never called here.
 import type { getTipDay } from '@/app/actions/tips';
 import { toCents, sumCents, formatMoney } from '@/lib/money';
@@ -195,6 +196,10 @@ export default function TipDayEditor({
         setTotalCredit(day.totalCreditTips.toFixed(2));
         setTotalService(day.totalServiceCharge.toFixed(2));
     }, [day.totalCreditTips, day.totalServiceCharge]);
+
+    const [syncing, setSyncing] = useState(false);
+    const [syncError, setSyncError] = useState<string | null>(null);
+    const [syncSummary, setSyncSummary] = useState<ToastTipSyncSummary | null>(null);
 
     const [breakdownOpen, setBreakdownOpen] = useState(false);
 
@@ -478,6 +483,31 @@ export default function TipDayEditor({
         }
     };
 
+    // Same rule the Clover button had — a draft day that is open for editing —
+    // which now also covers a past draft day an admin has unlocked. The sync
+    // action re-checks both the submitted guard and the admin session.
+    const canSync = !syncing && !readOnly;
+
+    const handleSync = async () => {
+        if (!canSync) return;
+        setSyncing(true);
+        setSyncError(null);
+        setSyncSummary(null);
+        try {
+            const result = await syncToastTips(new Date(day.businessDate).toISOString().slice(0, 10));
+            if (!result.success) {
+                setSyncError(result.error ?? 'No se pudo sincronizar con Toast.');
+                return;
+            }
+            setSyncSummary(result.summary ?? null);
+            router.refresh();
+        } catch (e) {
+            setSyncError(e instanceof Error ? e.message : 'No se pudo sincronizar con Toast.');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const roleLabel = (role: Role) => (role === 'MESERO' ? t('mesero') : t('busser'));
 
     const allRows = day.shifts.flatMap(s => shiftRows(s.id));
@@ -738,6 +768,67 @@ export default function TipDayEditor({
                         </div>
                     );
                 })}
+
+                {/* Sync sits with the balances because that is what it moves. */}
+                <div style={{
+                    display: 'flex', flexDirection: 'column', gap: '0.6rem',
+                    borderTop: '1px solid var(--border)', paddingTop: '1rem'
+                }}>
+                    <div>
+                        <button
+                            onClick={handleSync}
+                            disabled={!canSync}
+                            style={{
+                                ...quietButton,
+                                minHeight: '56px',
+                                color: canSync ? 'white' : 'var(--text-secondary)',
+                                background: canSync ? 'var(--success)' : 'rgba(255,255,255,0.05)',
+                                border: canSync ? '1px solid var(--success)' : '1px solid var(--border)',
+                                cursor: canSync ? 'pointer' : 'not-allowed',
+                                opacity: canSync ? 1 : 0.5
+                            }}
+                        >
+                            <RefreshCw size={18} />
+                            {syncing ? 'Sincronizando…' : 'Sincronizar con Toast'}
+                        </button>
+                    </div>
+
+                    {submitted ? (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
+                            Este día ya fue enviado. No se puede sincronizar con Toast.
+                        </span>
+                    ) : readOnly && (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-secondary)' }}>
+                            {canToggleEdit
+                                ? 'Activa la edición para sincronizar este día con Toast.'
+                                : 'Solo un administrador puede sincronizar un día anterior.'}
+                        </span>
+                    )}
+
+                    {syncSummary && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '1rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                            <span>
+                                Toast: {syncSummary.checksCounted} cuentas, {syncSummary.paymentsCounted} pagos
+                                {' · '}Propinas con tarjeta {formatMoney(syncSummary.cardTipsCents)}
+                                {' · '}Cargo de servicio {formatMoney(syncSummary.serviceChargeCents)}
+                                {' · '}{(syncSummary.durationMs / 1000).toFixed(1)} s
+                            </span>
+                            {syncSummary.employees.map(e => (
+                                <span key={e.name}>
+                                    {e.name}: propinas {formatMoney(e.tipCents)}, cargo de servicio {formatMoney(e.serviceChargeCents)}
+                                </span>
+                            ))}
+                            {syncSummary.unmatched.length > 0 && (
+                                <span style={{ color: 'var(--warning)', fontWeight: 600 }}>
+                                    Sin vincular a un empleado: {syncSummary.unmatched.join(', ')}
+                                </span>
+                            )}
+                        </div>
+                    )}
+                    {syncError && (
+                        <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{syncError}</p>
+                    )}
+                </div>
 
                 {/* Day totals. Admin only, and only while the day can still be
                     edited: setTipTargets refuses a submitted day. Saved through
