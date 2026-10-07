@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { getSalesAuditData } from '@/app/actions/sales';
+import { getSalesAuditData, getToastSalesAuditData, type ToastAuditDay } from '@/app/actions/sales';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 
@@ -11,17 +11,21 @@ export default function SalesAuditPage() {
     const [salesData, setSalesData] = useState<any>({ grouped: {}, days: [] });
     const [lastSync, setLastSync] = useState<string | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
+    const [toastDays, setToastDays] = useState<ToastAuditDay[]>([]);
+    const [toastError, setToastError] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
-        const [salesRes, syncRes] = await Promise.all([getSalesAuditData(), getLastSyncTime()]);
+        const [salesRes, syncRes, toastRes] = await Promise.all([getSalesAuditData(), getLastSyncTime(), getToastSalesAuditData()]);
         if (salesRes.success) {
             setSalesData({ grouped: salesRes.grouped, days: salesRes.days });
         }
         setLastSync(syncRes);
+        setToastDays(toastRes.days);
+        setToastError(toastRes.success ? null : toastRes.error ?? 'No se pudieron leer las ventas de Toast.');
     };
 
     const handleSync = async () => {
@@ -124,6 +128,46 @@ export default function SalesAuditPage() {
                         </div>
                     );
                 })}
+            </div>
+
+            {/* Toast: its own section, never summed with Clover above. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div>
+                    <h2 style={{ fontSize: '1.75rem', margin: 0 }}>Ventas en Toast</h2>
+                    <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
+                        Últimos 3 días de Toast (el día cambia a las 4 AM). Fuente: Toast. No se suma con Clover.
+                    </p>
+                </div>
+                {toastError && <p style={{ margin: 0, color: 'var(--danger)' }}>{toastError}</p>}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
+                    {toastDays.map((day, idx) => (
+                        <div key={day.date} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', margin: 0, textAlign: 'center', color: idx === toastDays.length - 1 ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+                                {day.label} {idx === toastDays.length - 1 && '(Hoy)'} · Toast
+                            </h3>
+                            {day.categories.length === 0 ? (
+                                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem 0' }}>Sin ventas registradas</div>
+                            ) : day.categories.map(cat => (
+                                <div key={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', margin: 0, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.03)', color: cat.name === 'Sin vincular' ? 'var(--warning)' : 'var(--text-secondary)' }}>
+                                        {cat.name}
+                                    </h4>
+                                    {cat.items.map(it => (
+                                        <div key={it.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                            <span style={{ fontWeight: 600 }}>
+                                                {it.name}
+                                                {it.voidedQty > 0 && (
+                                                    <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-secondary)' }}> · {it.voidedQty} anulado{it.voidedQty === 1 ? '' : 's'}</span>
+                                                )}
+                                            </span>
+                                            <span style={{ fontWeight: 700, background: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.9rem' }}>{it.qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
             </div>
 
             <style jsx>{`

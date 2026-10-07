@@ -47,7 +47,9 @@ export async function getInventory(
             },
             transactions: {
                 where: {
-                    type: 'SALES_DEDUCT_CLOVER',
+                    // Both POS feeds; Toast voids come back as reversals and
+                    // are subtracted by the page.
+                    type: { in: ['SALES_DEDUCT_CLOVER', 'SALES_DEDUCT_TOAST', 'SALES_REVERSAL_TOAST'] },
                     createdAt: {
                         // Deductions since the current business day began (NY),
                         // not since server-local midnight (UTC on Vercel).

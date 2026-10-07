@@ -40,7 +40,7 @@ interface Ingredient {
     parent?: any;
     calculatedCost?: number;
     cloverId?: string | null;
-    cloverSoldToday?: number;
+    posSoldToday?: number;
     unfrozenQuantity?: number;
     trackFreezerStatus?: boolean;
     isPacked?: boolean;
@@ -396,7 +396,10 @@ export default function InventoryPage() {
         initialQty: (item.inventory?.frozenQty || 0) + (item.inventory?.thawingQty || 0),
         portionWeightG: item.portionWeightG,
         cloverId: item.cloverId,
-        cloverSoldToday: item.transactions?.reduce((sum: number, tx: any) => sum + tx.qty, 0) || 0,
+        // Clover and Toast sales today, net of Toast voids.
+        posSoldToday: item.transactions?.reduce(
+            (sum: number, tx: any) => sum + (tx.type === 'SALES_REVERSAL_TOAST' ? -tx.qty : tx.qty), 0
+        ) || 0,
         inventory: item.inventory,
         unfrozenQuantity: item.inventory?.thawingQty || 0,
         trackFreezerStatus: item.trackFreezerStatus || false,

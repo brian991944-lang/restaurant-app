@@ -100,17 +100,23 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         const transactions = await prisma.inventoryTransaction.findMany({
             where: {
                 createdAt: { gte: fourteenDaysAgo },
-                type: { in: ['SALES_DEDUCT', 'PULL_PREP', 'PREP_COMPLETE'] }
+                type: { in: ['SALES_DEDUCT', 'SALES_DEDUCT_CLOVER', 'SALES_DEDUCT_TOAST', 'SALES_REVERSAL_TOAST', 'PULL_PREP', 'PREP_COMPLETE'] }
             }
         });
+        const SALES = new Set(['SALES_DEDUCT', 'SALES_DEDUCT_CLOVER', 'SALES_DEDUCT_TOAST']);
         const demandMap = new Map<string, number>();
         for (const tx of transactions) {
-            // we only care about negative shifts roughly mapping consumption
-            if (tx.qty < 0 || tx.type === 'SALES_DEDUCT' || tx.type === 'PULL_PREP') {
-                const current = demandMap.get(tx.ingredientId) || 0;
+            const current = demandMap.get(tx.ingredientId) || 0;
+            if (tx.type === 'SALES_REVERSAL_TOAST') {
+                // A Toast void gives back what its sale took.
+                demandMap.set(tx.ingredientId, current - Math.abs(tx.qty));
+            } else if (tx.qty < 0 || SALES.has(tx.type) || tx.type === 'PULL_PREP') {
+                // we only care about negative shifts roughly mapping consumption
                 demandMap.set(tx.ingredientId, current + Math.abs(tx.qty));
             }
         }
+        // A void inside the window for a sale before it can leave a negative.
+        for (const [id, v] of demandMap) if (v < 0) demandMap.set(id, 0);
 
         const mergedTasks: PrepTask[] = [];
 
