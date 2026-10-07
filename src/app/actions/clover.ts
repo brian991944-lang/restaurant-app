@@ -318,8 +318,18 @@ export async function syncCloverSales() {
                     }
 
                     // Depletion logic - Menu mapping
+                    //
+                    // OFF unless CLOVER_CONSUMPTION_ENABLED === 'true'. Every
+                    // sale is now rung in Toast (Uber included), which consumes
+                    // inventory itself; deducting here as well would count it
+                    // twice, and depleteInventory does not convert units.
+                    // Logging above still runs, so the Clover sales audit stays.
+                    // Checked here rather than in the cron so the manual
+                    // "Sync" buttons are gated too. A line processed while off
+                    // is never deducted later, even if the flag is turned on.
+                    const cloverConsumes = process.env.CLOVER_CONSUMPTION_ENABLED === 'true';
                     const mappedMenu = menuItemsByCloverId.get(cloverItemId);
-                    if (mappedMenu) {
+                    if (cloverConsumes && mappedMenu) {
                         // Deplete base ingredients
                         for (const reqIng of mappedMenu.recipeIngredients) {
                             await depleteInventory(reqIng.ingredientId, reqIng.quantity, `Menu Sale: ${itemName}`);
@@ -339,7 +349,7 @@ export async function syncCloverSales() {
                                 }
                             }
                         }
-                    } else {
+                    } else if (cloverConsumes) {
                         // Fallback to legacy single ingredient mapping
                         const mappedIng = ingredientsByCloverId.get(cloverItemId);
                         if (mappedIng) {
