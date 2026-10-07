@@ -296,6 +296,7 @@ model MenuItem {
 
   recipeIngredients RecipeIngredient[]
   modifiers         MenuItemModifier[]
+  posMappings       PosItemMapping[]
 }
 
 // Single-row publish state for the offline menu clients (iPad). forceToken is
@@ -317,6 +318,7 @@ model MenuItemModifier {
 
   menuItem    MenuItem             @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   ingredients ModifierIngredient[]
+  posMappings PosItemMapping[]
 }
 
 model ModifierIngredient {
@@ -365,7 +367,10 @@ model InventoryTransaction {
   id           String     @id @default(cuid())
   ingredientId String
   ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
-  type         String // DEDUCT_FROZEN, ADD_THAWING, SALES_DEDUCT, PULL_PREP
+  // DEDUCT_FROZEN, ADD_THAWING, SALES_DEDUCT, PULL_PREP, SALES_DEDUCT_CLOVER,
+  // SALES_DEDUCT_TOAST (Toast sale consumed stock, qty > 0) and
+  // SALES_REVERSAL_TOAST (a Toast void put stock back, qty > 0 = amount restored).
+  type         String
   qty          Float
   note         String?
   createdAt    DateTime   @default(now())
@@ -1309,4 +1314,96 @@ model AdpRun {
   updatedAt          DateTime @updatedAt
   @@unique([checkDate, payrollNumber])
   @@index([checkDate])
+}
+
+// ── POS sales → inventory consumption (POS-agnostic) ──
+//
+// Clover keeps its own ProcessedClover* tables and cron; these hold everything
+// read from Toast (and any future POS). Nothing here is ever written to a POS.
+
+enum PosSource {
+  CLOVER
+  TOAST
+}
+
+// Which app dish or modifier a POS item stands for. Many-to-one is normal:
+// Toast sells a GF version of a dish as its own item.
+model PosItemMapping {
+  id                 String            @id @default(cuid())
+  source             PosSource
+  kind               String // ITEM | MODIFIER
+  // The POS GUID. A modifier with no menu item behind it is keyed
+  // "og:{optionGroupGuid}:{normalizedName}" instead.
+  posGuid            String
+  posDisplayName     String
+  optionGroupGuid    String?
+  menuItemId         String?
+  menuItem           MenuItem?         @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+  menuItemModifierId String?
+  menuItemModifier   MenuItemModifier? @relation(fields: [menuItemModifierId], references: [id], onDelete: SetNull)
+  matchedBy          String // NAME | NAME_GF | MANUAL | NONE. MANUAL is never overwritten by a re-seed.
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([source, kind, posGuid])
+}
+
+// One POS selection (order line) and how much of it has been consumed.
+// appliedQty is what stock currently reflects; a run moves stock only by
+// (target − appliedQty), so re-running a day is safe and a void reverses.
+model PosSalesLine {
+  id              String              @id @default(cuid())
+  source          PosSource
+  selectionGuid   String              @unique
+  orderGuid       String
+  checkGuid       String
+  // The day the sale counts toward (a FUTURE order's promised day).
+  businessDate    DateTime            @db.Date
+  // The POS's own business date for the order — the fetch it appears in, so a
+  // line missing from that fetch can be recognised as gone.
+  posBusinessDate DateTime            @db.Date
+  posItemGuid     String
+  posDisplayName  String
+  menuItemId      String? // plain id, not a relation: history outlives menu edits
+  qty             Int
+  voided          Boolean             @default(false)
+  approvalStatus  String?
+  appliedQty      Int                 @default(0)
+  firstAppliedAt  DateTime?
+  lastRunAt       DateTime            @default(now())
+  deductions      PosSalesDeduction[]
+
+  @@index([businessDate])
+  @@index([posBusinessDate])
+}
+
+// What a line actually took out of stock, per ingredient, in the
+// ingredient's own unit. Fixed at first apply: reversals scale these rows,
+// they never recompute from the current recipe.
+model PosSalesDeduction {
+  id                 String       @id @default(cuid())
+  lineId             String
+  line               PosSalesLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  ingredientId       String // plain id, not a relation: history outlives ingredients
+  qtyDeducted        Decimal      @db.Decimal(14, 4)
+  // Wanted but not taken because the ingredient may not go negative.
+  qtyClamped         Decimal      @default(0) @db.Decimal(14, 4)
+  // The part of qtyDeducted that came from thawing stock (the rest: frozen).
+  qtyFromThawing     Decimal      @default(0) @db.Decimal(14, 4)
+  unit               String
+  sourceKind         String // ITEM | MODIFIER
+  menuItemModifierId String?
+
+  @@index([lineId])
+}
+
+// Per-day lock for a consumption run.
+model PosSyncRun {
+  id           String    @id @default(cuid())
+  source       PosSource
+  businessDate DateTime  @db.Date
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  @@unique([source, businessDate, startedAt])
 }
