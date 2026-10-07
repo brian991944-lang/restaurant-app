@@ -8,8 +8,14 @@
  * pages, saves the page token in GbpOAuthToken.backfillCursor, and returns
  * `done: false` until the last page. Call it until `done: true`.
  */
+import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { iterateReviews, fetchDailyMetrics, STAR_TO_INT, type GbpReviewRaw } from "./client";
+import { iterateReviews, fetchDailyMetrics, STAR_TO_INT, type GbpReviewRaw, type DailyMetric } from "./client";
+
+// Functions run in iad1 and the database is in us-west-2, so every statement
+// is a cross-country round trip (~100 ms). Per-row upserts made a 50-review
+// page take ~7 s and 35 days of metrics ~40 s; these write each page/chunk
+// in ONE INSERT ... ON CONFLICT statement instead.
 
 export type ReviewsSyncResult = {
   mode: "incremental" | "backfill";
@@ -59,11 +65,7 @@ export async function syncReviews(opts: { full?: boolean; maxPages?: number } = 
     fetched += page.length;
     lastNext = nextPageToken;
 
-    // Small transactions keep the Supabase pooler happy on Vercel.
-    await prisma.$transaction(
-      page.map((r) => prisma.gbpReview.upsert({ where: { id: r.reviewId }, create: toRow(r), update: toRow(r) }))
-    );
-    upserted += page.length;
+    upserted += await upsertReviews(page.map(toRow));
   }
 
   if (averageRating !== undefined && totalReviews !== undefined) {
@@ -114,19 +116,59 @@ export async function syncMetrics(opts: { days?: number } = {}): Promise<Metrics
   const start = new Date(end.getTime() - (days - 1) * 86_400_000);
 
   const rows = await fetchDailyMetrics(start, end);
-  for (let i = 0; i < rows.length; i += 100) {
-    const chunk = rows.slice(i, i + 100);
-    await prisma.$transaction(
-      chunk.map((m) =>
-        prisma.gbpDailyMetric.upsert({
-          where: { date_metric: { date: m.date, metric: m.metric } },
-          create: { date: m.date, metric: m.metric, value: m.value },
-          update: { value: m.value, syncedAt: new Date() },
-        })
-      )
-    );
+  for (let i = 0; i < rows.length; i += 1000) {
+    await upsertMetrics(rows.slice(i, i + 1000));
   }
   return { days, rows: rows.length };
+}
+
+type ReviewRow = ReturnType<typeof toRow>;
+
+/** One statement per page. Returns the number of reviews written. */
+async function upsertReviews(rows: ReviewRow[]): Promise<number> {
+  // ON CONFLICT DO UPDATE can't touch the same row twice in one statement.
+  const unique = [...new Map(rows.map((r) => [r.id, r])).values()];
+  if (!unique.length) return 0;
+  const ts = (d: Date | null) => (d ? d.toISOString() : null);
+  const values = unique.map(
+    (r) => Prisma.sql`(${r.id}, ${r.name}, ${r.reviewerName}, ${r.reviewerPhoto}, ${r.isAnonymous},
+      ${r.starRating}::int, ${r.comment}, ${ts(r.createTime)}::timestamp(3), ${ts(r.updateTime)}::timestamp(3),
+      ${r.replyComment}, ${ts(r.replyTime)}::timestamp(3), ${JSON.stringify(r.raw)}::jsonb, CURRENT_TIMESTAMP)`
+  );
+  await prisma.$executeRaw`
+    INSERT INTO "GbpReview" ("id", "name", "reviewerName", "reviewerPhoto", "isAnonymous", "starRating", "comment",
+      "createTime", "updateTime", "replyComment", "replyTime", "raw", "syncedAt")
+    VALUES ${Prisma.join(values)}
+    ON CONFLICT ("id") DO UPDATE SET
+      "name" = EXCLUDED."name",
+      "reviewerName" = EXCLUDED."reviewerName",
+      "reviewerPhoto" = EXCLUDED."reviewerPhoto",
+      "isAnonymous" = EXCLUDED."isAnonymous",
+      "starRating" = EXCLUDED."starRating",
+      "comment" = EXCLUDED."comment",
+      "createTime" = EXCLUDED."createTime",
+      "updateTime" = EXCLUDED."updateTime",
+      "replyComment" = EXCLUDED."replyComment",
+      "replyTime" = EXCLUDED."replyTime",
+      "raw" = EXCLUDED."raw",
+      "syncedAt" = EXCLUDED."syncedAt"`;
+  return unique.length;
+}
+
+/** One statement per chunk of daily metric values. */
+async function upsertMetrics(rows: Array<{ date: Date; metric: DailyMetric; value: number }>): Promise<void> {
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const unique = [...new Map(rows.map((m) => [`${ymd(m.date)}|${m.metric}`, m])).values()];
+  if (!unique.length) return;
+  const values = unique.map(
+    (m) => Prisma.sql`(${ymd(m.date)}::date, ${m.metric}, ${Math.round(m.value)}::int, CURRENT_TIMESTAMP)`
+  );
+  await prisma.$executeRaw`
+    INSERT INTO "GbpDailyMetric" ("date", "metric", "value", "syncedAt")
+    VALUES ${Prisma.join(values)}
+    ON CONFLICT ("date", "metric") DO UPDATE SET
+      "value" = EXCLUDED."value",
+      "syncedAt" = EXCLUDED."syncedAt"`;
 }
 
 export async function runFullSync(opts: { fullReviews?: boolean; maxPages?: number; metricDays?: number; skipMetrics?: boolean } = {}): Promise<SyncResult> {
