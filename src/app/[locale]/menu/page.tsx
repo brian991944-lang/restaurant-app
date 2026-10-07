@@ -16,8 +16,9 @@ import { syncMenuFromClover } from '@/app/actions/clover';
 import { getBusinessDate } from '@/lib/businessDay';
 import ItemEditorModal from './ItemEditorModal';
 import CostosTab from './CostosTab';
+import MapeoToastTab from './MapeoToastTab';
 
-type TabId = 'categorias' | 'platos' | 'costos';
+type TabId = 'categorias' | 'platos' | 'costos' | 'mapeo-toast';
 
 const UNCATEGORIZED = '__none__';
 
@@ -273,10 +274,11 @@ export default function MenuAdminPage() {
             </div>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
                 <button onClick={() => setActiveTab('platos')} style={tabStyle('platos')}>Platos</button>
                 <button onClick={() => setActiveTab('categorias')} style={tabStyle('categorias')}>Categorías</button>
                 <button onClick={() => setActiveTab('costos')} style={tabStyle('costos')}>Costos y Recetas</button>
+                <button onClick={() => setActiveTab('mapeo-toast')} style={tabStyle('mapeo-toast')}>Mapeo Toast</button>
             </div>
 
             {/* ============ CATEGORÍAS TAB ============ */}
@@ -528,6 +530,8 @@ export default function MenuAdminPage() {
 
             {/* ============ COSTOS TAB (legacy Menu Items & Recipes view) ============ */}
             {activeTab === 'costos' && <CostosTab />}
+
+            {activeTab === 'mapeo-toast' && <MapeoToastTab />}
 
             {/* Category create/edit modal */}
             {categoryModal.open && (
