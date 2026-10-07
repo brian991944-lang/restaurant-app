@@ -1423,3 +1423,67 @@ model PosConsumptionBaseline {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
+
+// ─── Google Business Profile (GBP) sync ─────────────────────────────────────
+
+/// Single-row table (id = 1). Holds the OAuth refresh token for the
+/// brian991944@gmail.com account plus the resolved account/location names.
+model GbpOAuthToken {
+  id            Int       @id @default(1)
+  refreshToken  String
+  accessToken   String?
+  expiresAt     DateTime?
+  scope         String?
+  /// e.g. "accounts/1234567890"
+  accountName   String?
+  /// e.g. "locations/0987654321"  (Fusionista – Modern Peruvian Cuisine)
+  locationName  String?
+  locationTitle String?
+  /// Page token for a multi-run review backfill (null = no backfill in progress)
+  backfillCursor String?
+  backfillDone   Boolean   @default(false)
+  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime  @default(now())
+}
+
+/// One row per Google review. `name` is the full GBP resource name and is the
+/// key used to post replies.
+model GbpReview {
+  id            String    @id            // reviewId from Google
+  name          String    @unique        // accounts/{a}/locations/{l}/reviews/{r}
+  reviewerName  String?
+  reviewerPhoto String?
+  isAnonymous   Boolean   @default(false)
+  starRating    Int                      // 1–5
+  comment       String?
+  createTime    DateTime
+  updateTime    DateTime
+  replyComment  String?
+  replyTime     DateTime?
+  raw           Json
+  syncedAt      DateTime  @default(now())
+
+  @@index([createTime])
+  @@index([starRating])
+}
+
+/// Daily Business Profile Performance metrics (impressions, calls, website
+/// clicks, direction requests, menu clicks, bookings, food orders…).
+model GbpDailyMetric {
+  date     DateTime @db.Date
+  metric   String   // e.g. WEBSITE_CLICKS, CALL_CLICKS, BUSINESS_IMPRESSIONS_MOBILE_SEARCH
+  value    Int
+  syncedAt DateTime @default(now())
+
+  @@id([date, metric])
+  @@index([metric, date])
+}
+
+/// Rolling snapshot of the headline numbers (rating + total reviews) so you can
+/// chart them over time without recomputing from GbpReview.
+model GbpRatingSnapshot {
+  date          DateTime @id @db.Date
+  averageRating Float
+  totalReviews  Int
+  syncedAt      DateTime @default(now())
+}
