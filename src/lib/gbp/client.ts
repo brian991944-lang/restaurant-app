@@ -99,7 +99,7 @@ export type GbpReviewRaw = {
   updateTime: string;
   reviewReply?: { comment: string; updateTime: string };
 };
-type ReviewsPage = {
+export type ReviewsPage = {
   reviews?: GbpReviewRaw[];
   averageRating?: number;
   totalReviewCount?: number;
@@ -142,6 +142,24 @@ export async function* iterateReviews(opts: { stopAt?: Date; startToken?: string
     if (reachedStop) break;
     pageToken = data.nextPageToken;
   } while (pageToken && pages < maxPages);
+}
+
+/**
+ * One live page of the newest reviews (by updateTime) plus the overall rating
+ * and count. Used by the public website feed, which never reads the stored
+ * GbpReview archive.
+ */
+export async function fetchLatestReviewsPage(pageSize = 50): Promise<ReviewsPage> {
+  const { accountName, locationName } = await requireLocation();
+  const qs = new URLSearchParams({ pageSize: String(pageSize), orderBy: "updateTime desc" });
+  return gfetch<ReviewsPage>(`${REVIEWS_API}/${accountName}/${locationName}/reviews?${qs}`);
+}
+
+/** Public Google Maps link for the location (Business Information `metadata.mapsUri`). */
+export async function fetchLocationMapsUri(): Promise<string | null> {
+  const { locationName } = await requireLocation();
+  const data = await gfetch<{ metadata?: { mapsUri?: string } }>(`${INFO_API}/${locationName}?readMask=metadata`);
+  return data.metadata?.mapsUri ?? null;
 }
 
 /** Post (or overwrite) the owner reply on a review. `reviewName` = GbpReview.name */

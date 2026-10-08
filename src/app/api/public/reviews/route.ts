@@ -4,27 +4,41 @@
 // { rating, count, mapsUrl, reviews: [{ author, authorUrl, photo, rating: 5,
 //   text, when, publishedAt, url }] }
 //
-// Source: Google Places API (New) Place Details for the restaurant's place id,
-// field mask `rating,userRatingCount,googleMapsUri,reviews`. Google returns at
-// most five reviews; we keep only rating === 5, sort newest first and return
-// at most five.
+// Source, in order:
+//  1. Google Business Profile (the /api/gbp OAuth connection): ONE live page
+//     of the 50 most recently updated reviews, keeping five-star reviews with
+//     at least MIN_TEXT_LENGTH characters, newest first by createTime, at most
+//     five. This is a live call cached for six hours — it never reads the
+//     stored GbpReview archive (Business Profile API policy limits storing
+//     content to small, temporary amounts kept for performance).
+//  2. Fallback when the profile isn't connected or Google errors: Google Places
+//     API (New) Place Details, field mask `rating,userRatingCount,
+//     googleMapsUri,reviews`. Google returns at most five "most relevant"
+//     reviews; we keep only rating === 5, sort newest first, at most five.
+// The response header X-Reviews-Source says which one answered.
 //
-// Env: GOOGLE_PLACES_API_KEY (required; never logged or returned) and
-// GOOGLE_PLACE_ID (optional, defaults to Fusionista's place id). Without the
-// key the route answers 503 { error } and the website block stays hidden.
+// Env: GOOGLE_PLACES_API_KEY (fallback only; never logged or returned) and
+// GOOGLE_PLACE_ID (optional, defaults to Fusionista's place id). If both
+// sources fail the route answers 502/503 { error } and the website block
+// stays hidden.
 //
-// Caching: the Google fetch is cached in the Next data cache for six hours
-// (`next: { revalidate }`), so Google is hit at most ~4×/day regardless of
-// traffic. Vercel's CDN caches the response for an hour and serves a stale
-// copy for up to a day while it refreshes.
+// Caching: both Google calls are cached in the Next data cache for six hours,
+// so Google is hit at most ~4×/day regardless of traffic. Vercel's CDN caches
+// the response for an hour and serves a stale copy for up to a day while it
+// refreshes.
 //
 // Reachability: the next-intl middleware matcher covers only '/' and
 // '/(es|en)/:path*', and the admin gate (AdminContext / fusionista_admin
 // cookie) only redirects client pages, so nothing intercepts /api/public/*.
 import { NextRequest, NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
+import { fetchLatestReviewsPage, fetchLocationMapsUri, type GbpReviewRaw } from '@/lib/gbp/client';
 
 /** Re-validate the route (and the cached Google fetch) every six hours. */
 export const revalidate = 21600;
+
+/** Shorter five-star reviews ("Great!") make thin carousel cards. */
+const MIN_TEXT_LENGTH = 40;
 
 const DEFAULT_PLACE_ID = 'ChIJ27xhrBWrw4kR5VdNhtN7sxw';
 const FIELD_MASK = 'rating,userRatingCount,googleMapsUri,reviews';
@@ -95,6 +109,78 @@ type PlaceDetails = {
     }>;
 };
 
+/**
+ * Business Profile returns non-English reviews as
+ * "<original>\n\n(Translated by Google)\n<translation>" (or with the halves
+ * swapped behind an "(Original)" marker). The site is English: keep the
+ * translation.
+ */
+function englishText(comment: string): string {
+    const marker = '(Translated by Google)';
+    const i = comment.indexOf(marker);
+    if (i === -1) return comment.trim();
+    const after = comment.slice(i + marker.length);
+    const original = after.indexOf('(Original)');
+    const translated = (original === -1 ? after : after.slice(0, original)).trim();
+    return translated || comment.slice(0, i).trim();
+}
+
+/** Google-style relative time: "3 days ago", "a week ago", "2 months ago". */
+function relativeTime(iso: string, now = Date.now()): string {
+    const hours = Math.max(0, Math.floor((now - Date.parse(iso)) / 3_600_000));
+    const unit = (n: number, one: string, many: string) => (n === 1 ? `a ${one} ago` : `${n} ${many} ago`);
+    if (hours < 1) return 'just now';
+    if (hours < 24) return hours === 1 ? 'an hour ago' : `${hours} hours ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return unit(days, 'day', 'days');
+    if (days < 30) return unit(Math.floor(days / 7), 'week', 'weeks');
+    if (days < 365) return unit(Math.max(1, Math.floor(days / 30)), 'month', 'months');
+    return unit(Math.floor(days / 365), 'year', 'years');
+}
+
+function placeReviewsUrl(): string {
+    const placeId = process.env.GOOGLE_PLACE_ID || DEFAULT_PLACE_ID;
+    return `https://search.google.com/local/reviews?placeid=${encodeURIComponent(placeId)}`;
+}
+
+async function buildBusinessProfileFeed(): Promise<PublicReviewsFeed> {
+    const [page, mapsUri] = await Promise.all([
+        fetchLatestReviewsPage(50),
+        fetchLocationMapsUri().catch(() => null),
+    ]);
+    const mapsUrl = mapsUri ?? placeReviewsUrl();
+
+    const reviews: PublicReview[] = (page.reviews ?? [])
+        .filter((r: GbpReviewRaw) => r.starRating === 'FIVE' && r.comment)
+        .map((r: GbpReviewRaw) => ({
+            author: (!r.reviewer?.isAnonymous && r.reviewer?.displayName?.trim()) || 'Google user',
+            authorUrl: null,
+            photo: r.reviewer?.isAnonymous ? null : (r.reviewer?.profilePhotoUrl ?? null),
+            rating: 5 as const,
+            text: englishText(r.comment ?? ''),
+            when: relativeTime(r.createTime),
+            publishedAt: r.createTime,
+            // Business Profile has no per-review public link; send people to
+            // the place's reviews instead.
+            url: mapsUrl,
+        }))
+        .filter(r => r.text.length >= MIN_TEXT_LENGTH)
+        .sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt))
+        .slice(0, MAX_REVIEWS);
+
+    return {
+        rating: typeof page.averageRating === 'number' ? Math.round(page.averageRating * 10) / 10 : null,
+        count: page.totalReviewCount ?? 0,
+        mapsUrl,
+        reviews,
+    };
+}
+
+/** Live Business Profile call, cached six hours; a thrown error is not cached. */
+const businessProfileFeed = unstable_cache(buildBusinessProfileFeed, ['public-reviews-gbp-v1'], {
+    revalidate,
+});
+
 export async function OPTIONS(req: NextRequest) {
     return new NextResponse(null, { status: 204, headers: corsHeaders(req) });
 }
@@ -102,6 +188,19 @@ export async function OPTIONS(req: NextRequest) {
 export async function GET(req: NextRequest) {
     const cors = corsHeaders(req);
 
+    // 1. Business Profile (newest reviews). Any failure falls through to Places.
+    try {
+        const feed = await businessProfileFeed();
+        if (feed.reviews.length > 0) {
+            return NextResponse.json(feed, {
+                headers: { ...cors, 'Cache-Control': CACHE_CONTROL, 'X-Reviews-Source': 'business-profile' },
+            });
+        }
+    } catch (e) {
+        console.error('GET /api/public/reviews: Business Profile failed, using Places:', e instanceof Error ? e.message.slice(0, 200) : e);
+    }
+
+    // 2. Places fallback.
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {
         return NextResponse.json(
@@ -157,7 +256,9 @@ export async function GET(req: NextRequest) {
             reviews,
         };
 
-        return NextResponse.json(feed, { headers: { ...cors, 'Cache-Control': CACHE_CONTROL } });
+        return NextResponse.json(feed, {
+            headers: { ...cors, 'Cache-Control': CACHE_CONTROL, 'X-Reviews-Source': 'places' },
+        });
     } catch (e) {
         console.error('GET /api/public/reviews failed:', e instanceof Error ? e.message : e);
         return NextResponse.json(
