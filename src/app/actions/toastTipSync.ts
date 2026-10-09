@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { TipDayStatus } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { fetchToastEmployees, fetchToastOrders, ToastError } from '@/lib/toast/client';
-import { aggregateToastTips, toEmployeeTipRows } from '@/lib/toast/tips';
+import { aggregateToastTips, toEmployeeTipRows, type ServiceChargeBreakdownRow } from '@/lib/toast/tips';
 import { getBusinessDate, businessDateToUtcDate } from '@/lib/businessDay';
 import { isAdminSession } from '@/lib/adminGuard';
 
@@ -19,6 +19,8 @@ export type ToastTipSyncSummary = {
     cardTipsCents: number;
     tipRefundCents: number;
     serviceChargeCents: number;
+    /** Every applied service charge seen that day, counted or not. */
+    serviceCharges: ServiceChargeBreakdownRow[];
     employees: { name: string; tipCents: number; serviceChargeCents: number; matched: boolean }[];
     /** Servers with no EmployeeRate.toastEmployeeGuid, by Toast name. */
     unmatched: string[];
@@ -150,6 +152,7 @@ export async function syncToastTips(businessDate?: string): Promise<{
                 cardTipsCents: agg.tipCents,
                 tipRefundCents: agg.tipRefundCents,
                 serviceChargeCents: agg.serviceChargeCents,
+                serviceCharges: agg.serviceCharges,
                 employees: rows.map(r => ({
                     name: r.employeeName,
                     tipCents: r.tipCents,

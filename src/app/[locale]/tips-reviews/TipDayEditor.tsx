@@ -813,6 +813,15 @@ export default function TipDayEditor({
                                 {' · '}Cargo de servicio {formatMoney(syncSummary.serviceChargeCents)}
                                 {' · '}{(syncSummary.durationMs / 1000).toFixed(1)} s
                             </span>
+                            <span style={{ fontWeight: 600 }}>Cargos de servicio aplicados en Toast:</span>
+                            {syncSummary.serviceCharges.length === 0 && <span>Ninguno.</span>}
+                            {syncSummary.serviceCharges.map(c => (
+                                <span key={`${c.name}|${c.category}|${c.gratuity}`} style={{ color: c.counted ? 'var(--success)' : 'var(--text-secondary)' }}>
+                                    {c.name || '(sin nombre)'} · categoría {c.category || '—'} · gratuidad {c.gratuity ? 'sí' : 'no'}
+                                    {' · '}{c.count} {c.count === 1 ? 'vez' : 'veces'} · {formatMoney(c.totalCents)}
+                                    {' · '}<strong>{c.counted ? 'contado en propinas' : 'NO contado'}</strong>
+                                </span>
+                            ))}
                             {syncSummary.employees.map(e => (
                                 <span key={e.name}>
                                     {e.name}: propinas {formatMoney(e.tipCents)}, cargo de servicio {formatMoney(e.serviceChargeCents)}

@@ -40,8 +40,33 @@ export type ToastTipAggregate = {
     tipCents: number;
     tipRefundCents: number;
     serviceChargeCents: number;
+    /** Every applied service charge seen, counted toward the pool or not. */
+    serviceCharges: ServiceChargeBreakdownRow[];
     servers: ToastServerTotals[];
 };
+
+export type ServiceChargeBreakdownRow = {
+    name: string;
+    category: string;
+    gratuity: boolean;
+    count: number;
+    totalCents: number;
+    counted: boolean;
+};
+
+/** A card-processing fee, by category or by how the restaurant named it. */
+const CARD_FEE_NAME = /surcharge|recargo|card\s*fee|credit\s*card|cc\s*fee|tarjeta|processing/i;
+
+/**
+ * Only gratuity belongs in the tip pool. The credit-card surcharge is the
+ * restaurant's money, so it stays out even if someone flagged it as gratuity.
+ */
+export function isPoolServiceCharge(charge: any): boolean {
+    if (charge?.gratuity !== true) return false;
+    if (charge?.serviceChargeCategory === 'CREDIT_CARD_SURCHARGE') return false;
+    if (typeof charge?.name === 'string' && CARD_FEE_NAME.test(charge.name)) return false;
+    return true;
+}
 
 /**
  * Card tips and service charges for one day of Toast orders.
@@ -49,7 +74,8 @@ export type ToastTipAggregate = {
  * - Voided or deleted orders and checks are skipped entirely.
  * - Payments in an unsettled state are skipped.
  * - Tips are non-cash only, net of any tip refund.
- * - Service charges are every applied charge on a counted check, gratuity or not.
+ * - Service charges are gratuity charges only (see isPoolServiceCharge); card
+ *   surcharges and anything else are listed in `serviceCharges` but not summed.
  * - Everything is credited to the CHECK's server (falling back to the order's,
  *   which is where ordersBulk actually puts it), never the payment's: the
  *   person who ran the table earns the tip even when someone else took the
@@ -68,6 +94,7 @@ export function aggregateToastTips(orders: any[]): ToastTipAggregate {
 
     let ordersCounted = 0, checksCounted = 0, paymentsScanned = 0, paymentsCounted = 0, unsettledPaymentCount = 0;
     let tipCents = 0, tipRefundCents = 0, serviceChargeCents = 0;
+    const chargeBreakdown = new Map<string, ServiceChargeBreakdownRow>();
 
     for (const order of orders) {
         const checks: any[] = order?.checks ?? [];
@@ -105,6 +132,21 @@ export function aggregateToastTips(orders: any[]): ToastTipAggregate {
 
             for (const charge of check?.appliedServiceCharges ?? []) {
                 const c = centsOf(charge?.chargeAmount);
+                const name = typeof charge?.name === 'string' ? charge.name : '';
+                const category = typeof charge?.serviceChargeCategory === 'string' ? charge.serviceChargeCategory : '';
+                const gratuity = charge?.gratuity === true;
+                const counted = isPoolServiceCharge(charge);
+
+                const key = `${name}\u0000${category}\u0000${gratuity}`;
+                let row = chargeBreakdown.get(key);
+                if (!row) {
+                    row = { name, category, gratuity, count: 0, totalCents: 0, counted };
+                    chargeBreakdown.set(key, row);
+                }
+                row.count++;
+                row.totalCents += c;
+
+                if (!counted) continue;
                 s.serviceChargeCents += c;
                 serviceChargeCents += c;
             }
@@ -121,6 +163,7 @@ export function aggregateToastTips(orders: any[]): ToastTipAggregate {
         tipCents,
         tipRefundCents,
         serviceChargeCents,
+        serviceCharges: [...chargeBreakdown.values()].sort((a, b) => b.totalCents - a.totalCents),
         servers: [...servers.values()].sort((a, b) => b.tipCents - a.tipCents)
     };
 }
