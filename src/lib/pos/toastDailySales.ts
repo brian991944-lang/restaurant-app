@@ -31,6 +31,9 @@ export type DailySalesRow = {
     otherChargeCents: number;
     paidChecks: number;
     openChecks: number;
+    /** Null on a row read before these figures existed: the page offers to read the day again. */
+    cashChecks: number | null;
+    cashNetCents: number | null;
     computedAt: string | null;
 };
 
@@ -63,6 +66,8 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
             openChecks: totals.openChecks,
             voidedChecks: totals.voidedChecks,
             ordersScanned: totals.ordersScanned,
+            cashChecks: totals.cashChecks,
+            cashNetCents: totals.cashNetCents,
             computedAt
         };
         await prisma.posDailySales.upsert({
@@ -96,8 +101,10 @@ export async function readToastDailySales(businessDates: string[]): Promise<Dail
                 otherChargeCents: r.otherChargeCents,
                 paidChecks: r.paidChecks,
                 openChecks: r.openChecks,
+                cashChecks: r.cashChecks,
+                cashNetCents: r.cashNetCents,
                 computedAt: r.computedAt.toISOString()
             }
-            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, computedAt: null };
+            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null };
     });
 }

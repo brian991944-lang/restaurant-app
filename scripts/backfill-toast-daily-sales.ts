@@ -32,14 +32,14 @@ async function main() {
     const { default: prisma } = await import('../src/lib/prisma');
 
     try {
-        console.log('date         paid        open       total   checks (paid/open)  note');
+        console.log('date         paid        open       total        cash (checks)   checks (paid/open)  note');
         let failed = 0;
         for (const date of dates) {
             const [r] = await snapshotToastDailySalesCore([date]);
             const total = r.netPaidCents + r.netOpenCents + r.surchargeCents + r.otherChargeCents;
             if (r.skipped) failed++;
             console.log(
-                `${date}  ${money(r.netPaidCents)}  ${money(r.netOpenCents)}  ${money(total)}   ${String(r.paidChecks).padStart(4)} / ${String(r.openChecks).padEnd(4)}       ${r.skipped ?? ''}`
+                `${date}  ${money(r.netPaidCents)}  ${money(r.netOpenCents)}  ${money(total)}  ${money(r.cashNetCents)} (${String(r.cashChecks).padStart(3)})   ${String(r.paidChecks).padStart(4)} / ${String(r.openChecks).padEnd(4)}       ${r.skipped ?? ''}`
             );
         }
         console.log(failed ? `${failed} day(s) not written — see notes above; re-run for those dates.` : 'Done. Every day written.');

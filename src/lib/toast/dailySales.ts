@@ -42,12 +42,16 @@ export type ToastDailySalesTotals = {
     surchargeCents: number;
     gratuityCents: number;
     otherChargeCents: number;
+    /** Paid checks whose every settled payment was CASH, and their share of netPaidCents. */
+    cashChecks: number;
+    cashNetCents: number;
 };
 
 export const emptyDailySalesTotals = (): ToastDailySalesTotals => ({
     ordersScanned: 0, paidChecks: 0, openChecks: 0, voidedChecks: 0,
     netPaidCents: 0, netOpenCents: 0, refundCents: 0,
-    surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0
+    surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0,
+    cashChecks: 0, cashNetCents: 0
 });
 
 /** Toast's net sales for a day, from the stored or computed figures. */
@@ -67,6 +71,8 @@ type CheckFigures = {
     otherChargeCents: number;
     /** At least one selection that is not voided. */
     live: boolean;
+    /** At least one settled payment, and every settled payment was CASH. */
+    cashOnly: boolean;
 };
 
 export function checkFigures(check: any): CheckFigures {
@@ -101,8 +107,11 @@ export function checkFigures(check: any): CheckFigures {
     }
 
     let refundCents = 0;
+    let settled = 0, cash = 0;
     for (const p of check?.payments ?? []) {
         if (UNSETTLED_PAYMENT.has(p?.paymentStatus)) continue;
+        settled++;
+        if (p?.type === 'CASH') cash++;
         refundCents += centsOf(p?.refund?.refundAmount);
     }
 
@@ -112,7 +121,8 @@ export function checkFigures(check: any): CheckFigures {
         surchargeCents,
         gratuityCents,
         otherChargeCents,
-        live
+        live,
+        cashOnly: settled > 0 && cash === settled
     };
 }
 
@@ -143,6 +153,10 @@ export function aggregateToastDailySales(orders: any[]): ToastDailySalesTotals {
                 t.paidChecks++;
                 t.netPaidCents += f.salesCents - f.refundCents;
                 t.refundCents += f.refundCents;
+                if (f.cashOnly) {
+                    t.cashChecks++;
+                    t.cashNetCents += f.salesCents - f.refundCents;
+                }
             } else {
                 t.openChecks++;
                 t.netOpenCents += f.salesCents;

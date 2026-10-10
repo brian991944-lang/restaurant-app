@@ -30,6 +30,8 @@ const timeLabel = (iso: string) =>
 /** Toast's own net sales: it counts open checks and non-gratuity service charges. */
 const toastTotal = (r: DailySalesRow) => r.netPaidCents + r.netOpenCents + r.surchargeCents + r.otherChargeCents;
 const serviceCharges = (r: DailySalesRow) => r.gratuityCents + r.otherChargeCents;
+/** Never read, or read before the cash figures existed — either way a read fills it in. */
+const needsRead = (r: DailySalesRow) => r.computedAt === null || r.cashChecks === null;
 
 const numeric: CSSProperties = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const headCell: CSSProperties = { padding: '0.6rem 0.75rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)', fontWeight: 600 };
@@ -81,7 +83,7 @@ export default function VentasNetas() {
 
     /** Read every day never read yet, oldest first, one request per day. */
     const handleBackfill = async () => {
-        const missing = rows.filter(r => r.computedAt === null).map(r => r.date);
+        const missing = rows.filter(needsRead).map(r => r.date);
         if (missing.length === 0) return;
         setNotice(null);
         setError(null);
@@ -130,7 +132,7 @@ export default function VentasNetas() {
     const money = (cents: number | undefined) => (hasToday && cents !== undefined ? formatMoney(cents) : '—');
     const history = [...rows].reverse(); // newest first
     const maxTotal = Math.max(0, ...rows.map(toastTotal));
-    const missingCount = rows.filter(r => r.computedAt === null).length;
+    const missingCount = rows.filter(needsRead).length;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -178,7 +180,9 @@ export default function VentasNetas() {
             {/* Today: the three figures that matter, then what is not a sale. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
                 <Card big label="Ventas netas (cobradas)" value={money(todayRow?.netPaidCents)} color={PAID_COLOR}
-                    sub={hasToday ? `${todayRow!.paidChecks} checks cobrados` : undefined} />
+                    sub={hasToday
+                        ? `${todayRow!.paidChecks} checks cobrados · ${formatMoney(todayRow!.cashNetCents ?? 0)} en efectivo (${todayRow!.cashChecks ?? 0})`
+                        : undefined} />
                 <Card big label="Abierto (sin cobrar)" value={money(todayRow?.netOpenCents)} color={OPEN_COLOR}
                     sub={hasToday ? `${todayRow!.openChecks} checks abiertos · no se suma` : undefined} />
                 <Card big label="Total Toast (referencia)" value={money(todayRow ? toastTotal(todayRow) : undefined)} color={NEUTRAL_COLOR}
@@ -199,6 +203,7 @@ export default function VentasNetas() {
                             <th style={{ ...headCell, textAlign: 'left' }}>Día</th>
                             <th style={{ ...headCell, textAlign: 'left', minWidth: '180px' }}>Cobrado / abierto</th>
                             <th style={{ ...headCell, ...numeric }}>Ventas netas</th>
+                            <th style={{ ...headCell, ...numeric }}>Efectivo</th>
                             <th style={{ ...headCell, ...numeric }}>Abierto</th>
                             <th style={{ ...headCell, ...numeric }}>Total Toast</th>
                             <th style={{ ...headCell, ...numeric }}>Recargo tarjeta</th>
@@ -218,14 +223,19 @@ export default function VentasNetas() {
                                         {dayLabel(r.date)}{isToday ? ' · hoy' : ''}
                                     </td>
                                     <td style={cell}>
-                                        {r.computedAt ? (
+                                        {!needsRead(r) ? (
                                             <div style={{ display: 'flex', height: '14px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(127,127,127,0.12)' }}>
                                                 <div style={{ width: `${paidPct}%`, background: PAID_COLOR }} />
                                                 <div style={{ width: `${openPct}%`, background: OPEN_COLOR }} />
                                             </div>
-                                        ) : <span style={{ fontSize: '0.85rem', fontStyle: 'italic' }}>Sin leer</span>}
+                                        ) : <span style={{ fontSize: '0.85rem', fontStyle: 'italic' }}>{r.computedAt ? 'Releer' : 'Sin leer'}</span>}
                                     </td>
                                     <td style={{ ...cell, ...numeric, fontWeight: 600 }}>{r.computedAt ? formatMoney(r.netPaidCents) : '—'}</td>
+                                    <td style={{ ...cell, ...numeric }} title="Checks cobrados solo en efectivo">
+                                        {r.cashChecks === null || r.cashNetCents === null
+                                            ? '—'
+                                            : <>{formatMoney(r.cashNetCents)} <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>· {r.cashChecks}</span></>}
+                                    </td>
                                     <td style={{ ...cell, ...numeric, color: r.computedAt && r.netOpenCents > 0 ? OPEN_COLOR : undefined }}>{r.computedAt ? formatMoney(r.netOpenCents) : '—'}</td>
                                     <td style={{ ...cell, ...numeric }}>{r.computedAt ? formatMoney(total) : '—'}</td>
                                     <td style={{ ...cell, ...numeric }}>{r.computedAt ? formatMoney(r.surchargeCents) : '—'}</td>
@@ -240,7 +250,7 @@ export default function VentasNetas() {
 
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 Ventas netas = platos y bebidas después de descuentos, menos reembolsos, de checks con pago aplicado o cerrados. Sin impuestos, propinas, propina de grupo ni recargos.
-                Abierto = lo mismo sobre checks sin cobrar. Días de Toast (cambian a las 4 AM). El cron de la madrugada relee los últimos 3 días, así que un check que cierra tarde pasa solo a cobrado.
+                Efectivo = la parte de las ventas netas de los checks pagados solo en efectivo, con cuántos fueron. Abierto = lo mismo sobre checks sin cobrar. Días de Toast (cambian a las 4 AM). El cron de la madrugada relee los últimos 3 días, así que un check que cierra tarde pasa solo a cobrado.
             </p>
 
             <style jsx>{`

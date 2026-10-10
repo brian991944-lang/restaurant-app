@@ -1446,6 +1446,11 @@ model PosDailySales {
   openChecks       Int       @default(0)
   voidedChecks     Int       @default(0)
   ordersScanned    Int       @default(0)
+  // Paid checks settled entirely in cash, and their share of netPaidCents.
+  // Nullable on purpose: null means the row predates these columns and the
+  // Ventas page offers to read that day again.
+  cashChecks       Int?
+  cashNetCents     Int?
   computedAt       DateTime  @default(now())
 
   @@unique([source, businessDate])
