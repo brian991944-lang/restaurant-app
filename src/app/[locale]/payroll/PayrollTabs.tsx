@@ -15,6 +15,7 @@ import { PAYROLL_TABS, type PayrollTab } from '@/lib/payrollTab';
  *  until it has one, which is what stops a tab rendering as a blank button. */
 const TAB_LABEL_KEY: Record<PayrollTab, string> = {
     reportes: 'tab_reportes',
+    marcajes: 'tab_marcajes',
     config: 'tab_config',
     adelantos: 'tab_adelantos',
 };

@@ -12,6 +12,7 @@ import { parseAdpLiabilityRows, type AdpLiabilityParseResult } from '@/lib/adpLi
 import { xlsxToRows } from '@/lib/adpSheet';
 import { parseAdpFeeRows, type AdpFeeParseResult } from '@/lib/adpFeeParse';
 import { toCents } from '@/lib/money';
+import { resolveDepartment, WAIT_STAFF_ROLE } from '@/lib/department';
 
 const PAYROLL_ROUTE = '/[locale]/payroll';
 /** The Reports page reads the same imports, so it is revalidated alongside. */
@@ -230,45 +231,6 @@ export type PayrollWeekView = {
  */
 function rateForRole(role: TipEntryRole, cfg: RateConfig): number {
     return role === TipEntryRole.BUSSER ? cfg.busserRate : cfg.serverRate;
-}
-
-/** The one Clover role that carries a department. Nothing else does. */
-const WAIT_STAFF_ROLE = 'wait staff';
-
-/**
- * Which department a person belongs to, most trustworthy source first.
- *
- * Still database-only — cloverRole is the CACHED role, read from the row like
- * everything else here. Nothing in this function reaches Clover, so a payroll
- * screen still renders during a Clover outage.
- *
- * 1. department, the manual override. A human said so; nothing outranks that.
- * 2. The cached Clover role, but ONLY Wait Staff, which means SALON. Every other
- *    role resolves nothing and FALLS THROUGH to the next tier — it does not
- *    short-circuit to null. "Employee" is the merchant's generic role and is on
- *    40 of 56 rows; "Accountant", "Manager" and "admin" are back-office. Reading
- *    any of them as a department was the old "not Wait Staff means kitchen"
- *    rule, which put the accountants in the kitchen report. A role that carries
- *    no information must not outrank the tip evidence below it either.
- * 3. A tip entry this week. The tip sheet only ever records MESERO and BUSSER,
- *    so having one is proof of salon — but its absence proves nothing, which is
- *    why this is the last resort rather than a reason to guess kitchen.
- * 4. Null, reported as SIN_DEPARTAMENTO rather than assumed.
- *
- * COCINA is therefore never inferred: it is only ever the manual override.
- *
- * Shared with syncCloverRoles so the summary it reports after a refresh is the
- * same resolution the payroll screen will actually show.
- */
-function resolveDepartment(
-    configured: { department: Department | null; cloverRole: string | null } | undefined | null,
-    sawTip: boolean
-): Department | null {
-    if (configured?.department) return configured.department;
-
-    if (configured?.cloverRole?.trim().toLowerCase() === WAIT_STAFF_ROLE) return Department.SALON;
-
-    return sawTip ? Department.SALON : null;
 }
 
 /**
@@ -2558,4 +2520,107 @@ export async function getAdpRuns(): Promise<AdpRunRow[]> {
             importedAt: r.importedAt.toISOString(),
         };
     });
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// Timesheets (read-only punch listing)
+// ─────────────────────────────────────────────────────────────
+
+export type WeekPunchSource = 'TOAST' | 'HOMEBASE' | 'MANUAL';
+
+export type WeekPunch = {
+    id: string;
+    /** 'YYYY-MM-DD'. */
+    businessDate: string;
+    /** UTC instants as ISO strings; the client renders them in New York time. */
+    clockIn: string;
+    clockOut: string | null;
+    /** The stored hours column, never recomputed from the clock times. */
+    hours: number;
+    sourceKind: WeekPunchSource;
+    isFlagged: boolean;
+    /** Flag CODES, already split — the client renders t('flag_' + code). */
+    flagCodes: string[];
+};
+
+export type WeekPunchEmployee = {
+    key: string;
+    employeeName: string;
+    department: Department | null;
+    punches: WeekPunch[];
+};
+
+export type WeekPunchesView = {
+    /** True when the caller is not an admin. No punch data is returned. */
+    forbidden: boolean;
+    weekStart: string;
+    weekEnding: string;
+    isLatestComplete: boolean;
+    employees: WeekPunchEmployee[];
+};
+
+/**
+ * Every punch in one Monday–Sunday week, grouped by person. Read-only.
+ *
+ * Admin-gated here, not just by the page: a server action is a public endpoint
+ * and can be invoked without ever rendering the tab.
+ */
+export async function getWeekPunches(weekEnding?: string): Promise<WeekPunchesView> {
+    const { start: startStr, end: endStr } = resolveWeekRange(weekEnding);
+    const empty: WeekPunchesView = {
+        forbidden: false,
+        weekStart: startStr,
+        weekEnding: endStr,
+        isLatestComplete: endStr === lastCompleteWeekEnding(),
+        employees: [],
+    };
+
+    if (!(await isAdminSession())) return { ...empty, forbidden: true };
+
+    const punches = await prisma.payrollPunch.findMany({
+        where: { businessDate: { gte: businessDateToUtcDate(startStr), lte: businessDateToUtcDate(endStr) } },
+        orderBy: { clockIn: 'asc' },
+    });
+
+    const ids = [...new Set(punches.map(p => p.cloverEmployeeId).filter((id): id is string => !!id))];
+    const rates = ids.length
+        ? await prisma.employeeRate.findMany({
+            where: { cloverEmployeeId: { in: ids } },
+            select: { cloverEmployeeId: true, department: true, cloverRole: true },
+        })
+        : [];
+    const rateById = new Map(rates.map(r => [r.cloverEmployeeId, r]));
+
+    const byKey = new Map<string, WeekPunchEmployee>();
+    for (const p of punches) {
+        const key = p.cloverEmployeeId ?? `name:${p.employeeName}`;
+        let emp = byKey.get(key);
+        if (!emp) {
+            emp = {
+                key,
+                employeeName: p.employeeName,
+                department: resolveDepartment(p.cloverEmployeeId ? rateById.get(p.cloverEmployeeId) : null, false),
+                punches: [],
+            };
+            byKey.set(key, emp);
+        }
+        emp.punches.push({
+            id: p.id,
+            businessDate: p.businessDate.toISOString().slice(0, 10),
+            clockIn: p.clockIn.toISOString(),
+            clockOut: p.clockOut ? p.clockOut.toISOString() : null,
+            hours: dec(p.hours),
+            sourceKind: p.importBatchId?.startsWith('TOAST_API')
+                ? 'TOAST'
+                : p.source === 'IMPORTADO' ? 'HOMEBASE' : 'MANUAL',
+            isFlagged: p.isFlagged,
+            flagCodes: p.flagReason ? p.flagReason.split(',').map(c => c.trim()).filter(Boolean) : [],
+        });
+    }
+
+    return {
+        ...empty,
+        employees: [...byKey.values()].sort((a, b) => a.employeeName.localeCompare(b.employeeName)),
+    };
 }

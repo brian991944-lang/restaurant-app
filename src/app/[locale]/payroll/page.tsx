@@ -1,5 +1,6 @@
 import { getTranslations } from 'next-intl/server';
-import { getPayrollWeek, getEmployeeConfigs, getAdvances, getAdpRuns, getPayrollSpend } from '@/app/actions/payroll';
+import { getPayrollWeek, getEmployeeConfigs, getAdvances, getAdpRuns, getPayrollSpend, getWeekPunches } from '@/app/actions/payroll';
+import TimesheetsTab from './TimesheetsTab';
 import { lastCompleteWeekEnding, resolveWeekRange } from '@/lib/payrollWeek';
 import RateConfigPanel from './RateConfigPanel';
 import EmployeeConfigPanel from './EmployeeConfigPanel';
@@ -30,7 +31,7 @@ export default async function PayrollPage({
     // parallel; the alternative was a waterfall for one string.
     const week = resolveWeekRange(requested);
 
-    const [view, configs, advances, adpRuns, spend] = await Promise.all([
+    const [view, configs, advances, adpRuns, spend, punches] = await Promise.all([
         getPayrollWeek(requested),
         getEmployeeConfigs(week),
         getAdvances(),
@@ -38,6 +39,8 @@ export default async function PayrollPage({
         // Same `requested` as getPayrollWeek, so both resolve the week through
         // resolveWeekRange and cannot end up describing different weeks.
         getPayrollSpend(requested),
+        // Only the Timesheets tab reads punches; the other tabs pay no query.
+        tab === 'marcajes' ? getWeekPunches(requested) : Promise.resolve(null),
     ]);
 
     return (
@@ -62,6 +65,10 @@ export default async function PayrollPage({
                 coincidence; with three, "not config" would have swept adelantos
                 into the reports branch — a highlighted tab above another tab's
                 content. readTab decides what a URL means and this only obeys. */}
+            {tab === 'marcajes' && punches && (
+                <TimesheetsTab view={punches} maxSelectableDate={lastCompleteWeekEnding()} />
+            )}
+
             {tab === 'config' && (
                 <>
                     <RateConfigPanel config={view.rateConfig} />

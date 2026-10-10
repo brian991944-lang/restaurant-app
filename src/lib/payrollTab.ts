@@ -18,14 +18,14 @@
  */
 
 /** Which top-level section is showing. Mirrored in the URL as ?tab. */
-export type PayrollTab = 'reportes' | 'config' | 'adelantos';
+export type PayrollTab = 'reportes' | 'marcajes' | 'config' | 'adelantos';
 
 /**
  * Every tab, in the order the bar shows them. The bar maps over this rather
  * than repeating the list, so a tab cannot exist in the type and be missing
  * from the UI.
  */
-export const PAYROLL_TABS = ['reportes', 'config', 'adelantos'] as const;
+export const PAYROLL_TABS = ['reportes', 'marcajes', 'config', 'adelantos'] as const;
 
 /** Reports is the default, and anything unrecognised falls back to it. */
 export const DEFAULT_PAYROLL_TAB: PayrollTab = 'reportes';
