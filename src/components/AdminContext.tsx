@@ -44,7 +44,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         }
     }, [isAdmin, isLoaded]);
 
-    const restrictedRoutes = ['/purchases', '/menu', '/sales', '/data', '/finanzas'];
+    // '/sales' stays: it now redirects into Analytics, and a non-admin must be
+    // turned away before the redirect rather than after it.
+    const restrictedRoutes = ['/purchases', '/menu', '/sales', '/analytics', '/data', '/finanzas'];
     const isRestricted = restrictedRoutes.some(route => pathname.includes(route));
 
     useEffect(() => {

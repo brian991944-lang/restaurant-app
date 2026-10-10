@@ -12,7 +12,8 @@ import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/
 // ReferenceError at module load, taking every action on the page down with it.
 // Types are imported from the lib module directly instead.
 
-const SALES_ROUTE = '/[locale]/sales';
+/** The Analytics dashboards read PosDailySales; a refresh invalidates every one of them. */
+const ANALYTICS_ROUTE = '/[locale]/analytics/[view]';
 
 /** With no date given, today and yesterday are re-read: a table left open overnight closes in the morning. */
 const REFRESH_DAYS = 2;
@@ -40,7 +41,7 @@ export async function refreshToastDailySales(businessDate?: string): Promise<{ s
     }
     try {
         const reports = await snapshotToastDailySalesCore(dates);
-        revalidatePath(SALES_ROUTE, 'page');
+        revalidatePath(ANALYTICS_ROUTE, 'page');
         return { success: true, reports };
     } catch (e) {
         console.error('Refresh Toast daily sales failed:', e instanceof Error ? e.message : e);

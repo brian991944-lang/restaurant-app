@@ -4,11 +4,21 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
 import { readReportsTab } from '@/lib/reportsTab';
+import { ANALYTICS_VIEWS, analyticsHref, type AnalyticsView } from '@/lib/analyticsView';
+
+/**
+ * One icon per Analytics dashboard. Keyed by the view so adding a dashboard
+ * to ANALYTICS_VIEWS without an icon here is a type error, not a blank row.
+ */
+const ANALYTICS_ICONS: Record<AnalyticsView, typeof Package> = {
+    resumen: Gauge,
+    ventas: TrendingUp,
+};
 
 /** The stations a nav item can belong to. Every item declares exactly one. */
 type Station = 'Cocina' | 'Salon' | 'Management';
@@ -110,6 +120,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
     // endsWith('/inventory') so the salón page could not leak into Cocina; a
     // declared station cannot be near-missed like that in the first place.
     const reportsPath = `/${locale}/reports`;
+    const analyticsPath = `/${locale}/analytics`;
 
     /**
      * The Reports children share one pathname and are told apart by ?tab, so the
@@ -136,7 +147,20 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         { key: 'caja', name: t('caja'), href: `/${locale}/caja`, icon: Banknote, station: 'Salon' },
 
         { key: 'menu', name: t('menu'), href: `/${locale}/menu`, icon: ChefHat, station: 'Management' },
-        { key: 'sales', name: t('sales'), href: `/${locale}/sales`, icon: TrendingUp, station: 'Management' },
+        {
+            key: 'analytics',
+            name: t('analytics'),
+            // No href: like Reports, the parent expands and its dashboards navigate.
+            icon: ChartNoAxesCombined,
+            station: 'Management',
+            sectionPath: analyticsPath,
+            // The dashboards are whatever @/lib/analyticsView lists, in that
+            // order — the sidebar never names one the route cannot serve.
+            children: ANALYTICS_VIEWS.map(view => {
+                const href = analyticsHref(locale, view);
+                return { name: t(`analytics_${view}`), href, icon: ANALYTICS_ICONS[view], isActive: (path: string) => path.startsWith(href) };
+            }),
+        },
         { key: 'raw_data', name: t('raw_data'), href: `/${locale}/data`, icon: Database, station: 'Management' },
         { key: 'finanzas', name: t('finanzas'), href: `/${locale}/finanzas`, icon: Landmark, station: 'Management' },
         { key: 'payroll', name: t('payroll'), href: `/${locale}/payroll`, icon: Clock, station: 'Management' },
