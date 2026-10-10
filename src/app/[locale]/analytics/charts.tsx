@@ -48,7 +48,7 @@ export function useDateLabels(locale: string) {
  * stays on screen (dimmed by the caller) until the new one lands, so a
  * preset click never blanks the page.
  */
-export function useAnalyticsDaily(range: DateRange): { data: AnalyticsDailyResult | null; error: string | null; loading: boolean } {
+export function useAnalyticsDaily(range: DateRange, refreshKey = 0): { data: AnalyticsDailyResult | null; error: string | null; loading: boolean } {
     const t = useTranslations('Analytics');
     const [data, setData] = useState<AnalyticsDailyResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -75,7 +75,7 @@ export function useAnalyticsDaily(range: DateRange): { data: AnalyticsDailyResul
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [range.from, range.to]);
+    }, [range.from, range.to, refreshKey]);
 
     return { data, error, loading };
 }

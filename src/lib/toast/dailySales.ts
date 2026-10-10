@@ -165,3 +165,83 @@ export function aggregateToastDailySales(orders: any[]): ToastDailySalesTotals {
     }
     return t;
 }
+
+// ─── Items ──────────────────────────────────────────────────────────────────
+
+export type ToastDailyItemRow = {
+    kind: 'ITEM' | 'MODIFIER';
+    posItemGuid: string;
+    /** MODIFIER: the item it was sold on; '' for an ITEM. */
+    parentPosItemGuid: string;
+    displayName: string;
+    paidQty: number;
+    /** Toast's post-discount `price` over paid/closed checks; an ITEM's includes its modifiers. */
+    paidCents: number;
+    openQty: number;
+    openCents: number;
+    voidedQty: number;
+};
+
+/**
+ * What sold on the day, per POS item and per modifier under its item, from
+ * the same orders aggregateToastDailySales reads. The same checks count:
+ * voided or deleted orders and checks put every selection under voidedQty,
+ * as does a voided selection on a live check; deferred selections (gift
+ * cards) and house-account payments are not sales and are left out. Money
+ * is Toast's `price` on the selection: post-discount, quantity-adjusted and
+ * — for an item — inclusive of its modifiers, which is why a day's ITEM rows
+ * alone add up to its checks' amounts. Modifier rows carry their own price
+ * for reference and are never added on top.
+ *
+ * `modifierKey` names a modifier that has no item guid of its own (Toast's
+ * option-group modifiers) the way PosItemMapping keys them, so the caller
+ * can resolve mappings; passed in to keep this file free of path aliases.
+ */
+export function aggregateToastDailyItems(orders: any[], modifierKey: (optionGroupGuid: string | null | undefined, name: string) => string): ToastDailyItemRow[] {
+    const rows = new Map<string, ToastDailyItemRow>();
+    const touch = (kind: 'ITEM' | 'MODIFIER', posItemGuid: string, parentPosItemGuid: string, displayName: string): ToastDailyItemRow => {
+        const key = `${kind}|${posItemGuid}|${parentPosItemGuid}`;
+        let row = rows.get(key);
+        if (!row) {
+            row = { kind, posItemGuid, parentPosItemGuid, displayName, paidQty: 0, paidCents: 0, openQty: 0, openCents: 0, voidedQty: 0 };
+            rows.set(key, row);
+        }
+        return row;
+    };
+    const qtyOf = (sel: any): number => (typeof sel?.quantity === 'number' && Number.isFinite(sel.quantity) && sel.quantity >= 0 ? sel.quantity : 1);
+
+    for (const order of orders) {
+        const orderVoid = !!(order?.voided || order?.deleted || order?.excessFood === true);
+        for (const check of order?.checks ?? []) {
+            const checkVoid = orderVoid || !!(check?.voided || check?.deleted);
+            const paid = isPaidCheck(check);
+            for (const sel of check?.selections ?? []) {
+                if (sel?.deferred === true || sel?.selectionType === 'HOUSE_ACCOUNT_PAY_BALANCE') continue;
+                const itemGuid = typeof sel?.item?.guid === 'string' ? sel.item.guid : '';
+                const name = String(sel?.displayName ?? '');
+                const qty = qtyOf(sel);
+                const voided = checkVoid || !!sel?.voided;
+                const item = touch('ITEM', itemGuid, '', name);
+                if (voided) item.voidedQty += qty;
+                else if (paid) { item.paidQty += qty; item.paidCents += centsOf(sel?.price); }
+                else { item.openQty += qty; item.openCents += centsOf(sel?.price); }
+
+                // Modifiers nest; every level is a modifier of the top item, in units of the item sold.
+                const visit = (list: any[]) => {
+                    for (const m of list ?? []) {
+                        const mName = String(m?.displayName ?? '');
+                        const mGuid = typeof m?.item?.guid === 'string' ? m.item.guid : modifierKey(m?.optionGroup?.guid, mName);
+                        const mQty = qtyOf(m) * qty;
+                        const mod = touch('MODIFIER', mGuid, itemGuid, mName);
+                        if (voided || m?.voided) mod.voidedQty += mQty;
+                        else if (paid) { mod.paidQty += mQty; mod.paidCents += centsOf(m?.price); }
+                        else { mod.openQty += mQty; mod.openCents += centsOf(m?.price); }
+                        visit(m?.modifiers);
+                    }
+                };
+                visit(sel?.modifiers);
+            }
+        }
+    }
+    return [...rows.values()];
+}

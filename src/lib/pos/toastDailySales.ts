@@ -11,7 +11,8 @@
 import prisma from '@/lib/prisma';
 import { PosSource } from '@prisma/client';
 import { fetchToastOrders, ToastError } from '@/lib/toast/client';
-import { aggregateToastDailySales, emptyDailySalesTotals, type ToastDailySalesTotals } from '@/lib/toast/dailySales';
+import { aggregateToastDailyItems, aggregateToastDailySales, emptyDailySalesTotals, type ToastDailySalesTotals } from '@/lib/toast/dailySales';
+import { fallbackModifierKey } from './toastMapping';
 import { dateColumn } from './toastBusinessDate';
 
 /** Why a day was not written, for the UI to say in its own language. */
@@ -48,6 +49,23 @@ export type DailySalesRow = {
     cashChecks: number | null;
     cashNetCents: number | null;
     computedAt: string | null;
+    /** When the day's items were last written; null until the day is read again with items. */
+    itemsComputedAt: string | null;
+};
+
+/** One stored PosDailyItemSales row, as the audits and Platos read it. */
+export type DailyItemRow = {
+    date: string;
+    kind: 'ITEM' | 'MODIFIER';
+    posItemGuid: string;
+    parentPosItemGuid: string;
+    displayName: string;
+    menuItemId: string | null;
+    paidQty: number;
+    paidCents: number;
+    openQty: number;
+    openCents: number;
+    voidedQty: number;
 };
 
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
@@ -68,6 +86,10 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
         if (truncated) return skip('Toast devolvió más órdenes de las que se pueden leer. No se guardó el día.', 'TRUNCATED');
 
         const totals = aggregateToastDailySales(orders);
+        const items = aggregateToastDailyItems(orders, fallbackModifierKey);
+        // The app dish behind each POS item, as the mappings stand today.
+        const mappings = await prisma.posItemMapping.findMany({ where: { source: PosSource.TOAST, kind: 'ITEM' }, select: { posGuid: true, menuItemId: true } });
+        const menuItemOf = new Map(mappings.map(m => [m.posGuid, m.menuItemId]));
         const computedAt = new Date();
         const fields = {
             netPaidCents: totals.netPaidCents,
@@ -81,13 +103,38 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
             ordersScanned: totals.ordersScanned,
             cashChecks: totals.cashChecks,
             cashNetCents: totals.cashNetCents,
-            computedAt
+            computedAt,
+            itemsComputedAt: computedAt
         };
-        await prisma.posDailySales.upsert({
-            where: { source_businessDate: { source: PosSource.TOAST, businessDate: dateColumn(date) } },
-            create: { source: PosSource.TOAST, businessDate: dateColumn(date), ...fields },
-            update: fields
-        });
+        const businessDate = dateColumn(date);
+        // Totals and items land together: a day never shows new money with
+        // yesterday's items. The items are rewritten whole (delete + create,
+        // not upsert), so an item Toast no longer returns does not linger.
+        await prisma.$transaction([
+            prisma.posDailySales.upsert({
+                where: { source_businessDate: { source: PosSource.TOAST, businessDate } },
+                create: { source: PosSource.TOAST, businessDate, ...fields },
+                update: fields
+            }),
+            prisma.posDailyItemSales.deleteMany({ where: { source: PosSource.TOAST, businessDate } }),
+            prisma.posDailyItemSales.createMany({
+                data: items.map(i => ({
+                    source: PosSource.TOAST,
+                    businessDate,
+                    kind: i.kind,
+                    posItemGuid: i.posItemGuid,
+                    parentPosItemGuid: i.parentPosItemGuid,
+                    displayName: i.displayName,
+                    menuItemId: i.kind === 'ITEM' ? menuItemOf.get(i.posItemGuid) ?? null : null,
+                    paidQty: i.paidQty,
+                    paidCents: i.paidCents,
+                    openQty: i.openQty,
+                    openCents: i.openCents,
+                    voidedQty: i.voidedQty,
+                    computedAt
+                }))
+            })
+        ]);
         return { ...totals, date, computedAt: computedAt.toISOString() };
     } catch (e) {
         console.error(`Toast daily sales ${date} failed:`, e instanceof Error ? e.message : e);
@@ -120,8 +167,40 @@ export async function readToastDailySales(businessDates: string[]): Promise<Dail
                 openChecks: r.openChecks,
                 cashChecks: r.cashChecks,
                 cashNetCents: r.cashNetCents,
-                computedAt: r.computedAt.toISOString()
+                computedAt: r.computedAt.toISOString(),
+                itemsComputedAt: r.itemsComputedAt ? r.itemsComputedAt.toISOString() : null
             }
-            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null };
+            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null, itemsComputedAt: null };
     });
+}
+
+/** The stored items for the requested dates, in no particular order; nothing for a day never read with items. */
+export async function readToastDailyItems(businessDates: string[]): Promise<DailyItemRow[]> {
+    const dates = businessDates.filter(isBusinessDate);
+    const rows = await prisma.posDailyItemSales.findMany({
+        where: { source: PosSource.TOAST, businessDate: { in: dates.map(dateColumn) } }
+    });
+    return rows.map(r => ({
+        date: r.businessDate.toISOString().slice(0, 10),
+        kind: r.kind === 'MODIFIER' ? 'MODIFIER' : 'ITEM',
+        posItemGuid: r.posItemGuid,
+        parentPosItemGuid: r.parentPosItemGuid,
+        displayName: r.displayName,
+        menuItemId: r.menuItemId,
+        paidQty: r.paidQty,
+        paidCents: r.paidCents,
+        openQty: r.openQty,
+        openCents: r.openCents,
+        voidedQty: r.voidedQty
+    }));
+}
+
+/** Days since `first` whose figures or items have not been read yet, oldest first — what the Sync button still owes. */
+export async function unreadToastDays(dates: string[]): Promise<string[]> {
+    const stored = await prisma.posDailySales.findMany({
+        where: { source: PosSource.TOAST, businessDate: { in: dates.map(dateColumn) }, itemsComputedAt: { not: null } },
+        select: { businessDate: true }
+    });
+    const done = new Set(stored.map(r => r.businessDate.toISOString().slice(0, 10)));
+    return dates.filter(d => !done.has(d));
 }

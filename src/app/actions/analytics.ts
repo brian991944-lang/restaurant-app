@@ -1,8 +1,12 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
-import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
-import { readToastDailySales } from '@/lib/pos/toastDailySales';
+import { lastToastBusinessDates, toastBusinessDatesSince, TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
+import { readToastDailySales, snapshotToastDailySalesCore, unreadToastDays } from '@/lib/pos/toastDailySales';
+import { syncCloverSales } from '@/app/actions/clover';
+import { isConnected as gbpConnected } from '@/lib/gbp/auth';
+import { runFullSync as gbpSync } from '@/lib/gbp/sync';
 import prisma from '@/lib/prisma';
 import { businessDateToUtcDate, nyWallToUtc } from '@/lib/businessDay';
 import { getRateConfig } from '@/app/actions/payroll';
@@ -12,6 +16,7 @@ import { priceLabor } from '@/lib/analytics/labor';
 import type { AnalyticsLaborResult, LaborDayOut } from '@/lib/analytics/labor';
 import { dishMentions, foldMetrics, reviewThemes, reviewsPerDay, summarizeReviews, sumMetrics } from '@/lib/analytics/reputation';
 import type { AnalyticsReputationResult, ReviewLite } from '@/lib/analytics/reputation';
+import type { SyncAnalyticsResult } from '@/lib/analytics/sync';
 import { shiftDate } from '@/lib/pos/toastBusinessDate';
 
 // Only server actions are exported from this file — no types, no constants.
@@ -194,4 +199,81 @@ export async function getAnalyticsReputation(from: string, to: string): Promise<
         console.error('Read analytics reputation failed:', e instanceof Error ? e.message : e);
         return { success: false, error: 'No se pudieron leer las reseñas.', code: 'READ_FAILED', ...empty };
     }
+}
+
+/** Toast days one Sync reads at most: today and yesterday, then the oldest days still unread. */
+const SYNC_TOAST_DAYS = 6;
+/** Wall-clock budget before the action stops starting new steps (Hobby functions stop at 60 s). */
+const SYNC_BUDGET_MS = 38_000;
+
+/**
+ * The one button: read Toast for today and yesterday plus up to four of the
+ * oldest days still missing figures or items (press again for the rest),
+ * then Google Business Profile (new reviews and the last week of metrics),
+ * then the Clover item audit. Each step reports on its own; a failure in
+ * one never hides the others. Admin only.
+ */
+export async function syncAnalytics(): Promise<SyncAnalyticsResult> {
+    const startedAt = Date.now();
+    const elapsed = () => Date.now() - startedAt;
+    const today = lastToastBusinessDates(1)[0];
+    const result: SyncAnalyticsResult = {
+        success: false,
+        toast: { read: [], skipped: [], remaining: 0, error: null },
+        google: { ran: false, reviews: 0, metricDays: 0, error: null },
+        clover: { ran: false, items: 0, error: null },
+        tookMs: 0
+    };
+    if (!(await isAdminSession())) return { ...result, code: 'NOT_ADMIN', tookMs: elapsed() };
+
+    // ── Toast ──
+    try {
+        const recent = lastToastBusinessDates(2);
+        const unread = (await unreadToastDays(toastBusinessDatesSince(TOAST_FIRST_BUSINESS_DATE))).filter(d => !recent.includes(d));
+        const dates = [...recent, ...unread.slice(0, SYNC_TOAST_DAYS - recent.length)];
+        result.toast.remaining = Math.max(0, unread.length - (dates.length - recent.length));
+        for (const date of dates) {
+            if (elapsed() > SYNC_BUDGET_MS) { result.toast.remaining += 1; continue; }
+            const [report] = await snapshotToastDailySalesCore([date]);
+            if (report.skipped) result.toast.skipped.push({ date, code: report.skippedCode ?? 'TOAST_FAILED', status: report.skippedStatus });
+            else result.toast.read.push(date);
+        }
+    } catch (e) {
+        console.error('Sync Toast failed:', e instanceof Error ? e.message : e);
+        result.toast.error = 'FAILED';
+    }
+
+    // ── Google Business Profile ──
+    if (elapsed() <= SYNC_BUDGET_MS) {
+        try {
+            if (await gbpConnected()) {
+                const r = await gbpSync({ maxPages: 2, metricDays: 7 });
+                result.google = { ran: true, reviews: r.reviews.upserted, metricDays: r.metrics?.days ?? 0, error: null };
+            } else {
+                result.google.error = 'NOT_CONNECTED';
+            }
+        } catch (e) {
+            console.error('Sync Google failed:', e instanceof Error ? e.message : e);
+            result.google = { ran: true, reviews: 0, metricDays: 0, error: 'FAILED' };
+        }
+    } else {
+        result.google.error = 'TIME';
+    }
+
+    // ── Clover item audit ──
+    if (elapsed() <= SYNC_BUDGET_MS) {
+        try {
+            const r = await syncCloverSales();
+            result.clover = r.success ? { ran: true, items: r.count ?? 0, error: null } : { ran: true, items: 0, error: 'FAILED' };
+        } catch (e) {
+            // requireCloverEnv throws when the credentials are not configured.
+            console.error('Sync Clover failed:', e instanceof Error ? e.message : e);
+            result.clover = { ran: true, items: 0, error: 'FAILED' };
+        }
+    } else {
+        result.clover.error = 'TIME';
+    }
+
+    revalidatePath('/[locale]/analytics/[view]', 'page');
+    return { ...result, success: true, today, tookMs: elapsed() };
 }

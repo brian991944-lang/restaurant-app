@@ -1,4 +1,11 @@
 import { notFound } from 'next/navigation';
+
+/**
+ * The Sync button's server action runs on this route. The Hobby default is
+ * 10 s; it reads several Toast days plus Google and Clover, so it gets the
+ * plan's ceiling and keeps its own 38 s budget (see actions/analytics.ts).
+ */
+export const maxDuration = 60;
 import { readAnalyticsView } from '@/lib/analyticsView';
 import { resolveRange } from '@/lib/analytics/range';
 import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';

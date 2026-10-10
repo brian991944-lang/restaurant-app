@@ -2,11 +2,9 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { RefreshCw } from 'lucide-react';
 import { formatMoney } from '@/lib/money';
-import { refreshToastDailySales } from '@/app/actions/toastDailySales';
 import { getAnalyticsDaily } from '@/app/actions/analytics';
-import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
+import type { DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
 import type { DateRange } from '@/lib/analytics/range';
 import { summarizeDays, toastTotalOf } from '@/lib/analytics/daily';
 
@@ -16,11 +14,12 @@ import { summarizeDays, toastTotalOf } from '@/lib/analytics/daily';
  * sales; open checks are shown beside them, never added in. Surcharges and
  * service charges are their own cards, not part of net sales.
  *
- * Reads PosDailySales (written by the refresh button and the nightly cron);
- * nothing here calls Toast directly. The cards are always today; the table
- * is the window the Analytics shell hands down, with its totals. Every
- * string comes from the Sales namespace, and dates follow the reader's
- * language.
+ * Reads PosDailySales (written by the Sync button and the nightly cron);
+ * nothing here calls Toast directly, and nothing here refreshes — the shell's
+ * Sync button does, and bumps `refreshKey` so this panel reloads. The cards
+ * are always today; the table is the window the shell hands down, with its
+ * totals. Every string comes from the Sales namespace, and dates follow the
+ * reader's language.
  */
 
 const PAID_COLOR = 'var(--accent-primary)';
@@ -30,8 +29,8 @@ const NEUTRAL_COLOR = 'var(--text-secondary)';
 /** Toast's own net sales: it counts open checks and non-gratuity service charges. */
 const toastTotal = (r: DailySalesRow) => r.netPaidCents + r.netOpenCents + r.surchargeCents + r.otherChargeCents;
 const serviceCharges = (r: DailySalesRow) => r.gratuityCents + r.otherChargeCents;
-/** Never read, or read before the cash figures existed — either way a read fills it in. */
-const needsRead = (r: DailySalesRow) => r.computedAt === null || r.cashChecks === null;
+/** Never read, or read before the cash figures or the items existed — the Sync button reads these days again. */
+const needsRead = (r: DailySalesRow) => r.computedAt === null || r.cashChecks === null || r.itemsComputedAt === null;
 
 const numeric: CSSProperties = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const headCell: CSSProperties = { padding: '0.6rem 0.75rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)', fontWeight: 600 };
@@ -47,7 +46,7 @@ function Card({ label, value, sub, color, big }: { label: string; value: string;
     );
 }
 
-export default function VentasNetas({ range }: { range: DateRange }) {
+export default function VentasNetas({ range, refreshKey = 0 }: { range: DateRange; refreshKey?: number }) {
     const t = useTranslations('Sales');
     const locale = useLocale();
 
@@ -68,25 +67,10 @@ export default function VentasNetas({ range }: { range: DateRange }) {
             default: return fallback;
         }
     };
-    const skippedText = (r: DailySalesReport) => {
-        switch (r.skippedCode) {
-            case 'BAD_DATE': return t('skip_bad_date');
-            case 'TRUNCATED': return t('skip_truncated');
-            case 'TOAST_ENV': return t('skip_toast_env');
-            case 'TOAST_HTTP': return t('skip_toast_http', { status: r.skippedStatus ?? 0 });
-            case 'TOAST_FAILED': return t('skip_toast_failed');
-            default: return r.skipped ?? '';
-        }
-    };
-
     const [rows, setRows] = useState<DailySalesRow[]>([]);
     const [today, setToday] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    /** "3 of 12 · Tue, Sep 29" while a backfill runs; null otherwise. */
-    const [backfill, setBackfill] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [notice, setNotice] = useState<string | null>(null);
 
     const load = useCallback(async (): Promise<DailySalesRow[]> => {
         try {
@@ -107,57 +91,9 @@ export default function VentasNetas({ range }: { range: DateRange }) {
         }
         return [];
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locale, range.from, range.to]);
+    }, [locale, range.from, range.to, refreshKey]);
 
     useEffect(() => { load(); }, [load]);
-
-    const busy = refreshing || backfill !== null;
-
-    /** Read every day that needs it, oldest first, one request per day. */
-    const handleBackfill = async () => {
-        const missing = rows.filter(needsRead).map(r => r.date);
-        if (missing.length === 0) return;
-        setNotice(null);
-        setError(null);
-        const skipped: string[] = [];
-        try {
-            for (let i = 0; i < missing.length; i++) {
-                const date = missing[i];
-                setBackfill(t('backfill_progress', { i: i + 1, n: missing.length, day: dayLabel(date) }));
-                const res = await refreshToastDailySales(date);
-                if (!res.success) {
-                    setError(t('err_backfill_stopped', { day: dayLabel(date), reason: errorText(res.code, t('err_failed')) }));
-                    return;
-                }
-                for (const r of res.reports ?? []) if (r.skipped) skipped.push(`${dayLabel(r.date)}: ${skippedText(r)}`);
-                await load(); // the row fills in as the loop goes
-            }
-            if (skipped.length) setNotice(skipped.join(' · '));
-        } catch {
-            setError(t('err_backfill_interrupted'));
-        } finally {
-            setBackfill(null);
-        }
-    };
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        setNotice(null);
-        try {
-            const res = await refreshToastDailySales();
-            if (!res.success) {
-                setError(errorText(res.code, t('err_failed')));
-                return;
-            }
-            const skipped = (res.reports ?? []).filter(r => r.skipped);
-            if (skipped.length) setNotice(skipped.map(r => `${dayLabel(r.date)}: ${skippedText(r)}`).join(' · '));
-            await load();
-        } catch {
-            setError(t('err_refresh_rejected'));
-        } finally {
-            setRefreshing(false);
-        }
-    };
 
     const todayRow = rows.find(r => r.date === today) ?? null;
     const hasToday = !!todayRow?.computedAt;
@@ -176,39 +112,15 @@ export default function VentasNetas({ range }: { range: DateRange }) {
                     <h2 style={{ fontSize: '1.75rem', margin: 0 }}>{t('net_title')}</h2>
                     <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>{t('net_subtitle')}</p>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        {/* Only while history is incomplete: reads the missing days one by one. */}
-                        {!loading && missingCount > 0 && (
-                            <button
-                                onClick={handleBackfill}
-                                disabled={busy}
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.25rem', minHeight: '44px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}
-                            >
-                                <RefreshCw size={18} className={backfill ? 'vn-spin' : ''} />
-                                {backfill ?? t('backfill', { count: missingCount })}
-                            </button>
-                        )}
-                        <button
-                            onClick={handleRefresh}
-                            disabled={busy}
-                            className="btn-primary"
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.5rem', minHeight: '44px' }}
-                        >
-                            <RefreshCw size={18} className={refreshing ? 'vn-spin' : ''} />
-                            {refreshing ? t('refreshing') : t('refresh')}
-                        </button>
-                    </div>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        {hasToday && todayRow?.computedAt
-                            ? t('status_today', { day: dayLabel(todayRow.date), time: timeLabel(todayRow.computedAt) })
-                            : loading ? t('status_loading') : t('status_unread')}
-                    </span>
-                </div>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', alignSelf: 'flex-end' }}>
+                    {hasToday && todayRow?.computedAt
+                        ? t('status_today', { day: dayLabel(todayRow.date), time: timeLabel(todayRow.computedAt) })
+                        : loading ? t('status_loading') : t('status_unread')}
+                    {!loading && missingCount > 0 && <> · {t('status_missing', { count: missingCount })}</>}
+                </span>
             </div>
 
             {error && <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>}
-            {notice && <p style={{ margin: 0, color: 'var(--warning)' }}>{notice}</p>}
 
             {/* Today: the three figures that matter, then what is not a sale. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -301,11 +213,6 @@ export default function VentasNetas({ range }: { range: DateRange }) {
             </div>
 
             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('legend')}</p>
-
-            <style jsx>{`
-                @keyframes vn-spin { 100% { transform: rotate(360deg); } }
-                :global(.vn-spin) { animation: vn-spin 1s linear infinite; }
-            `}</style>
         </div>
     );
 }

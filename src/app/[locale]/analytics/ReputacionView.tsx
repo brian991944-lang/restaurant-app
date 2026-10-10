@@ -26,7 +26,7 @@ const starsText = (n: number) => STAR.repeat(Math.max(0, Math.min(5, Math.round(
 const intText = (n: number) => n.toLocaleString('en-US');
 const pct1 = (part: number, whole: number) => (whole > 0 ? (Math.round((part / whole) * 1000) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0');
 
-function useAnalyticsReputation(range: DateRange) {
+function useAnalyticsReputation(range: DateRange, refreshKey: number) {
     const t = useTranslations('Analytics');
     const [data, setData] = useState<AnalyticsReputationResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -44,13 +44,13 @@ function useAnalyticsReputation(range: DateRange) {
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [range.from, range.to]);
+    }, [range.from, range.to, refreshKey]);
     return { data, error, loading };
 }
 
-export default function ReputacionView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
+export default function ReputacionView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
     const t = useTranslations('Analytics');
-    const { data, error, loading } = useAnalyticsReputation(range);
+    const { data, error, loading } = useAnalyticsReputation(range, refreshKey);
     const { dayLabel } = useDateLabels(locale);
     /** Reviews answered from this page in this session, so the list updates without a refetch. */
     const [repliedHere, setRepliedHere] = useState<Set<string>>(new Set());

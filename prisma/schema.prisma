@@ -1452,8 +1452,43 @@ model PosDailySales {
   cashChecks       Int?
   cashNetCents     Int?
   computedAt       DateTime  @default(now())
+  // When the day's PosDailyItemSales rows were last rewritten. Null means the
+  // day was read before items were kept, and the Sync button reads it again.
+  itemsComputedAt  DateTime?
 
   @@unique([source, businessDate])
+}
+
+// What sold on one POS business day, one row per item (and per modifier
+// under the item it was sold on): quantities and post-discount money, split
+// by whether the check was paid or still open, from the same orders read
+// that writes PosDailySales. A day is rewritten whole on every read. Payment
+// refunds are per check, not per item, so they are not taken off here —
+// the day's items sum to net sales before refunds.
+model PosDailyItemSales {
+  id                String    @id @default(cuid())
+  source            PosSource
+  businessDate      DateTime  @db.Date
+  kind              String // ITEM | MODIFIER
+  // The POS item guid. A modifier with no menu item behind it is keyed
+  // "og:{optionGroupGuid}:{normalizedName}", as in PosItemMapping.
+  posItemGuid       String
+  // MODIFIER: the item it was sold on. '' for an ITEM, not null, so the
+  // unique key below holds (Postgres treats NULLs as distinct).
+  parentPosItemGuid String    @default("")
+  displayName       String
+  // The app dish per PosItemMapping at write time. Plain id: history
+  // outlives menu edits.
+  menuItemId        String?
+  paidQty           Float     @default(0)
+  paidCents         Int       @default(0)
+  openQty           Float     @default(0)
+  openCents         Int       @default(0)
+  voidedQty         Float     @default(0)
+  computedAt        DateTime  @default(now())
+
+  @@unique([source, businessDate, kind, posItemGuid, parentPosItemGuid])
+  @@index([businessDate])
 }
 
 // ─── Google Business Profile (GBP) sync ─────────────────────────────────────

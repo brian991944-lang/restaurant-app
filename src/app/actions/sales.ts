@@ -3,7 +3,8 @@
 import prisma from '@/lib/prisma';
 import { PosSource } from '@prisma/client';
 import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
-import { dateColumn, lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
+import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
+import { readToastDailyItems } from '@/lib/pos/toastDailySales';
 
 /** 'YYYY-MM-DD' plus n days (pure calendar math, no TZ involved). */
 function shiftDate(dateStr: string, days: number): string {
@@ -70,42 +71,62 @@ export async function getSalesAuditData() {
     }
 }
 
-export type ToastAuditItem = { name: string; qty: number; voidedQty: number; linked: boolean; consumed: boolean };
+export type ToastAuditModifier = { name: string; qty: number };
+export type ToastAuditItem = { name: string; qty: number; openQty: number; voidedQty: number; linked: boolean; modifiers: ToastAuditModifier[] };
 export type ToastAuditDay = { date: string; categories: { name: string; items: ToastAuditItem[] }[] };
 
 /**
- * Toast sales for the last 3 Toast business days (4 AM cutover), from
- * PosSalesLine. Kept apart from the Clover audit above: the two POS feeds are
- * shown side by side and never summed.
+ * Toast sales for the last 3 Toast business days (4 AM cutover), from the
+ * PosDailyItemSales rows the Sync button and the nightly cron write. Kept
+ * apart from the Clover audit above: the two POS feeds are shown side by
+ * side and never summed. qty counts paid checks; a selection on a check
+ * still open is listed under openQty so an unpaid table does not read as a
+ * sale.
  */
 export async function getToastSalesAuditData(): Promise<{ success: boolean; days: ToastAuditDay[]; error?: string }> {
     try {
         const dates = lastToastBusinessDates(3);
-        const lines = await prisma.posSalesLine.findMany({
-            where: { source: PosSource.TOAST, businessDate: { in: dates.map(dateColumn) } },
-            select: { businessDate: true, posDisplayName: true, menuItemId: true, qty: true, voided: true, appliedQty: true }
-        });
-        const menuIds = [...new Set(lines.map(l => l.menuItemId).filter((x): x is string => !!x))];
+        const rows = await readToastDailyItems(dates);
+        const menuIds = [...new Set(rows.map(r => r.menuItemId).filter((x): x is string => !!x))];
         const menuItems = await prisma.menuItem.findMany({ where: { id: { in: menuIds } }, select: { id: true, category: true } });
         const categoryOf = new Map(menuItems.map(m => [m.id, m.category || 'Sin categoría']));
 
         const days: ToastAuditDay[] = dates.map(date => {
             const byCat = new Map<string, Map<string, ToastAuditItem>>();
-            for (const l of lines) {
-                if (l.businessDate.toISOString().slice(0, 10) !== date) continue;
-                const cat = l.menuItemId ? categoryOf.get(l.menuItemId) ?? 'Sin categoría' : 'Sin vincular';
+            const itemsByGuid = new Map<string, ToastAuditItem>();
+            for (const r of rows) {
+                if (r.date !== date || r.kind !== 'ITEM') continue;
+                const cat = r.menuItemId ? categoryOf.get(r.menuItemId) ?? 'Sin categoría' : 'Sin vincular';
                 const items = byCat.get(cat) ?? new Map<string, ToastAuditItem>();
-                const it = items.get(l.posDisplayName) ?? { name: l.posDisplayName, qty: 0, voidedQty: 0, linked: !!l.menuItemId, consumed: false };
-                if (l.voided) it.voidedQty += l.qty; else it.qty += l.qty;
-                if (l.appliedQty > 0) it.consumed = true;
-                items.set(l.posDisplayName, it);
+                const it = items.get(r.displayName) ?? { name: r.displayName, qty: 0, openQty: 0, voidedQty: 0, linked: !!r.menuItemId, modifiers: [] };
+                it.qty += r.paidQty;
+                it.openQty += r.openQty;
+                it.voidedQty += r.voidedQty;
+                items.set(r.displayName, it);
                 byCat.set(cat, items);
+                itemsByGuid.set(r.posItemGuid, it);
+            }
+            for (const r of rows) {
+                if (r.date !== date || r.kind !== 'MODIFIER') continue;
+                const parent = itemsByGuid.get(r.parentPosItemGuid);
+                if (!parent) continue;
+                const qty = r.paidQty + r.openQty;
+                if (qty <= 0) continue;
+                const existing = parent.modifiers.find(m => m.name === r.displayName);
+                if (existing) existing.qty += qty; else parent.modifiers.push({ name: r.displayName, qty });
             }
             return {
                 date,
                 categories: [...byCat.entries()]
                     .sort(([a], [b]) => (a === 'Sin vincular' ? 1 : b === 'Sin vincular' ? -1 : a.localeCompare(b)))
-                    .map(([name, items]) => ({ name, items: [...items.values()].sort((a, b) => a.name.localeCompare(b.name)) }))
+                    .map(([name, items]) => ({
+                        name,
+                        items: [...items.values()]
+                            .filter(it => it.qty > 0 || it.openQty > 0 || it.voidedQty > 0)
+                            .map(it => ({ ...it, modifiers: [...it.modifiers].sort((a, b) => a.name.localeCompare(b.name)) }))
+                            .sort((a, b) => a.name.localeCompare(b.name))
+                    }))
+                    .filter(c => c.items.length > 0)
             };
         });
         return { success: true, days };

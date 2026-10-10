@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
+import { RefreshCw } from 'lucide-react';
 import type { AnalyticsView } from '@/lib/analyticsView';
 import { TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
 import { clampRange, daysBetween, matchPreset, presetRange, RANGE_PRESETS, type DateRange, type RangePreset } from '@/lib/analytics/range';
+import { syncAnalytics } from '@/app/actions/analytics';
+import type { SyncAnalyticsResult } from '@/lib/analytics/sync';
 import ResumenView from './ResumenView';
 import VentasView from './VentasView';
 import CobrosView from './CobrosView';
@@ -21,6 +24,11 @@ import ReputacionView from './ReputacionView';
  * round trip — and remembers it in sessionStorage, so moving between
  * dashboards through the sidebar (whose links carry no query) keeps the days
  * the reader chose.
+ *
+ * One Sync button refreshes every source (Toast, Google, Clover) and then
+ * bumps `refreshKey`, which every dashboard's fetch hook depends on, so the
+ * page redraws from the rows the sync just wrote. There are no other
+ * refresh buttons anywhere under Analytics.
  */
 
 const STORAGE_KEY = 'analytics.range';
@@ -84,6 +92,10 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
     const t = useTranslations('Analytics');
     const [range, setRange] = useState<DateRange>(initialRange);
     const [custom, setCustom] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState<ReactNode>(null);
+    /** Bumped after a sync so every dashboard refetches. */
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // The server resolved the URL's window, or the default when it named
     // none. A window remembered from another dashboard beats the default —
@@ -120,6 +132,56 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
     const dayLabel = (date: string) =>
         new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
 
+    /** One line per source, in the reader's language; red when a source failed. */
+    const describeSync = (r: SyncAnalyticsResult): ReactNode => {
+        const skipText = (code: string, status?: number) => {
+            switch (code) {
+                case 'TRUNCATED': return t('sync_skip_truncated');
+                case 'TOAST_ENV': return t('sync_skip_env');
+                case 'TOAST_HTTP': return t('sync_skip_http', { status: status ?? 0 });
+                default: return t('sync_skip_failed');
+            }
+        };
+        const parts: { text: string; bad: boolean }[] = [];
+        if (r.toast.error) parts.push({ text: t('sync_toast_failed'), bad: true });
+        else {
+            parts.push({ text: t('sync_toast_ok', { count: r.toast.read.length }), bad: false });
+            for (const sk of r.toast.skipped) parts.push({ text: `${dayLabel(sk.date)}: ${skipText(sk.code, sk.status)}`, bad: true });
+            if (r.toast.remaining > 0) parts.push({ text: t('sync_toast_remaining', { count: r.toast.remaining }), bad: false });
+        }
+        if (r.google.error === 'NOT_CONNECTED') parts.push({ text: t('sync_google_not_connected'), bad: false });
+        else if (r.google.error === 'TIME') parts.push({ text: t('sync_google_time'), bad: false });
+        else if (r.google.error) parts.push({ text: t('sync_google_failed'), bad: true });
+        else parts.push({ text: t('sync_google_ok', { reviews: r.google.reviews, days: r.google.metricDays }), bad: false });
+        if (r.clover.error === 'TIME') parts.push({ text: t('sync_clover_time'), bad: false });
+        else if (r.clover.error) parts.push({ text: t('sync_clover_failed'), bad: true });
+        else parts.push({ text: t('sync_clover_ok', { count: r.clover.items }), bad: false });
+        return (
+            <>
+                {parts.map((p, i) => (
+                    <span key={i} style={{ color: p.bad ? 'var(--danger)' : undefined }}>{i > 0 && ' · '}{p.text}</span>
+                ))}
+                <span style={{ color: 'var(--text-secondary)' }}> · {t('sync_took', { seconds: Math.round(r.tookMs / 1000) })}</span>
+            </>
+        );
+    };
+
+    const runSync = async () => {
+        setSyncing(true);
+        setSyncStatus(t('sync_running'));
+        try {
+            const r = await syncAnalytics();
+            if (!r.success) { setSyncStatus(<span style={{ color: 'var(--danger)' }}>{r.code === 'NOT_ADMIN' ? t('err_admin') : t('sync_failed')}</span>); return; }
+            setSyncStatus(describeSync(r));
+            setRefreshKey(k => k + 1);
+        } catch {
+            // A rejected action (deploy mid-flight, network, the 60 s ceiling): say so, never hang on "running".
+            setSyncStatus(<span style={{ color: 'var(--danger)' }}>{t('sync_rejected')}</span>);
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     return (
         <div data-testid="analytics-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1400px', margin: '0 auto' }}>
             <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1rem' }}>
@@ -127,6 +189,16 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
                     <div style={{ fontSize: '0.8rem', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{t('section')}</div>
                     <h1 style={{ fontSize: '2.5rem', margin: '0.1rem 0 0.25rem 0', color: 'var(--text-primary)' }}>{t(`title_${view}`)}</h1>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: 0 }}>{t(`subtitle_${view}`)}</p>
+                </div>
+
+                {/* The one refresh under Analytics: every source, then every dashboard redraws. */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', maxWidth: '100%' }}>
+                    <button type="button" onClick={runSync} disabled={syncing} className="btn-primary" data-testid="analytics-sync"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minHeight: '56px', padding: '0 1.75rem', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 700, cursor: syncing ? 'wait' : 'pointer', opacity: syncing ? 0.7 : 1 }}>
+                        <RefreshCw size={22} className={syncing ? 'an-spin' : ''} />
+                        {syncing ? t('syncing') : t('sync')}
+                    </button>
+                    {syncStatus && <span style={{ fontSize: '0.85rem', textAlign: 'right' }}>{syncStatus}</span>}
                 </div>
 
                 {RANGED_VIEWS.includes(view) && (
@@ -162,11 +234,16 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
                 )}
             </header>
 
-            {view === 'resumen' && <ResumenView locale={locale} range={range} today={today} />}
-            {view === 'ventas' && <VentasView range={range} />}
-            {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} />}
-            {view === 'personal' && <PersonalView locale={locale} range={range} today={today} />}
-            {view === 'reputacion' && <ReputacionView locale={locale} range={range} today={today} />}
+            {view === 'resumen' && <ResumenView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+            {view === 'ventas' && <VentasView range={range} refreshKey={refreshKey} />}
+            {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+            {view === 'personal' && <PersonalView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+            {view === 'reputacion' && <ReputacionView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+
+            <style jsx>{`
+                @keyframes an-spin { 100% { transform: rotate(360deg); } }
+                :global(.an-spin) { animation: an-spin 1s linear infinite; }
+            `}</style>
         </div>
     );
 }

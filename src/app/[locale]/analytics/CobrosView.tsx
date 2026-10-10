@@ -24,10 +24,10 @@ const numCell: CSSProperties = { ...cell, ...numStyle, textAlign: 'right' };
 
 const pct1 = (part: number, whole: number) => (whole > 0 ? (Math.round((part / whole) * 1000) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0');
 
-export default function CobrosView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
+export default function CobrosView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
     const t = useTranslations('Analytics');
     const ts = useTranslations('Sales');
-    const { data, error, loading } = useAnalyticsDaily(range);
+    const { data, error, loading } = useAnalyticsDaily(range, refreshKey);
     const { dayLabel, timeLabel } = useDateLabels(locale);
 
     if (error) return <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>;

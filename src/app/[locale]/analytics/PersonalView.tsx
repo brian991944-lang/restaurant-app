@@ -29,7 +29,7 @@ const hoursText = (h: number) => `${h.toLocaleString('en-US', { maximumFractionD
 const pctOf = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
 const pctLabel = (pct: number | null) => (pct === null ? '—' : `${pct.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`);
 
-function useAnalyticsLabor(range: DateRange) {
+function useAnalyticsLabor(range: DateRange, refreshKey: number) {
     const t = useTranslations('Analytics');
     const [data, setData] = useState<AnalyticsLaborResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -47,14 +47,14 @@ function useAnalyticsLabor(range: DateRange) {
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [range.from, range.to]);
+    }, [range.from, range.to, refreshKey]);
     return { data, error, loading };
 }
 
-export default function PersonalView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
+export default function PersonalView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
     const t = useTranslations('Analytics');
-    const sales = useAnalyticsDaily(range);
-    const labor = useAnalyticsLabor(range);
+    const sales = useAnalyticsDaily(range, refreshKey);
+    const labor = useAnalyticsLabor(range, refreshKey);
     const { dayLabel, weekdayName } = useDateLabels(locale);
 
     const error = sales.error ?? labor.error;

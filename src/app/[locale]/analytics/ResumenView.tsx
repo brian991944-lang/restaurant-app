@@ -15,9 +15,9 @@ import { DayBars, Tile, daySeries, pctText, useAnalyticsDaily, useDateLabels, nu
  * src/lib/analytics/daily.ts — nothing here is estimated except the forecast,
  * which says so. Open is never added to paid anywhere on this page.
  */
-export default function ResumenView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
+export default function ResumenView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
     const t = useTranslations('Analytics');
-    const { data, error, loading } = useAnalyticsDaily(range);
+    const { data, error, loading } = useAnalyticsDaily(range, refreshKey);
     const { dayLabel, weekdayName, timeLabel } = useDateLabels(locale);
 
     if (error) return <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>;
