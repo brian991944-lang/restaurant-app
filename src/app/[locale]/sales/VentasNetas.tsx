@@ -16,7 +16,6 @@ import type { DailySalesRow } from '@/lib/pos/toastDailySales';
  * nothing here calls Toast directly.
  */
 
-const DAYS = 14;
 const PAID_COLOR = 'var(--accent-primary)';
 const OPEN_COLOR = '#c98500'; // the Dashboard's amber, for "not yet in the register"
 const NEUTRAL_COLOR = 'var(--text-secondary)';
@@ -51,19 +50,21 @@ export default function VentasNetas() {
     const [today, setToday] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    /** "3 de 12 · mar, 29 sept" while a backfill runs; null otherwise. */
+    const [backfill, setBackfill] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (): Promise<DailySalesRow[]> => {
         try {
-            const res = await getToastDailySales(DAYS);
+            const res = await getToastDailySales();
             if (res.success) {
                 setRows(res.rows);
                 setToday(res.today);
                 setError(null);
-            } else {
-                setError(res.error ?? 'No se pudieron leer las ventas.');
+                return res.rows;
             }
+            setError(res.error ?? 'No se pudieron leer las ventas.');
         } catch {
             // A rejected action (deploy mid-flight, network) must not leave the
             // panel on "Cargando…" forever.
@@ -71,9 +72,39 @@ export default function VentasNetas() {
         } finally {
             setLoading(false);
         }
+        return [];
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    const busy = refreshing || backfill !== null;
+
+    /** Read every day never read yet, oldest first, one request per day. */
+    const handleBackfill = async () => {
+        const missing = rows.filter(r => r.computedAt === null).map(r => r.date);
+        if (missing.length === 0) return;
+        setNotice(null);
+        setError(null);
+        const skipped: string[] = [];
+        try {
+            for (let i = 0; i < missing.length; i++) {
+                const date = missing[i];
+                setBackfill(`${i + 1} de ${missing.length} · ${dayLabel(date)}`);
+                const res = await refreshToastDailySales(date);
+                if (!res.success) {
+                    setError(`${dayLabel(date)}: ${res.error ?? 'No se pudo leer.'} Se detuvo ahí.`);
+                    return;
+                }
+                for (const r of res.reports ?? []) if (r.skipped) skipped.push(`${dayLabel(r.date)}: ${r.skipped}`);
+                await load(); // the row fills in as the loop goes
+            }
+            if (skipped.length) setNotice(skipped.join(' · '));
+        } catch {
+            setError('La lectura se interrumpió. Vuelve a tocar "Leer días sin datos" para seguir.');
+        } finally {
+            setBackfill(null);
+        }
+    };
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -99,6 +130,7 @@ export default function VentasNetas() {
     const money = (cents: number | undefined) => (hasToday && cents !== undefined ? formatMoney(cents) : '—');
     const history = [...rows].reverse(); // newest first
     const maxTotal = Math.max(0, ...rows.map(toastTotal));
+    const missingCount = rows.filter(r => r.computedAt === null).length;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -110,15 +142,28 @@ export default function VentasNetas() {
                     </p>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        className="btn-primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.5rem', minHeight: '44px' }}
-                    >
-                        <RefreshCw size={18} className={refreshing ? 'vn-spin' : ''} />
-                        {refreshing ? 'Leyendo Toast…' : 'Actualizar'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {/* Only while history is incomplete: reads the missing days one by one. */}
+                        {!loading && missingCount > 0 && (
+                            <button
+                                onClick={handleBackfill}
+                                disabled={busy}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.25rem', minHeight: '44px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}
+                            >
+                                <RefreshCw size={18} className={backfill ? 'vn-spin' : ''} />
+                                {backfill ? `Leyendo ${backfill}` : `Leer ${missingCount} día${missingCount === 1 ? '' : 's'} sin datos`}
+                            </button>
+                        )}
+                        <button
+                            onClick={handleRefresh}
+                            disabled={busy}
+                            className="btn-primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.5rem', minHeight: '44px' }}
+                        >
+                            <RefreshCw size={18} className={refreshing ? 'vn-spin' : ''} />
+                            {refreshing ? 'Leyendo Toast…' : 'Actualizar'}
+                        </button>
+                    </div>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                         {hasToday && todayRow?.computedAt
                             ? `Hoy ${dayLabel(todayRow.date)} · actualizado a las ${timeLabel(todayRow.computedAt)}`
@@ -146,7 +191,7 @@ export default function VentasNetas() {
                     sub={hasToday ? `${formatMoney(todayRow!.gratuityCents)} propina de grupo · aparte de las ventas netas` : 'Aparte de las ventas netas'} />
             </div>
 
-            {/* Last 14 days, newest first. */}
+            {/* Every day since Toast started (last 60 at most), newest first. */}
             <div className="glass-panel" style={{ padding: '0.5rem 0', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
                     <thead>

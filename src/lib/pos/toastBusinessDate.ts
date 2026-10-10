@@ -8,6 +8,9 @@
 export const TOAST_CUTOVER_HOUR = 4;
 const TZ = 'America/New_York';
 
+/** The first business day rung on Toast. Nothing before it exists in Toast. */
+export const TOAST_FIRST_BUSINESS_DATE = '2026-09-28';
+
 /** 'YYYY-MM-DD' Toast business date for an instant. */
 export function toastBusinessDateOf(instant: Date): string {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -29,6 +32,14 @@ export function shiftDate(date: string, days: number): string {
 export function lastToastBusinessDates(n: number, now: Date = new Date()): string[] {
     const today = toastBusinessDateOf(now);
     return Array.from({ length: n }, (_, i) => shiftDate(today, i - (n - 1)));
+}
+
+/** Every Toast business date from `first` through today, oldest first; empty if `first` is after today. */
+export function toastBusinessDatesSince(first: string, now: Date = new Date()): string[] {
+    const today = toastBusinessDateOf(now);
+    const dates: string[] = [];
+    for (let d = first; d <= today; d = shiftDate(d, 1)) dates.push(d);
+    return dates;
 }
 
 /** Toast's businessDate number/string (yyyymmdd) to 'YYYY-MM-DD'. */
