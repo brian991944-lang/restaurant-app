@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw } from 'lucide-react';
 import { formatMoney } from '@/lib/money';
 import { getToastDailySales, refreshToastDailySales } from '@/app/actions/toastDailySales';
-import type { DailySalesRow } from '@/lib/pos/toastDailySales';
+import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
 
 /**
  * Ventas netas (Toast): the day's money with the Clover-style distinction
@@ -13,19 +14,13 @@ import type { DailySalesRow } from '@/lib/pos/toastDailySales';
  * service charges are their own cards, not part of net sales.
  *
  * Reads PosDailySales (written by the refresh button and the nightly cron);
- * nothing here calls Toast directly.
+ * nothing here calls Toast directly. Every string comes from the Sales
+ * namespace, and dates follow the reader's language.
  */
 
 const PAID_COLOR = 'var(--accent-primary)';
 const OPEN_COLOR = '#c98500'; // the Dashboard's amber, for "not yet in the register"
 const NEUTRAL_COLOR = 'var(--text-secondary)';
-
-const dayLabel = (date: string) =>
-    new Intl.DateTimeFormat('es', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
-        .format(new Date(`${date}T12:00:00Z`));
-
-const timeLabel = (iso: string) =>
-    new Intl.DateTimeFormat('es', { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }).format(new Date(iso));
 
 /** Toast's own net sales: it counts open checks and non-gratuity service charges. */
 const toastTotal = (r: DailySalesRow) => r.netPaidCents + r.netOpenCents + r.surchargeCents + r.otherChargeCents;
@@ -48,11 +43,42 @@ function Card({ label, value, sub, color, big }: { label: string; value: string;
 }
 
 export default function VentasNetas() {
+    const t = useTranslations('Sales');
+    const locale = useLocale();
+
+    /** 'Fri, Oct 9' / 'vie, 9 oct' for a 'YYYY-MM-DD' Toast business date. */
+    const dayLabel = (date: string) =>
+        new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+            .format(new Date(`${date}T12:00:00Z`));
+    const timeLabel = (iso: string) =>
+        new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'America/New_York' }).format(new Date(iso));
+
+    /** The server answers in codes; the words are the reader's. */
+    const errorText = (code: SalesErrorCode | undefined, fallback: string) => {
+        switch (code) {
+            case 'NOT_ADMIN': return t('err_admin');
+            case 'BAD_DATE': return t('err_bad_date');
+            case 'FAILED': return t('err_failed');
+            case 'READ_FAILED': return t('err_read_failed');
+            default: return fallback;
+        }
+    };
+    const skippedText = (r: DailySalesReport) => {
+        switch (r.skippedCode) {
+            case 'BAD_DATE': return t('skip_bad_date');
+            case 'TRUNCATED': return t('skip_truncated');
+            case 'TOAST_ENV': return t('skip_toast_env');
+            case 'TOAST_HTTP': return t('skip_toast_http', { status: r.skippedStatus ?? 0 });
+            case 'TOAST_FAILED': return t('skip_toast_failed');
+            default: return r.skipped ?? '';
+        }
+    };
+
     const [rows, setRows] = useState<DailySalesRow[]>([]);
     const [today, setToday] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    /** "3 de 12 · mar, 29 sept" while a backfill runs; null otherwise. */
+    /** "3 of 12 · Tue, Sep 29" while a backfill runs; null otherwise. */
     const [backfill, setBackfill] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [notice, setNotice] = useState<string | null>(null);
@@ -66,22 +92,23 @@ export default function VentasNetas() {
                 setError(null);
                 return res.rows;
             }
-            setError(res.error ?? 'No se pudieron leer las ventas.');
+            setError(errorText(res.code, t('err_read_failed')));
         } catch {
             // A rejected action (deploy mid-flight, network) must not leave the
-            // panel on "Cargando…" forever.
-            setError('No se pudieron leer las ventas. Recarga la página.');
+            // panel on "Loading…" forever.
+            setError(t('err_rejected'));
         } finally {
             setLoading(false);
         }
         return [];
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [locale]);
 
     useEffect(() => { load(); }, [load]);
 
     const busy = refreshing || backfill !== null;
 
-    /** Read every day never read yet, oldest first, one request per day. */
+    /** Read every day that needs it, oldest first, one request per day. */
     const handleBackfill = async () => {
         const missing = rows.filter(needsRead).map(r => r.date);
         if (missing.length === 0) return;
@@ -91,18 +118,18 @@ export default function VentasNetas() {
         try {
             for (let i = 0; i < missing.length; i++) {
                 const date = missing[i];
-                setBackfill(`${i + 1} de ${missing.length} · ${dayLabel(date)}`);
+                setBackfill(t('backfill_progress', { i: i + 1, n: missing.length, day: dayLabel(date) }));
                 const res = await refreshToastDailySales(date);
                 if (!res.success) {
-                    setError(`${dayLabel(date)}: ${res.error ?? 'No se pudo leer.'} Se detuvo ahí.`);
+                    setError(t('err_backfill_stopped', { day: dayLabel(date), reason: errorText(res.code, t('err_failed')) }));
                     return;
                 }
-                for (const r of res.reports ?? []) if (r.skipped) skipped.push(`${dayLabel(r.date)}: ${r.skipped}`);
+                for (const r of res.reports ?? []) if (r.skipped) skipped.push(`${dayLabel(r.date)}: ${skippedText(r)}`);
                 await load(); // the row fills in as the loop goes
             }
             if (skipped.length) setNotice(skipped.join(' · '));
         } catch {
-            setError('La lectura se interrumpió. Vuelve a tocar "Leer días sin datos" para seguir.');
+            setError(t('err_backfill_interrupted'));
         } finally {
             setBackfill(null);
         }
@@ -114,14 +141,14 @@ export default function VentasNetas() {
         try {
             const res = await refreshToastDailySales();
             if (!res.success) {
-                setError(res.error ?? 'No se pudo actualizar.');
+                setError(errorText(res.code, t('err_failed')));
                 return;
             }
             const skipped = (res.reports ?? []).filter(r => r.skipped);
-            if (skipped.length) setNotice(skipped.map(r => `${dayLabel(r.date)}: ${r.skipped}`).join(' · '));
+            if (skipped.length) setNotice(skipped.map(r => `${dayLabel(r.date)}: ${skippedText(r)}`).join(' · '));
             await load();
         } catch {
-            setError('No se pudo actualizar. Inténtalo de nuevo.');
+            setError(t('err_refresh_rejected'));
         } finally {
             setRefreshing(false);
         }
@@ -138,10 +165,8 @@ export default function VentasNetas() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
-                    <h2 style={{ fontSize: '1.75rem', margin: 0 }}>Ventas netas · Toast</h2>
-                    <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
-                        Solo cuentan los checks cobrados o cerrados. Lo abierto se muestra aparte y nunca se suma.
-                    </p>
+                    <h2 style={{ fontSize: '1.75rem', margin: 0 }}>{t('net_title')}</h2>
+                    <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>{t('net_subtitle')}</p>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -153,7 +178,7 @@ export default function VentasNetas() {
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.25rem', minHeight: '44px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}
                             >
                                 <RefreshCw size={18} className={backfill ? 'vn-spin' : ''} />
-                                {backfill ? `Leyendo ${backfill}` : `Leer ${missingCount} día${missingCount === 1 ? '' : 's'} sin datos`}
+                                {backfill ?? t('backfill', { count: missingCount })}
                             </button>
                         )}
                         <button
@@ -163,13 +188,13 @@ export default function VentasNetas() {
                             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.5rem', minHeight: '44px' }}
                         >
                             <RefreshCw size={18} className={refreshing ? 'vn-spin' : ''} />
-                            {refreshing ? 'Leyendo Toast…' : 'Actualizar'}
+                            {refreshing ? t('refreshing') : t('refresh')}
                         </button>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                         {hasToday && todayRow?.computedAt
-                            ? `Hoy ${dayLabel(todayRow.date)} · actualizado a las ${timeLabel(todayRow.computedAt)}`
-                            : loading ? 'Cargando…' : 'Hoy no se ha leído todavía. Toca Actualizar.'}
+                            ? t('status_today', { day: dayLabel(todayRow.date), time: timeLabel(todayRow.computedAt) })
+                            : loading ? t('status_loading') : t('status_unread')}
                     </span>
                 </div>
             </div>
@@ -179,36 +204,36 @@ export default function VentasNetas() {
 
             {/* Today: the three figures that matter, then what is not a sale. */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                <Card big label="Ventas netas (cobradas)" value={money(todayRow?.netPaidCents)} color={PAID_COLOR}
+                <Card big label={t('card_net')} value={money(todayRow?.netPaidCents)} color={PAID_COLOR}
                     sub={hasToday
-                        ? `${todayRow!.paidChecks} checks cobrados · ${formatMoney(todayRow!.cashNetCents ?? 0)} en efectivo (${todayRow!.cashChecks ?? 0})`
+                        ? t('card_net_sub', { paid: todayRow!.paidChecks, cash: formatMoney(todayRow!.cashNetCents ?? 0), cashChecks: todayRow!.cashChecks ?? 0 })
                         : undefined} />
-                <Card big label="Abierto (sin cobrar)" value={money(todayRow?.netOpenCents)} color={OPEN_COLOR}
-                    sub={hasToday ? `${todayRow!.openChecks} checks abiertos · no se suma` : undefined} />
-                <Card big label="Total Toast (referencia)" value={money(todayRow ? toastTotal(todayRow) : undefined)} color={NEUTRAL_COLOR}
-                    sub="Cobrado + abierto + recargos, como lo suma Toast" />
+                <Card big label={t('card_open')} value={money(todayRow?.netOpenCents)} color={OPEN_COLOR}
+                    sub={hasToday ? t('card_open_sub', { open: todayRow!.openChecks }) : undefined} />
+                <Card big label={t('card_total')} value={money(todayRow ? toastTotal(todayRow) : undefined)} color={NEUTRAL_COLOR}
+                    sub={t('card_total_sub')} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                <Card label="Recargo tarjeta (CC)" value={money(todayRow?.surchargeCents)} color={NEUTRAL_COLOR}
-                    sub="Aparte de las ventas netas" />
-                <Card label="Cargo por servicio" value={money(todayRow ? serviceCharges(todayRow) : undefined)} color={NEUTRAL_COLOR}
-                    sub={hasToday ? `${formatMoney(todayRow!.gratuityCents)} propina de grupo · aparte de las ventas netas` : 'Aparte de las ventas netas'} />
+                <Card label={t('card_surcharge')} value={money(todayRow?.surchargeCents)} color={NEUTRAL_COLOR}
+                    sub={t('card_apart')} />
+                <Card label={t('card_service')} value={money(todayRow ? serviceCharges(todayRow) : undefined)} color={NEUTRAL_COLOR}
+                    sub={hasToday ? t('card_service_sub', { gratuity: formatMoney(todayRow!.gratuityCents) }) : t('card_apart')} />
             </div>
 
             {/* Every day since Toast started (last 60 at most), newest first. */}
             <div className="glass-panel" style={{ padding: '0.5rem 0', overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '880px' }}>
                     <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                            <th style={{ ...headCell, textAlign: 'left' }}>Día</th>
-                            <th style={{ ...headCell, textAlign: 'left', minWidth: '180px' }}>Cobrado / abierto</th>
-                            <th style={{ ...headCell, ...numeric }}>Ventas netas</th>
-                            <th style={{ ...headCell, ...numeric }}>Efectivo</th>
-                            <th style={{ ...headCell, ...numeric }}>Abierto</th>
-                            <th style={{ ...headCell, ...numeric }}>Total Toast</th>
-                            <th style={{ ...headCell, ...numeric }}>Recargo tarjeta</th>
-                            <th style={{ ...headCell, ...numeric }}>Cargo servicio</th>
-                            <th style={{ ...headCell, ...numeric }}>Checks</th>
+                            <th style={{ ...headCell, textAlign: 'left' }}>{t('th_day')}</th>
+                            <th style={{ ...headCell, textAlign: 'left', minWidth: '180px' }}>{t('th_bar')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_net')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_cash')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_open')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_total')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_surcharge')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_service')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_checks')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -220,7 +245,7 @@ export default function VentasNetas() {
                             return (
                                 <tr key={r.date} style={{ borderBottom: '1px solid var(--border)', color: r.computedAt ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                                     <td style={{ ...cell, fontWeight: isToday ? 700 : 500, whiteSpace: 'nowrap', color: isToday ? 'var(--accent-primary)' : undefined }}>
-                                        {dayLabel(r.date)}{isToday ? ' · hoy' : ''}
+                                        {dayLabel(r.date)}{isToday ? ` · ${t('today_suffix')}` : ''}
                                     </td>
                                     <td style={cell}>
                                         {!needsRead(r) ? (
@@ -228,10 +253,10 @@ export default function VentasNetas() {
                                                 <div style={{ width: `${paidPct}%`, background: PAID_COLOR }} />
                                                 <div style={{ width: `${openPct}%`, background: OPEN_COLOR }} />
                                             </div>
-                                        ) : <span style={{ fontSize: '0.85rem', fontStyle: 'italic' }}>{r.computedAt ? 'Releer' : 'Sin leer'}</span>}
+                                        ) : <span style={{ fontSize: '0.85rem', fontStyle: 'italic' }}>{r.computedAt ? t('reread') : t('unread')}</span>}
                                     </td>
                                     <td style={{ ...cell, ...numeric, fontWeight: 600 }}>{r.computedAt ? formatMoney(r.netPaidCents) : '—'}</td>
-                                    <td style={{ ...cell, ...numeric }} title="Checks cobrados solo en efectivo">
+                                    <td style={{ ...cell, ...numeric }} title={t('cash_title')}>
                                         {r.cashChecks === null || r.cashNetCents === null
                                             ? '—'
                                             : <>{formatMoney(r.cashNetCents)} <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>· {r.cashChecks}</span></>}
@@ -248,10 +273,7 @@ export default function VentasNetas() {
                 </table>
             </div>
 
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                Ventas netas = platos y bebidas después de descuentos, menos reembolsos, de checks con pago aplicado o cerrados. Sin impuestos, propinas, propina de grupo ni recargos.
-                Efectivo = la parte de las ventas netas de los checks pagados solo en efectivo, con cuántos fueron. Abierto = lo mismo sobre checks sin cobrar. Días de Toast (cambian a las 4 AM). El cron de la madrugada relee los últimos 3 días, así que un check que cierra tarde pasa solo a cobrado.
-            </p>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('legend')}</p>
 
             <style jsx>{`
                 @keyframes vn-spin { 100% { transform: rotate(360deg); } }

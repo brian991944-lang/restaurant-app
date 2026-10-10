@@ -9,7 +9,7 @@ export const TOAST_CUTOVER_HOUR = 4;
 const TZ = 'America/New_York';
 
 /** The first business day rung on Toast. Nothing before it exists in Toast. */
-export const TOAST_FIRST_BUSINESS_DATE = '2026-09-28';
+export const TOAST_FIRST_BUSINESS_DATE = '2026-09-30';
 
 /** 'YYYY-MM-DD' Toast business date for an instant. */
 export function toastBusinessDateOf(instant: Date): string {

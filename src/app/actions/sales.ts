@@ -11,17 +11,15 @@ function shiftDate(dateStr: string, days: number): string {
     return new Date(Date.UTC(y, m - 1, d + days, 12)).toISOString().slice(0, 10);
 }
 
-/** Short display label ('Jul 8') for a 'YYYY-MM-DD' business date. */
-function businessDateLabel(businessDate: string): string {
-    return new Date(`${businessDate}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
-}
-
+/**
+ * Clover audit for the last 3 operational business days (5 AM NY cutover):
+ * `days` are 'YYYY-MM-DD' business dates, oldest first, and `grouped` is
+ * keyed by them. The page formats the dates in the reader's language.
+ */
 export async function getSalesAuditData() {
     try {
-        // Audit covers the last 3 operational business days (5 AM NY cutover),
-        // so sales rung up after midnight count toward the previous day.
+        // Sales rung up after midnight count toward the previous day.
         const businessDates = [-2, -1, 0].map(off => shiftDate(getBusinessDate(), off));
-        const labelByDate = new Map(businessDates.map(bd => [bd, businessDateLabel(bd)]));
         // NY midnight of the oldest business date is always at or before that
         // day's 5 AM start; rows attributed earlier are skipped in the loop.
         const windowStart = getScheduleWindowUtc(businessDates[0]).start;
@@ -36,8 +34,8 @@ export async function getSalesAuditData() {
         const grouped: Record<string, Record<string, Record<string, { qty: number, modifiers: Record<string, number> }>>> = {};
 
         for (const li of lineItems) {
-            const dateStr = labelByDate.get(getBusinessDate(li.createdTime));
-            if (!dateStr) continue; // belongs to a business day outside the 3-day audit window
+            const dateStr = getBusinessDate(li.createdTime);
+            if (!businessDates.includes(dateStr)) continue; // outside the 3-day audit window
 
             const cat = li.categoryName || 'Uncategorized';
 
@@ -65,10 +63,7 @@ export async function getSalesAuditData() {
             }
         }
 
-        // The same 3 business days, oldest first, as display labels.
-        const days = businessDates.map(bd => labelByDate.get(bd)!);
-
-        return { success: true, grouped, days };
+        return { success: true, grouped, days: businessDates };
     } catch (e) {
         console.error("Failed to get sales audit data:", e);
         return { success: false, error: 'Failed to get sales data' };
@@ -76,7 +71,7 @@ export async function getSalesAuditData() {
 }
 
 export type ToastAuditItem = { name: string; qty: number; voidedQty: number; linked: boolean; consumed: boolean };
-export type ToastAuditDay = { date: string; label: string; categories: { name: string; items: ToastAuditItem[] }[] };
+export type ToastAuditDay = { date: string; categories: { name: string; items: ToastAuditItem[] }[] };
 
 /**
  * Toast sales for the last 3 Toast business days (4 AM cutover), from
@@ -108,7 +103,6 @@ export async function getToastSalesAuditData(): Promise<{ success: boolean; days
             }
             return {
                 date,
-                label: businessDateLabel(date),
                 categories: [...byCat.entries()]
                     .sort(([a], [b]) => (a === 'Sin vincular' ? 1 : b === 'Sin vincular' ? -1 : a.localeCompare(b)))
                     .map(([name, items]) => ({ name, items: [...items.values()].sort((a, b) => a.name.localeCompare(b.name)) }))

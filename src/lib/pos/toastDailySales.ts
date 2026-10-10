@@ -14,10 +14,23 @@ import { fetchToastOrders, ToastError } from '@/lib/toast/client';
 import { aggregateToastDailySales, emptyDailySalesTotals, type ToastDailySalesTotals } from '@/lib/toast/dailySales';
 import { dateColumn } from './toastBusinessDate';
 
+/** Why a day was not written, for the UI to say in its own language. */
+export type SkippedCode = 'BAD_DATE' | 'TRUNCATED' | 'TOAST_ENV' | 'TOAST_HTTP' | 'TOAST_FAILED';
+
+/**
+ * Why an action was refused or failed; the page translates it, the Spanish
+ * `error` string stays for logs. Lives here, not in the actions file: a
+ * 'use server' module may export nothing but server actions.
+ */
+export type SalesErrorCode = 'NOT_ADMIN' | 'BAD_DATE' | 'FAILED' | 'READ_FAILED';
+
 export type DailySalesReport = ToastDailySalesTotals & {
     date: string;
-    /** Why nothing was written, when nothing was. */
+    /** Why nothing was written, when nothing was (Spanish, for logs and the script). */
     skipped?: string;
+    skippedCode?: SkippedCode;
+    /** The HTTP status when skippedCode is TOAST_HTTP. */
+    skippedStatus?: number;
     computedAt: string;
 };
 
@@ -46,13 +59,13 @@ export async function snapshotToastDailySalesCore(businessDates: string[]): Prom
 }
 
 async function snapshotOneDay(date: string): Promise<DailySalesReport> {
-    const skip = (why: string): DailySalesReport =>
-        ({ ...emptyDailySalesTotals(), date, skipped: why, computedAt: new Date().toISOString() });
-    if (!isBusinessDate(date)) return skip('Fecha no válida.');
+    const skip = (why: string, skippedCode: SkippedCode, skippedStatus?: number): DailySalesReport =>
+        ({ ...emptyDailySalesTotals(), date, skipped: why, skippedCode, skippedStatus, computedAt: new Date().toISOString() });
+    if (!isBusinessDate(date)) return skip('Fecha no válida.', 'BAD_DATE');
 
     try {
         const { orders, truncated } = await fetchToastOrders(date.replace(/-/g, ''));
-        if (truncated) return skip('Toast devolvió más órdenes de las que se pueden leer. No se guardó el día.');
+        if (truncated) return skip('Toast devolvió más órdenes de las que se pueden leer. No se guardó el día.', 'TRUNCATED');
 
         const totals = aggregateToastDailySales(orders);
         const computedAt = new Date();
@@ -78,7 +91,11 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
         return { ...totals, date, computedAt: computedAt.toISOString() };
     } catch (e) {
         console.error(`Toast daily sales ${date} failed:`, e instanceof Error ? e.message : e);
-        return skip(e instanceof ToastError ? e.message : 'No se pudo leer el día en Toast.');
+        if (e instanceof ToastError) {
+            // status 0 = the credentials are not configured; anything else is Toast's answer.
+            return e.status > 0 ? skip(e.message, 'TOAST_HTTP', e.status) : skip(e.message, 'TOAST_ENV');
+        }
+        return skip('No se pudo leer el día en Toast.', 'TOAST_FAILED');
     }
 }
 

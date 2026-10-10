@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { lastToastBusinessDates, toastBusinessDatesSince, TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
 import { readToastDailySales, snapshotToastDailySalesCore } from '@/lib/pos/toastDailySales';
-import type { DailySalesReport, DailySalesRow } from '@/lib/pos/toastDailySales';
+import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
 
 // No `export type { … }` here: a 'use server' module may only export server
 // actions, and the bundler registers every export as one — a re-exported type
@@ -27,14 +27,14 @@ const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
  * future) — or, with no date, today and yesterday — and rewrite its
  * PosDailySales row. Admin only; the figures are money the owner reads.
  */
-export async function refreshToastDailySales(businessDate?: string): Promise<{ success: boolean; error?: string; reports?: DailySalesReport[] }> {
-    if (!(await isAdminSession())) return { success: false, error: 'Solo un administrador puede actualizar las ventas.' };
+export async function refreshToastDailySales(businessDate?: string): Promise<{ success: boolean; error?: string; code?: SalesErrorCode; reports?: DailySalesReport[] }> {
+    if (!(await isAdminSession())) return { success: false, error: 'Solo un administrador puede actualizar las ventas.', code: 'NOT_ADMIN' };
     const today = lastToastBusinessDates(1)[0];
     let dates: string[];
     if (businessDate === undefined) {
         dates = lastToastBusinessDates(REFRESH_DAYS);
     } else if (!isBusinessDate(businessDate) || businessDate > today || businessDate < TOAST_FIRST_BUSINESS_DATE) {
-        return { success: false, error: 'La fecha no es válida.' };
+        return { success: false, error: 'La fecha no es válida.', code: 'BAD_DATE' };
     } else {
         dates = [businessDate];
     }
@@ -44,7 +44,7 @@ export async function refreshToastDailySales(businessDate?: string): Promise<{ s
         return { success: true, reports };
     } catch (e) {
         console.error('Refresh Toast daily sales failed:', e instanceof Error ? e.message : e);
-        return { success: false, error: 'No se pudieron actualizar las ventas de Toast.' };
+        return { success: false, error: 'No se pudieron actualizar las ventas de Toast.', code: 'FAILED' };
     }
 }
 
@@ -53,16 +53,16 @@ export async function refreshToastDailySales(businessDate?: string): Promise<{ s
  * Toast business day since the first one, capped at the last MAX_DAYS; a day
  * never read comes back with computedAt null.
  */
-export async function getToastDailySales(days?: number): Promise<{ success: boolean; error?: string; today: string; rows: DailySalesRow[] }> {
+export async function getToastDailySales(days?: number): Promise<{ success: boolean; error?: string; code?: SalesErrorCode; today: string; rows: DailySalesRow[] }> {
     const all = toastBusinessDatesSince(TOAST_FIRST_BUSINESS_DATE);
     const wanted = days === undefined ? all.length : Math.max(days, 1);
     const dates = all.slice(-Math.min(wanted, MAX_DAYS));
     const today = lastToastBusinessDates(1)[0];
-    if (!(await isAdminSession())) return { success: false, error: 'Solo un administrador puede ver las ventas.', today, rows: [] };
+    if (!(await isAdminSession())) return { success: false, error: 'Solo un administrador puede ver las ventas.', code: 'NOT_ADMIN', today, rows: [] };
     try {
         return { success: true, today, rows: await readToastDailySales(dates) };
     } catch (e) {
         console.error('Read Toast daily sales failed:', e instanceof Error ? e.message : e);
-        return { success: false, error: 'No se pudieron leer las ventas guardadas.', today, rows: [] };
+        return { success: false, error: 'No se pudieron leer las ventas guardadas.', code: 'READ_FAILED', today, rows: [] };
     }
 }
