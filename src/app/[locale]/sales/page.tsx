@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { getSalesAuditData, getToastSalesAuditData, type ToastAuditDay } from '@/app/actions/sales';
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { TrendingUp, RefreshCw } from 'lucide-react';
+import VentasNetas from './VentasNetas';
 
 export default function SalesAuditPage() {
     const t = useTranslations('Nav'); // Reusing nav translation for title
@@ -42,6 +43,9 @@ export default function SalesAuditPage() {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* The day's money first; the item audits below are counts, not dollars. */}
+            <VentasNetas />
+
             {/* Header & Sync Button */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>

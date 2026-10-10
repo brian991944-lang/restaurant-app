@@ -10,7 +10,7 @@
  * Payments that never settled. Their tipAmount is not money anyone received.
  * ERROR_NETWORK and CANCELLED are failure states alongside ERROR and DENIED.
  */
-const UNSETTLED_PAYMENT = new Set(['VOIDED', 'DENIED', 'ERROR', 'ERROR_NETWORK', 'CANCELLED']);
+export const UNSETTLED_PAYMENT = new Set(['VOIDED', 'DENIED', 'ERROR', 'ERROR_NETWORK', 'CANCELLED']);
 
 /** Key for tips on a check with no server attached. */
 export const UNASSIGNED_KEY = 'SIN_ASIGNAR';
@@ -57,15 +57,19 @@ export type ServiceChargeBreakdownRow = {
 /** A card-processing fee, by category or by how the restaurant named it. */
 const CARD_FEE_NAME = /surcharge|recargo|card\s*fee|credit\s*card|cc\s*fee|tarjeta|processing/i;
 
+/** The credit-card surcharge: the restaurant's money, never a tip and never a sale. */
+export function isCardSurcharge(charge: any): boolean {
+    if (charge?.serviceChargeCategory === 'CREDIT_CARD_SURCHARGE') return true;
+    return typeof charge?.name === 'string' && CARD_FEE_NAME.test(charge.name);
+}
+
 /**
  * Only gratuity belongs in the tip pool. The credit-card surcharge is the
  * restaurant's money, so it stays out even if someone flagged it as gratuity.
  */
 export function isPoolServiceCharge(charge: any): boolean {
     if (charge?.gratuity !== true) return false;
-    if (charge?.serviceChargeCategory === 'CREDIT_CARD_SURCHARGE') return false;
-    if (typeof charge?.name === 'string' && CARD_FEE_NAME.test(charge.name)) return false;
-    return true;
+    return !isCardSurcharge(charge);
 }
 
 /**

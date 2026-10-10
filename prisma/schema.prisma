@@ -1424,6 +1424,33 @@ model PosConsumptionBaseline {
   updatedAt  DateTime  @updatedAt
 }
 
+// One row per POS business day: the day's money as the app defines it
+// (src/lib/toast/dailySales.ts). Rewritten by the Ventas page's refresh
+// button and by the nightly cron for the last 3 days, so a day settles on
+// its own once its open checks close. Integer cents throughout.
+model PosDailySales {
+  id               String    @id @default(cuid())
+  source           PosSource
+  businessDate     DateTime  @db.Date
+  // Checks PAID or CLOSED: item sales after discounts, minus refunds. No tax,
+  // tips, gratuity or service charges (card surcharge included).
+  netPaidCents     Int       @default(0)
+  // The same figure over checks still OPEN. Never added into netPaidCents.
+  netOpenCents     Int       @default(0)
+  // Service charges over every live check, by kind. Toast counts the first
+  // and the third inside its own net sales; the app shows them as cards.
+  surchargeCents   Int       @default(0)
+  gratuityCents    Int       @default(0)
+  otherChargeCents Int       @default(0)
+  paidChecks       Int       @default(0)
+  openChecks       Int       @default(0)
+  voidedChecks     Int       @default(0)
+  ordersScanned    Int       @default(0)
+  computedAt       DateTime  @default(now())
+
+  @@unique([source, businessDate])
+}
+
 // ─── Google Business Profile (GBP) sync ─────────────────────────────────────
 
 /// Single-row table (id = 1). Holds the OAuth refresh token for the

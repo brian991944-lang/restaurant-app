@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { syncCloverSales } from '@/app/actions/clover';
 import { runToastConsumptionCore } from '@/lib/pos/toastConsumption';
+import { snapshotToastDailySalesCore } from '@/lib/pos/toastDailySales';
 import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
 
 // This function receives a GET request and triggers the sync manually via Cron
@@ -38,11 +39,27 @@ export async function GET(request: Request) {
             }
         }
 
+        // Daily net sales (Ventas page): re-read the last 3 Toast business days
+        // so checks closed after the previous run move from open to paid. Reads
+        // Toast, writes only PosDailySales; a failure is reported, nothing else.
+        let dailySales: unknown;
+        try {
+            const reports = await snapshotToastDailySalesCore(lastToastBusinessDates(3));
+            dailySales = reports.map(r => ({
+                date: r.date, skipped: r.skipped, netPaid: r.netPaidCents, netOpen: r.netOpenCents,
+                paidChecks: r.paidChecks, openChecks: r.openChecks
+            }));
+        } catch (e) {
+            console.error('Cron Toast daily sales failed:', e instanceof Error ? e.message : e);
+            dailySales = { error: e instanceof Error ? e.message : String(e) };
+        }
+
         if (result.success) {
             return NextResponse.json({
                 status: 'success',
                 message: `Successfully synced ${result.count} items.`,
-                toast
+                toast,
+                dailySales
             });
         } else {
             return NextResponse.json({
