@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { formatMoney } from '@/lib/money';
-import { getToastDailySales, refreshToastDailySales, type DailySalesRow } from '@/app/actions/toastDailySales';
+import { getToastDailySales, refreshToastDailySales } from '@/app/actions/toastDailySales';
+import type { DailySalesRow } from '@/lib/pos/toastDailySales';
 
 /**
  * Ventas netas (Toast): the day's money with the Clover-style distinction
@@ -54,15 +55,22 @@ export default function VentasNetas() {
     const [notice, setNotice] = useState<string | null>(null);
 
     const load = useCallback(async () => {
-        const res = await getToastDailySales(DAYS);
-        if (res.success) {
-            setRows(res.rows);
-            setToday(res.today);
-            setError(null);
-        } else {
-            setError(res.error ?? 'No se pudieron leer las ventas.');
+        try {
+            const res = await getToastDailySales(DAYS);
+            if (res.success) {
+                setRows(res.rows);
+                setToday(res.today);
+                setError(null);
+            } else {
+                setError(res.error ?? 'No se pudieron leer las ventas.');
+            }
+        } catch {
+            // A rejected action (deploy mid-flight, network) must not leave the
+            // panel on "Cargando…" forever.
+            setError('No se pudieron leer las ventas. Recarga la página.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, []);
 
     useEffect(() => { load(); }, [load]);
@@ -79,6 +87,8 @@ export default function VentasNetas() {
             const skipped = (res.reports ?? []).filter(r => r.skipped);
             if (skipped.length) setNotice(skipped.map(r => `${dayLabel(r.date)}: ${r.skipped}`).join(' · '));
             await load();
+        } catch {
+            setError('No se pudo actualizar. Inténtalo de nuevo.');
         } finally {
             setRefreshing(false);
         }

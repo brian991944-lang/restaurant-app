@@ -3,9 +3,14 @@
 import { revalidatePath } from 'next/cache';
 import { isAdminSession } from '@/lib/adminGuard';
 import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
-import { readToastDailySales, snapshotToastDailySalesCore, type DailySalesReport, type DailySalesRow } from '@/lib/pos/toastDailySales';
+import { readToastDailySales, snapshotToastDailySalesCore } from '@/lib/pos/toastDailySales';
+import type { DailySalesReport, DailySalesRow } from '@/lib/pos/toastDailySales';
 
-export type { DailySalesReport, DailySalesRow };
+// No `export type { … }` here: a 'use server' module may only export server
+// actions, and the bundler registers every export as one — a re-exported type
+// becomes `ensureServerEntryExports([…, DailySalesReport])` and throws a
+// ReferenceError at module load, taking every action on the page down with it.
+// Types are imported from the lib module directly instead.
 
 const SALES_ROUTE = '/[locale]/sales';
 
