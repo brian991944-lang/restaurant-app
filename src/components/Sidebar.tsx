@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import { useWorkstation } from '@/components/WorkstationContext';
@@ -18,6 +18,7 @@ import { ANALYTICS_VIEWS, analyticsHref, type AnalyticsView } from '@/lib/analyt
 const ANALYTICS_ICONS: Record<AnalyticsView, typeof Package> = {
     resumen: Gauge,
     ventas: TrendingUp,
+    cobros: CreditCard,
 };
 
 /** The stations a nav item can belong to. Every item declares exactly one. */

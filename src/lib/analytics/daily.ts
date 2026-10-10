@@ -46,11 +46,17 @@ export type DailySummary = {
     paidChecks: number;
     openChecks: number;
     surchargeCents: number;
+    /** Group gratuity plus other service charges — the "Cargo por servicio" card. */
     serviceChargeCents: number;
+    gratuityCents: number;
+    otherChargeCents: number;
     /** Over the days whose cash figures exist; `cashDays` says how many that is. */
     cashNetCents: number;
     cashChecks: number;
     cashDays: number;
+    /** Net sales and checks not settled only in cash (card, split, gift card…), over the same `cashDays`. */
+    cardNetCents: number;
+    cardChecks: number;
     /** Net sales per paid check, rounded to the cent; null without a paid check. */
     avgTicketCents: number | null;
     /** Net sales per read day, rounded to the cent; null without a read day. */
@@ -59,14 +65,34 @@ export type DailySummary = {
     openDays: { date: string; openChecks: number; netOpenCents: number }[];
 };
 
+/**
+ * A read day's net sales split by how its checks were settled: the checks
+ * paid only in cash, and everything else (card, split tenders, gift cards).
+ * Null for a day read before the cash figures existed — the split is
+ * unknown, not zero.
+ */
+export function splitTender(r: DailySalesRow): { cashNetCents: number; cashChecks: number; cardNetCents: number; cardChecks: number } | null {
+    if (!isRead(r) || r.cashChecks === null || r.cashNetCents === null) return null;
+    return {
+        cashNetCents: r.cashNetCents,
+        cashChecks: r.cashChecks,
+        cardNetCents: r.netPaidCents - r.cashNetCents,
+        cardChecks: r.paidChecks - r.cashChecks
+    };
+}
+
+/** Toast's own total over a summary, the way toastTotalCents builds it for one day. */
+export const toastTotalOf = (s: DailySummary) => s.netPaidCents + s.netOpenCents + s.surchargeCents + s.otherChargeCents;
+
 export function summarizeDays(rows: DailySalesRow[]): DailySummary {
     const read = rows.filter(isRead);
     const s: DailySummary = {
         days: read.length,
         unreadDays: rows.length - read.length,
         netPaidCents: 0, netOpenCents: 0, paidChecks: 0, openChecks: 0,
-        surchargeCents: 0, serviceChargeCents: 0,
+        surchargeCents: 0, serviceChargeCents: 0, gratuityCents: 0, otherChargeCents: 0,
         cashNetCents: 0, cashChecks: 0, cashDays: 0,
+        cardNetCents: 0, cardChecks: 0,
         avgTicketCents: null, avgNetPerDayCents: null,
         openDays: []
     };
@@ -77,9 +103,14 @@ export function summarizeDays(rows: DailySalesRow[]): DailySummary {
         s.openChecks += r.openChecks;
         s.surchargeCents += r.surchargeCents;
         s.serviceChargeCents += serviceChargeCents(r);
-        if (r.cashChecks !== null && r.cashNetCents !== null) {
-            s.cashNetCents += r.cashNetCents;
-            s.cashChecks += r.cashChecks;
+        s.gratuityCents += r.gratuityCents;
+        s.otherChargeCents += r.otherChargeCents;
+        const tender = splitTender(r);
+        if (tender) {
+            s.cashNetCents += tender.cashNetCents;
+            s.cashChecks += tender.cashChecks;
+            s.cardNetCents += tender.cardNetCents;
+            s.cardChecks += tender.cardChecks;
             s.cashDays += 1;
         }
         if (r.openChecks > 0) s.openDays.push({ date: r.date, openChecks: r.openChecks, netOpenCents: r.netOpenCents });

@@ -4,8 +4,11 @@ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { RefreshCw } from 'lucide-react';
 import { formatMoney } from '@/lib/money';
-import { getToastDailySales, refreshToastDailySales } from '@/app/actions/toastDailySales';
+import { refreshToastDailySales } from '@/app/actions/toastDailySales';
+import { getAnalyticsDaily } from '@/app/actions/analytics';
 import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
+import type { DateRange } from '@/lib/analytics/range';
+import { summarizeDays, toastTotalOf } from '@/lib/analytics/daily';
 
 /**
  * Ventas netas (Toast): the day's money with the Clover-style distinction
@@ -14,8 +17,10 @@ import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/
  * service charges are their own cards, not part of net sales.
  *
  * Reads PosDailySales (written by the refresh button and the nightly cron);
- * nothing here calls Toast directly. Every string comes from the Sales
- * namespace, and dates follow the reader's language.
+ * nothing here calls Toast directly. The cards are always today; the table
+ * is the window the Analytics shell hands down, with its totals. Every
+ * string comes from the Sales namespace, and dates follow the reader's
+ * language.
  */
 
 const PAID_COLOR = 'var(--accent-primary)';
@@ -42,7 +47,7 @@ function Card({ label, value, sub, color, big }: { label: string; value: string;
     );
 }
 
-export default function VentasNetas() {
+export default function VentasNetas({ range }: { range: DateRange }) {
     const t = useTranslations('Sales');
     const locale = useLocale();
 
@@ -85,7 +90,7 @@ export default function VentasNetas() {
 
     const load = useCallback(async (): Promise<DailySalesRow[]> => {
         try {
-            const res = await getToastDailySales();
+            const res = await getAnalyticsDaily(range.from, range.to);
             if (res.success) {
                 setRows(res.rows);
                 setToday(res.today);
@@ -102,7 +107,7 @@ export default function VentasNetas() {
         }
         return [];
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locale]);
+    }, [locale, range.from, range.to]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -160,6 +165,9 @@ export default function VentasNetas() {
     const history = [...rows].reverse(); // newest first
     const maxTotal = Math.max(0, ...rows.map(toastTotal));
     const missingCount = rows.filter(needsRead).length;
+    const totals = summarizeDays(rows);
+    /** Net sales per paid check for one day; null without a paid check. */
+    const ticket = (r: DailySalesRow) => (r.paidChecks > 0 ? Math.round(r.netPaidCents / r.paidChecks) : null);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -228,6 +236,7 @@ export default function VentasNetas() {
                             <th style={{ ...headCell, textAlign: 'left' }}>{t('th_day')}</th>
                             <th style={{ ...headCell, textAlign: 'left', minWidth: '180px' }}>{t('th_bar')}</th>
                             <th style={{ ...headCell, ...numeric }}>{t('th_net')}</th>
+                            <th style={{ ...headCell, ...numeric }}>{t('th_ticket')}</th>
                             <th style={{ ...headCell, ...numeric }}>{t('th_cash')}</th>
                             <th style={{ ...headCell, ...numeric }}>{t('th_open')}</th>
                             <th style={{ ...headCell, ...numeric }}>{t('th_total')}</th>
@@ -256,6 +265,7 @@ export default function VentasNetas() {
                                         ) : <span style={{ fontSize: '0.85rem', fontStyle: 'italic' }}>{r.computedAt ? t('reread') : t('unread')}</span>}
                                     </td>
                                     <td style={{ ...cell, ...numeric, fontWeight: 600 }}>{r.computedAt ? formatMoney(r.netPaidCents) : '—'}</td>
+                                    <td style={{ ...cell, ...numeric, color: 'var(--text-secondary)' }}>{r.computedAt && ticket(r) !== null ? formatMoney(ticket(r)!) : '—'}</td>
                                     <td style={{ ...cell, ...numeric }} title={t('cash_title')}>
                                         {r.cashChecks === null || r.cashNetCents === null
                                             ? '—'
@@ -270,6 +280,23 @@ export default function VentasNetas() {
                             );
                         })}
                     </tbody>
+                    {/* The window's totals, over its read days only; a day never read adds nothing. */}
+                    {totals.days > 0 && (
+                        <tfoot>
+                            <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
+                                <td style={{ ...cell, whiteSpace: 'nowrap' }}>{t('row_total', { days: totals.days })}</td>
+                                <td style={cell}></td>
+                                <td style={{ ...cell, ...numeric }}>{formatMoney(totals.netPaidCents)}</td>
+                                <td style={{ ...cell, ...numeric, color: 'var(--text-secondary)' }}>{totals.avgTicketCents !== null ? formatMoney(totals.avgTicketCents) : '—'}</td>
+                                <td style={{ ...cell, ...numeric }}>{formatMoney(totals.cashNetCents)} <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: 400 }}>· {totals.cashChecks}</span></td>
+                                <td style={{ ...cell, ...numeric, color: totals.netOpenCents > 0 ? OPEN_COLOR : undefined }}>{formatMoney(totals.netOpenCents)}</td>
+                                <td style={{ ...cell, ...numeric }}>{formatMoney(toastTotalOf(totals))}</td>
+                                <td style={{ ...cell, ...numeric }}>{formatMoney(totals.surchargeCents)}</td>
+                                <td style={{ ...cell, ...numeric }}>{formatMoney(totals.serviceChargeCents)}</td>
+                                <td style={{ ...cell, ...numeric, color: 'var(--text-secondary)' }}>{totals.paidChecks} / {totals.openChecks}</td>
+                            </tr>
+                        </tfoot>
+                    )}
                 </table>
             </div>
 

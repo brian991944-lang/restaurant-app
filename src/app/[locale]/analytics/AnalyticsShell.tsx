@@ -7,6 +7,7 @@ import { TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
 import { clampRange, daysBetween, matchPreset, presetRange, RANGE_PRESETS, type DateRange, type RangePreset } from '@/lib/analytics/range';
 import ResumenView from './ResumenView';
 import VentasView from './VentasView';
+import CobrosView from './CobrosView';
 
 /**
  * The frame every Analytics dashboard sits in: the section eyebrow, the
@@ -17,14 +18,13 @@ import VentasView from './VentasView';
  * with history.replaceState — which Next's router picks up without a server
  * round trip — and remembers it in sessionStorage, so moving between
  * dashboards through the sidebar (whose links carry no query) keeps the days
- * the reader chose. Ventas is still the day-by-day panel and does not take
- * the window yet, so the control is hidden there.
+ * the reader chose.
  */
 
 const STORAGE_KEY = 'analytics.range';
 
-/** Dashboards that read the window. Ventas joins when it is rebuilt on it. */
-const RANGED_VIEWS: readonly AnalyticsView[] = ['resumen'];
+/** Dashboards that read the window — every one so far; a future one without a window leaves itself out. */
+const RANGED_VIEWS: readonly AnalyticsView[] = ['resumen', 'ventas', 'cobros'];
 
 const readStored = (today: string): DateRange | null => {
     try {
@@ -161,7 +161,8 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
             </header>
 
             {view === 'resumen' && <ResumenView locale={locale} range={range} today={today} />}
-            {view === 'ventas' && <VentasView />}
+            {view === 'ventas' && <VentasView range={range} />}
+            {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} />}
         </div>
     );
 }

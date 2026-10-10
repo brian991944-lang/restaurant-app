@@ -9,14 +9,14 @@
  *
  * A dashboard exists here only once it has something real to show: the
  * sidebar lists exactly this array, so a view cannot be linked before it is
- * built. Later passes append to it (cobros, platos, personal, reputacion,
- * resultados), each with its page component in src/app/[locale]/analytics.
+ * built. Later passes add to it (platos, personal, reputacion, resultados),
+ * each with its page component in src/app/[locale]/analytics.
  */
 
-export type AnalyticsView = 'resumen' | 'ventas';
+export type AnalyticsView = 'resumen' | 'ventas' | 'cobros';
 
 /** Every dashboard, in the order the sidebar dropdown shows them. */
-export const ANALYTICS_VIEWS = ['resumen', 'ventas'] as const;
+export const ANALYTICS_VIEWS = ['resumen', 'ventas', 'cobros'] as const;
 
 /** The overview is the section's entry point. */
 export const DEFAULT_ANALYTICS_VIEW: AnalyticsView = 'resumen';

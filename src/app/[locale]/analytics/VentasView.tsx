@@ -6,6 +6,7 @@ import { getSalesAuditData, getToastSalesAuditData, type ToastAuditDay } from '@
 import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import VentasNetas from './VentasNetas';
+import type { DateRange } from '@/lib/analytics/range';
 
 /**
  * Analytics › Ventas: the Ventas netas panel (today's money and every day
@@ -18,7 +19,7 @@ import VentasNetas from './VentasNetas';
 const dayLabel = (locale: string, date: string) =>
     new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
 
-export default function VentasView() {
+export default function VentasView({ range }: { range: DateRange }) {
     const t = useTranslations('Sales');
     const locale = useLocale();
     const [salesData, setSalesData] = useState<{ grouped: Record<string, any>; days: string[] }>({ grouped: {}, days: [] });
@@ -60,7 +61,7 @@ export default function VentasView() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* The day's money first; the item audits below are counts, not dollars. */}
-            <VentasNetas />
+            <VentasNetas range={range} />
 
             {/* Header & Sync Button */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
