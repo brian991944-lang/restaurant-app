@@ -4,12 +4,15 @@ import { isAdminSession } from '@/lib/adminGuard';
 import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
 import { readToastDailySales } from '@/lib/pos/toastDailySales';
 import prisma from '@/lib/prisma';
-import { businessDateToUtcDate } from '@/lib/businessDay';
+import { businessDateToUtcDate, nyWallToUtc } from '@/lib/businessDay';
 import { getRateConfig } from '@/app/actions/payroll';
 import { clampRange, datesBetween, previousRange } from '@/lib/analytics/range';
 import type { AnalyticsDailyResult } from '@/lib/analytics/daily';
 import { priceLabor } from '@/lib/analytics/labor';
 import type { AnalyticsLaborResult, LaborDayOut } from '@/lib/analytics/labor';
+import { dishMentions, foldMetrics, reviewThemes, reviewsPerDay, summarizeReviews, sumMetrics } from '@/lib/analytics/reputation';
+import type { AnalyticsReputationResult, ReviewLite } from '@/lib/analytics/reputation';
+import { shiftDate } from '@/lib/pos/toastBusinessDate';
 
 // Only server actions are exported from this file — no types, no constants.
 // A 'use server' module registers every export as an action, and a
@@ -112,5 +115,83 @@ export async function getAnalyticsLabor(from: string, to: string): Promise<Analy
     } catch (e) {
         console.error('Read analytics labor failed:', e instanceof Error ? e.message : e);
         return { success: false, error: 'No se pudieron leer las horas y la nómina.', code: 'READ_FAILED', ...empty };
+    }
+}
+
+/** The New York calendar day an instant falls on, 'YYYY-MM-DD'. Reviews are dated the way Google shows them, not by the 4 AM business day. */
+const nyCalendarDate = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+
+/** How many of the window's reviews come back with their text; the rest are counted and bucketed only. */
+const LATEST_REVIEWS = 40;
+const COMMENT_MAX = 400;
+
+/**
+ * Google reviews and Business Profile performance for a window: rating and
+ * volume, what the reviews mention, the newest ones with their text, and the
+ * profile's impressions and actions per day. Admin only; nothing here calls
+ * Google — /api/gbp/sync fills the tables once a day.
+ */
+export async function getAnalyticsReputation(from: string, to: string): Promise<AnalyticsReputationResult> {
+    const today = lastToastBusinessDates(1)[0];
+    const noSummary = summarizeReviews([]);
+    const noMetrics = sumMetrics([]);
+    const empty = {
+        today, range: { from, to }, headline: null, summary: noSummary, previous: { summary: noSummary, metrics: noMetrics },
+        perDay: [], themes: [], dishes: [], latest: [], metrics: [], metricTotals: noMetrics, lastMetricDate: null
+    };
+    if (!(await isAdminSession())) return { success: false, error: 'Solo un administrador puede ver la reputación.', code: 'NOT_ADMIN', ...empty };
+    const range = clampRange(from, to, today);
+    if (!range) return { success: false, error: 'El período no es válido.', code: 'BAD_DATE', ...empty };
+    try {
+        const dates = datesBetween(range.from, range.to);
+        const prevTo = shiftDate(range.from, -1);
+        const prevFrom = shiftDate(prevTo, -(dates.length - 1));
+        const prevDates = datesBetween(prevFrom, prevTo);
+        const dateCol = (d: string) => new Date(`${d}T00:00:00.000Z`);
+        const toLite = (r: { id: string; createTime: Date; starRating: number; reviewerName: string | null; isAnonymous: boolean; comment: string | null; replyComment: string | null }): ReviewLite => ({
+            id: r.id,
+            date: nyCalendarDate(r.createTime),
+            createdAt: r.createTime.toISOString(),
+            stars: r.starRating,
+            reviewer: r.isAnonymous ? null : r.reviewerName,
+            comment: r.comment,
+            replied: r.replyComment !== null && r.replyComment.trim().length > 0
+        });
+        const reviewSelect = { id: true, createTime: true, starRating: true, reviewerName: true, isAnonymous: true, comment: true, replyComment: true } as const;
+        const [reviews, prevReviews, metricRows, prevMetricRows, snapshot, lastMetric] = await Promise.all([
+            prisma.gbpReview.findMany({
+                where: { createTime: { gte: nyWallToUtc(range.from, 0), lt: nyWallToUtc(shiftDate(range.to, 1), 0) } },
+                orderBy: { createTime: 'desc' }, select: reviewSelect
+            }),
+            prisma.gbpReview.findMany({
+                where: { createTime: { gte: nyWallToUtc(prevFrom, 0), lt: nyWallToUtc(range.from, 0) } },
+                select: reviewSelect
+            }),
+            prisma.gbpDailyMetric.findMany({ where: { date: { gte: dateCol(range.from), lte: dateCol(range.to) } }, select: { date: true, metric: true, value: true } }),
+            prisma.gbpDailyMetric.findMany({ where: { date: { gte: dateCol(prevFrom), lte: dateCol(prevTo) } }, select: { date: true, metric: true, value: true } }),
+            prisma.gbpRatingSnapshot.findFirst({ orderBy: { date: 'desc' } }),
+            prisma.gbpDailyMetric.findFirst({ orderBy: { date: 'desc' }, select: { date: true } })
+        ]);
+        const lite = reviews.map(toLite);
+        const metrics = foldMetrics(metricRows.map(m => ({ date: m.date.toISOString().slice(0, 10), metric: m.metric, value: m.value })), dates);
+        const prevMetrics = foldMetrics(prevMetricRows.map(m => ({ date: m.date.toISOString().slice(0, 10), metric: m.metric, value: m.value })), prevDates);
+        return {
+            success: true,
+            today,
+            range,
+            headline: snapshot ? { rating: Math.round(snapshot.averageRating * 10) / 10, total: snapshot.totalReviews, date: snapshot.date.toISOString().slice(0, 10) } : null,
+            summary: summarizeReviews(lite),
+            previous: { summary: summarizeReviews(prevReviews.map(toLite)), metrics: sumMetrics(prevMetrics) },
+            perDay: reviewsPerDay(lite, dates),
+            themes: reviewThemes(lite),
+            dishes: dishMentions(lite),
+            latest: lite.slice(0, LATEST_REVIEWS).map(r => ({ ...r, comment: r.comment && r.comment.length > COMMENT_MAX ? `${r.comment.slice(0, COMMENT_MAX)}…` : r.comment })),
+            metrics,
+            metricTotals: sumMetrics(metrics),
+            lastMetricDate: lastMetric ? lastMetric.date.toISOString().slice(0, 10) : null
+        };
+    } catch (e) {
+        console.error('Read analytics reputation failed:', e instanceof Error ? e.message : e);
+        return { success: false, error: 'No se pudieron leer las reseñas.', code: 'READ_FAILED', ...empty };
     }
 }

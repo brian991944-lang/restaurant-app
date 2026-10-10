@@ -74,7 +74,7 @@ export default function CobrosView({ locale, range, today }: { locale: string; r
                     sub={t('cob_service_sub', { gratuity: formatMoney(s.gratuityCents), other: formatMoney(s.otherChargeCents) })} />
             </div>
 
-            <DayBars title={t('cob_chart_title')} rows={rows} today={today} dayLabel={dayLabel}
+            <DayBars title={t('cob_chart_title')} rows={rows} today={today} dayLabel={dayLabel} read={isRead}
                 series={[
                     { label: t('cob_card'), color: PAID_COLOR, value: r => splitTender(r)?.cardNetCents ?? r.netPaidCents },
                     { label: t('kpi_cash'), color: CASH_COLOR, value: r => splitTender(r)?.cashNetCents ?? 0 },

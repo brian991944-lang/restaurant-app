@@ -9,6 +9,7 @@ import ResumenView from './ResumenView';
 import VentasView from './VentasView';
 import CobrosView from './CobrosView';
 import PersonalView from './PersonalView';
+import ReputacionView from './ReputacionView';
 
 /**
  * The frame every Analytics dashboard sits in: the section eyebrow, the
@@ -25,7 +26,7 @@ import PersonalView from './PersonalView';
 const STORAGE_KEY = 'analytics.range';
 
 /** Dashboards that read the window — every one so far; a future one without a window leaves itself out. */
-const RANGED_VIEWS: readonly AnalyticsView[] = ['resumen', 'ventas', 'personal', 'cobros'];
+const RANGED_VIEWS: readonly AnalyticsView[] = ['resumen', 'ventas', 'personal', 'cobros', 'reputacion'];
 
 const readStored = (today: string): DateRange | null => {
     try {
@@ -165,6 +166,7 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
             {view === 'ventas' && <VentasView range={range} />}
             {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} />}
             {view === 'personal' && <PersonalView locale={locale} range={range} today={today} />}
+            {view === 'reputacion' && <ReputacionView locale={locale} range={range} today={today} />}
         </div>
     );
 }

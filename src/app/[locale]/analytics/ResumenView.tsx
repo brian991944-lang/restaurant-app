@@ -68,7 +68,7 @@ export default function ResumenView({ locale, range, today }: { locale: string; 
                     delta={delta(s.serviceChargeCents, prev?.serviceChargeCents)} />
             </div>
 
-            <DayBars title={t('chart_title')} rows={rows} today={today} dayLabel={dayLabel}
+            <DayBars title={t('chart_title')} rows={rows} today={today} dayLabel={dayLabel} read={isRead}
                 series={[{ label: t('legend_paid'), color: PAID_COLOR, value: r => r.netPaidCents }, { label: t('legend_open'), color: OPEN_COLOR, value: r => r.netOpenCents }]}
                 avg={s.avgNetPerDayCents !== null ? { cents: s.avgNetPerDayCents, label: t('legend_avg', { amount: formatMoney(s.avgNetPerDayCents) }) } : null}
                 tip={r => t('chart_tip', { day: dayLabel(r.date), paid: formatMoney(r.netPaidCents), open: formatMoney(r.netOpenCents), checks: r.paidChecks + r.openChecks })} />

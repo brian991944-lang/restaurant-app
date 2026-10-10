@@ -120,34 +120,42 @@ export function Tile({ title, value, sub, color, delta, series, tone }: {
 /** The per-day values of one series, read days only; an unread day is null (a gap). */
 export const daySeries = (rows: DailySalesRow[], pick: (r: DailySalesRow) => number) => rows.map(r => (isRead(r) ? pick(r) : null));
 
-export type BarSeries = { label: string; color: string; value: (r: DailySalesRow) => number };
+export type BarSeries<T> = { label: string; color: string; value: (r: T) => number };
 
 /**
- * Stacked bars, one per day, bottom series first. Days never read show as a
+ * Stacked bars, one per day, bottom series first, over any rows that carry a
+ * date. Days the `read` predicate rejects (never read, no data) show as a
  * dashed stub rather than an empty slot, so a gap in the data looks like a
  * gap. Every bar carries the whole day in its tooltip; labels thin out on
- * long windows and today keeps its own.
+ * long windows and today keeps its own. `format` renders the axis ticks —
+ * money by default.
  */
-export function DayBars({ title, rows, today, series, avg, tip, dayLabel }: {
+export function DayBars<T extends { date: string }>({ title, subtitle, rows, today, series, avg, tip, dayLabel, read = () => true, format = cents => formatMoney(Math.round(cents)) }: {
     title: string;
-    rows: DailySalesRow[];
+    subtitle?: string;
+    rows: T[];
     today: string;
-    series: BarSeries[];
+    series: BarSeries<T>[];
     avg?: { cents: number; label: string } | null;
-    tip: (r: DailySalesRow) => string;
+    tip: (r: T) => string;
     dayLabel: (date: string, opts?: Intl.DateTimeFormatOptions) => string;
+    read?: (r: T) => boolean;
+    format?: (value: number) => string;
 }) {
     const t = useTranslations('Analytics');
     const H = 220;
-    const total = (r: DailySalesRow) => series.reduce((sum, s) => sum + Math.max(0, s.value(r)), 0);
-    const max = Math.max(1, ...rows.map(r => (isRead(r) ? total(r) : 0)));
+    const total = (r: T) => series.reduce((sum, s) => sum + Math.max(0, s.value(r)), 0);
+    const max = Math.max(1, ...rows.map(r => (read(r) ? total(r) : 0)));
     const every = Math.max(1, Math.ceil(rows.length / 14));
     const gap = rows.length > 40 ? '2px' : '6px';
     const px = (cents: number) => (Math.max(0, cents) / max) * H;
     return (
         <div className="glass-panel" style={panelStyle}>
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{title}</h2>
+                <div>
+                    <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{title}</h2>
+                    {subtitle && <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{subtitle}</p>}
+                </div>
                 <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
                     {series.map(s => <span key={s.label}><i style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: s.color, marginRight: 6 }} />{s.label}</span>)}
                     {avg && <span><i style={{ display: 'inline-block', width: 16, borderTop: '2px dashed var(--text-secondary)', marginRight: 6, verticalAlign: 'middle' }} />{avg.label}</span>}
@@ -156,7 +164,7 @@ export function DayBars({ title, rows, today, series, avg, tip, dayLabel }: {
             <div style={{ position: 'relative', height: `${H}px`, marginRight: '64px', borderBottom: `1px solid ${GRID_COLOR}` }}>
                 {[0.25, 0.5, 0.75, 1].map(f => (
                     <div key={f} style={{ position: 'absolute', left: 0, right: 0, bottom: `${f * H}px`, borderTop: `1px solid ${GRID_COLOR}`, opacity: 0.6 }}>
-                        <span style={{ ...numStyle, position: 'absolute', left: '100%', paddingLeft: '8px', top: '-0.6em', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{formatMoney(Math.round(max * f))}</span>
+                        <span style={{ ...numStyle, position: 'absolute', left: '100%', paddingLeft: '8px', top: '-0.6em', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{format(max * f)}</span>
                     </div>
                 ))}
                 {avg && avg.cents <= max && (
@@ -164,12 +172,12 @@ export function DayBars({ title, rows, today, series, avg, tip, dayLabel }: {
                 )}
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', gap, padding: '0 4px' }}>
                     {rows.map(r => {
-                        const read = isRead(r);
-                        const stack = read ? [...series].reverse().filter(s => s.value(r) > 0) : [];
+                        const isReadRow = read(r);
+                        const stack = isReadRow ? [...series].reverse().filter(s => s.value(r) > 0) : [];
                         return (
-                            <div key={r.date} title={read ? tip(r) : `${dayLabel(r.date)} · ${t('chart_unread')}`}
+                            <div key={r.date} title={isReadRow ? tip(r) : `${dayLabel(r.date)} · ${t('chart_unread')}`}
                                 style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%', outline: r.date === today ? '2px solid var(--accent-secondary)' : undefined, outlineOffset: '2px', borderRadius: '4px' }}>
-                                {read ? stack.map((s, i) => (
+                                {isReadRow ? stack.map((s, i) => (
                                     <div key={s.label} style={{ height: `${px(s.value(r))}px`, background: s.color, marginTop: i === 0 ? 0 : '2px', borderRadius: `${i === 0 ? '4px 4px' : '0 0'} ${i === stack.length - 1 ? '4px 4px' : '0 0'}` }} />
                                 )) : (
                                     <div style={{ height: '6px', border: '1px dashed var(--text-secondary)', borderRadius: '3px', opacity: 0.6 }} />
