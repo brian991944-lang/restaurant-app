@@ -6,6 +6,7 @@ import { getAnalyticsReputation } from '@/app/actions/analytics';
 import type { AnalyticsReputationResult, ReviewLite, ThemeKey } from '@/lib/analytics/reputation';
 import { emptyMetricDay } from '@/lib/analytics/reputation';
 import type { DateRange } from '@/lib/analytics/range';
+import { matchPreset } from '@/lib/analytics/range';
 import { datesBetween } from '@/lib/analytics/range';
 import { DayBars, Tile, useDateLabels, numStyle, panelStyle, PAID_COLOR, OPEN_COLOR, CASH_COLOR, GRID_COLOR, pctText } from './charts';
 
@@ -66,10 +67,10 @@ export default function ReputacionView({ locale, range, today, refreshKey = 0 }:
     const deltaPct = (cur: number, before: number) => {
         if (before === 0) return <span style={{ color: 'var(--text-secondary)' }}>{t('delta_na')}</span>;
         const pct = Math.round(((cur - before) / before) * 1000) / 10;
-        return <span style={{ color: pct >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{pctText(pct)} <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{t('delta_vs')}</span></span>;
+        return <span style={{ color: pct >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{pctText(pct)} <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{t(`delta_vs_${matchPreset(range, today) ?? 'period'}`)}</span></span>;
     };
     const deltaStars = s.avgStars !== null && prev.avgStars !== null
-        ? (() => { const d = Math.round((s.avgStars! - prev.avgStars!) * 10) / 10; return <span style={{ color: d >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{d > 0 ? '+' : ''}{d.toFixed(1)} <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{t('delta_vs')}</span></span>; })()
+        ? (() => { const d = Math.round((s.avgStars! - prev.avgStars!) * 10) / 10; return <span style={{ color: d >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{d > 0 ? '+' : ''}{d.toFixed(1)} <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{t(`delta_vs_${matchPreset(range, today) ?? 'period'}`)}</span></span>; })()
         : <span style={{ color: 'var(--text-secondary)' }}>{t('delta_na')}</span>;
     const metricRows = data.metrics.map((d, i) => d ? { ...d, reported: true } : { ...emptyMetricDay(days[i]), reported: false });
     const unansweredNow = Math.max(0, s.unanswered - data.latest.filter(r => !r.replied && repliedHere.has(r.id)).length);

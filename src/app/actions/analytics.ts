@@ -10,7 +10,7 @@ import { runFullSync as gbpSync } from '@/lib/gbp/sync';
 import prisma from '@/lib/prisma';
 import { businessDateToUtcDate, nyWallToUtc } from '@/lib/businessDay';
 import { getRateConfig } from '@/app/actions/payroll';
-import { clampRange, datesBetween, previousRange } from '@/lib/analytics/range';
+import { clampRange, datesBetween, previousRange, previousRangeRaw } from '@/lib/analytics/range';
 import type { AnalyticsDailyResult } from '@/lib/analytics/daily';
 import { priceLabor } from '@/lib/analytics/labor';
 import type { AnalyticsLaborResult, LaborDayOut } from '@/lib/analytics/labor';
@@ -41,7 +41,7 @@ export async function getAnalyticsDaily(from: string, to: string): Promise<Analy
     const range = clampRange(from, to, today);
     if (!range) return { success: false, error: 'El período no es válido.', code: 'BAD_DATE', ...empty };
     try {
-        const prev = previousRange(range);
+        const prev = previousRange(range, today);
         const [rows, prevRows] = await Promise.all([
             readToastDailySales(datesBetween(range.from, range.to)),
             prev ? readToastDailySales(datesBetween(prev.from, prev.to)) : Promise.resolve(null)
@@ -149,8 +149,8 @@ export async function getAnalyticsReputation(from: string, to: string): Promise<
     if (!range) return { success: false, error: 'El período no es válido.', code: 'BAD_DATE', ...empty };
     try {
         const dates = datesBetween(range.from, range.to);
-        const prevTo = shiftDate(range.from, -1);
-        const prevFrom = shiftDate(prevTo, -(dates.length - 1));
+        // Google history reaches back years: the like-for-like previous window always exists.
+        const { from: prevFrom, to: prevTo } = previousRangeRaw(range, today);
         const prevDates = datesBetween(prevFrom, prevTo);
         const dateCol = (d: string) => new Date(`${d}T00:00:00.000Z`);
         const toLite = (r: { id: string; createTime: Date; starRating: number; reviewerName: string | null; isAnonymous: boolean; comment: string | null; replyComment: string | null }): ReviewLite => ({

@@ -6,6 +6,7 @@ import { formatMoney } from '@/lib/money';
 import type { DowAverage } from '@/lib/analytics/daily';
 import { forecastDays, isRead, summarizeDays, deltaPct, weekdayAverages } from '@/lib/analytics/daily';
 import type { DateRange } from '@/lib/analytics/range';
+import { matchPreset } from '@/lib/analytics/range';
 import { analyticsHref } from '@/lib/analyticsView';
 import { DayBars, Tile, daySeries, pctText, useAnalyticsDaily, useDateLabels, numStyle, panelStyle, PAID_COLOR, OPEN_COLOR, CASH_COLOR, GRID_COLOR } from './charts';
 
@@ -30,7 +31,7 @@ export default function ResumenView({ locale, range, today, refreshKey = 0 }: { 
     const delta = (current: number, previous: number | null | undefined) => {
         const pct = prev ? deltaPct(current, previous) : null;
         if (pct === null) return <span style={{ color: 'var(--text-secondary)' }}>{t('delta_na')}</span>;
-        return <span style={{ color: pct >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{pctText(pct)} <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{t('delta_vs')}</span></span>;
+        return <span style={{ color: pct >= 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>{pctText(pct)} <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>{t(`delta_vs_${matchPreset(range, today) ?? 'period'}`)}</span></span>;
     };
     const latest = rows.reduce<string | null>((acc, r) => (r.computedAt && (!acc || r.computedAt > acc) ? r.computedAt : acc), null);
     const cashPct = s.netPaidCents > 0 ? Math.round((s.cashNetCents / s.netPaidCents) * 1000) / 10 : 0;
@@ -49,7 +50,7 @@ export default function ResumenView({ locale, range, today, refreshKey = 0 }: { 
             </p>
 
             {/* The window's money: what came in, what each check was worth, what is still out. */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                 <Tile title={t('kpi_net')} value={formatMoney(s.netPaidCents)} color={PAID_COLOR}
                     sub={s.avgNetPerDayCents !== null ? t('kpi_net_sub', { perDay: formatMoney(s.avgNetPerDayCents) }) : undefined}
                     delta={delta(s.netPaidCents, prev?.netPaidCents)} series={daySeries(rows, r => r.netPaidCents)} />

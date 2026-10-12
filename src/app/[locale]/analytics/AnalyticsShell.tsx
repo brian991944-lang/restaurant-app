@@ -16,8 +16,8 @@ import ReputacionView from './ReputacionView';
 
 /**
  * The frame every Analytics dashboard sits in: the section eyebrow, the
- * dashboard's title, and the window control (7 days / 30 days / since Toast /
- * custom dates).
+ * dashboard's title, the Sync button and the window control (today,
+ * yesterday, this week from Monday, this month, or custom dates).
  *
  * The window is state here and nowhere else. Changing it rewrites ?from&to
  * with history.replaceState — which Next's router picks up without a server
@@ -59,6 +59,17 @@ const writeUrl = (range: DateRange) => {
     window.history.replaceState(null, '', url.toString());
 };
 
+const dateInput: CSSProperties = {
+    minHeight: '44px',
+    padding: '0 0.6rem',
+    borderRadius: '10px',
+    border: '1px solid var(--border)',
+    background: 'var(--bg-primary)',
+    color: 'var(--text-primary)',
+    font: 'inherit',
+    fontSize: '0.95rem'
+};
+
 const presetButton = (on: boolean): CSSProperties => ({
     minHeight: '44px',
     padding: '0 1rem',
@@ -72,16 +83,6 @@ const presetButton = (on: boolean): CSSProperties => ({
     whiteSpace: 'nowrap'
 });
 
-const dateInput: CSSProperties = {
-    minHeight: '44px',
-    padding: '0 0.6rem',
-    borderRadius: '10px',
-    border: '1px solid var(--border)',
-    background: 'var(--bg-primary)',
-    color: 'var(--text-primary)',
-    font: 'inherit',
-    fontSize: '0.95rem'
-};
 
 export default function AnalyticsShell({ locale, view, today, initialRange }: {
     locale: string;
@@ -91,7 +92,8 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
 }) {
     const t = useTranslations('Analytics');
     const [range, setRange] = useState<DateRange>(initialRange);
-    const [custom, setCustom] = useState(false);
+    /** The button the reader chose; 'custom' shows the date inputs. Until a click, whichever preset the window matches. */
+    const [chosen, setChosen] = useState<RangePreset | 'custom' | null>(null);
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState<ReactNode>(null);
     /** Bumped after a sync so every dashboard refetches. */
@@ -118,7 +120,7 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
     };
 
     const choosePreset = (preset: RangePreset) => {
-        setCustom(false);
+        setChosen(preset);
         apply(presetRange(preset, today));
     };
 
@@ -127,10 +129,11 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
         if (next) apply(next);
     };
 
-    const preset = custom ? null : matchPreset(range, today);
+    // On a Monday "today" and "this week" are the same days: the clicked button wins, otherwise the first match.
+    const preset: RangePreset | 'custom' | null = chosen ?? matchPreset(range, today) ?? 'custom';
     const days = daysBetween(range.from, range.to);
-    const dayLabel = (date: string) =>
-        new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+    const dayLabel = (date: string, withWeekday = false) =>
+        new Intl.DateTimeFormat(locale, { ...(withWeekday ? { weekday: 'long' as const } : {}), day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
 
     /** One line per source, in the reader's language; red when a source failed. */
     const describeSync = (r: SyncAnalyticsResult): ReactNode => {
@@ -203,17 +206,17 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
 
                 {RANGED_VIEWS.includes(view) && (
                     <div data-testid="analytics-range" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
-                        <div role="group" aria-label={t('range_label')} className="glass-panel" style={{ display: 'flex', gap: '2px', padding: '4px', borderRadius: '12px' }}>
+                        <div role="group" aria-label={t('range_label')} className="glass-panel" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', padding: '4px', borderRadius: '12px' }}>
                             {RANGE_PRESETS.map(p => (
                                 <button key={p} type="button" onClick={() => choosePreset(p)} aria-pressed={preset === p} style={presetButton(preset === p)}>
                                     {t(`range_${p}`)}
                                 </button>
                             ))}
-                            <button type="button" onClick={() => setCustom(true)} aria-pressed={custom || preset === null} style={presetButton(custom || preset === null)}>
+                            <button type="button" onClick={() => setChosen('custom')} aria-pressed={preset === 'custom'} style={presetButton(preset === 'custom')}>
                                 {t('range_custom')}
                             </button>
                         </div>
-                        {(custom || preset === null) && (
+                        {preset === 'custom' && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     {t('range_from')}
@@ -228,7 +231,7 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
                             </div>
                         )}
                         <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                            {t('range_showing', { from: dayLabel(range.from), to: dayLabel(range.to), days })}
+                            {days === 1 ? dayLabel(range.from, true) : t('range_showing', { from: dayLabel(range.from), to: dayLabel(range.to), days })}
                         </span>
                     </div>
                 )}

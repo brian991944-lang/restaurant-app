@@ -1,4 +1,8 @@
 import { notFound } from 'next/navigation';
+import { readAnalyticsView } from '@/lib/analyticsView';
+import { resolveRange } from '@/lib/analytics/range';
+import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
+import AnalyticsShell from '../AnalyticsShell';
 
 /**
  * The Sync button's server action runs on this route. The Hobby default is
@@ -6,10 +10,6 @@ import { notFound } from 'next/navigation';
  * plan's ceiling and keeps its own 38 s budget (see actions/analytics.ts).
  */
 export const maxDuration = 60;
-import { readAnalyticsView } from '@/lib/analyticsView';
-import { resolveRange } from '@/lib/analytics/range';
-import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
-import AnalyticsShell from '../AnalyticsShell';
 
 /**
  * Analytics — one route, one dashboard per URL segment (resumen, ventas, …).
