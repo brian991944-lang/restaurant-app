@@ -1,0 +1,1345 @@
+diff --git a/messages/en.json b/messages/en.json
+index bc5e2d1..71b0f9f 100644
+--- a/messages/en.json
++++ b/messages/en.json
+@@ -781,13 +781,10 @@
+   "Sales": {
+     "net_title": "Net sales · Toast",
+     "net_subtitle": "Only paid or closed checks count. Open checks are shown apart and never added in.",
+-    "refresh": "Refresh",
+-    "refreshing": "Reading Toast…",
+-    "backfill": "Read {count, plural, one {# unread day} other {# unread days}}",
+-    "backfill_progress": "Reading {i} of {n} · {day}",
+     "status_today": "Today {day} · updated at {time}",
+     "status_loading": "Loading…",
+     "status_unread": "Today hasn't been read yet. Tap Refresh.",
++    "status_missing": "{count, plural, one {# day still to read with Sync} other {# days still to read with Sync}}",
+     "card_net": "Net sales (paid)",
+     "card_net_sub": "{paid} paid checks · {cash} in cash ({cashChecks})",
+     "card_open": "Open (unpaid)",
+@@ -819,27 +816,16 @@
+     "err_failed": "Couldn't read sales from Toast.",
+     "err_read_failed": "Couldn't read the stored sales.",
+     "err_rejected": "Couldn't read the sales. Reload the page.",
+-    "err_refresh_rejected": "Couldn't refresh. Try again.",
+-    "err_backfill_stopped": "{day}: {reason} Stopped there.",
+-    "err_backfill_interrupted": "The read was interrupted. Tap the button again to continue.",
+-    "skip_bad_date": "Invalid date.",
+-    "skip_truncated": "Toast returned more orders than can be read. The day was not saved.",
+-    "skip_toast_http": "Toast answered HTTP {status}.",
+-    "skip_toast_env": "Toast environment variables are missing.",
+-    "skip_toast_failed": "Couldn't read the day from Toast.",
+     "audit_title": "Sales Audit",
+     "audit_subtitle": "Last 3 days: items and modifiers sold.",
+-    "sync_now": "Sync Now",
+-    "syncing": "Syncing…",
+     "last_sync": "Last sync: {time}",
+     "today_paren": "(Today)",
+     "no_sales": "No sales data",
+-    "sync_ok": "Clover synced: {count} items processed.",
+-    "sync_failed": "Clover sync failed.",
+     "toast_title": "Sales in Toast",
+     "toast_subtitle": "Last 3 Toast days (the day rolls over at 4 AM). Source: Toast. Not added to Clover.",
+     "toast_no_sales": "No sales recorded",
+     "voided": "{count, plural, one {# voided} other {# voided}}",
++    "open_qty": "{count} unpaid",
+     "unlinked": "Unlinked",
+     "uncategorized": "No category",
+     "toast_err": "Couldn't read Toast sales."
+@@ -1018,6 +1004,26 @@
+     "rep_reply_send": "Post to Google",
+     "rep_reply_sending": "Posting…",
+     "rep_reply_failed": "The reply could not be posted. Try again.",
+-    "rep_footnote": "Source: Google Business Profile, synced every morning. Reviews are dated by the New York calendar day, not the Toast day. Profile metrics (impressions, calls, directions, website and menu clicks, bookings) are reported by Google 2–3 days late. Themes and dishes are keyword counts on the review text."
++    "rep_footnote": "Source: Google Business Profile, synced every morning. Reviews are dated by the New York calendar day, not the Toast day. Profile metrics (impressions, calls, directions, website and menu clicks, bookings) are reported by Google 2–3 days late. Themes and dishes are keyword counts on the review text.",
++    "sync": "Sync",
++    "syncing": "Syncing…",
++    "sync_running": "Reading Toast, Google and Clover…",
++    "sync_failed": "Sync failed.",
++    "sync_rejected": "The sync was cut off before finishing. Press Sync again.",
++    "sync_took": "{seconds} s",
++    "sync_toast_ok": "Toast: {count, plural, =0 {no days read} one {# day read} other {# days read}}",
++    "sync_toast_failed": "Toast: could not read",
++    "sync_toast_remaining": "{count, plural, one {# day left: press again} other {# days left: press again}}",
++    "sync_skip_truncated": "too many orders to read in one pass",
++    "sync_skip_env": "Toast credentials are missing",
++    "sync_skip_http": "Toast answered HTTP {status}",
++    "sync_skip_failed": "could not read",
++    "sync_google_ok": "Google: {reviews, plural, =0 {no new reviews} one {# new review} other {# new reviews}} · {days, plural, =0 {metrics unchanged} one {# day of metrics} other {# days of metrics}}",
++    "sync_google_not_connected": "Google: not connected",
++    "sync_google_time": "Google: out of time, press again",
++    "sync_google_failed": "Google: failed",
++    "sync_clover_ok": "Clover: {count, plural, =0 {no new items} one {# item} other {# items}}",
++    "sync_clover_time": "Clover: out of time, press again",
++    "sync_clover_failed": "Clover: failed"
+   }
+ }
+diff --git a/messages/es.json b/messages/es.json
+index 9a8675e..6aa0e97 100644
+--- a/messages/es.json
++++ b/messages/es.json
+@@ -781,13 +781,10 @@
+   "Sales": {
+     "net_title": "Ventas netas · Toast",
+     "net_subtitle": "Solo cuentan los checks cobrados o cerrados. Lo abierto se muestra aparte y nunca se suma.",
+-    "refresh": "Actualizar",
+-    "refreshing": "Leyendo Toast…",
+-    "backfill": "Leer {count, plural, one {# día sin datos} other {# días sin datos}}",
+-    "backfill_progress": "Leyendo {i} de {n} · {day}",
+     "status_today": "Hoy {day} · actualizado a las {time}",
+     "status_loading": "Cargando…",
+     "status_unread": "Hoy no se ha leído todavía. Toca Actualizar.",
++    "status_missing": "{count, plural, one {# día por leer con Sincronizar} other {# días por leer con Sincronizar}}",
+     "card_net": "Ventas netas (cobradas)",
+     "card_net_sub": "{paid} checks cobrados · {cash} en efectivo ({cashChecks})",
+     "card_open": "Abierto (sin cobrar)",
+@@ -819,27 +816,16 @@
+     "err_failed": "No se pudieron leer las ventas de Toast.",
+     "err_read_failed": "No se pudieron leer las ventas guardadas.",
+     "err_rejected": "No se pudieron leer las ventas. Recarga la página.",
+-    "err_refresh_rejected": "No se pudo actualizar. Inténtalo de nuevo.",
+-    "err_backfill_stopped": "{day}: {reason} Se detuvo ahí.",
+-    "err_backfill_interrupted": "La lectura se interrumpió. Vuelve a tocar el botón para seguir.",
+-    "skip_bad_date": "Fecha no válida.",
+-    "skip_truncated": "Toast devolvió más órdenes de las que se pueden leer. No se guardó el día.",
+-    "skip_toast_http": "Toast respondió HTTP {status}.",
+-    "skip_toast_env": "Faltan las variables de entorno de Toast.",
+-    "skip_toast_failed": "No se pudo leer el día en Toast.",
+     "audit_title": "Auditoría de ventas",
+     "audit_subtitle": "Vista de los últimos 3 días: platos y modificadores vendidos.",
+-    "sync_now": "Sincronizar",
+-    "syncing": "Sincronizando…",
+     "last_sync": "Última sincronización: {time}",
+     "today_paren": "(Hoy)",
+     "no_sales": "Sin ventas",
+-    "sync_ok": "Clover sincronizado: {count} ítems procesados.",
+-    "sync_failed": "La sincronización con Clover falló.",
+     "toast_title": "Ventas en Toast",
+     "toast_subtitle": "Últimos 3 días de Toast (el día cambia a las 4 AM). Fuente: Toast. No se suma con Clover.",
+     "toast_no_sales": "Sin ventas registradas",
+     "voided": "{count, plural, one {# anulado} other {# anulados}}",
++    "open_qty": "{count} sin cobrar",
+     "unlinked": "Sin vincular",
+     "uncategorized": "Sin categoría",
+     "toast_err": "No se pudieron leer las ventas de Toast."
+@@ -1018,6 +1004,26 @@
+     "rep_reply_send": "Publicar en Google",
+     "rep_reply_sending": "Publicando…",
+     "rep_reply_failed": "No se pudo publicar la respuesta. Inténtalo de nuevo.",
+-    "rep_footnote": "Fuente: Google Business Profile, sincronizado cada mañana. Las reseñas se fechan por el día natural en Nueva York, no por el día de Toast. Las métricas del perfil (veces visto, llamadas, cómo llegar, clics a la web y al menú, reservas) las reporta Google con 2–3 días de retraso. Los temas y platos son conteos de palabras clave en el texto de las reseñas."
++    "rep_footnote": "Fuente: Google Business Profile, sincronizado cada mañana. Las reseñas se fechan por el día natural en Nueva York, no por el día de Toast. Las métricas del perfil (veces visto, llamadas, cómo llegar, clics a la web y al menú, reservas) las reporta Google con 2–3 días de retraso. Los temas y platos son conteos de palabras clave en el texto de las reseñas.",
++    "sync": "Sincronizar",
++    "syncing": "Sincronizando…",
++    "sync_running": "Leyendo Toast, Google y Clover…",
++    "sync_failed": "No se pudo sincronizar.",
++    "sync_rejected": "La sincronización se cortó antes de terminar. Vuelve a pulsar Sincronizar.",
++    "sync_took": "{seconds} s",
++    "sync_toast_ok": "Toast: {count, plural, =0 {ningún día leído} one {# día leído} other {# días leídos}}",
++    "sync_toast_failed": "Toast: no se pudo leer",
++    "sync_toast_remaining": "{count, plural, one {falta # día: pulsa de nuevo} other {faltan # días: pulsa de nuevo}}",
++    "sync_skip_truncated": "demasiadas órdenes para leer en una pasada",
++    "sync_skip_env": "faltan las credenciales de Toast",
++    "sync_skip_http": "Toast respondió HTTP {status}",
++    "sync_skip_failed": "no se pudo leer",
++    "sync_google_ok": "Google: {reviews, plural, =0 {sin reseñas nuevas} one {# reseña nueva} other {# reseñas nuevas}} · {days, plural, =0 {métricas sin cambios} one {# día de métricas} other {# días de métricas}}",
++    "sync_google_not_connected": "Google: sin conectar",
++    "sync_google_time": "Google: sin tiempo, pulsa de nuevo",
++    "sync_google_failed": "Google: falló",
++    "sync_clover_ok": "Clover: {count, plural, =0 {sin ítems nuevos} one {# ítem} other {# ítems}}",
++    "sync_clover_time": "Clover: sin tiempo, pulsa de nuevo",
++    "sync_clover_failed": "Clover: falló"
+   }
+ }
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 540c677..448033d 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -1452,10 +1452,45 @@ model PosDailySales {
+   cashChecks       Int?
+   cashNetCents     Int?
+   computedAt       DateTime  @default(now())
++  // When the day's PosDailyItemSales rows were last rewritten. Null means the
++  // day was read before items were kept, and the Sync button reads it again.
++  itemsComputedAt  DateTime?
+ 
+   @@unique([source, businessDate])
+ }
+ 
++// What sold on one POS business day, one row per item (and per modifier
++// under the item it was sold on): quantities and post-discount money, split
++// by whether the check was paid or still open, from the same orders read
++// that writes PosDailySales. A day is rewritten whole on every read. Payment
++// refunds are per check, not per item, so they are not taken off here —
++// the day's items sum to net sales before refunds.
++model PosDailyItemSales {
++  id                String    @id @default(cuid())
++  source            PosSource
++  businessDate      DateTime  @db.Date
++  kind              String // ITEM | MODIFIER
++  // The POS item guid. A modifier with no menu item behind it is keyed
++  // "og:{optionGroupGuid}:{normalizedName}", as in PosItemMapping.
++  posItemGuid       String
++  // MODIFIER: the item it was sold on. '' for an ITEM, not null, so the
++  // unique key below holds (Postgres treats NULLs as distinct).
++  parentPosItemGuid String    @default("")
++  displayName       String
++  // The app dish per PosItemMapping at write time. Plain id: history
++  // outlives menu edits.
++  menuItemId        String?
++  paidQty           Float     @default(0)
++  paidCents         Int       @default(0)
++  openQty           Float     @default(0)
++  openCents         Int       @default(0)
++  voidedQty         Float     @default(0)
++  computedAt        DateTime  @default(now())
++
++  @@unique([source, businessDate, kind, posItemGuid, parentPosItemGuid])
++  @@index([businessDate])
++}
++
+ // ─── Google Business Profile (GBP) sync ─────────────────────────────────────
+ 
+ /// Single-row table (id = 1). Holds the OAuth refresh token for the
+diff --git a/src/app/[locale]/analytics/AnalyticsShell.tsx b/src/app/[locale]/analytics/AnalyticsShell.tsx
+index f1a0269..ef2b682 100644
+--- a/src/app/[locale]/analytics/AnalyticsShell.tsx
++++ b/src/app/[locale]/analytics/AnalyticsShell.tsx
+@@ -1,10 +1,13 @@
+ 'use client';
+ 
+-import { useEffect, useState, type CSSProperties } from 'react';
++import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+ import { useTranslations } from 'next-intl';
++import { RefreshCw } from 'lucide-react';
+ import type { AnalyticsView } from '@/lib/analyticsView';
+ import { TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
+ import { clampRange, daysBetween, matchPreset, presetRange, RANGE_PRESETS, type DateRange, type RangePreset } from '@/lib/analytics/range';
++import { syncAnalytics } from '@/app/actions/analytics';
++import type { SyncAnalyticsResult } from '@/lib/analytics/sync';
+ import ResumenView from './ResumenView';
+ import VentasView from './VentasView';
+ import CobrosView from './CobrosView';
+@@ -21,6 +24,11 @@ import ReputacionView from './ReputacionView';
+  * round trip — and remembers it in sessionStorage, so moving between
+  * dashboards through the sidebar (whose links carry no query) keeps the days
+  * the reader chose.
++ *
++ * One Sync button refreshes every source (Toast, Google, Clover) and then
++ * bumps `refreshKey`, which every dashboard's fetch hook depends on, so the
++ * page redraws from the rows the sync just wrote. There are no other
++ * refresh buttons anywhere under Analytics.
+  */
+ 
+ const STORAGE_KEY = 'analytics.range';
+@@ -84,6 +92,10 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
+     const t = useTranslations('Analytics');
+     const [range, setRange] = useState<DateRange>(initialRange);
+     const [custom, setCustom] = useState(false);
++    const [syncing, setSyncing] = useState(false);
++    const [syncStatus, setSyncStatus] = useState<ReactNode>(null);
++    /** Bumped after a sync so every dashboard refetches. */
++    const [refreshKey, setRefreshKey] = useState(0);
+ 
+     // The server resolved the URL's window, or the default when it named
+     // none. A window remembered from another dashboard beats the default —
+@@ -120,6 +132,56 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
+     const dayLabel = (date: string) =>
+         new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+ 
++    /** One line per source, in the reader's language; red when a source failed. */
++    const describeSync = (r: SyncAnalyticsResult): ReactNode => {
++        const skipText = (code: string, status?: number) => {
++            switch (code) {
++                case 'TRUNCATED': return t('sync_skip_truncated');
++                case 'TOAST_ENV': return t('sync_skip_env');
++                case 'TOAST_HTTP': return t('sync_skip_http', { status: status ?? 0 });
++                default: return t('sync_skip_failed');
++            }
++        };
++        const parts: { text: string; bad: boolean }[] = [];
++        if (r.toast.error) parts.push({ text: t('sync_toast_failed'), bad: true });
++        else {
++            parts.push({ text: t('sync_toast_ok', { count: r.toast.read.length }), bad: false });
++            for (const sk of r.toast.skipped) parts.push({ text: `${dayLabel(sk.date)}: ${skipText(sk.code, sk.status)}`, bad: true });
++            if (r.toast.remaining > 0) parts.push({ text: t('sync_toast_remaining', { count: r.toast.remaining }), bad: false });
++        }
++        if (r.google.error === 'NOT_CONNECTED') parts.push({ text: t('sync_google_not_connected'), bad: false });
++        else if (r.google.error === 'TIME') parts.push({ text: t('sync_google_time'), bad: false });
++        else if (r.google.error) parts.push({ text: t('sync_google_failed'), bad: true });
++        else parts.push({ text: t('sync_google_ok', { reviews: r.google.reviews, days: r.google.metricDays }), bad: false });
++        if (r.clover.error === 'TIME') parts.push({ text: t('sync_clover_time'), bad: false });
++        else if (r.clover.error) parts.push({ text: t('sync_clover_failed'), bad: true });
++        else parts.push({ text: t('sync_clover_ok', { count: r.clover.items }), bad: false });
++        return (
++            <>
++                {parts.map((p, i) => (
++                    <span key={i} style={{ color: p.bad ? 'var(--danger)' : undefined }}>{i > 0 && ' · '}{p.text}</span>
++                ))}
++                <span style={{ color: 'var(--text-secondary)' }}> · {t('sync_took', { seconds: Math.round(r.tookMs / 1000) })}</span>
++            </>
++        );
++    };
++
++    const runSync = async () => {
++        setSyncing(true);
++        setSyncStatus(t('sync_running'));
++        try {
++            const r = await syncAnalytics();
++            if (!r.success) { setSyncStatus(<span style={{ color: 'var(--danger)' }}>{r.code === 'NOT_ADMIN' ? t('err_admin') : t('sync_failed')}</span>); return; }
++            setSyncStatus(describeSync(r));
++            setRefreshKey(k => k + 1);
++        } catch {
++            // A rejected action (deploy mid-flight, network, the 60 s ceiling): say so, never hang on "running".
++            setSyncStatus(<span style={{ color: 'var(--danger)' }}>{t('sync_rejected')}</span>);
++        } finally {
++            setSyncing(false);
++        }
++    };
++
+     return (
+         <div data-testid="analytics-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1400px', margin: '0 auto' }}>
+             <header style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1rem' }}>
+@@ -129,6 +191,16 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
+                     <p style={{ color: 'var(--text-secondary)', fontSize: '1.05rem', margin: 0 }}>{t(`subtitle_${view}`)}</p>
+                 </div>
+ 
++                {/* The one refresh under Analytics: every source, then every dashboard redraws. */}
++                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem', maxWidth: '100%' }}>
++                    <button type="button" onClick={runSync} disabled={syncing} className="btn-primary" data-testid="analytics-sync"
++                        style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minHeight: '56px', padding: '0 1.75rem', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 700, cursor: syncing ? 'wait' : 'pointer', opacity: syncing ? 0.7 : 1 }}>
++                        <RefreshCw size={22} className={syncing ? 'an-spin' : ''} />
++                        {syncing ? t('syncing') : t('sync')}
++                    </button>
++                    {syncStatus && <span style={{ fontSize: '0.85rem', textAlign: 'right' }}>{syncStatus}</span>}
++                </div>
++
+                 {RANGED_VIEWS.includes(view) && (
+                     <div data-testid="analytics-range" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem' }}>
+                         <div role="group" aria-label={t('range_label')} className="glass-panel" style={{ display: 'flex', gap: '2px', padding: '4px', borderRadius: '12px' }}>
+@@ -162,11 +234,16 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
+                 )}
+             </header>
+ 
+-            {view === 'resumen' && <ResumenView locale={locale} range={range} today={today} />}
+-            {view === 'ventas' && <VentasView range={range} />}
+-            {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} />}
+-            {view === 'personal' && <PersonalView locale={locale} range={range} today={today} />}
+-            {view === 'reputacion' && <ReputacionView locale={locale} range={range} today={today} />}
++            {view === 'resumen' && <ResumenView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
++            {view === 'ventas' && <VentasView range={range} refreshKey={refreshKey} />}
++            {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
++            {view === 'personal' && <PersonalView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
++            {view === 'reputacion' && <ReputacionView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
++
++            <style jsx>{`
++                @keyframes an-spin { 100% { transform: rotate(360deg); } }
++                :global(.an-spin) { animation: an-spin 1s linear infinite; }
++            `}</style>
+         </div>
+     );
+ }
+diff --git a/src/app/[locale]/analytics/CobrosView.tsx b/src/app/[locale]/analytics/CobrosView.tsx
+index f06fd12..8cda791 100644
+--- a/src/app/[locale]/analytics/CobrosView.tsx
++++ b/src/app/[locale]/analytics/CobrosView.tsx
+@@ -24,10 +24,10 @@ const numCell: CSSProperties = { ...cell, ...numStyle, textAlign: 'right' };
+ 
+ const pct1 = (part: number, whole: number) => (whole > 0 ? (Math.round((part / whole) * 1000) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0');
+ 
+-export default function CobrosView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
++export default function CobrosView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
+     const t = useTranslations('Analytics');
+     const ts = useTranslations('Sales');
+-    const { data, error, loading } = useAnalyticsDaily(range);
++    const { data, error, loading } = useAnalyticsDaily(range, refreshKey);
+     const { dayLabel, timeLabel } = useDateLabels(locale);
+ 
+     if (error) return <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>;
+diff --git a/src/app/[locale]/analytics/PersonalView.tsx b/src/app/[locale]/analytics/PersonalView.tsx
+index 94b2754..1e195eb 100644
+--- a/src/app/[locale]/analytics/PersonalView.tsx
++++ b/src/app/[locale]/analytics/PersonalView.tsx
+@@ -29,7 +29,7 @@ const hoursText = (h: number) => `${h.toLocaleString('en-US', { maximumFractionD
+ const pctOf = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
+ const pctLabel = (pct: number | null) => (pct === null ? '—' : `${pct.toLocaleString('en-US', { maximumFractionDigits: 1 })}%`);
+ 
+-function useAnalyticsLabor(range: DateRange) {
++function useAnalyticsLabor(range: DateRange, refreshKey: number) {
+     const t = useTranslations('Analytics');
+     const [data, setData] = useState<AnalyticsLaborResult | null>(null);
+     const [error, setError] = useState<string | null>(null);
+@@ -47,14 +47,14 @@ function useAnalyticsLabor(range: DateRange) {
+             .finally(() => { if (!cancelled) setLoading(false); });
+         return () => { cancelled = true; };
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+-    }, [range.from, range.to]);
++    }, [range.from, range.to, refreshKey]);
+     return { data, error, loading };
+ }
+ 
+-export default function PersonalView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
++export default function PersonalView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
+     const t = useTranslations('Analytics');
+-    const sales = useAnalyticsDaily(range);
+-    const labor = useAnalyticsLabor(range);
++    const sales = useAnalyticsDaily(range, refreshKey);
++    const labor = useAnalyticsLabor(range, refreshKey);
+     const { dayLabel, weekdayName } = useDateLabels(locale);
+ 
+     const error = sales.error ?? labor.error;
+diff --git a/src/app/[locale]/analytics/ReputacionView.tsx b/src/app/[locale]/analytics/ReputacionView.tsx
+index d5f0c68..3600713 100644
+--- a/src/app/[locale]/analytics/ReputacionView.tsx
++++ b/src/app/[locale]/analytics/ReputacionView.tsx
+@@ -26,7 +26,7 @@ const starsText = (n: number) => STAR.repeat(Math.max(0, Math.min(5, Math.round(
+ const intText = (n: number) => n.toLocaleString('en-US');
+ const pct1 = (part: number, whole: number) => (whole > 0 ? (Math.round((part / whole) * 1000) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }) : '0');
+ 
+-function useAnalyticsReputation(range: DateRange) {
++function useAnalyticsReputation(range: DateRange, refreshKey: number) {
+     const t = useTranslations('Analytics');
+     const [data, setData] = useState<AnalyticsReputationResult | null>(null);
+     const [error, setError] = useState<string | null>(null);
+@@ -44,13 +44,13 @@ function useAnalyticsReputation(range: DateRange) {
+             .finally(() => { if (!cancelled) setLoading(false); });
+         return () => { cancelled = true; };
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+-    }, [range.from, range.to]);
++    }, [range.from, range.to, refreshKey]);
+     return { data, error, loading };
+ }
+ 
+-export default function ReputacionView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
++export default function ReputacionView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
+     const t = useTranslations('Analytics');
+-    const { data, error, loading } = useAnalyticsReputation(range);
++    const { data, error, loading } = useAnalyticsReputation(range, refreshKey);
+     const { dayLabel } = useDateLabels(locale);
+     /** Reviews answered from this page in this session, so the list updates without a refetch. */
+     const [repliedHere, setRepliedHere] = useState<Set<string>>(new Set());
+diff --git a/src/app/[locale]/analytics/ResumenView.tsx b/src/app/[locale]/analytics/ResumenView.tsx
+index b0a84fb..e5db95e 100644
+--- a/src/app/[locale]/analytics/ResumenView.tsx
++++ b/src/app/[locale]/analytics/ResumenView.tsx
+@@ -15,9 +15,9 @@ import { DayBars, Tile, daySeries, pctText, useAnalyticsDaily, useDateLabels, nu
+  * src/lib/analytics/daily.ts — nothing here is estimated except the forecast,
+  * which says so. Open is never added to paid anywhere on this page.
+  */
+-export default function ResumenView({ locale, range, today }: { locale: string; range: DateRange; today: string }) {
++export default function ResumenView({ locale, range, today, refreshKey = 0 }: { locale: string; range: DateRange; today: string; refreshKey?: number }) {
+     const t = useTranslations('Analytics');
+-    const { data, error, loading } = useAnalyticsDaily(range);
++    const { data, error, loading } = useAnalyticsDaily(range, refreshKey);
+     const { dayLabel, weekdayName, timeLabel } = useDateLabels(locale);
+ 
+     if (error) return <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>;
+diff --git a/src/app/[locale]/analytics/VentasNetas.tsx b/src/app/[locale]/analytics/VentasNetas.tsx
+index 2bddba5..659e12e 100644
+--- a/src/app/[locale]/analytics/VentasNetas.tsx
++++ b/src/app/[locale]/analytics/VentasNetas.tsx
+@@ -2,11 +2,9 @@
+ 
+ import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+ import { useTranslations, useLocale } from 'next-intl';
+-import { RefreshCw } from 'lucide-react';
+ import { formatMoney } from '@/lib/money';
+-import { refreshToastDailySales } from '@/app/actions/toastDailySales';
+ import { getAnalyticsDaily } from '@/app/actions/analytics';
+-import type { DailySalesReport, DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
++import type { DailySalesRow, SalesErrorCode } from '@/lib/pos/toastDailySales';
+ import type { DateRange } from '@/lib/analytics/range';
+ import { summarizeDays, toastTotalOf } from '@/lib/analytics/daily';
+ 
+@@ -16,11 +14,12 @@ import { summarizeDays, toastTotalOf } from '@/lib/analytics/daily';
+  * sales; open checks are shown beside them, never added in. Surcharges and
+  * service charges are their own cards, not part of net sales.
+  *
+- * Reads PosDailySales (written by the refresh button and the nightly cron);
+- * nothing here calls Toast directly. The cards are always today; the table
+- * is the window the Analytics shell hands down, with its totals. Every
+- * string comes from the Sales namespace, and dates follow the reader's
+- * language.
++ * Reads PosDailySales (written by the Sync button and the nightly cron);
++ * nothing here calls Toast directly, and nothing here refreshes — the shell's
++ * Sync button does, and bumps `refreshKey` so this panel reloads. The cards
++ * are always today; the table is the window the shell hands down, with its
++ * totals. Every string comes from the Sales namespace, and dates follow the
++ * reader's language.
+  */
+ 
+ const PAID_COLOR = 'var(--accent-primary)';
+@@ -30,8 +29,8 @@ const NEUTRAL_COLOR = 'var(--text-secondary)';
+ /** Toast's own net sales: it counts open checks and non-gratuity service charges. */
+ const toastTotal = (r: DailySalesRow) => r.netPaidCents + r.netOpenCents + r.surchargeCents + r.otherChargeCents;
+ const serviceCharges = (r: DailySalesRow) => r.gratuityCents + r.otherChargeCents;
+-/** Never read, or read before the cash figures existed — either way a read fills it in. */
+-const needsRead = (r: DailySalesRow) => r.computedAt === null || r.cashChecks === null;
++/** Never read, or read before the cash figures or the items existed — the Sync button reads these days again. */
++const needsRead = (r: DailySalesRow) => r.computedAt === null || r.cashChecks === null || r.itemsComputedAt === null;
+ 
+ const numeric: CSSProperties = { textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
+ const headCell: CSSProperties = { padding: '0.6rem 0.75rem', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-secondary)', fontWeight: 600 };
+@@ -47,7 +46,7 @@ function Card({ label, value, sub, color, big }: { label: string; value: string;
+     );
+ }
+ 
+-export default function VentasNetas({ range }: { range: DateRange }) {
++export default function VentasNetas({ range, refreshKey = 0 }: { range: DateRange; refreshKey?: number }) {
+     const t = useTranslations('Sales');
+     const locale = useLocale();
+ 
+@@ -68,25 +67,10 @@ export default function VentasNetas({ range }: { range: DateRange }) {
+             default: return fallback;
+         }
+     };
+-    const skippedText = (r: DailySalesReport) => {
+-        switch (r.skippedCode) {
+-            case 'BAD_DATE': return t('skip_bad_date');
+-            case 'TRUNCATED': return t('skip_truncated');
+-            case 'TOAST_ENV': return t('skip_toast_env');
+-            case 'TOAST_HTTP': return t('skip_toast_http', { status: r.skippedStatus ?? 0 });
+-            case 'TOAST_FAILED': return t('skip_toast_failed');
+-            default: return r.skipped ?? '';
+-        }
+-    };
+-
+     const [rows, setRows] = useState<DailySalesRow[]>([]);
+     const [today, setToday] = useState<string | null>(null);
+     const [loading, setLoading] = useState(true);
+-    const [refreshing, setRefreshing] = useState(false);
+-    /** "3 of 12 · Tue, Sep 29" while a backfill runs; null otherwise. */
+-    const [backfill, setBackfill] = useState<string | null>(null);
+     const [error, setError] = useState<string | null>(null);
+-    const [notice, setNotice] = useState<string | null>(null);
+ 
+     const load = useCallback(async (): Promise<DailySalesRow[]> => {
+         try {
+@@ -107,58 +91,10 @@ export default function VentasNetas({ range }: { range: DateRange }) {
+         }
+         return [];
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+-    }, [locale, range.from, range.to]);
++    }, [locale, range.from, range.to, refreshKey]);
+ 
+     useEffect(() => { load(); }, [load]);
+ 
+-    const busy = refreshing || backfill !== null;
+-
+-    /** Read every day that needs it, oldest first, one request per day. */
+-    const handleBackfill = async () => {
+-        const missing = rows.filter(needsRead).map(r => r.date);
+-        if (missing.length === 0) return;
+-        setNotice(null);
+-        setError(null);
+-        const skipped: string[] = [];
+-        try {
+-            for (let i = 0; i < missing.length; i++) {
+-                const date = missing[i];
+-                setBackfill(t('backfill_progress', { i: i + 1, n: missing.length, day: dayLabel(date) }));
+-                const res = await refreshToastDailySales(date);
+-                if (!res.success) {
+-                    setError(t('err_backfill_stopped', { day: dayLabel(date), reason: errorText(res.code, t('err_failed')) }));
+-                    return;
+-                }
+-                for (const r of res.reports ?? []) if (r.skipped) skipped.push(`${dayLabel(r.date)}: ${skippedText(r)}`);
+-                await load(); // the row fills in as the loop goes
+-            }
+-            if (skipped.length) setNotice(skipped.join(' · '));
+-        } catch {
+-            setError(t('err_backfill_interrupted'));
+-        } finally {
+-            setBackfill(null);
+-        }
+-    };
+-
+-    const handleRefresh = async () => {
+-        setRefreshing(true);
+-        setNotice(null);
+-        try {
+-            const res = await refreshToastDailySales();
+-            if (!res.success) {
+-                setError(errorText(res.code, t('err_failed')));
+-                return;
+-            }
+-            const skipped = (res.reports ?? []).filter(r => r.skipped);
+-            if (skipped.length) setNotice(skipped.map(r => `${dayLabel(r.date)}: ${skippedText(r)}`).join(' · '));
+-            await load();
+-        } catch {
+-            setError(t('err_refresh_rejected'));
+-        } finally {
+-            setRefreshing(false);
+-        }
+-    };
+-
+     const todayRow = rows.find(r => r.date === today) ?? null;
+     const hasToday = !!todayRow?.computedAt;
+     const money = (cents: number | undefined) => (hasToday && cents !== undefined ? formatMoney(cents) : '—');
+@@ -176,39 +112,15 @@ export default function VentasNetas({ range }: { range: DateRange }) {
+                     <h2 style={{ fontSize: '1.75rem', margin: 0 }}>{t('net_title')}</h2>
+                     <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>{t('net_subtitle')}</p>
+                 </div>
+-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+-                        {/* Only while history is incomplete: reads the missing days one by one. */}
+-                        {!loading && missingCount > 0 && (
+-                            <button
+-                                onClick={handleBackfill}
+-                                disabled={busy}
+-                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.25rem', minHeight: '44px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-primary)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1 }}
+-                            >
+-                                <RefreshCw size={18} className={backfill ? 'vn-spin' : ''} />
+-                                {backfill ?? t('backfill', { count: missingCount })}
+-                            </button>
+-                        )}
+-                        <button
+-                            onClick={handleRefresh}
+-                            disabled={busy}
+-                            className="btn-primary"
+-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.5rem', minHeight: '44px' }}
+-                        >
+-                            <RefreshCw size={18} className={refreshing ? 'vn-spin' : ''} />
+-                            {refreshing ? t('refreshing') : t('refresh')}
+-                        </button>
+-                    </div>
+-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+-                        {hasToday && todayRow?.computedAt
+-                            ? t('status_today', { day: dayLabel(todayRow.date), time: timeLabel(todayRow.computedAt) })
+-                            : loading ? t('status_loading') : t('status_unread')}
+-                    </span>
+-                </div>
++                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', alignSelf: 'flex-end' }}>
++                    {hasToday && todayRow?.computedAt
++                        ? t('status_today', { day: dayLabel(todayRow.date), time: timeLabel(todayRow.computedAt) })
++                        : loading ? t('status_loading') : t('status_unread')}
++                    {!loading && missingCount > 0 && <> · {t('status_missing', { count: missingCount })}</>}
++                </span>
+             </div>
+ 
+             {error && <p style={{ margin: 0, color: 'var(--danger)' }}>{error}</p>}
+-            {notice && <p style={{ margin: 0, color: 'var(--warning)' }}>{notice}</p>}
+ 
+             {/* Today: the three figures that matter, then what is not a sale. */}
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+@@ -301,11 +213,6 @@ export default function VentasNetas({ range }: { range: DateRange }) {
+             </div>
+ 
+             <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('legend')}</p>
+-
+-            <style jsx>{`
+-                @keyframes vn-spin { 100% { transform: rotate(360deg); } }
+-                :global(.vn-spin) { animation: vn-spin 1s linear infinite; }
+-            `}</style>
+         </div>
+     );
+ }
+diff --git a/src/app/[locale]/analytics/VentasView.tsx b/src/app/[locale]/analytics/VentasView.tsx
+index 7b79837..cd85774 100644
+--- a/src/app/[locale]/analytics/VentasView.tsx
++++ b/src/app/[locale]/analytics/VentasView.tsx
+@@ -3,34 +3,35 @@
+ import { useState, useEffect } from 'react';
+ import { useTranslations, useLocale } from 'next-intl';
+ import { getSalesAuditData, getToastSalesAuditData, type ToastAuditDay } from '@/app/actions/sales';
+-import { syncCloverSales, getLastSyncTime } from '@/app/actions/clover';
+-import { TrendingUp, RefreshCw } from 'lucide-react';
++import { getLastSyncTime } from '@/app/actions/clover';
++import { TrendingUp } from 'lucide-react';
+ import VentasNetas from './VentasNetas';
+ import type { DateRange } from '@/lib/analytics/range';
+ 
+ /**
+- * Analytics › Ventas: the Ventas netas panel (today's money and every day
+- * since Toast started) followed by the Clover and Toast item audits. This is
+- * the old /sales page moved under the Analytics section unchanged; the shell
+- * above it owns the title, and the Sales namespace still owns every string.
++ * Analytics › Ventas: the Ventas netas panel (today's money and the window's
++ * days) followed by the Toast and Clover item audits. The shell above owns
++ * the title and the one Sync button — nothing here refreshes on its own;
++ * `refreshKey` changing is what reloads it. The Sales namespace still owns
++ * every string.
+  */
+ 
+ /** 'Oct 9' / '9 oct' for a 'YYYY-MM-DD' business date, in the reader's language. */
+ const dayLabel = (locale: string, date: string) =>
+     new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
+ 
+-export default function VentasView({ range }: { range: DateRange }) {
++export default function VentasView({ range, refreshKey = 0 }: { range: DateRange; refreshKey?: number }) {
+     const t = useTranslations('Sales');
+     const locale = useLocale();
+     const [salesData, setSalesData] = useState<{ grouped: Record<string, any>; days: string[] }>({ grouped: {}, days: [] });
+     const [lastSync, setLastSync] = useState<string | null>(null);
+-    const [isSyncing, setIsSyncing] = useState(false);
+     const [toastDays, setToastDays] = useState<ToastAuditDay[]>([]);
+     const [toastError, setToastError] = useState<string | null>(null);
+ 
+     useEffect(() => {
+         loadData();
+-    }, []);
++        // eslint-disable-next-line react-hooks/exhaustive-deps
++    }, [refreshKey]);
+ 
+     const loadData = async () => {
+         const [salesRes, syncRes, toastRes] = await Promise.all([getSalesAuditData(), getLastSyncTime(), getToastSalesAuditData()]);
+@@ -42,18 +43,6 @@ export default function VentasView({ range }: { range: DateRange }) {
+         setToastError(toastRes.success ? null : t('toast_err'));
+     };
+ 
+-    const handleSync = async () => {
+-        setIsSyncing(true);
+-        const res = await syncCloverSales();
+-        if (res.success) {
+-            alert(t('sync_ok', { count: res.count ?? 0 }));
+-            loadData();
+-        } else {
+-            alert(t('sync_failed'));
+-        }
+-        setIsSyncing(false);
+-    };
+-
+     // The server names the two fallback groups by their Spanish sentinels; show them in the reader's language.
+     const categoryLabel = (name: string) =>
+         name === 'Sin vincular' ? t('unlinked') : name === 'Sin categoría' ? t('uncategorized') : name;
+@@ -61,7 +50,56 @@ export default function VentasView({ range }: { range: DateRange }) {
+     return (
+         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+             {/* The day's money first; the item audits below are counts, not dollars. */}
+-            <VentasNetas range={range} />
++            <VentasNetas range={range} refreshKey={refreshKey} />
++
++            {/* Toast first: it is the register. Its own section, never summed with Clover below. */}
++            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
++                <div>
++                    <h2 style={{ fontSize: '1.75rem', margin: 0 }}>{t('toast_title')}</h2>
++                    <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>{t('toast_subtitle')}</p>
++                </div>
++                {toastError && <p style={{ margin: 0, color: 'var(--danger)' }}>{toastError}</p>}
++                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
++                    {toastDays.map((day, idx) => (
++                        <div key={day.date} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem' }}>
++                            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', margin: 0, textAlign: 'center', color: idx === toastDays.length - 1 ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
++                                {dayLabel(locale, day.date)} {idx === toastDays.length - 1 && t('today_paren')} · Toast
++                            </h3>
++                            {day.categories.length === 0 ? (
++                                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem 0' }}>{t('toast_no_sales')}</div>
++                            ) : day.categories.map(cat => (
++                                <div key={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
++                                    <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', margin: 0, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.03)', color: cat.name === 'Sin vincular' ? 'var(--warning)' : 'var(--text-secondary)' }}>
++                                        {categoryLabel(cat.name)}
++                                    </h4>
++                                    {cat.items.map(it => (
++                                        <div key={it.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
++                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
++                                                <span style={{ fontWeight: 600 }}>
++                                                    {it.name}
++                                                    {it.openQty > 0 && <span style={{ fontWeight: 400, fontSize: '0.85rem', color: '#c98500' }}> · {t('open_qty', { count: it.openQty })}</span>}
++                                                    {it.voidedQty > 0 && <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-secondary)' }}> · {t('voided', { count: it.voidedQty })}</span>}
++                                                </span>
++                                                <span style={{ fontWeight: 700, background: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.9rem' }}>{it.qty}</span>
++                                            </div>
++                                            {it.modifiers.length > 0 && (
++                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', paddingLeft: '1rem', borderLeft: '2px solid var(--border)', marginLeft: '0.5rem', marginTop: '0.25rem' }}>
++                                                    {it.modifiers.map(m => (
++                                                        <div key={m.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
++                                                            <span>+ {m.name}</span>
++                                                            <span style={{ fontWeight: 500 }}>{m.qty}</span>
++                                                        </div>
++                                                    ))}
++                                                </div>
++                                            )}
++                                        </div>
++                                    ))}
++                                </div>
++                            ))}
++                        </div>
++                    ))}
++                </div>
++            </div>
+ 
+             {/* Header & Sync Button */}
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+@@ -73,22 +111,11 @@ export default function VentasView({ range }: { range: DateRange }) {
+                     </h2>
+                     <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>{t('audit_subtitle')}</p>
+                 </div>
+-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.5rem' }}>
+-                    <button
+-                        onClick={handleSync}
+-                        disabled={isSyncing}
+-                        className="btn-primary"
+-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1.5rem' }}
+-                    >
+-                        <RefreshCw size={18} className={isSyncing ? "spin" : ""} />
+-                        {isSyncing ? t('syncing') : t('sync_now')}
+-                    </button>
+-                    {lastSync && (
+-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+-                            {t('last_sync', { time: new Date(lastSync).toLocaleString(locale) })}
+-                        </span>
+-                    )}
+-                </div>
++                {lastSync && (
++                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', alignSelf: 'flex-end' }}>
++                        {t('last_sync', { time: new Date(lastSync).toLocaleString(locale) })}
++                    </span>
++                )}
+             </div>
+ 
+             {/* 3-Column Layout: Left (Oldest) to Right (Newest) */}
+@@ -156,48 +183,6 @@ export default function VentasView({ range }: { range: DateRange }) {
+                 })}
+             </div>
+ 
+-            {/* Toast: its own section, never summed with Clover above. */}
+-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+-                <div>
+-                    <h2 style={{ fontSize: '1.75rem', margin: 0 }}>{t('toast_title')}</h2>
+-                    <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>{t('toast_subtitle')}</p>
+-                </div>
+-                {toastError && <p style={{ margin: 0, color: 'var(--danger)' }}>{toastError}</p>}
+-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
+-                    {toastDays.map((day, idx) => (
+-                        <div key={day.date} className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '1.5rem' }}>
+-                            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, borderBottom: '2px solid var(--border)', paddingBottom: '0.5rem', margin: 0, textAlign: 'center', color: idx === toastDays.length - 1 ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
+-                                {dayLabel(locale, day.date)} {idx === toastDays.length - 1 && t('today_paren')} · Toast
+-                            </h3>
+-                            {day.categories.length === 0 ? (
+-                                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem 0' }}>{t('toast_no_sales')}</div>
+-                            ) : day.categories.map(cat => (
+-                                <div key={cat.name} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+-                                    <h4 style={{ fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px', margin: 0, padding: '0.2rem 0.5rem', borderRadius: '4px', background: 'rgba(255,255,255,0.03)', color: cat.name === 'Sin vincular' ? 'var(--warning)' : 'var(--text-secondary)' }}>
+-                                        {categoryLabel(cat.name)}
+-                                    </h4>
+-                                    {cat.items.map(it => (
+-                                        <div key={it.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+-                                            <span style={{ fontWeight: 600 }}>
+-                                                {it.name}
+-                                                {it.voidedQty > 0 && (
+-                                                    <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-secondary)' }}> · {t('voided', { count: it.voidedQty })}</span>
+-                                                )}
+-                                            </span>
+-                                            <span style={{ fontWeight: 700, background: 'rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.9rem' }}>{it.qty}</span>
+-                                        </div>
+-                                    ))}
+-                                </div>
+-                            ))}
+-                        </div>
+-                    ))}
+-                </div>
+-            </div>
+-
+-            <style jsx>{`
+-                @keyframes spin { 100% { transform: rotate(360deg); } }
+-                .spin { animation: spin 1s linear infinite; }
+-            `}</style>
+         </div>
+     );
+ }
+diff --git a/src/app/[locale]/analytics/[view]/page.tsx b/src/app/[locale]/analytics/[view]/page.tsx
+index f2577e8..85db124 100644
+--- a/src/app/[locale]/analytics/[view]/page.tsx
++++ b/src/app/[locale]/analytics/[view]/page.tsx
+@@ -1,4 +1,11 @@
+ import { notFound } from 'next/navigation';
++
++/**
++ * The Sync button's server action runs on this route. The Hobby default is
++ * 10 s; it reads several Toast days plus Google and Clover, so it gets the
++ * plan's ceiling and keeps its own 38 s budget (see actions/analytics.ts).
++ */
++export const maxDuration = 60;
+ import { readAnalyticsView } from '@/lib/analyticsView';
+ import { resolveRange } from '@/lib/analytics/range';
+ import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
+diff --git a/src/app/[locale]/analytics/charts.tsx b/src/app/[locale]/analytics/charts.tsx
+index 0600ee1..54ff16d 100644
+--- a/src/app/[locale]/analytics/charts.tsx
++++ b/src/app/[locale]/analytics/charts.tsx
+@@ -48,7 +48,7 @@ export function useDateLabels(locale: string) {
+  * stays on screen (dimmed by the caller) until the new one lands, so a
+  * preset click never blanks the page.
+  */
+-export function useAnalyticsDaily(range: DateRange): { data: AnalyticsDailyResult | null; error: string | null; loading: boolean } {
++export function useAnalyticsDaily(range: DateRange, refreshKey = 0): { data: AnalyticsDailyResult | null; error: string | null; loading: boolean } {
+     const t = useTranslations('Analytics');
+     const [data, setData] = useState<AnalyticsDailyResult | null>(null);
+     const [error, setError] = useState<string | null>(null);
+@@ -75,7 +75,7 @@ export function useAnalyticsDaily(range: DateRange): { data: AnalyticsDailyResul
+             .finally(() => { if (!cancelled) setLoading(false); });
+         return () => { cancelled = true; };
+         // eslint-disable-next-line react-hooks/exhaustive-deps
+-    }, [range.from, range.to]);
++    }, [range.from, range.to, refreshKey]);
+ 
+     return { data, error, loading };
+ }
+diff --git a/src/app/actions/analytics.ts b/src/app/actions/analytics.ts
+index 40e3fd3..a075181 100644
+--- a/src/app/actions/analytics.ts
++++ b/src/app/actions/analytics.ts
+@@ -1,8 +1,12 @@
+ 'use server';
+ 
++import { revalidatePath } from 'next/cache';
+ import { isAdminSession } from '@/lib/adminGuard';
+-import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
+-import { readToastDailySales } from '@/lib/pos/toastDailySales';
++import { lastToastBusinessDates, toastBusinessDatesSince, TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
++import { readToastDailySales, snapshotToastDailySalesCore, unreadToastDays } from '@/lib/pos/toastDailySales';
++import { syncCloverSales } from '@/app/actions/clover';
++import { isConnected as gbpConnected } from '@/lib/gbp/auth';
++import { runFullSync as gbpSync } from '@/lib/gbp/sync';
+ import prisma from '@/lib/prisma';
+ import { businessDateToUtcDate, nyWallToUtc } from '@/lib/businessDay';
+ import { getRateConfig } from '@/app/actions/payroll';
+@@ -12,6 +16,7 @@ import { priceLabor } from '@/lib/analytics/labor';
+ import type { AnalyticsLaborResult, LaborDayOut } from '@/lib/analytics/labor';
+ import { dishMentions, foldMetrics, reviewThemes, reviewsPerDay, summarizeReviews, sumMetrics } from '@/lib/analytics/reputation';
+ import type { AnalyticsReputationResult, ReviewLite } from '@/lib/analytics/reputation';
++import type { SyncAnalyticsResult } from '@/lib/analytics/sync';
+ import { shiftDate } from '@/lib/pos/toastBusinessDate';
+ 
+ // Only server actions are exported from this file — no types, no constants.
+@@ -195,3 +200,80 @@ export async function getAnalyticsReputation(from: string, to: string): Promise<
+         return { success: false, error: 'No se pudieron leer las reseñas.', code: 'READ_FAILED', ...empty };
+     }
+ }
++
++/** Toast days one Sync reads at most: today and yesterday, then the oldest days still unread. */
++const SYNC_TOAST_DAYS = 6;
++/** Wall-clock budget before the action stops starting new steps (Hobby functions stop at 60 s). */
++const SYNC_BUDGET_MS = 38_000;
++
++/**
++ * The one button: read Toast for today and yesterday plus up to four of the
++ * oldest days still missing figures or items (press again for the rest),
++ * then Google Business Profile (new reviews and the last week of metrics),
++ * then the Clover item audit. Each step reports on its own; a failure in
++ * one never hides the others. Admin only.
++ */
++export async function syncAnalytics(): Promise<SyncAnalyticsResult> {
++    const startedAt = Date.now();
++    const elapsed = () => Date.now() - startedAt;
++    const today = lastToastBusinessDates(1)[0];
++    const result: SyncAnalyticsResult = {
++        success: false,
++        toast: { read: [], skipped: [], remaining: 0, error: null },
++        google: { ran: false, reviews: 0, metricDays: 0, error: null },
++        clover: { ran: false, items: 0, error: null },
++        tookMs: 0
++    };
++    if (!(await isAdminSession())) return { ...result, code: 'NOT_ADMIN', tookMs: elapsed() };
++
++    // ── Toast ──
++    try {
++        const recent = lastToastBusinessDates(2);
++        const unread = (await unreadToastDays(toastBusinessDatesSince(TOAST_FIRST_BUSINESS_DATE))).filter(d => !recent.includes(d));
++        const dates = [...recent, ...unread.slice(0, SYNC_TOAST_DAYS - recent.length)];
++        result.toast.remaining = Math.max(0, unread.length - (dates.length - recent.length));
++        for (const date of dates) {
++            if (elapsed() > SYNC_BUDGET_MS) { result.toast.remaining += 1; continue; }
++            const [report] = await snapshotToastDailySalesCore([date]);
++            if (report.skipped) result.toast.skipped.push({ date, code: report.skippedCode ?? 'TOAST_FAILED', status: report.skippedStatus });
++            else result.toast.read.push(date);
++        }
++    } catch (e) {
++        console.error('Sync Toast failed:', e instanceof Error ? e.message : e);
++        result.toast.error = 'FAILED';
++    }
++
++    // ── Google Business Profile ──
++    if (elapsed() <= SYNC_BUDGET_MS) {
++        try {
++            if (await gbpConnected()) {
++                const r = await gbpSync({ maxPages: 2, metricDays: 7 });
++                result.google = { ran: true, reviews: r.reviews.upserted, metricDays: r.metrics?.days ?? 0, error: null };
++            } else {
++                result.google.error = 'NOT_CONNECTED';
++            }
++        } catch (e) {
++            console.error('Sync Google failed:', e instanceof Error ? e.message : e);
++            result.google = { ran: true, reviews: 0, metricDays: 0, error: 'FAILED' };
++        }
++    } else {
++        result.google.error = 'TIME';
++    }
++
++    // ── Clover item audit ──
++    if (elapsed() <= SYNC_BUDGET_MS) {
++        try {
++            const r = await syncCloverSales();
++            result.clover = r.success ? { ran: true, items: r.count ?? 0, error: null } : { ran: true, items: 0, error: 'FAILED' };
++        } catch (e) {
++            // requireCloverEnv throws when the credentials are not configured.
++            console.error('Sync Clover failed:', e instanceof Error ? e.message : e);
++            result.clover = { ran: true, items: 0, error: 'FAILED' };
++        }
++    } else {
++        result.clover.error = 'TIME';
++    }
++
++    revalidatePath('/[locale]/analytics/[view]', 'page');
++    return { ...result, success: true, today, tookMs: elapsed() };
++}
+diff --git a/src/app/actions/sales.ts b/src/app/actions/sales.ts
+index 6ef0d4a..9f196b2 100644
+--- a/src/app/actions/sales.ts
++++ b/src/app/actions/sales.ts
+@@ -3,7 +3,8 @@
+ import prisma from '@/lib/prisma';
+ import { PosSource } from '@prisma/client';
+ import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
+-import { dateColumn, lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
++import { lastToastBusinessDates } from '@/lib/pos/toastBusinessDate';
++import { readToastDailyItems } from '@/lib/pos/toastDailySales';
+ 
+ /** 'YYYY-MM-DD' plus n days (pure calendar math, no TZ involved). */
+ function shiftDate(dateStr: string, days: number): string {
+@@ -70,42 +71,62 @@ export async function getSalesAuditData() {
+     }
+ }
+ 
+-export type ToastAuditItem = { name: string; qty: number; voidedQty: number; linked: boolean; consumed: boolean };
++export type ToastAuditModifier = { name: string; qty: number };
++export type ToastAuditItem = { name: string; qty: number; openQty: number; voidedQty: number; linked: boolean; modifiers: ToastAuditModifier[] };
+ export type ToastAuditDay = { date: string; categories: { name: string; items: ToastAuditItem[] }[] };
+ 
+ /**
+- * Toast sales for the last 3 Toast business days (4 AM cutover), from
+- * PosSalesLine. Kept apart from the Clover audit above: the two POS feeds are
+- * shown side by side and never summed.
++ * Toast sales for the last 3 Toast business days (4 AM cutover), from the
++ * PosDailyItemSales rows the Sync button and the nightly cron write. Kept
++ * apart from the Clover audit above: the two POS feeds are shown side by
++ * side and never summed. qty counts paid checks; a selection on a check
++ * still open is listed under openQty so an unpaid table does not read as a
++ * sale.
+  */
+ export async function getToastSalesAuditData(): Promise<{ success: boolean; days: ToastAuditDay[]; error?: string }> {
+     try {
+         const dates = lastToastBusinessDates(3);
+-        const lines = await prisma.posSalesLine.findMany({
+-            where: { source: PosSource.TOAST, businessDate: { in: dates.map(dateColumn) } },
+-            select: { businessDate: true, posDisplayName: true, menuItemId: true, qty: true, voided: true, appliedQty: true }
+-        });
+-        const menuIds = [...new Set(lines.map(l => l.menuItemId).filter((x): x is string => !!x))];
++        const rows = await readToastDailyItems(dates);
++        const menuIds = [...new Set(rows.map(r => r.menuItemId).filter((x): x is string => !!x))];
+         const menuItems = await prisma.menuItem.findMany({ where: { id: { in: menuIds } }, select: { id: true, category: true } });
+         const categoryOf = new Map(menuItems.map(m => [m.id, m.category || 'Sin categoría']));
+ 
+         const days: ToastAuditDay[] = dates.map(date => {
+             const byCat = new Map<string, Map<string, ToastAuditItem>>();
+-            for (const l of lines) {
+-                if (l.businessDate.toISOString().slice(0, 10) !== date) continue;
+-                const cat = l.menuItemId ? categoryOf.get(l.menuItemId) ?? 'Sin categoría' : 'Sin vincular';
++            const itemsByGuid = new Map<string, ToastAuditItem>();
++            for (const r of rows) {
++                if (r.date !== date || r.kind !== 'ITEM') continue;
++                const cat = r.menuItemId ? categoryOf.get(r.menuItemId) ?? 'Sin categoría' : 'Sin vincular';
+                 const items = byCat.get(cat) ?? new Map<string, ToastAuditItem>();
+-                const it = items.get(l.posDisplayName) ?? { name: l.posDisplayName, qty: 0, voidedQty: 0, linked: !!l.menuItemId, consumed: false };
+-                if (l.voided) it.voidedQty += l.qty; else it.qty += l.qty;
+-                if (l.appliedQty > 0) it.consumed = true;
+-                items.set(l.posDisplayName, it);
++                const it = items.get(r.displayName) ?? { name: r.displayName, qty: 0, openQty: 0, voidedQty: 0, linked: !!r.menuItemId, modifiers: [] };
++                it.qty += r.paidQty;
++                it.openQty += r.openQty;
++                it.voidedQty += r.voidedQty;
++                items.set(r.displayName, it);
+                 byCat.set(cat, items);
++                itemsByGuid.set(r.posItemGuid, it);
++            }
++            for (const r of rows) {
++                if (r.date !== date || r.kind !== 'MODIFIER') continue;
++                const parent = itemsByGuid.get(r.parentPosItemGuid);
++                if (!parent) continue;
++                const qty = r.paidQty + r.openQty;
++                if (qty <= 0) continue;
++                const existing = parent.modifiers.find(m => m.name === r.displayName);
++                if (existing) existing.qty += qty; else parent.modifiers.push({ name: r.displayName, qty });
+             }
+             return {
+                 date,
+                 categories: [...byCat.entries()]
+                     .sort(([a], [b]) => (a === 'Sin vincular' ? 1 : b === 'Sin vincular' ? -1 : a.localeCompare(b)))
+-                    .map(([name, items]) => ({ name, items: [...items.values()].sort((a, b) => a.name.localeCompare(b.name)) }))
++                    .map(([name, items]) => ({
++                        name,
++                        items: [...items.values()]
++                            .filter(it => it.qty > 0 || it.openQty > 0 || it.voidedQty > 0)
++                            .map(it => ({ ...it, modifiers: [...it.modifiers].sort((a, b) => a.name.localeCompare(b.name)) }))
++                            .sort((a, b) => a.name.localeCompare(b.name))
++                    }))
++                    .filter(c => c.items.length > 0)
+             };
+         });
+         return { success: true, days };
+diff --git a/src/lib/analytics/sync.ts b/src/lib/analytics/sync.ts
+new file mode 100644
+index 0000000..1d2e23f
+--- /dev/null
++++ b/src/lib/analytics/sync.ts
+@@ -0,0 +1,37 @@
++/**
++ * What the Analytics Sync button gets back, one block per source. Declared
++ * here because a 'use server' module may export only actions.
++ */
++
++import type { SkippedCode } from '@/lib/pos/toastDailySales';
++
++export type SyncAnalyticsResult = {
++    success: boolean;
++    code?: 'NOT_ADMIN';
++    /** Today's Toast business date, once the action ran. */
++    today?: string;
++    toast: {
++        /** Days whose figures and items were rewritten. */
++        read: string[];
++        /** Days Toast would not give, with the reason the UI translates. */
++        skipped: { date: string; code: SkippedCode; status?: number }[];
++        /** Days since go-live still owed after this run; another press reads the next ones. */
++        remaining: number;
++        error: 'FAILED' | null;
++    };
++    google: {
++        ran: boolean;
++        /** Reviews written or refreshed this run. */
++        reviews: number;
++        /** Days of profile metrics refreshed (0 when the step did not run). */
++        metricDays: number;
++        error: 'NOT_CONNECTED' | 'FAILED' | 'TIME' | null;
++    };
++    clover: {
++        ran: boolean;
++        /** Line items processed for the Clover audit. */
++        items: number;
++        error: 'FAILED' | 'TIME' | null;
++    };
++    tookMs: number;
++};
+diff --git a/src/lib/pos/toastDailySales.ts b/src/lib/pos/toastDailySales.ts
+index d89bf75..26db457 100644
+--- a/src/lib/pos/toastDailySales.ts
++++ b/src/lib/pos/toastDailySales.ts
+@@ -11,7 +11,8 @@
+ import prisma from '@/lib/prisma';
+ import { PosSource } from '@prisma/client';
+ import { fetchToastOrders, ToastError } from '@/lib/toast/client';
+-import { aggregateToastDailySales, emptyDailySalesTotals, type ToastDailySalesTotals } from '@/lib/toast/dailySales';
++import { aggregateToastDailyItems, aggregateToastDailySales, emptyDailySalesTotals, type ToastDailySalesTotals } from '@/lib/toast/dailySales';
++import { fallbackModifierKey } from './toastMapping';
+ import { dateColumn } from './toastBusinessDate';
+ 
+ /** Why a day was not written, for the UI to say in its own language. */
+@@ -48,6 +49,23 @@ export type DailySalesRow = {
+     cashChecks: number | null;
+     cashNetCents: number | null;
+     computedAt: string | null;
++    /** When the day's items were last written; null until the day is read again with items. */
++    itemsComputedAt: string | null;
++};
++
++/** One stored PosDailyItemSales row, as the audits and Platos read it. */
++export type DailyItemRow = {
++    date: string;
++    kind: 'ITEM' | 'MODIFIER';
++    posItemGuid: string;
++    parentPosItemGuid: string;
++    displayName: string;
++    menuItemId: string | null;
++    paidQty: number;
++    paidCents: number;
++    openQty: number;
++    openCents: number;
++    voidedQty: number;
+ };
+ 
+ const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+@@ -68,6 +86,10 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
+         if (truncated) return skip('Toast devolvió más órdenes de las que se pueden leer. No se guardó el día.', 'TRUNCATED');
+ 
+         const totals = aggregateToastDailySales(orders);
++        const items = aggregateToastDailyItems(orders, fallbackModifierKey);
++        // The app dish behind each POS item, as the mappings stand today.
++        const mappings = await prisma.posItemMapping.findMany({ where: { source: PosSource.TOAST, kind: 'ITEM' }, select: { posGuid: true, menuItemId: true } });
++        const menuItemOf = new Map(mappings.map(m => [m.posGuid, m.menuItemId]));
+         const computedAt = new Date();
+         const fields = {
+             netPaidCents: totals.netPaidCents,
+@@ -81,13 +103,38 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
+             ordersScanned: totals.ordersScanned,
+             cashChecks: totals.cashChecks,
+             cashNetCents: totals.cashNetCents,
+-            computedAt
++            computedAt,
++            itemsComputedAt: computedAt
+         };
+-        await prisma.posDailySales.upsert({
+-            where: { source_businessDate: { source: PosSource.TOAST, businessDate: dateColumn(date) } },
+-            create: { source: PosSource.TOAST, businessDate: dateColumn(date), ...fields },
+-            update: fields
+-        });
++        const businessDate = dateColumn(date);
++        // Totals and items land together: a day never shows new money with
++        // yesterday's items. The items are rewritten whole (delete + create,
++        // not upsert), so an item Toast no longer returns does not linger.
++        await prisma.$transaction([
++            prisma.posDailySales.upsert({
++                where: { source_businessDate: { source: PosSource.TOAST, businessDate } },
++                create: { source: PosSource.TOAST, businessDate, ...fields },
++                update: fields
++            }),
++            prisma.posDailyItemSales.deleteMany({ where: { source: PosSource.TOAST, businessDate } }),
++            prisma.posDailyItemSales.createMany({
++                data: items.map(i => ({
++                    source: PosSource.TOAST,
++                    businessDate,
++                    kind: i.kind,
++                    posItemGuid: i.posItemGuid,
++                    parentPosItemGuid: i.parentPosItemGuid,
++                    displayName: i.displayName,
++                    menuItemId: i.kind === 'ITEM' ? menuItemOf.get(i.posItemGuid) ?? null : null,
++                    paidQty: i.paidQty,
++                    paidCents: i.paidCents,
++                    openQty: i.openQty,
++                    openCents: i.openCents,
++                    voidedQty: i.voidedQty,
++                    computedAt
++                }))
++            })
++        ]);
+         return { ...totals, date, computedAt: computedAt.toISOString() };
+     } catch (e) {
+         console.error(`Toast daily sales ${date} failed:`, e instanceof Error ? e.message : e);
+@@ -120,8 +167,40 @@ export async function readToastDailySales(businessDates: string[]): Promise<Dail
+                 openChecks: r.openChecks,
+                 cashChecks: r.cashChecks,
+                 cashNetCents: r.cashNetCents,
+-                computedAt: r.computedAt.toISOString()
++                computedAt: r.computedAt.toISOString(),
++                itemsComputedAt: r.itemsComputedAt ? r.itemsComputedAt.toISOString() : null
+             }
+-            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null };
++            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null, itemsComputedAt: null };
++    });
++}
++
++/** The stored items for the requested dates, in no particular order; nothing for a day never read with items. */
++export async function readToastDailyItems(businessDates: string[]): Promise<DailyItemRow[]> {
++    const dates = businessDates.filter(isBusinessDate);
++    const rows = await prisma.posDailyItemSales.findMany({
++        where: { source: PosSource.TOAST, businessDate: { in: dates.map(dateColumn) } }
++    });
++    return rows.map(r => ({
++        date: r.businessDate.toISOString().slice(0, 10),
++        kind: r.kind === 'MODIFIER' ? 'MODIFIER' : 'ITEM',
++        posItemGuid: r.posItemGuid,
++        parentPosItemGuid: r.parentPosItemGuid,
++        displayName: r.displayName,
++        menuItemId: r.menuItemId,
++        paidQty: r.paidQty,
++        paidCents: r.paidCents,
++        openQty: r.openQty,
++        openCents: r.openCents,
++        voidedQty: r.voidedQty
++    }));
++}
++
++/** Days since `first` whose figures or items have not been read yet, oldest first — what the Sync button still owes. */
++export async function unreadToastDays(dates: string[]): Promise<string[]> {
++    const stored = await prisma.posDailySales.findMany({
++        where: { source: PosSource.TOAST, businessDate: { in: dates.map(dateColumn) }, itemsComputedAt: { not: null } },
++        select: { businessDate: true }
+     });
++    const done = new Set(stored.map(r => r.businessDate.toISOString().slice(0, 10)));
++    return dates.filter(d => !done.has(d));
+ }
+diff --git a/src/lib/toast/dailySales.ts b/src/lib/toast/dailySales.ts
+index a502516..4546a01 100644
+--- a/src/lib/toast/dailySales.ts
++++ b/src/lib/toast/dailySales.ts
+@@ -165,3 +165,83 @@ export function aggregateToastDailySales(orders: any[]): ToastDailySalesTotals {
+     }
+     return t;
+ }
++
++// ─── Items ──────────────────────────────────────────────────────────────────
++
++export type ToastDailyItemRow = {
++    kind: 'ITEM' | 'MODIFIER';
++    posItemGuid: string;
++    /** MODIFIER: the item it was sold on; '' for an ITEM. */
++    parentPosItemGuid: string;
++    displayName: string;
++    paidQty: number;
++    /** Toast's post-discount `price` over paid/closed checks; an ITEM's includes its modifiers. */
++    paidCents: number;
++    openQty: number;
++    openCents: number;
++    voidedQty: number;
++};
++
++/**
++ * What sold on the day, per POS item and per modifier under its item, from
++ * the same orders aggregateToastDailySales reads. The same checks count:
++ * voided or deleted orders and checks put every selection under voidedQty,
++ * as does a voided selection on a live check; deferred selections (gift
++ * cards) and house-account payments are not sales and are left out. Money
++ * is Toast's `price` on the selection: post-discount, quantity-adjusted and
++ * — for an item — inclusive of its modifiers, which is why a day's ITEM rows
++ * alone add up to its checks' amounts. Modifier rows carry their own price
++ * for reference and are never added on top.
++ *
++ * `modifierKey` names a modifier that has no item guid of its own (Toast's
++ * option-group modifiers) the way PosItemMapping keys them, so the caller
++ * can resolve mappings; passed in to keep this file free of path aliases.
++ */
++export function aggregateToastDailyItems(orders: any[], modifierKey: (optionGroupGuid: string | null | undefined, name: string) => string): ToastDailyItemRow[] {
++    const rows = new Map<string, ToastDailyItemRow>();
++    const touch = (kind: 'ITEM' | 'MODIFIER', posItemGuid: string, parentPosItemGuid: string, displayName: string): ToastDailyItemRow => {
++        const key = `${kind}|${posItemGuid}|${parentPosItemGuid}`;
++        let row = rows.get(key);
++        if (!row) {
++            row = { kind, posItemGuid, parentPosItemGuid, displayName, paidQty: 0, paidCents: 0, openQty: 0, openCents: 0, voidedQty: 0 };
++            rows.set(key, row);
++        }
++        return row;
++    };
++    const qtyOf = (sel: any): number => (typeof sel?.quantity === 'number' && Number.isFinite(sel.quantity) && sel.quantity >= 0 ? sel.quantity : 1);
++
++    for (const order of orders) {
++        const orderVoid = !!(order?.voided || order?.deleted || order?.excessFood === true);
++        for (const check of order?.checks ?? []) {
++            const checkVoid = orderVoid || !!(check?.voided || check?.deleted);
++            const paid = isPaidCheck(check);
++            for (const sel of check?.selections ?? []) {
++                if (sel?.deferred === true || sel?.selectionType === 'HOUSE_ACCOUNT_PAY_BALANCE') continue;
++                const itemGuid = typeof sel?.item?.guid === 'string' ? sel.item.guid : '';
++                const name = String(sel?.displayName ?? '');
++                const qty = qtyOf(sel);
++                const voided = checkVoid || !!sel?.voided;
++                const item = touch('ITEM', itemGuid, '', name);
++                if (voided) item.voidedQty += qty;
++                else if (paid) { item.paidQty += qty; item.paidCents += centsOf(sel?.price); }
++                else { item.openQty += qty; item.openCents += centsOf(sel?.price); }
++
++                // Modifiers nest; every level is a modifier of the top item, in units of the item sold.
++                const visit = (list: any[]) => {
++                    for (const m of list ?? []) {
++                        const mName = String(m?.displayName ?? '');
++                        const mGuid = typeof m?.item?.guid === 'string' ? m.item.guid : modifierKey(m?.optionGroup?.guid, mName);
++                        const mQty = qtyOf(m) * qty;
++                        const mod = touch('MODIFIER', mGuid, itemGuid, mName);
++                        if (voided || m?.voided) mod.voidedQty += mQty;
++                        else if (paid) { mod.paidQty += mQty; mod.paidCents += centsOf(m?.price); }
++                        else { mod.openQty += mQty; mod.openCents += centsOf(m?.price); }
++                        visit(m?.modifiers);
++                    }
++                };
++                visit(sel?.modifiers);
++            }
++        }
++    }
++    return [...rows.values()];
++}
