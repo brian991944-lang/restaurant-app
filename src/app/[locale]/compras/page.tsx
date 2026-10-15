@@ -53,10 +53,11 @@ export default function ComprasPage() {
     const tabs = [
         { id: 'RD_SYSCO', label: 'RD & Sysco', providers: ['Restaurant Depot', 'Sysco'] },
         { id: 'PERUANOS', label: 'Productos Peruanos', providers: ['Productos Peruanos', 'JCC Ganoza'] },
-        { id: 'MONARCH', label: 'Monarch Seafood', providers: ['Monarch Seafood'] }
+        { id: 'MONARCH', label: 'Monarch Seafood', providers: ['Monarch Seafood'] },
+        { id: 'OTROS', label: locale === 'es' ? 'Otros' : 'Other', providers: ['Walmart', 'Amazon', 'Super Fresh', 'Costco'] }
     ];
     if (isAdmin) {
-        tabs.push({ id: 'SUBMITTED_LIST', label: locale === 'es' ? 'Lista Enviada' : 'Submitted List', providers: ['Restaurant Depot', 'Sysco', 'Productos Peruanos', 'JCC Ganoza', 'Monarch Seafood'] });
+        tabs.push({ id: 'SUBMITTED_LIST', label: locale === 'es' ? 'Lista Enviada' : 'Submitted List', providers: ['Restaurant Depot', 'Sysco', 'Productos Peruanos', 'JCC Ganoza', 'Monarch Seafood', 'Walmart', 'Amazon', 'Super Fresh', 'Costco'] });
     }
 
     useEffect(() => {
