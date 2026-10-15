@@ -315,210 +315,248 @@ export default function ComprasPage() {
                                         );
                                     }
 
-                                    const groupedIngredients = Array.from<[string, any[]]>(
-                                        filteredIngredients.reduce((acc, ing) => {
-                                            const cat = locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
-                                            if (!acc.has(cat)) acc.set(cat, []);
-                                            acc.get(cat).push(ing);
-                                            return acc;
-                                        }, new Map<string, any[]>())
-                                    ).sort((a, b) => a[0].localeCompare(b[0], locale));
+                                    // Rows grouped by category. Lista Enviada renders two sections: what is left
+                                    // to buy on top, and Comprado at the bottom, dimmed and struck through.
+                                    const renderGroups = (list: any[], sectionKey: string, dimmed: boolean) => {
+                                        const groupedIngredients = Array.from<[string, any[]]>(
+                                            list.reduce((acc, ing) => {
+                                                const cat = locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
+                                                if (!acc.has(cat)) acc.set(cat, []);
+                                                acc.get(cat).push(ing);
+                                                return acc;
+                                            }, new Map<string, any[]>())
+                                        ).sort((a, b) => a[0].localeCompare(b[0], locale));
 
-                                    return groupedIngredients.map(([category, items]) => {
-                                        items.sort((a: any, b: any) => {
-                                            const nameA = locale === 'es' && a.nameEs ? a.nameEs : a.name;
-                                            const nameB = locale === 'es' && b.nameEs ? b.nameEs : b.name;
-                                            return nameA.localeCompare(nameB, locale);
-                                        });
+                                        return groupedIngredients.map(([category, items]) => {
+                                            items.sort((a: any, b: any) => {
+                                                const nameA = locale === 'es' && a.nameEs ? a.nameEs : a.name;
+                                                const nameB = locale === 'es' && b.nameEs ? b.nameEs : b.name;
+                                                return nameA.localeCompare(nameB, locale);
+                                            });
 
-                                        return (
-                                            <React.Fragment key={category}>
-                                                {items.map((ing: any, idx: number) => {
-                                                    const qty = (ing.inventory?.frozenQty || 0) + (ing.inventory?.thawingQty || 0);
-                                                    let displayStock = `${qty} ${ing.metric}`;
-                                                    if (ing.isPacked && ing.unitsPerPack > 0 && qty > 0) {
-                                                        const totalPacks = Math.floor(qty / ing.unitsPerPack);
-                                                        const packLabel = (locale === 'es' && ing.packUnit?.toLowerCase() === 'bags') ? 'Bolsas' :
-                                                            (locale === 'es' && ing.packUnit?.toLowerCase() === 'boxes') ? 'Cajas' : (ing.packUnit || 'Packs');
-                                                        displayStock = `${totalPacks} ${packLabel} (${qty} ${ing.metric})`;
-                                                    }
-
-                                                    const isEven = idx % 2 === 0;
-
-                                                    // Row styling. In the Lista Enviada view it is driven ONLY by
-                                                    // purchaseStatus (plain/neutral by default, green only when Comprado).
-                                                    // Every other tab keeps the original needsOrdering-based styling.
-                                                    let rowBg: string;
-                                                    let rowHoverBg: string;
-                                                    let nameColor: string;
-                                                    if (activeTab === 'SUBMITTED_LIST') {
-                                                        if (ing.purchaseStatus === 'COMPRADO') {
-                                                            rowBg = 'rgba(34, 197, 94, 0.05)';
-                                                            rowHoverBg = 'rgba(34, 197, 94, 0.1)';
-                                                            nameColor = 'var(--success)';
-                                                        } else if (ing.purchaseStatus === 'NO_DISPONIBLE') {
-                                                            rowBg = 'rgba(245, 158, 11, 0.08)';
-                                                            rowHoverBg = 'rgba(245, 158, 11, 0.15)';
-                                                            nameColor = '#f59e0b';
-                                                        } else {
-                                                            rowBg = isEven ? 'rgba(255,255,255,0.02)' : 'transparent';
-                                                            rowHoverBg = 'var(--bg-secondary)';
-                                                            nameColor = 'inherit';
+                                            return (
+                                                <React.Fragment key={`${sectionKey}-${category}`}>
+                                                    {items.map((ing: any, idx: number) => {
+                                                        const qty = (ing.inventory?.frozenQty || 0) + (ing.inventory?.thawingQty || 0);
+                                                        let displayStock = `${qty} ${ing.metric}`;
+                                                        if (ing.isPacked && ing.unitsPerPack > 0 && qty > 0) {
+                                                            const totalPacks = Math.floor(qty / ing.unitsPerPack);
+                                                            const packLabel = (locale === 'es' && ing.packUnit?.toLowerCase() === 'bags') ? 'Bolsas' :
+                                                                (locale === 'es' && ing.packUnit?.toLowerCase() === 'boxes') ? 'Cajas' : (ing.packUnit || 'Packs');
+                                                            displayStock = `${totalPacks} ${packLabel} (${qty} ${ing.metric})`;
                                                         }
-                                                    } else {
-                                                        rowBg = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent');
-                                                        rowHoverBg = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)') : 'var(--bg-secondary)';
-                                                        nameColor = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'var(--success)' : 'var(--danger)') : 'inherit';
-                                                    }
 
-                                                    return (
-                                                        <tr
-                                                            key={ing.id}
-                                                            style={{
-                                                                borderBottom: '1px solid var(--border)',
-                                                                transition: 'background 0.2s',
-                                                                background: rowBg
-                                                            }}
-                                                            onMouseOver={(e) => e.currentTarget.style.background = rowHoverBg}
-                                                            onMouseOut={(e) => e.currentTarget.style.background = rowBg}
-                                                        >
-                                                            {idx === 0 && (
-                                                                <td
-                                                                    rowSpan={items.length}
-                                                                    style={{
-                                                                        padding: '1rem',
-                                                                        background: 'rgba(139, 92, 246, 0.05)',
-                                                                        borderRight: '2px solid var(--border)',
-                                                                        borderBottom: '1px solid var(--border)',
-                                                                        verticalAlign: 'middle',
-                                                                        fontWeight: 700,
-                                                                        fontSize: '1.05rem',
-                                                                        color: 'var(--text-primary)'
-                                                                    }}
-                                                                >
-                                                                    {category as string}
-                                                                </td>
-                                                            )}
-                                                            <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
-                                                                {activeTab === 'SUBMITTED_LIST' ? (
-                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                                        <button
-                                                                            data-no-capture="true"
-                                                                            onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'COMPRADO' ? 'PENDIENTE' : 'COMPRADO')}
-                                                                            title="Comprado"
-                                                                            style={{
-                                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                                border: ing.purchaseStatus === 'COMPRADO' ? 'none' : '1px solid var(--border)',
-                                                                                background: ing.purchaseStatus === 'COMPRADO' ? 'var(--success)' : 'transparent',
-                                                                                color: ing.purchaseStatus === 'COMPRADO' ? '#fff' : 'var(--text-secondary)',
-                                                                                cursor: 'pointer', padding: '0.6rem', borderRadius: '8px',
-                                                                                minWidth: '48px', minHeight: '48px'
-                                                                            }}
-                                                                        >
-                                                                            {ing.purchaseStatus === 'COMPRADO' ? <CheckSquare size={24} /> : <Square size={24} />}
-                                                                        </button>
-                                                                        <button
-                                                                            data-no-capture="true"
-                                                                            onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'NO_DISPONIBLE' ? 'PENDIENTE' : 'NO_DISPONIBLE')}
-                                                                            title="No Disponible"
-                                                                            style={{
-                                                                                border: ing.purchaseStatus === 'NO_DISPONIBLE' ? 'none' : '1px solid var(--border)',
-                                                                                background: ing.purchaseStatus === 'NO_DISPONIBLE' ? '#f59e0b' : 'transparent',
-                                                                                color: ing.purchaseStatus === 'NO_DISPONIBLE' ? '#fff' : 'var(--text-secondary)',
-                                                                                cursor: 'pointer', padding: '0.6rem 0.8rem', borderRadius: '8px',
-                                                                                minHeight: '48px', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap'
-                                                                            }}
-                                                                        >
-                                                                            No disp.
-                                                                        </button>
-                                                                    </div>
-                                                                ) : (
-                                                                    <button
-                                                                        data-no-capture="true"
-                                                                        onClick={() => handleToggle(ing.id, ing.needsOrdering)}
-                                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
+                                                        const isEven = idx % 2 === 0;
+
+                                                        // Row styling. In the Lista Enviada view it is driven ONLY by
+                                                        // purchaseStatus (plain/neutral by default, green only when Comprado).
+                                                        // Every other tab keeps the original needsOrdering-based styling.
+                                                        let rowBg: string;
+                                                        let rowHoverBg: string;
+                                                        let nameColor: string;
+                                                        if (activeTab === 'SUBMITTED_LIST') {
+                                                            if (ing.purchaseStatus === 'COMPRADO') {
+                                                                rowBg = 'rgba(34, 197, 94, 0.05)';
+                                                                rowHoverBg = 'rgba(34, 197, 94, 0.1)';
+                                                                nameColor = 'var(--success)';
+                                                            } else if (ing.purchaseStatus === 'NO_DISPONIBLE') {
+                                                                rowBg = 'rgba(245, 158, 11, 0.08)';
+                                                                rowHoverBg = 'rgba(245, 158, 11, 0.15)';
+                                                                nameColor = '#f59e0b';
+                                                            } else {
+                                                                rowBg = isEven ? 'rgba(255,255,255,0.02)' : 'transparent';
+                                                                rowHoverBg = 'var(--bg-secondary)';
+                                                                nameColor = 'inherit';
+                                                            }
+                                                        } else {
+                                                            rowBg = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)') : (isEven ? 'rgba(255,255,255,0.02)' : 'transparent');
+                                                            rowHoverBg = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)') : 'var(--bg-secondary)';
+                                                            nameColor = ing.needsOrdering ? (ing.isSubmittedForOrdering ? 'var(--success)' : 'var(--danger)') : 'inherit';
+                                                        }
+
+                                                        return (
+                                                            <tr
+                                                                key={ing.id}
+                                                                style={{
+                                                                    borderBottom: '1px solid var(--border)',
+                                                                    transition: 'background 0.2s',
+                                                                    background: rowBg,
+                                                                    ...(dimmed ? { opacity: 0.5 } : {})
+                                                                }}
+                                                                onMouseOver={(e) => e.currentTarget.style.background = rowHoverBg}
+                                                                onMouseOut={(e) => e.currentTarget.style.background = rowBg}
+                                                            >
+                                                                {idx === 0 && (
+                                                                    <td
+                                                                        rowSpan={items.length}
+                                                                        style={{
+                                                                            padding: '1rem',
+                                                                            background: 'rgba(139, 92, 246, 0.05)',
+                                                                            borderRight: '2px solid var(--border)',
+                                                                            borderBottom: '1px solid var(--border)',
+                                                                            verticalAlign: 'middle',
+                                                                            fontWeight: 700,
+                                                                            fontSize: '1.05rem',
+                                                                            color: 'var(--text-primary)'
+                                                                        }}
                                                                     >
-                                                                        {ing.needsOrdering ? (
-                                                                            <CheckSquare size={24} color={ing.isSubmittedForOrdering ? "var(--success)" : "var(--danger)"} />
-                                                                        ) : (
-                                                                            <Square size={24} color="var(--text-secondary)" />
-                                                                        )}
-                                                                    </button>
+                                                                        {category as string}
+                                                                    </td>
                                                                 )}
-                                                            </td>
-                                                            <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: nameColor }}>
-                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                                    {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
+                                                                <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                                                     {activeTab === 'SUBMITTED_LIST' ? (
-                                                                        <>
-                                                                            {ing.purchaseStatus === 'COMPRADO' && (
-                                                                                <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                                                                    Comprado
-                                                                                </span>
-                                                                            )}
-                                                                            {ing.purchaseStatus === 'NO_DISPONIBLE' && (
-                                                                                <span style={{ fontSize: '0.75rem', background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                                                                    No Disponible
-                                                                                </span>
-                                                                            )}
-                                                                            {ing.carriedOver === true && (
-                                                                                <span style={{ fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                                                                                    Pendiente de antes
-                                                                                </span>
-                                                                            )}
-                                                                        </>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                            <button
+                                                                                data-no-capture="true"
+                                                                                onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'COMPRADO' ? 'PENDIENTE' : 'COMPRADO')}
+                                                                                title="Comprado"
+                                                                                style={{
+                                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                                    border: ing.purchaseStatus === 'COMPRADO' ? 'none' : '1px solid var(--border)',
+                                                                                    background: ing.purchaseStatus === 'COMPRADO' ? 'var(--success)' : 'transparent',
+                                                                                    color: ing.purchaseStatus === 'COMPRADO' ? '#fff' : 'var(--text-secondary)',
+                                                                                    cursor: 'pointer', padding: '0.6rem', borderRadius: '8px',
+                                                                                    minWidth: '48px', minHeight: '48px'
+                                                                                }}
+                                                                            >
+                                                                                {ing.purchaseStatus === 'COMPRADO' ? <CheckSquare size={24} /> : <Square size={24} />}
+                                                                            </button>
+                                                                            <button
+                                                                                data-no-capture="true"
+                                                                                onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'NO_DISPONIBLE' ? 'PENDIENTE' : 'NO_DISPONIBLE')}
+                                                                                title="No Disponible"
+                                                                                style={{
+                                                                                    border: ing.purchaseStatus === 'NO_DISPONIBLE' ? 'none' : '1px solid var(--border)',
+                                                                                    background: ing.purchaseStatus === 'NO_DISPONIBLE' ? '#f59e0b' : 'transparent',
+                                                                                    color: ing.purchaseStatus === 'NO_DISPONIBLE' ? '#fff' : 'var(--text-secondary)',
+                                                                                    cursor: 'pointer', padding: '0.6rem 0.8rem', borderRadius: '8px',
+                                                                                    minHeight: '48px', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap'
+                                                                                }}
+                                                                            >
+                                                                                No disp.
+                                                                            </button>
+                                                                        </div>
                                                                     ) : (
-                                                                        ing.isSubmittedForOrdering && (
-                                                                            <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                                                                {locale === 'es' ? 'Enviado' : 'Submitted'}
-                                                                            </span>
-                                                                        )
+                                                                        <button
+                                                                            data-no-capture="true"
+                                                                            onClick={() => handleToggle(ing.id, ing.needsOrdering)}
+                                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', padding: '0.25rem' }}
+                                                                        >
+                                                                            {ing.needsOrdering ? (
+                                                                                <CheckSquare size={24} color={ing.isSubmittedForOrdering ? "var(--success)" : "var(--danger)"} />
+                                                                            ) : (
+                                                                                <Square size={24} color="var(--text-secondary)" />
+                                                                            )}
+                                                                        </button>
+                                                                    )}
+                                                                </td>
+                                                                <td style={{ padding: '0.8rem 1rem', fontWeight: 500, color: nameColor }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                        <span style={dimmed ? { textDecoration: 'line-through' } : undefined}>
+                                                                            {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
+                                                                        </span>
+                                                                        {activeTab === 'SUBMITTED_LIST' ? (
+                                                                            <>
+                                                                                {ing.purchaseStatus === 'COMPRADO' && (
+                                                                                    <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                                                                        Comprado
+                                                                                    </span>
+                                                                                )}
+                                                                                {ing.purchaseStatus === 'NO_DISPONIBLE' && (
+                                                                                    <span style={{ fontSize: '0.75rem', background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                                                                        No Disponible
+                                                                                    </span>
+                                                                                )}
+                                                                                {ing.carriedOver === true && (
+                                                                                    <span style={{ fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                                                                                        Pendiente de antes
+                                                                                    </span>
+                                                                                )}
+                                                                            </>
+                                                                        ) : (
+                                                                            ing.isSubmittedForOrdering && (
+                                                                                <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
+                                                                                    {locale === 'es' ? 'Enviado' : 'Submitted'}
+                                                                                </span>
+                                                                            )
+                                                                        )}
+                                                                    </div>
+                                                                    {Array.isArray(ing.prepItems) && ing.prepItems.length > 0 && (
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                                                            {ing.prepItems.map((proc: any) => {
+                                                                                const procQty = (proc.inventory?.frozenQty || 0) + (proc.inventory?.thawingQty || 0);
+                                                                                return (
+                                                                                    <span
+                                                                                        key={proc.id}
+                                                                                        title={locale === 'es' ? 'Ya tienes esto porcionado/preparado' : 'You already have this portioned/prepped'}
+                                                                                        style={{
+                                                                                            fontSize: '0.75rem',
+                                                                                            fontWeight: 600,
+                                                                                            color: '#60a5fa',
+                                                                                            background: 'rgba(59, 130, 246, 0.1)',
+                                                                                            border: '1px solid rgba(59, 130, 246, 0.25)',
+                                                                                            padding: '0.15rem 0.5rem',
+                                                                                            borderRadius: '10px',
+                                                                                            whiteSpace: 'nowrap'
+                                                                                        }}
+                                                                                    >
+                                                                                        ↳ {locale === 'es' && proc.nameEs ? proc.nameEs : proc.name}: {Number(procQty.toFixed(2))} {proc.metric}
+                                                                                    </span>
+                                                                                );
+                                                                            })}
+                                                                        </div>
                                                                     )}
                                                                 </div>
-                                                                {Array.isArray(ing.prepItems) && ing.prepItems.length > 0 && (
-                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                                                        {ing.prepItems.map((proc: any) => {
-                                                                            const procQty = (proc.inventory?.frozenQty || 0) + (proc.inventory?.thawingQty || 0);
-                                                                            return (
-                                                                                <span
-                                                                                    key={proc.id}
-                                                                                    title={locale === 'es' ? 'Ya tienes esto porcionado/preparado' : 'You already have this portioned/prepped'}
-                                                                                    style={{
-                                                                                        fontSize: '0.75rem',
-                                                                                        fontWeight: 600,
-                                                                                        color: '#60a5fa',
-                                                                                        background: 'rgba(59, 130, 246, 0.1)',
-                                                                                        border: '1px solid rgba(59, 130, 246, 0.25)',
-                                                                                        padding: '0.15rem 0.5rem',
-                                                                                        borderRadius: '10px',
-                                                                                        whiteSpace: 'nowrap'
-                                                                                    }}
-                                                                                >
-                                                                                    ↳ {locale === 'es' && proc.nameEs ? proc.nameEs : proc.name}: {Number(procQty.toFixed(2))} {proc.metric}
-                                                                                </span>
-                                                                            );
-                                                                        })}
-                                                                    </div>
+                                                                </td>
+                                                                {isAdmin && (
+                                                                    <>
+                                                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 500 }}>
+                                                                            {displayStock}
+                                                                        </td>
+                                                                        <td style={{ padding: '0.8rem 1rem', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                                            {ing.provider?.name || 'Unknown'}
+                                                                        </td>
+                                                                    </>
                                                                 )}
-                                                            </div>
-                                                            </td>
-                                                            {isAdmin && (
-                                                                <>
-                                                                    <td style={{ padding: '0.8rem 1rem', textAlign: 'right', fontWeight: 500 }}>
-                                                                        {displayStock}
-                                                                    </td>
-                                                                    <td style={{ padding: '0.8rem 1rem', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                                                        {ing.provider?.name || 'Unknown'}
-                                                                    </td>
-                                                                </>
-                                                            )}
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </React.Fragment>
-                                        );
-                                    });
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </React.Fragment>
+                                            );
+                                        });
+                                    };
+
+                                    if (activeTab !== 'SUBMITTED_LIST') {
+                                        return renderGroups(filteredIngredients, 'all', false);
+                                    }
+
+                                    const toBuy = filteredIngredients.filter(ing => ing.purchaseStatus !== 'COMPRADO');
+                                    const bought = filteredIngredients.filter(ing => ing.purchaseStatus === 'COMPRADO');
+                                    return (
+                                        <>
+                                            {renderGroups(toBuy, 'toBuy', false)}
+                                            {bought.length > 0 && (
+                                                <tr key="bought-divider">
+                                                    <td
+                                                        colSpan={isAdmin ? 5 : 3}
+                                                        style={{
+                                                            padding: '0.75rem 1rem',
+                                                            background: 'var(--bg-secondary)',
+                                                            borderTop: '2px solid var(--border)',
+                                                            borderBottom: '1px solid var(--border)',
+                                                            color: 'var(--success)',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.95rem'
+                                                        }}
+                                                    >
+                                                        {locale === 'es' ? `Comprado (${bought.length})` : `Bought (${bought.length})`}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {renderGroups(bought, 'bought', true)}
+                                        </>
+                                    );
                                 })()}
                             </tbody>
                         </table>
