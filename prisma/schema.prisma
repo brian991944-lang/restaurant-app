@@ -1554,3 +1554,17 @@ model GbpRatingSnapshot {
   totalReviews  Int
   syncedAt      DateTime @default(now())
 }
+
+/// A platform passkey (fingerprint / Face ID) registered to unlock Admin.
+/// One row per device the admin enrolled. `credentialId` and `publicKey` are
+/// base64url strings as returned by @simplewebauthn/server.
+model AdminPasskey {
+  id           String   @id @default(cuid())
+  credentialId String   @unique
+  publicKey    String
+  counter      BigInt   @default(0)
+  transports   String?  // JSON array of AuthenticatorTransport
+  deviceName   String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+}
