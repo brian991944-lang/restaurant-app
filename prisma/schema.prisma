@@ -1052,6 +1052,11 @@ model EmployeeRate {
   // ADP figure is unusable without it, and the names are easier to collect now,
   // while someone is looking at them, than to reconstruct later.
   adpName          String?
+  // The person's name as Toast's time-entry export spells it, flipped to
+  // "First Last" ("Pillo, Lili" → "Lili Pillo"), where Toast and the app
+  // disagree. Saved from the timesheet import preview the first time a name
+  // cannot be matched, so the next upload resolves it without asking.
+  toastName        String?
   // Hides the person from the CONFIG panel only. It must NEVER remove them from
   // a payroll report: someone with hours that week still appears there and still
   // gets paid. Hiding is decluttering, not exclusion — getPayrollWeek does not

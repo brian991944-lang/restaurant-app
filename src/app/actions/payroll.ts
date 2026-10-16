@@ -2611,7 +2611,7 @@ export async function getWeekPunches(weekEnding?: string): Promise<WeekPunchesVi
             clockIn: p.clockIn.toISOString(),
             clockOut: p.clockOut ? p.clockOut.toISOString() : null,
             hours: dec(p.hours),
-            sourceKind: p.importBatchId?.startsWith('TOAST_API')
+            sourceKind: p.importBatchId?.startsWith('TOAST')
                 ? 'TOAST'
                 : p.source === 'IMPORTADO' ? 'HOMEBASE' : 'MANUAL',
             isFlagged: p.isFlagged,

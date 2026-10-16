@@ -21,7 +21,7 @@ const clock = (iso: string) => timeFmt.format(new Date(iso)).replace(/\s?(AM|PM)
 const hoursText = (cents: number) => (cents / 100).toFixed(2);
 
 /** The flag codes that have a flag_<CODE> label. Unknown codes are shown raw rather than throwing. */
-const KNOWN_FLAGS = new Set(['SIN_SALIDA', 'SALIDA_ANTES_DE_ENTRADA', 'HORAS_MINIMAS', 'HORAS_MAXIMAS', 'SIN_ID_CLOVER']);
+const KNOWN_FLAGS = new Set(['SIN_SALIDA', 'SALIDA_ANTES_DE_ENTRADA', 'HORAS_MINIMAS', 'HORAS_MAXIMAS', 'SIN_ID_CLOVER', 'DOBLE_MARCAJE']);
 
 const initials = (name: string) =>
     name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('') || '?';

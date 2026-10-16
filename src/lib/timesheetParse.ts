@@ -52,7 +52,13 @@ export type PunchFlag =
     | 'SALIDA_ANTES_DE_ENTRADA'
     | 'HORAS_MINIMAS'
     | 'HORAS_MAXIMAS'
-    | 'SIN_ID_CLOVER';
+    | 'SIN_ID_CLOVER'
+    /** Toast only: a punch starting within a minute of the same person's
+     *  previous clock-out, or clocked out at exactly 4:00 AM (Toast's
+     *  automatic clock-out). See lib/toastTimeParse.ts. */
+    | 'DOBLE_MARCAJE';
+
+export type TimesheetFormat = 'HOMEBASE' | 'TOAST';
 
 export type ParsedPunch = {
     businessDate: Date;
@@ -67,6 +73,9 @@ export type ParsedPunch = {
     flags: PunchFlag[];
     /** 1-based line in the source file, so a flag can be traced back to it. */
     csvLine: number;
+    /** Toast only: the name as the file spells it, flipped to "First Last".
+     *  employeeName is the app's name for the person once they are matched. */
+    sourceName?: string;
 };
 
 export type CrossCheck = 'OK' | 'MISMATCH' | 'SIN_FILA_TOTALES';
@@ -86,6 +95,7 @@ export type SkipCategory =
     | 'separator' | 'blank' | 'totalsForEmployee' | 'grandTotals';
 
 export type TimesheetParseResult = {
+    format: TimesheetFormat;
     merchant: string;
     /** Verbatim from line 2, e.g. "06/22/2026 To 06/28/2026". */
     payrollPeriod: string;
@@ -375,6 +385,7 @@ export function parseTimesheetCsv(
     const unresolvedNames = employees.filter(e => e.cloverEmployeeId === null).map(e => e.employeeName);
 
     return {
+        format: 'HOMEBASE',
         merchant,
         payrollPeriod,
         periodStart,
