@@ -6,6 +6,7 @@ import { getConversionFactor } from '@/lib/conversion';
 import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
 import { pushSalonItemToClover } from '@/app/actions/clover';
+import { getRecentPurchaseWeights } from '@/app/actions/purchases';
 
 async function translateToSpanish(text: string): Promise<string> {
     if (!text) return text;
@@ -375,6 +376,62 @@ export async function restockSalonItem(
 
     revalidatePath('/[locale]/inventory-salon', 'page');
     return { success: true, error: null };
+}
+
+/**
+ * Admin "Inventario" box view: every active RAW with its stock, newest
+ * purchase, and its active PROCESSED children (via parentId). Raws with
+ * children sort first, then by name. Ingredient has no minimum field; the
+ * page applies its existing fixed status rule.
+ */
+export async function getInventarioOverview() {
+    try {
+        const raws = await prisma.ingredient.findMany({
+            where: { type: 'RAW', isActive: true },
+            select: {
+                id: true, name: true, nameEs: true, metric: true,
+                isPacked: true, unitsPerPack: true, packUnit: true,
+                category: { select: { name: true, nameEs: true } },
+                provider: { select: { name: true } },
+                inventory: { select: { frozenQty: true, thawingQty: true } },
+                purchaseLines: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 1,
+                    select: { qty: true, unit: true, totalWeightLb: true, receipt: { select: { purchasedAt: true } } },
+                },
+                prepItems: {
+                    where: { type: 'PROCESSED', isActive: true },
+                    select: {
+                        id: true, name: true, nameEs: true, metric: true, portionWeightG: true, trackFreezerStatus: true,
+                        inventory: { select: { frozenQty: true, thawingQty: true } },
+                    },
+                    orderBy: { name: 'asc' },
+                },
+            },
+        });
+
+        const items = await Promise.all(raws.map(async r => {
+            const last = r.purchaseLines[0];
+            const lastPurchase = last
+                ? { purchasedAt: last.receipt.purchasedAt, qty: last.qty, unit: last.unit, totalWeightLb: last.totalWeightLb }
+                : null;
+            // Only needed for the "≈ 3 bolas" sub-line: last bought in a unit other than the metric.
+            let avgLbPerUnit: number | null = null;
+            if (lastPurchase && lastPurchase.unit.trim().toLowerCase() !== r.metric.trim().toLowerCase()) {
+                const w = await getRecentPurchaseWeights(r.id);
+                avgLbPerUnit = w.success ? w.avgLbPerUnit ?? null : null;
+            }
+            const { purchaseLines, prepItems, ...rest } = r;
+            return { ...rest, lastPurchase, avgLbPerUnit, children: prepItems };
+        }));
+
+        items.sort((a, b) =>
+            (a.children.length > 0 ? 0 : 1) - (b.children.length > 0 ? 0 : 1) || a.name.localeCompare(b.name));
+        return { success: true, data: items };
+    } catch (e: any) {
+        console.error('Error loading inventario overview:', e);
+        return { success: false, error: e.message, data: [] };
+    }
 }
 
 export async function getProviders() {

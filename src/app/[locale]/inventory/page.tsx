@@ -7,6 +7,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import Papa from 'papaparse';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
+import InventarioBoxes from './InventarioBoxes';
 import ManageOptionsModal from '@/components/modals/ManageOptionsModal';
 import RecipeBuilderModal from '@/components/modals/RecipeBuilderModal';
 import AdjustStockModal from '@/components/modals/AdjustStockModal';
@@ -77,7 +78,15 @@ const MOCK_PRODUCTION: ProductionSchedule[] = [
 
 export default function InventoryPage() {
     const { isAdmin } = useAdmin();
-    const [activeTab, setActiveTab] = useState<'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('ALL');
+    const [activeTab, setActiveTab] = useState<'BOXES' | 'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('ALL');
+    // Admins land on the box view. isAdmin can turn true after the first render,
+    // so switch then — unless a tab was already picked by hand.
+    const tabPickedRef = useRef(false);
+    useEffect(() => {
+        if (isAdmin && !tabPickedRef.current) setActiveTab('BOXES');
+        if (!isAdmin) setActiveTab(prev => (prev === 'BOXES' ? 'ALL' : prev));
+    }, [isAdmin]);
+    const tInventario = useTranslations('Inventario');
     const [categoryTab, setCategoryTab] = useState<'CATEGORIES' | 'PROVEEDORES'>('CATEGORIES');
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
@@ -720,7 +729,8 @@ export default function InventoryPage() {
                 {/* Tabs */}
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px' }}>
                     {[
-                        { id: 'ALL', label: locale === 'es' ? 'Inventario' : 'Inventory' },
+                        ...(isAdmin ? [{ id: 'BOXES', label: tInventario('tabBoxes') }] : []),
+                        { id: 'ALL', label: tInventario('tabTable') },
                         { id: 'ALL_INGREDIENTS', label: locale === 'es' ? 'Ingredientes' : 'Ingredients' },
                         ...(isAdmin ? [
                             { id: 'PREP_RECIPES', label: locale === 'es' ? 'Costeo de Receta' : 'Recipe Costing' },
@@ -729,7 +739,7 @@ export default function InventoryPage() {
                     ].map(tab => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => { tabPickedRef.current = true; setActiveTab(tab.id as any); }}
                             style={{
                                 padding: '0.5rem 1rem',
                                 borderRadius: '8px',
@@ -773,6 +783,19 @@ export default function InventoryPage() {
             </div>
 
             {/* Main View */}
+            {activeTab === 'BOXES' && isAdmin && (
+                <InventarioBoxes
+                    locale={locale === 'en' ? 'en' : 'es'}
+                    reloadKey={dbIngredients}
+                    onEdit={rawId => {
+                        const item = mappedInventory.find(i => i.id === rawId);
+                        if (!item) return;
+                        setEditingIngredient(item);
+                        setIsAddModalOpen(true);
+                    }}
+                />
+            )}
+
             {activeTab === 'ALL' && (
                 <div style={{ marginTop: '2.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 

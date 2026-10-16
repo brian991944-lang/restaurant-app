@@ -1089,5 +1089,28 @@
     "unreceived": "Hay {count} artículos comprados sin recibir. ¿Finalizar igual?",
     "finalizeAnyway": "Finalizar igual",
     "cancel": "Cancelar"
+  },
+  "Inventario": {
+    "tabBoxes": "Inventario",
+    "tabTable": "Tabla",
+    "title": "Inventario",
+    "count": "{count} artículos",
+    "all": "Todos",
+    "search": "Buscar por nombre…",
+    "uncategorized": "Sin categoría",
+    "noResults": "Sin resultados",
+    "loading": "Cargando…",
+    "unprocessed": "Por procesar",
+    "statusOk": "Bien",
+    "statusLow": "Pedir",
+    "statusOut": "Pedir ya",
+    "low": "bajo",
+    "out": "agotado",
+    "approxPacks": "≈ {count} paq.",
+    "approxUnits": "≈ {count} {unit}",
+    "lastPurchase": "Última compra: {date}",
+    "frozenFridge": "cong. {frozen} · refri {fridge}",
+    "portions": "porc.",
+    "editHint": "Editar {name}"
   }
 }

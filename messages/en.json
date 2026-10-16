@@ -1089,5 +1089,28 @@
     "unreceived": "There are {count} purchased items not received. Complete anyway?",
     "finalizeAnyway": "Complete anyway",
     "cancel": "Cancel"
+  },
+  "Inventario": {
+    "tabBoxes": "Inventory",
+    "tabTable": "Table",
+    "title": "Inventory",
+    "count": "{count} items",
+    "all": "All",
+    "search": "Search by name…",
+    "uncategorized": "Uncategorized",
+    "noResults": "No results",
+    "loading": "Loading…",
+    "unprocessed": "Unprocessed",
+    "statusOk": "OK",
+    "statusLow": "Order",
+    "statusOut": "Order now",
+    "low": "low",
+    "out": "out",
+    "approxPacks": "≈ {count} packs",
+    "approxUnits": "≈ {count} {unit}",
+    "lastPurchase": "Last purchase: {date}",
+    "frozenFridge": "frozen {frozen} · fridge {fridge}",
+    "portions": "port.",
+    "editHint": "Edit {name}"
   }
 }
