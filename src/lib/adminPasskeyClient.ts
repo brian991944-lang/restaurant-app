@@ -9,6 +9,7 @@ import { startRegistration, startAuthentication, platformAuthenticatorIsAvailabl
 // It is a hint, never a credential: the server decides.
 
 const ENROLLED_KEY = 'fusionista_admin_passkey';
+const OFFER_DISMISSED_KEY = 'fusionista_admin_passkey_offer_dismissed';
 
 export function isPasskeyEnrolledHere(): boolean {
     try { return localStorage.getItem(ENROLLED_KEY) === '1'; } catch { return false; }
@@ -19,6 +20,15 @@ function markEnrolledHere(on: boolean): void {
         if (on) localStorage.setItem(ENROLLED_KEY, '1');
         else localStorage.removeItem(ENROLLED_KEY);
     } catch { /* storage unavailable */ }
+}
+
+/** The post-login "enable fingerprint?" offer was declined on this device. */
+export function isPasskeyOfferDismissed(): boolean {
+    try { return localStorage.getItem(OFFER_DISMISSED_KEY) === '1'; } catch { return false; }
+}
+
+export function dismissPasskeyOffer(): void {
+    try { localStorage.setItem(OFFER_DISMISSED_KEY, '1'); } catch { /* storage unavailable */ }
 }
 
 /** Does this browser have a fingerprint / Face ID authenticator we can use? */

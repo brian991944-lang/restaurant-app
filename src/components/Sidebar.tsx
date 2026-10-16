@@ -4,10 +4,10 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard, Users, Star, Fingerprint } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard, Users, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
-import { passkeySupported, isPasskeyEnrolledHere, enrollPasskey, unlockWithPasskey } from '@/lib/adminPasskeyClient';
+import AdminUnlockModal from '@/components/AdminUnlockModal';
 import { useWorkstation } from '@/components/WorkstationContext';
 import { readReportsTab } from '@/lib/reportsTab';
 import { ANALYTICS_VIEWS, analyticsHref, type AnalyticsView } from '@/lib/analyticsView';
@@ -88,69 +88,6 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
     const { isAdmin, setIsAdmin } = useAdmin();
     const { station, setStation } = useWorkstation();
     const [showAdminModal, setShowAdminModal] = useState(false);
-    const [passwordInput, setPasswordInput] = useState('');
-    const [loginError, setLoginError] = useState(false);
-
-    // Passkey (fingerprint / Face ID) unlock. `passkeyAvailable` = this
-    // browser has a platform authenticator; `passkeyEnrolled` = this device
-    // already registered one (localStorage hint — the server still verifies).
-    const [passkeyAvailable, setPasskeyAvailable] = useState(false);
-    const [passkeyEnrolled, setPasskeyEnrolled] = useState(false);
-    const [passkeyBusy, setPasskeyBusy] = useState(false);
-    const [passkeyNotice, setPasskeyNotice] = useState<'enrolled' | 'enrollFailed' | 'unlockFailed' | 'none' | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        passkeySupported().then(ok => { if (!cancelled) setPasskeyAvailable(ok); });
-        setPasskeyEnrolled(isPasskeyEnrolledHere());
-        return () => { cancelled = true; };
-    }, []);
-
-    const handlePasskeyUnlock = async () => {
-        if (passkeyBusy) return;
-        setPasskeyBusy(true);
-        setPasskeyNotice(null);
-        const result = await unlockWithPasskey();
-        setPasskeyBusy(false);
-        if (result === 'ok') {
-            setPasskeyEnrolled(true);
-            setIsAdmin(true);
-            setShowAdminModal(false);
-        } else if (result === 'none') {
-            setPasskeyNotice('none');
-        } else if (result === 'failed') {
-            setPasskeyNotice('unlockFailed');
-        }
-        // 'cancelled' = the user dismissed the OS sheet; fall back to password silently.
-    };
-
-    const handlePasskeyEnroll = async () => {
-        if (passkeyBusy) return;
-        setPasskeyBusy(true);
-        setPasskeyNotice(null);
-        const result = await enrollPasskey();
-        setPasskeyBusy(false);
-        if (result === 'ok') {
-            setPasskeyEnrolled(true);
-            setPasskeyNotice('enrolled');
-            setTimeout(() => setPasskeyNotice(null), 3000);
-        } else if (result === 'failed') {
-            setPasskeyNotice('enrollFailed');
-        }
-    };
-
-    const openAdminModal = () => {
-        setShowAdminModal(true);
-        setLoginError(false);
-        setPasswordInput('');
-        setPasskeyNotice(null);
-        // A device that already enrolled goes straight to the fingerprint
-        // sheet; the password stays underneath as the fallback.
-        if (passkeyAvailable && isPasskeyEnrolledHere()) {
-            void handlePasskeyUnlock();
-        }
-    };
-
     const switchStation = (newStation: Station) => {
         setStation(newStation);
         if (!isAdmin) {
@@ -569,7 +506,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                             if (isAdmin) {
                                 setIsAdmin(false);
                             } else {
-                                openAdminModal();
+                                setShowAdminModal(true);
                             }
                         }}
                         className={`sidebar-hide-tablet ${isAdmin ? "btn-secondary" : "btn-primary"}`}
@@ -578,85 +515,14 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                         {isAdmin ? t('exit_admin') : t('admin_view')}
                     </button>
                 )}
-
-                {/* Enroll this device's fingerprint / Face ID — only while in Admin, only once per device */}
-                {!isCollapsed && isAdmin && passkeyAvailable && !passkeyEnrolled && (
-                    <button
-                        onClick={handlePasskeyEnroll}
-                        disabled={passkeyBusy}
-                        className="sidebar-hide-tablet btn-secondary"
-                        style={{ width: '100%', padding: '0.6rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', opacity: passkeyBusy ? 0.6 : 1 }}
-                    >
-                        <Fingerprint size={16} />
-                        {t('passkey_enable')}
-                    </button>
-                )}
-                {!isCollapsed && isAdmin && passkeyNotice === 'enrolled' && (
-                    <span className="sidebar-hide-tablet" style={{ color: 'var(--success)', fontSize: '0.8rem', textAlign: 'center' }}>{t('passkey_enabled')}</span>
-                )}
-                {!isCollapsed && isAdmin && passkeyNotice === 'enrollFailed' && (
-                    <span className="sidebar-hide-tablet" style={{ color: 'var(--danger)', fontSize: '0.8rem', textAlign: 'center' }}>{t('passkey_enable_failed')}</span>
-                )}
             </div>
 
-            {/* Admin Unlock Modal — fingerprint first (when this device has one), password as fallback */}
-            {showAdminModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="glass-panel" style={{ padding: '2rem', width: '320px', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--bg-glass)', backdropFilter: 'blur(16px)', border: '1px solid var(--glass-border)', borderRadius: '16px' }}>
-                        <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>{t('admin_access')}</h3>
-                        {passkeyAvailable && (
-                            <button
-                                onClick={handlePasskeyUnlock}
-                                disabled={passkeyBusy}
-                                className="btn-primary"
-                                style={{ padding: '0.8rem', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', opacity: passkeyBusy ? 0.6 : 1 }}
-                            >
-                                <Fingerprint size={20} />
-                                {t('passkey_unlock')}
-                            </button>
-                        )}
-                        {passkeyNotice === 'none' && <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('passkey_none')}</span>}
-                        {passkeyNotice === 'unlockFailed' && <span style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{t('passkey_unlock_failed')}</span>}
-                        <input
-                            type="password"
-                            value={passwordInput}
-                            onChange={e => { setPasswordInput(e.target.value); setLoginError(false); }}
-                            onKeyDown={e => {
-                                if (e.key === 'Enter') {
-                                    if (passwordInput === 'Fus10nY&Y') {
-                                        setIsAdmin(true);
-                                        setShowAdminModal(false);
-                                    } else {
-                                        setLoginError(true);
-                                    }
-                                }
-                            }}
-                            className="input-field"
-                            placeholder={t('password')}
-                            style={{ padding: '0.8rem', width: '100%' }}
-                            autoFocus={!passkeyEnrolled}
-                        />
-                        {loginError && <span style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{t('access_denied')}</span>}
-                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                            <button onClick={() => setShowAdminModal(false)} className="btn-secondary" style={{ padding: '0.5rem 1rem' }}>{t('cancel')}</button>
-                            <button
-                                onClick={() => {
-                                    if (passwordInput === 'Fus10nY&Y') {
-                                        setIsAdmin(true);
-                                        setShowAdminModal(false);
-                                    } else {
-                                        setLoginError(true);
-                                    }
-                                }}
-                                className="btn-primary"
-                                style={{ padding: '0.5rem 1rem' }}
-                            >
-                                {t('unlock')}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Admin unlock sheet: fingerprint / Face ID or password, verified server-side */}
+            <AdminUnlockModal
+                open={showAdminModal}
+                onClose={() => setShowAdminModal(false)}
+                onUnlocked={() => setIsAdmin(true)}
+            />
         </aside>
         </>
     );
