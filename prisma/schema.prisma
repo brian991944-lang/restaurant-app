@@ -91,7 +91,8 @@ model Ingredient {
   recipeIngredients RecipeIngredient[]
   prepAssignments   PrepAssignment[]
   vendorMarketItems VendorMarketItem[]
-  
+  purchaseLines     PurchaseLine[]
+
   // Rules
   isRuleTarget    RecurringPrepRule[] @relation("RuleTarget")
   isRuleBase      RecurringPrepRule[] @relation("RuleBase")
@@ -374,6 +375,39 @@ model InventoryTransaction {
   qty          Float
   note         String?
   createdAt    DateTime   @default(now())
+}
+
+// Recibir compra: one receipt per supplier purchase, posted from the Compras
+// "Recibir" tab (MANUAL), an agent filing Drive receipts (MUSE) or the API (API).
+// externalRef = the Drive file id when an agent posts; unique so a receipt is
+// never credited twice. providerId is a plain string, no FK.
+model PurchaseReceipt {
+  id           String         @id @default(cuid())
+  providerId   String?
+  supplierName String?
+  purchasedAt  DateTime
+  source       String         @default("MANUAL") // MANUAL | MUSE | API
+  externalRef  String?        @unique
+  note         String?
+  createdAt    DateTime       @default(now())
+  lines        PurchaseLine[]
+}
+
+// What was bought, as the caller described it (qty + unit as sent, for audit).
+// The metric amount actually credited lives on the PURCHASE InventoryTransaction.
+model PurchaseLine {
+  id            String          @id @default(cuid())
+  receiptId     String
+  ingredientId  String
+  qty           Float
+  unit          String
+  totalWeightLb Float?
+  priceCents    Int?
+  createdAt     DateTime        @default(now())
+  receipt       PurchaseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  ingredient    Ingredient      @relation(fields: [ingredientId], references: [id])
+
+  @@index([ingredientId, createdAt])
 }
 
 model DailySales {

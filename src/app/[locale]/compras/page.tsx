@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch, Share2 } from 'lucide-react';
 import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus } from '@/app/actions/compras';
 import { addIngredient } from '@/app/actions/inventory';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
+import { countUnreceivedComprado } from '@/app/actions/purchases';
+import RecibirTab from './RecibirTab';
 
 // A frozen copy of what was just sent. Taken BEFORE the server action runs,
 // because submitShoppingList flips isSubmittedForOrdering and the refetch that
@@ -40,6 +42,9 @@ function buildListaTexto(sentList: SentListSnapshot): string {
 export default function ComprasPage() {
     const locale = useLocale();
     const { isAdmin } = useAdmin();
+    const tRecibir = useTranslations('Recibir');
+    // Finalizar Compras: count of COMPRADO items not received today; non-null opens the confirm modal.
+    const [unreceivedCount, setUnreceivedCount] = useState<number | null>(null);
 
     const [activeTab, setActiveTab] = useState('RD_SYSCO');
     const [ingredients, setIngredients] = useState<any[]>([]);
@@ -58,6 +63,7 @@ export default function ComprasPage() {
     ];
     if (isAdmin) {
         tabs.push({ id: 'SUBMITTED_LIST', label: locale === 'es' ? 'Lista Enviada' : 'Submitted List', providers: ['Restaurant Depot', 'Sysco', 'Productos Peruanos', 'JCC Ganoza', 'Monarch Seafood', 'Walmart', 'Amazon', 'Super Fresh', 'Costco'] });
+        tabs.push({ id: 'RECIBIR', label: tRecibir('tab'), providers: [] });
     }
 
     useEffect(() => {
@@ -65,6 +71,7 @@ export default function ComprasPage() {
     }, [activeTab]);
 
     const loadData = async () => {
+        if (activeTab === 'RECIBIR') return; // RecibirTab loads its own data
         setIsLoading(true);
         const activeTabInfo = tabs.find(t => t.id === activeTab);
         if (activeTabInfo) {
@@ -74,6 +81,14 @@ export default function ComprasPage() {
             }
         }
         setIsLoading(false);
+    };
+
+    const finalizeShopping = async () => {
+        setUnreceivedCount(null);
+        const { completeShoppingList } = await import('@/app/actions/compras');
+        await completeShoppingList(tabs.find(t => t.id === 'SUBMITTED_LIST')!.providers);
+        alert(locale === 'es' ? '¡Compras marcadas como finalizadas!' : 'Shopping marked as completed!');
+        loadData();
     };
 
     const activeTabProviders = () => {
@@ -250,10 +265,11 @@ export default function ComprasPage() {
                     {isAdmin && activeTab === 'SUBMITTED_LIST' && (
                         <button 
                             onClick={async () => {
-                                const { completeShoppingList } = await import('@/app/actions/compras');
-                                await completeShoppingList(tabs.find(t => t.id === 'SUBMITTED_LIST')!.providers);
-                                alert(locale === 'es' ? '¡Compras marcadas como finalizadas!' : 'Shopping marked as completed!');
-                                loadData();
+                                const midnight = new Date();
+                                midnight.setHours(0, 0, 0, 0);
+                                const res = await countUnreceivedComprado(tabs.find(t => t.id === 'SUBMITTED_LIST')!.providers, midnight.toISOString());
+                                if (res.success && res.count > 0) setUnreceivedCount(res.count);
+                                else await finalizeShopping();
                             }}
                             style={{ padding: '0.6rem 1.2rem', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
                         >
@@ -261,7 +277,7 @@ export default function ComprasPage() {
                         </button>
                     )}
 
-                    {isAdmin && activeTab !== 'SUBMITTED_LIST' && (
+                    {isAdmin && activeTab !== 'SUBMITTED_LIST' && activeTab !== 'RECIBIR' && (
                         <button 
                             onClick={() => setIsCreateModalOpen(true)}
                             style={{ padding: '0.6rem 1.2rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
@@ -272,8 +288,10 @@ export default function ComprasPage() {
                 </div>
             </div>
 
-            <div className="glass-panel" style={{ flex: 1, padding: 0, overflow: 'hidden' }}>
-                {isLoading ? (
+            <div className="glass-panel" style={{ flex: 1, padding: 0, overflow: activeTab === 'RECIBIR' ? 'visible' : 'hidden' }}>
+                {activeTab === 'RECIBIR' ? (
+                    <RecibirTab locale={locale === 'en' ? 'en' : 'es'} />
+                ) : isLoading ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
                 ) : ingredients.length === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
@@ -665,6 +683,26 @@ export default function ComprasPage() {
                 onSave={handleSaveIngredient}
                 initialData={{ providerName: activeTabProviders() }}
             />
+
+            {unreceivedCount !== null && (
+                <div onClick={() => setUnreceivedCount(null)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div onClick={e => e.stopPropagation()}
+                        style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem', maxWidth: '420px', width: '100%' }}>
+                        <p style={{ fontSize: '1.05rem', marginBottom: '1.25rem' }}>{tRecibir('unreceived', { count: unreceivedCount })}</p>
+                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button onClick={() => setUnreceivedCount(null)}
+                                style={{ minHeight: '44px', padding: '0.6rem 1.2rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}>
+                                {tRecibir('cancel')}
+                            </button>
+                            <button onClick={finalizeShopping}
+                                style={{ minHeight: '44px', padding: '0.6rem 1.2rem', background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                {tRecibir('finalizeAnyway')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
