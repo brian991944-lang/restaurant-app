@@ -220,7 +220,8 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                                     </Clickable>
 
                                     <div className="inv-blocks">
-                                        <Block kind="RAW" tag={tagOf('RAW')} title={rawTitle(r)} value={stock} unit={unitLabel(r.metric, locale)} info={rawInfo(r, stock)} t={t} />
+                                        <Block kind="RAW" tag={tagOf('RAW')} title={rawTitle(r)} value={stock} unit={unitLabel(r.metric, locale)} info={rawInfo(r, stock)} t={t}
+                                            footer={<SpareLine spare={r.spare} t={t} />} />
                                         {children.map(c => {
                                             const kind = kindOf(c);
                                             return (
@@ -260,6 +261,7 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
                                         {r.provider?.name ?? '—'}{r.isPacked && rawInfo(r, stock) ? ` · ${rawInfo(r, stock)}` : ''}
                                     </div>
+                                    <SpareLine spare={r.spare} t={t} />
                                 </Clickable>
                             );
                         })}
@@ -278,8 +280,22 @@ function Clickable({ onEdit, id, title, className, style, children }: {
     return <button onClick={() => onEdit(id)} title={title} className={className} style={{ ...style, cursor: 'pointer' }}>{children}</button>;
 }
 
-function Block({ kind, tag, title, value, unit, info, t }: {
-    kind: Kind; tag: string; title: string; value: number; unit: string; info: string; t: ReturnType<typeof useTranslations>;
+// The storage signal a cook sees: where a sealed spare exists, never how many.
+// Green = basement (go get it), blue = Brian's house (ask him), amber = none.
+function SpareLine({ spare, t }: { spare: 'BASEMENT' | 'HOME' | 'NONE'; t: ReturnType<typeof useTranslations> }) {
+    const dot = spare === 'BASEMENT' ? 'var(--success)' : spare === 'HOME' ? 'var(--accent-primary)' : 'var(--warning)';
+    const label = spare === 'BASEMENT' ? t('spareBasement') : spare === 'HOME' ? t('spareHome') : t('spareNone');
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', marginTop: '0.25rem',
+            color: spare === 'NONE' ? 'var(--warning)' : 'var(--text-secondary)', fontWeight: spare === 'NONE' ? 600 : 400 }}>
+            <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 999, background: dot, flexShrink: 0 }} />
+            {label}
+        </div>
+    );
+}
+
+function Block({ kind, tag, title, value, unit, info, t, footer }: {
+    kind: Kind; tag: string; title: string; value: number; unit: string; info: string; t: ReturnType<typeof useTranslations>; footer?: React.ReactNode;
 }) {
     const lv = level(value);
     return (
@@ -298,6 +314,7 @@ function Block({ kind, tag, title, value, unit, info, t }: {
                 </div>
             )}
             {info && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{info}</div>}
+            {footer}
         </div>
     );
 }

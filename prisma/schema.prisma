@@ -78,6 +78,8 @@ model Ingredient {
   isSalonItem    Boolean @default(false)
   showInKitchen  Boolean @default(true)
   esfuerzo       String  @default("MANUAL")       // MANUAL | HERVIDO
+  trackMode      String  @default("COUNT")        // COUNT = stock number | SPARE = one in use + sealed spares in storage (cheap dry goods)
+  spareOpenedAt  DateTime?                        // SPARE: when a cook last tapped "Abrí el repuesto"
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?
@@ -92,6 +94,8 @@ model Ingredient {
   prepAssignments   PrepAssignment[]
   vendorMarketItems VendorMarketItem[]
   purchaseLines     PurchaseLine[]
+  storageStocks     StorageStock[]
+  storageMovements  StorageMovement[]
 
   // Rules
   isRuleTarget    RecurringPrepRule[] @relation("RuleTarget")
@@ -389,8 +393,47 @@ model PurchaseReceipt {
   source       String         @default("MANUAL") // MANUAL | MUSE | API
   externalRef  String?        @unique
   note         String?
+  destination  String         @default("RESTAURANT") // RESTAURANT = credits kitchen stock | HOME = goes to StorageStock HOME until moved
   createdAt    DateTime       @default(now())
   lines        PurchaseLine[]
+}
+
+// Almacén: what sits in storage, in purchase units (frascos, cajas, bolas, lb),
+// one row per ingredient × location × unit. Locations: HOME (Brian's house) and
+// BASEMENT_KITCHEN. The salon's basement is SalonStock.qtyBodega, not a row here.
+// Admin-only numbers; cooks only see whether a spare exists and where.
+model StorageStock {
+  id            String     @id @default(cuid())
+  ingredientId  String
+  location      String     // HOME | BASEMENT_KITCHEN
+  qty           Float      @default(0)
+  unit          String
+  totalWeightLb Float?     // for items stored by count with a known weight (bolas of Teres Major)
+  updatedAt     DateTime   @updatedAt
+  ingredient    Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([ingredientId, location, unit])
+}
+
+// Every storage move: PURCHASE→HOME, HOME→BASEMENT_KITCHEN, BASEMENT_KITCHEN→KITCHEN
+// (creditedMetric = what hit kitchen stock), BASEMENT_SALON→SALON_FRONT, ADJUST,
+// and SPARE_OPENED (a cook opened the spare container of a SPARE-mode item).
+model StorageMovement {
+  id             String     @id @default(cuid())
+  ingredientId   String
+  fromLocation   String
+  toLocation     String
+  qty            Float
+  unit           String
+  totalWeightLb  Float?
+  creditedMetric Float?
+  byName         String?
+  note           String?
+  createdAt      DateTime   @default(now())
+  ingredient     Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@index([ingredientId, createdAt])
+  @@index([createdAt])
 }
 
 // What was bought, as the caller described it (qty + unit as sent, for audit).

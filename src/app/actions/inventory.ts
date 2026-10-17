@@ -394,6 +394,9 @@ export async function getInventarioOverview() {
                 category: { select: { name: true, nameEs: true } },
                 provider: { select: { name: true } },
                 inventory: { select: { frozenQty: true, thawingQty: true } },
+                trackMode: true, spareOpenedAt: true,
+                // Only used to derive a yes/no signal below; quantities never leave the server here.
+                storageStocks: { where: { qty: { gt: 0 } }, select: { location: true } },
                 purchaseLines: {
                     orderBy: { createdAt: 'desc' },
                     take: 1,
@@ -421,8 +424,11 @@ export async function getInventarioOverview() {
                 const w = await getRecentPurchaseWeights(r.id);
                 avgLbPerUnit = w.success ? w.avgLbPerUnit ?? null : null;
             }
-            const { purchaseLines, prepItems, ...rest } = r;
-            return { ...rest, lastPurchase, avgLbPerUnit, children: prepItems };
+            const { purchaseLines, prepItems, storageStocks, ...rest } = r;
+            // Where a spare exists, if anywhere. Basement wins over home: the cook can go get it.
+            const spare: 'BASEMENT' | 'HOME' | 'NONE' = storageStocks.some(s => s.location === 'BASEMENT_KITCHEN')
+                ? 'BASEMENT' : storageStocks.some(s => s.location === 'HOME') ? 'HOME' : 'NONE';
+            return { ...rest, lastPurchase, avgLbPerUnit, spare, children: prepItems };
         }));
 
         items.sort((a, b) =>
