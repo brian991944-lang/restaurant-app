@@ -25,6 +25,7 @@ export default function AlmacenView({ locale }: { locale: 'es' | 'en' }) {
     const [open, setOpen] = useState<string | null>(null);          // row key with the Llevar panel open
     const [moveQty, setMoveQty] = useState(1);
     const [moveTo, setMoveTo] = useState<MoveTarget>('BASEMENT_KITCHEN');
+    const [moveWeight, setMoveWeight] = useState('');                 // lb, only asked when the row has no weight and needs one
     const [adjusting, setAdjusting] = useState<{ row: StorageRow; qty: string; note: string } | null>(null);
     const [entry, setEntry] = useState<{ ingredientId: string; qty: string; unit: string; weight: string; location: StorageLocation } | null>(null);
     const [options, setOptions] = useState<{ id: string; name: string; nameEs: string | null; metric: string; isPacked: boolean; packUnit: string }[]>([]);
@@ -66,10 +67,11 @@ export default function AlmacenView({ locale }: { locale: 'es' | 'en' }) {
     const doMove = async (r: StorageRow) => {
         if (busy) return;
         setBusy(true);
-        const res = await moveStorage({ ingredientId: r.ingredientId, from: r.location, to: moveTo, qty: moveQty, unit: r.unit });
+        const weight = Number(moveWeight);
+        const res = await moveStorage({ ingredientId: r.ingredientId, from: r.location, to: moveTo, qty: moveQty, unit: r.unit, totalWeightLb: weight > 0 ? weight : null });
         setBusy(false);
         if (!res.success) { setError(res.error); return; }
-        setOpen(null); setMoveQty(1);
+        setOpen(null); setMoveQty(1); setMoveWeight('');
         if (res.credited != null) say(t('credited', { qty: num(res.credited), unit: unitLabel(r.metric, locale) }));
         load();
     };
@@ -130,7 +132,7 @@ export default function AlmacenView({ locale }: { locale: 'es' | 'en' }) {
     const modal: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' };
     const sheet: React.CSSProperties = { background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '14px', padding: '1.25rem', width: '100%', maxWidth: '460px', display: 'flex', flexDirection: 'column', gap: '0.75rem' };
 
-    const movePanel = (onConfirm: () => void, withTarget: boolean) => (
+    const movePanel = (onConfirm: () => void, withTarget: boolean, askWeight = false) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', paddingTop: '0.75rem', marginTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('take')}</span>
             <button aria-label="−" style={stepBtn(false)} onClick={() => setMoveQty(q => Math.max(1, q - 1))}>−</button>
@@ -143,6 +145,10 @@ export default function AlmacenView({ locale }: { locale: 'es' | 'en' }) {
                     <button style={seg(moveTo === 'KITCHEN')} onClick={() => setMoveTo('KITCHEN')}>{t('destKitchen')}</button>
                 </div>
             </>)}
+            {askWeight && moveTo === 'KITCHEN' && (
+                <input type="number" inputMode="decimal" min="0" step="any" value={moveWeight} onChange={e => setMoveWeight(e.target.value)}
+                    placeholder={t('moveWeight')} aria-label={t('moveWeight')} style={{ ...input, width: 150 }} />
+            )}
             <div style={{ flexGrow: 1 }} />
             <button style={primary} onClick={onConfirm} disabled={busy}>{t('confirm')}</button>
         </div>
@@ -207,11 +213,11 @@ export default function AlmacenView({ locale }: { locale: 'es' | 'en' }) {
                                         <div className="alm-row-actions">
                                             {isOpen
                                                 ? <button style={ghost} onClick={() => setOpen(null)}>{t('cancel')}</button>
-                                                : <button style={outline} onClick={() => { setOpen(k); setMoveQty(1); setMoveTo(r.location === 'HOME' ? 'BASEMENT_KITCHEN' : 'KITCHEN'); }}>{t('move')}</button>}
+                                                : <button style={outline} onClick={() => { setOpen(k); setMoveQty(1); setMoveWeight(''); setMoveTo(r.location === 'HOME' ? 'BASEMENT_KITCHEN' : 'KITCHEN'); }}>{t('move')}</button>}
                                             <button style={ghost} onClick={() => setAdjusting({ row: r, qty: String(r.qty), note: '' })}>{t('adjust')}</button>
                                         </div>
                                     </div>
-                                    {isOpen && movePanel(() => doMove(r), true)}
+                                    {isOpen && movePanel(() => doMove(r), true, r.needsWeight)}
                                 </div>
                             );
                         })}

@@ -46,6 +46,8 @@ export interface StorageRow {
     qty: number;
     unit: string;
     totalWeightLb: number | null;
+    /** True when this row can only be credited to the kitchen with a weight (e.g. "2 cajas" of a lb item) and carries none. */
+    needsWeight: boolean;
     lastEntryAt: string | null; // newest movement INTO this location
 }
 
@@ -81,7 +83,7 @@ export async function getStorageOverview(): Promise<
         const [stocks, salon, movements, lastIn] = await Promise.all([
             prisma.storageStock.findMany({
                 where: { qty: { gt: 0 } },
-                include: { ingredient: { select: { name: true, nameEs: true, metric: true, category: { select: { name: true, nameEs: true } } } } },
+                include: { ingredient: { select: { name: true, nameEs: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true, category: { select: { name: true, nameEs: true } } } } },
                 orderBy: { ingredient: { name: 'asc' } },
             }),
             prisma.salonStock.findMany({
@@ -113,6 +115,9 @@ export async function getStorageOverview(): Promise<
             qty: s.qty,
             unit: s.unit,
             totalWeightLb: s.totalWeightLb,
+            // Same conversion the move uses: if it fails without a weight, the panel asks for one.
+            needsWeight: !(s.totalWeightLb != null && s.totalWeightLb > 0)
+                && !computeCredit(s.ingredient, { qty: s.qty, unit: s.unit, totalWeightLb: null }).ok,
             lastEntryAt: lastInMap.get(`${s.ingredientId}|${s.location}`) ?? null,
         }));
         const salonRows: SalonBodegaRow[] = salon.map(s => ({
@@ -220,6 +225,8 @@ export async function adjustStorage(input: { ingredientId: string; location: Sto
  */
 export async function moveStorage(input: {
     ingredientId: string; from: StorageLocation; to: MoveTarget; qty: number; unit: string; byName?: string | null;
+    /** Weight of what is being moved; only used when the storage row carries no weight of its own. */
+    totalWeightLb?: number | null;
 }) {
     if (!(await isAdminSession())) return denied();
     if (!LOCATIONS.includes(input.from)) return fail('Origen inválido.');
@@ -235,8 +242,12 @@ export async function moveStorage(input: {
         if (!ing) return fail('Ingrediente no encontrado.');
         if (!row || row.qty < input.qty) return fail(`No hay suficiente: hay ${row?.qty ?? 0} ${input.unit}.`);
 
-        // The weight that travels with this many units, when the row carries one.
-        const share = row.totalWeightLb != null && row.qty > 0 ? (row.totalWeightLb / row.qty) * input.qty : null;
+        // The weight that travels with this many units: the row's own share when
+        // it carries one, otherwise whatever was weighed at the door.
+        const rowHasWeight = row.totalWeightLb != null && row.totalWeightLb > 0 && row.qty > 0;
+        const share = rowHasWeight
+            ? (row.totalWeightLb! / row.qty) * input.qty
+            : input.totalWeightLb != null && input.totalWeightLb > 0 ? input.totalWeightLb : null;
 
         let credited: number | null = null;
         if (input.to === 'KITCHEN') {
@@ -248,7 +259,7 @@ export async function moveStorage(input: {
         await prisma.$transaction(async tx => {
             await tx.storageStock.update({
                 where,
-                data: { qty: { decrement: input.qty }, ...(share != null ? { totalWeightLb: { decrement: share } } : {}) },
+                data: { qty: { decrement: input.qty }, ...(rowHasWeight && share != null ? { totalWeightLb: { decrement: share } } : {}) },
             });
             if (input.to === 'BASEMENT_KITCHEN') {
                 await tx.storageStock.upsert({

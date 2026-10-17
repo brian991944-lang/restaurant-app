@@ -3,13 +3,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { DatePicker } from '@/components/ui/DatePicker';
-import { getRecibirData, markReceived, registerPurchase, type CreditedLine } from '@/app/actions/purchases';
+import { getRecibirData, markReceived, registerPurchase, type CreditedLine, type PurchaseDestination } from '@/app/actions/purchases';
 import { isWeightMetric, packSize, unitLabel } from '@/lib/purchaseUnits';
 
 // Admin "Recibir" tab: posts what was actually bought to raw stock.
 // Prefills one row per active RAW marked COMPRADO; anything else is added with
-// the picker. Packed items: qty is always packs. No backdrop-filter / transform
-// / filter on anything here (iPad Safari rendering).
+// the picker. Packed items: qty is always packs. "Recibido en" decides where it
+// lands: Restaurante credits kitchen stock, Casa de Brian goes to Almacén.
+// No backdrop-filter / transform / filter on anything here (iPad Safari rendering).
 
 interface RecibirIngredient {
     id: string;
@@ -50,6 +51,13 @@ const inputStyle: React.CSSProperties = {
 
 const labelStyle: React.CSSProperties = { fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.25rem' };
 
+// Same segmented look as the Almacén switchers.
+const segStyle = (active: boolean): React.CSSProperties => ({
+    minHeight: '38px', padding: '0 1rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.95rem',
+    fontWeight: active ? 600 : 500, background: active ? 'var(--bg-primary)' : 'transparent', color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+    boxShadow: active ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
+});
+
 export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
     const t = useTranslations('Recibir');
     const [ingredients, setIngredients] = useState<RecibirIngredient[]>([]);
@@ -58,12 +66,13 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
     const [providerChoice, setProviderChoice] = useState('');
     const [otherName, setOtherName] = useState('');
     const [date, setDate] = useState(todayYMD());
+    const [destination, setDestination] = useState<PurchaseDestination>('RESTAURANT');
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [error, setError] = useState<string | null>(null);
-    const [confirmed, setConfirmed] = useState<CreditedLine[] | null>(null);
+    const [confirmed, setConfirmed] = useState<{ destination: PurchaseDestination; lines: CreditedLine[] } | null>(null);
 
     const byId = useMemo(() => new Map(ingredients.map(i => [i.id, i])), [ingredients]);
 
@@ -108,6 +117,7 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
             supplierName: providerChoice === OTHER ? otherName.trim() || null : provider?.name ?? null,
             purchasedAt: new Date(`${date}T12:00:00`).toISOString(),
             source: 'MANUAL',
+            destination,
             lines: filled.map(r => ({
                 ingredientId: r.ingredientId,
                 qty: parseFloat(r.qty),
@@ -119,7 +129,7 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
 
         if (res.ok) {
             await markReceived(res.lines.map(l => l.ingredientId));
-            setConfirmed(res.lines);
+            setConfirmed({ destination: res.destination, lines: res.lines });
             await load();
         } else {
             setError(res.duplicate ? t('duplicate') : res.error);
@@ -153,13 +163,30 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
                     <label style={labelStyle}>{t('date')}</label>
                     <DatePicker value={date} onChange={setDate} locale={locale} max={todayYMD()} />
                 </div>
+                <div>
+                    <label style={labelStyle}>{t('destination')}</label>
+                    <div role="radiogroup" aria-label={t('destination')} style={{ display: 'flex', gap: 2, padding: 3, borderRadius: '10px', background: 'rgba(127,127,127,0.12)' }}>
+                        {(['RESTAURANT', 'HOME'] as PurchaseDestination[]).map(d => (
+                            <button key={d} type="button" role="radio" aria-checked={destination === d} onClick={() => setDestination(d)} style={segStyle(destination === d)}>
+                                {d === 'RESTAURANT' ? t('destRestaurant') : t('destHome')}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
+            {destination === 'HOME' && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '0.5rem 0.75rem', borderLeft: '3px solid var(--accent-primary)' }}>
+                    {t('destHomeHint')}
+                </div>
+            )}
 
             {confirmed && (
                 <div style={{ padding: '1rem', borderRadius: '8px', border: '1px solid var(--success)', background: 'rgba(16,185,129,0.1)' }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--success)' }}>{t('saved')}</div>
-                    {confirmed.map((l, i) => (
-                        <div key={i}>{t('confirmLine', { name: l.name, credited: fmt(l.credited), unit: unitLabel(l.unitLabel, locale), stock: fmt(l.newStock) })}</div>
+                    <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--success)' }}>{confirmed.destination === 'HOME' ? t('savedHome') : t('saved')}</div>
+                    {confirmed.lines.map((l, i) => (
+                        <div key={i}>
+                            {t(confirmed.destination === 'HOME' ? 'confirmLineHome' : 'confirmLine', { name: l.name, credited: fmt(l.credited), unit: unitLabel(l.unitLabel, locale), stock: fmt(l.newStock) })}
+                        </div>
                     ))}
                 </div>
             )}

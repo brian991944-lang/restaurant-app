@@ -93,8 +93,14 @@ export async function saveVendorItem(data: any) {
 // A purchase posts to raw stock. PurchaseLine keeps what was bought (qty +
 // unit exactly as sent); the PURCHASE InventoryTransaction keeps what was
 // credited, in the ingredient's metric. Credits go to frozenQty only.
+//
+// destination HOME: the receipt is still recorded, but nothing enters kitchen
+// stock. Each line lands in StorageStock(HOME) in the unit it was bought in
+// (packs stay packs) with a PURCHASE → HOME movement; it is credited to the
+// kitchen later, from Almacén, when it is actually brought over.
 
 export type PurchaseSource = 'MANUAL' | 'MUSE' | 'API';
+export type PurchaseDestination = 'RESTAURANT' | 'HOME';
 
 export interface PurchaseLineInput {
     ingredientId: string;
@@ -109,11 +115,17 @@ export interface PurchaseInput {
     supplierName?: string | null;
     purchasedAt: string; // ISO
     source: PurchaseSource;
+    /** Where it was physically received. Default RESTAURANT (credits kitchen stock). */
+    destination?: PurchaseDestination;
     externalRef?: string | null;
     note?: string | null;
     lines: PurchaseLineInput[];
 }
 
+/**
+ * RESTAURANT: credited + unitLabel are in the ingredient's metric, newStock is kitchen stock.
+ * HOME: credited + unitLabel are the qty/unit as bought, newStock is what is now at home.
+ */
 export interface CreditedLine {
     ingredientId: string;
     name: string;
@@ -123,17 +135,20 @@ export interface CreditedLine {
 }
 
 export type PurchaseResult =
-    | { ok: true; receiptId: string; lines: CreditedLine[] }
+    | { ok: true; receiptId: string; destination: PurchaseDestination; lines: CreditedLine[] }
     | { ok: false; duplicate: true; receiptId: string }
     | { ok: false; duplicate?: false; error: string };
 
 const SOURCES: PurchaseSource[] = ['MANUAL', 'MUSE', 'API'];
+const DESTINATIONS: PurchaseDestination[] = ['RESTAURANT', 'HOME'];
 
 export async function registerPurchase(input: PurchaseInput): Promise<PurchaseResult> {
     try {
         const purchasedAt = new Date(input.purchasedAt);
         if (isNaN(purchasedAt.getTime())) return { ok: false, error: 'Fecha de compra inválida.' };
         if (!SOURCES.includes(input.source)) return { ok: false, error: `Origen inválido: ${input.source}.` };
+        const destination: PurchaseDestination = input.destination ?? 'RESTAURANT';
+        if (!DESTINATIONS.includes(destination)) return { ok: false, error: `Destino inválido: ${input.destination}.` };
         if (!Array.isArray(input.lines) || input.lines.length === 0) return { ok: false, error: 'La compra no tiene artículos.' };
 
         const externalRef = input.externalRef?.trim() || null;
@@ -150,6 +165,8 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
         const byId = new Map(ingredients.map(i => [i.id, i]));
 
         // Validate every line and work out its credit before anything is written.
+        // HOME keeps the bought unit, so there is nothing to convert yet; the
+        // conversion happens in Almacén when the item is brought to the kitchen.
         const errors: string[] = [];
         const planned = input.lines.map(line => {
             const ing = byId.get(line.ingredientId);
@@ -158,9 +175,13 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
             if (!(typeof line.qty === 'number' && isFinite(line.qty) && line.qty > 0)) {
                 errors.push(`${ing.name}: la cantidad debe ser mayor que 0.`); return null;
             }
+            if (destination === 'HOME') {
+                const unit = (line.unit ?? '').trim() || (ing.isPacked ? 'paq.' : unitLabel(ing.metric));
+                return { line, ing, credited: line.qty, unit };
+            }
             const credit = computeCredit(ing, line);
             if (!credit.ok) { errors.push(credit.error); return null; }
-            return { line, ing, credited: credit.credited };
+            return { line, ing, credited: credit.credited, unit: '' };
         });
         if (errors.length) return { ok: false, error: errors.join(' ') };
 
@@ -177,6 +198,7 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
                     supplierName,
                     purchasedAt,
                     source: input.source,
+                    destination,
                     externalRef,
                     note: input.note?.trim() || null,
                     lines: {
@@ -193,7 +215,24 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
 
             const lines: CreditedLine[] = [];
             for (const p of planned) {
-                const { line, ing, credited } = p!;
+                const { line, ing, credited, unit } = p!;
+                if (destination === 'HOME') {
+                    const weight = line.totalWeightLb != null && line.totalWeightLb > 0 ? line.totalWeightLb : null;
+                    const row = await tx.storageStock.upsert({
+                        where: { ingredientId_location_unit: { ingredientId: ing.id, location: 'HOME', unit } },
+                        create: { ingredientId: ing.id, location: 'HOME', unit, qty: line.qty, totalWeightLb: weight },
+                        update: { qty: { increment: line.qty }, ...(weight != null ? { totalWeightLb: { increment: weight } } : {}) },
+                    });
+                    await tx.storageMovement.create({
+                        data: {
+                            ingredientId: ing.id, fromLocation: 'PURCHASE', toLocation: 'HOME',
+                            qty: line.qty, unit, totalWeightLb: weight,
+                            note: `Compra ${supplierName ?? 'sin proveedor'}`,
+                        },
+                    });
+                    lines.push({ ingredientId: ing.id, name: ing.name, credited: line.qty, unitLabel: unit, newStock: row.qty });
+                    continue;
+                }
                 const inv = await tx.inventory.upsert({
                     where: { ingredientId: ing.id },
                     create: { ingredientId: ing.id, frozenQty: credited, thawingQty: 0 },
@@ -220,7 +259,8 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
 
         revalidatePath('/[locale]/compras', 'page');
         revalidatePath('/[locale]/inventory', 'page');
-        return { ok: true, ...result };
+        if (destination === 'HOME') revalidatePath('/[locale]/almacen', 'page');
+        return { ok: true, destination, ...result };
     } catch (e: any) {
         // Two posts of the same receipt racing past the pre-check above.
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002' && input.externalRef) {
