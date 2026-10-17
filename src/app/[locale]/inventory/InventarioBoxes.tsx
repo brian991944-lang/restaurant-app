@@ -38,7 +38,8 @@ interface Props {
     locale: 'es' | 'en';
     /** Changes whenever the page reloads its data (e.g. after an edit), so the boxes refetch. */
     reloadKey: unknown;
-    onEdit: (rawId: string) => void;
+    /** Omit for read-only viewers: headers and simple cards render as plain, non-clickable divs. */
+    onEdit?: (rawId: string) => void;
 }
 
 export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
@@ -200,9 +201,9 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
                             const children = [...r.children].sort((a, b) => Number(/^merma/i.test(a.name)) - Number(/^merma/i.test(b.name)));
                             return (
                                 <div key={r.id} className={`glass-panel${r.children.length >= 2 ? ' inv-box-full' : ''}`} style={{ padding: '1rem' }}>
-                                    <button onClick={() => onEdit(r.id)} title={t('editHint', { name: display(r) })}
+                                    <Clickable onEdit={onEdit} id={r.id} title={t('editHint', { name: display(r) })}
                                         style={{ width: '100%', minHeight: '44px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem',
-                                            background: 'transparent', border: 'none', padding: 0, marginBottom: '0.75rem', textAlign: 'left', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                                            background: 'transparent', border: 'none', padding: 0, marginBottom: '0.75rem', textAlign: 'left', color: 'var(--text-primary)' }}>
                                         <div style={{ minWidth: 0 }}>
                                             <div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{display(r)}</div>
                                             <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -213,7 +214,7 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
                                             background: CHIP[chip].bg, color: CHIP[chip].fg }}>
                                             {statusLabel(chip)}
                                         </span>
-                                    </button>
+                                    </Clickable>
 
                                     <div className="inv-blocks">
                                         <Block kind="RAW" tag={tagOf('RAW')} title={rawTitle(r)} value={stock} unit={unitLabel(r.metric, locale)} info={rawInfo(r, stock)} t={t} />
@@ -245,9 +246,9 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
                             const stock = total(r.inventory);
                             const lv = level(stock);
                             return (
-                                <button key={r.id} onClick={() => onEdit(r.id)} title={t('editHint', { name: display(r) })} className="inv-k-raw"
+                                <Clickable key={r.id} onEdit={onEdit} id={r.id} title={t('editHint', { name: display(r) })} className="inv-k-raw"
                                     style={{ minHeight: '44px', padding: '0.75rem', borderRadius: '10px', minWidth: 0, textAlign: 'left',
-                                        color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                        color: 'var(--text-primary)', fontFamily: 'inherit' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                                         <span style={{ fontSize: '0.95rem', fontWeight: 600, overflowWrap: 'anywhere' }}>{display(r)}</span>
                                         <span style={{ flexShrink: 0, padding: '0.15rem 0.55rem', borderRadius: '999px', fontWeight: 600, fontSize: '0.75rem',
@@ -259,7 +260,7 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>
                                         {r.provider?.name ?? '—'}{r.isPacked && rawInfo(r, stock) ? ` · ${rawInfo(r, stock)}` : ''}
                                     </div>
-                                </button>
+                                </Clickable>
                             );
                         })}
                     </div>
@@ -267,6 +268,14 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
             )}
         </div>
     );
+}
+
+// A button that opens the edit modal for admins; a plain div (no cursor, no hint) when onEdit is absent.
+function Clickable({ onEdit, id, title, className, style, children }: {
+    onEdit?: (rawId: string) => void; id: string; title: string; className?: string; style: React.CSSProperties; children: React.ReactNode;
+}) {
+    if (!onEdit) return <div className={className} style={style}>{children}</div>;
+    return <button onClick={() => onEdit(id)} title={title} className={className} style={{ ...style, cursor: 'pointer' }}>{children}</button>;
 }
 
 function Block({ kind, tag, title, value, unit, info, t }: {
