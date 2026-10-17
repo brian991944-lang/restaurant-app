@@ -1579,6 +1579,9 @@ model PosDailySales {
   // When the day's PosDailyItemSales rows were last rewritten. Null means the
   // day was read before items were kept, and the Sync button reads it again.
   itemsComputedAt  DateTime?
+  // netPaidCents split by the NY hour the check was opened (24 buckets). Empty
+  // for days read before the phone app's by-hour chart existed.
+  hourlyNetCents   Int[]     @default([])
 
   @@unique([source, businessDate])
 }

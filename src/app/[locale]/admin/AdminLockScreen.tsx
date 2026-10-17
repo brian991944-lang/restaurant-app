@@ -30,7 +30,8 @@ export default function AdminLockScreen({ locale }: { locale: 'es' | 'en' }) {
         } catch { setStandalone(false); }
     }, []);
 
-    const dashboard = `/${locale}/dashboard`;
+    // Phones land on the Hoy screen (bottom tabs); tablets and PCs keep the dashboard.
+    const dashboard = typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches ? `/${locale}/hoy` : `/${locale}/dashboard`;
     useEffect(() => {
         if (standalone === null || !isLoaded) return;
         if (isAdmin && standalone) router.replace(dashboard);

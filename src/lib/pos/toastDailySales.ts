@@ -49,6 +49,8 @@ export type DailySalesRow = {
     cashChecks: number | null;
     cashNetCents: number | null;
     computedAt: string | null;
+    /** netPaidCents by NY hour (24 buckets); empty for days read before the by-hour chart existed. */
+    hourlyNetCents: number[];
     /** When the day's items were last written; null until the day is read again with items. */
     itemsComputedAt: string | null;
 };
@@ -103,6 +105,7 @@ async function snapshotOneDay(date: string): Promise<DailySalesReport> {
             ordersScanned: totals.ordersScanned,
             cashChecks: totals.cashChecks,
             cashNetCents: totals.cashNetCents,
+            hourlyNetCents: totals.hourlyNetCents,
             computedAt,
             itemsComputedAt: computedAt
         };
@@ -168,9 +171,10 @@ export async function readToastDailySales(businessDates: string[]): Promise<Dail
                 cashChecks: r.cashChecks,
                 cashNetCents: r.cashNetCents,
                 computedAt: r.computedAt.toISOString(),
-                itemsComputedAt: r.itemsComputedAt ? r.itemsComputedAt.toISOString() : null
+                itemsComputedAt: r.itemsComputedAt ? r.itemsComputedAt.toISOString() : null,
+                hourlyNetCents: r.hourlyNetCents
             }
-            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null, itemsComputedAt: null };
+            : { date, netPaidCents: 0, netOpenCents: 0, surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0, paidChecks: 0, openChecks: 0, cashChecks: null, cashNetCents: null, computedAt: null, itemsComputedAt: null, hourlyNetCents: [] };
     });
 }
 

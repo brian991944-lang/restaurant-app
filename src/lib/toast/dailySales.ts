@@ -45,14 +45,31 @@ export type ToastDailySalesTotals = {
     /** Paid checks whose every settled payment was CASH, and their share of netPaidCents. */
     cashChecks: number;
     cashNetCents: number;
+    /** netPaidCents by the New York hour the check was opened: 24 buckets, 0 = midnight. */
+    hourlyNetCents: number[];
 };
 
 export const emptyDailySalesTotals = (): ToastDailySalesTotals => ({
     ordersScanned: 0, paidChecks: 0, openChecks: 0, voidedChecks: 0,
     netPaidCents: 0, netOpenCents: 0, refundCents: 0,
     surchargeCents: 0, gratuityCents: 0, otherChargeCents: 0,
-    cashChecks: 0, cashNetCents: 0
+    cashChecks: 0, cashNetCents: 0,
+    hourlyNetCents: new Array(24).fill(0)
 });
+
+const NY_HOUR = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false });
+
+/** The New York hour (0–23) a check was opened; null when Toast gave no usable time. */
+export function checkOpenedHourNY(check: any, order: any): number | null {
+    for (const raw of [check?.openedDate, check?.createdDate, order?.openedDate, order?.createdDate]) {
+        if (typeof raw !== 'string') continue;
+        const d = new Date(raw);
+        if (isNaN(d.getTime())) continue;
+        const h = Number(NY_HOUR.format(d));
+        return h === 24 ? 0 : h; // some engines print midnight as "24"
+    }
+    return null;
+}
 
 /** Toast's net sales for a day, from the stored or computed figures. */
 export const toastTotalCents = (t: { netPaidCents: number; netOpenCents: number; surchargeCents: number; otherChargeCents: number }): number =>
@@ -153,6 +170,8 @@ export function aggregateToastDailySales(orders: any[]): ToastDailySalesTotals {
                 t.paidChecks++;
                 t.netPaidCents += f.salesCents - f.refundCents;
                 t.refundCents += f.refundCents;
+                const hour = checkOpenedHourNY(check, order);
+                if (hour !== null) t.hourlyNetCents[hour] += f.salesCents - f.refundCents;
                 if (f.cashOnly) {
                     t.cashChecks++;
                     t.cashNetCents += f.salesCents - f.refundCents;

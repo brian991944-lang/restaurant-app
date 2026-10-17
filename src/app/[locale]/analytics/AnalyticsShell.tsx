@@ -3,6 +3,10 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { RefreshCw } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useIsPhone } from '@/components/phone/usePhone';
+import { PhoneHeader, Pills } from '@/components/phone/ui';
+import { analyticsHref, ANALYTICS_VIEWS } from '@/lib/analyticsView';
 import type { AnalyticsView } from '@/lib/analyticsView';
 import { TOAST_FIRST_BUSINESS_DATE } from '@/lib/pos/toastBusinessDate';
 import { clampRange, daysBetween, matchPreset, presetRange, RANGE_PRESETS, type DateRange, type RangePreset } from '@/lib/analytics/range';
@@ -91,6 +95,9 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
     initialRange: DateRange;
 }) {
     const t = useTranslations('Analytics');
+    const tn = useTranslations('Nav');
+    const phone = useIsPhone();
+    const router = useRouter();
     const [range, setRange] = useState<DateRange>(initialRange);
     /** The button the reader chose; 'custom' shows the date inputs. Until a click, whichever preset the window matches. */
     const [chosen, setChosen] = useState<RangePreset | 'custom' | null>(null);
@@ -191,6 +198,45 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
             setSyncing(false);
         }
     };
+
+    // Phone (Admin app): compact header, the dashboards as pills, the window as pills; same state, same actions.
+    if (phone) {
+        const viewPills = ANALYTICS_VIEWS.map(v => ({ key: v, label: tn(`analytics_${v}`) }));
+        const rangePills = [...RANGE_PRESETS.map(p => ({ key: p as RangePreset | 'custom', label: t(`range_${p}`) })), { key: 'custom' as const, label: t('range_custom') }];
+        return (
+            <div data-testid="analytics-page" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: 560, margin: '0 auto' }}>
+                <PhoneHeader title={t('section')} right={
+                    <button type="button" onClick={runSync} disabled={syncing} data-testid="analytics-sync"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '0 0.8rem', borderRadius: 999, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '0.8rem', fontWeight: 600, cursor: syncing ? 'wait' : 'pointer' }}>
+                        <RefreshCw size={14} className={syncing ? 'an-spin' : ''} />{syncing ? t('syncing') : t('sync')}
+                    </button>} />
+                {syncStatus && <div style={{ fontSize: '0.78rem' }}>{syncStatus}</div>}
+                <Pills items={viewPills} active={view} onChange={v => router.push(analyticsHref(locale, v))} />
+                {RANGED_VIEWS.includes(view) && (<>
+                    <Pills items={rangePills} active={preset ?? 'custom'} onChange={p => (p === 'custom' ? setChosen('custom') : choosePreset(p))} />
+                    {preset === 'custom' && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input type="date" value={range.from} min={TOAST_FIRST_BUSINESS_DATE} max={range.to} style={{ ...dateInput, flex: 1, minWidth: 0 }} onChange={e => changeCustom(e.target.value, range.to)} aria-label={t('range_from')} />
+                            <span style={{ color: 'var(--text-secondary)' }}>→</span>
+                            <input type="date" value={range.to} min={range.from} max={today} style={{ ...dateInput, flex: 1, minWidth: 0 }} onChange={e => changeCustom(range.from, e.target.value)} aria-label={t('range_to')} />
+                        </div>
+                    )}
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: -4 }}>
+                        {days === 1 ? dayLabel(range.from, true) : t('range_showing', { from: dayLabel(range.from), to: dayLabel(range.to), days })}
+                    </div>
+                </>)}
+                {view === 'resumen' && <ResumenView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+                {view === 'ventas' && <VentasView range={range} refreshKey={refreshKey} />}
+                {view === 'cobros' && <CobrosView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+                {view === 'personal' && <PersonalView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+                {view === 'reputacion' && <ReputacionView locale={locale} range={range} today={today} refreshKey={refreshKey} />}
+                <style jsx>{`
+                    @keyframes an-spin { 100% { transform: rotate(360deg); } }
+                    :global(.an-spin) { animation: an-spin 1s linear infinite; }
+                `}</style>
+            </div>
+        );
+    }
 
     return (
         <div data-testid="analytics-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1400px', margin: '0 auto' }}>
