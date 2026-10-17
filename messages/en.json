@@ -1284,5 +1284,11 @@
       "legendOk": "raw ≈ portions + trim and yield within the expected band",
       "legendLow": "yield outside the expected band: careless cleaning or off-weight portions",
       "legendMissing": "more than 1 lb (or 5%) that is neither portions nor trim"
+  },
+  "AutoSync": {
+      "running": "Updating Toast sales…",
+      "done": "Sales up to date · {time}",
+      "doneNoTime": "Sales up to date",
+      "failed": "Couldn't update Toast sales"
   }
 }

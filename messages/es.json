@@ -1284,5 +1284,11 @@
       "legendOk": "crudo ≈ porciones + merma y rendimiento dentro de lo esperado",
       "legendLow": "rendimiento fuera de la banda esperada: limpieza descuidada o porciones de otro peso",
       "legendMissing": "más de 1 lb (o 5%) que no es ni porción ni merma"
+  },
+  "AutoSync": {
+      "running": "Actualizando ventas de Toast…",
+      "done": "Ventas al día · {time}",
+      "doneNoTime": "Ventas al día",
+      "failed": "No se pudieron actualizar las ventas de Toast"
   }
 }

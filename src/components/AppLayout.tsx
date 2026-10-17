@@ -5,6 +5,7 @@ import { Menu } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { AdminProvider } from '@/components/AdminContext';
 import { WorkstationProvider } from '@/components/WorkstationContext';
+import AutoSync from '@/components/AutoSync';
 
 export default function AppLayout({
   children,
@@ -17,6 +18,7 @@ export default function AppLayout({
 
   return (
     <AdminProvider>
+      <AutoSync />
       <WorkstationProvider>
         <div className="layout-container" style={{ flexDirection: 'column', width: '100%', height: '100vh', overflow: 'hidden' }}>
           {/* Mobile Top Header */}

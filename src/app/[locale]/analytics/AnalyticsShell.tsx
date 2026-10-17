@@ -113,6 +113,13 @@ export default function AnalyticsShell({ locale, view, today, initialRange }: {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // The auto-sync on open (components/AutoSync.tsx) says when it wrote new rows; redraw from them.
+    useEffect(() => {
+        const onSynced = () => setRefreshKey(k => k + 1);
+        window.addEventListener('fusionista:synced', onSynced);
+        return () => window.removeEventListener('fusionista:synced', onSynced);
+    }, []);
+
     const apply = (next: DateRange) => {
         setRange(next);
         writeStored(next);
