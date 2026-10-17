@@ -67,10 +67,16 @@ export default function AdminUnlockModal({
         passkeySupported().then(ok => {
             if (cancelled) return;
             setPasskeyAvailable(ok);
-            if (ok && here && !autoPrompted.current) {
+            // The sheet only auto-prompts on a device that remembers enrolling (the
+            // "here" flag lives in localStorage). The installed Admin app has its own
+            // storage, so it never has that memory: on the lock screen we lead with
+            // the fingerprint whenever the device has one, and fall back to the
+            // password if the OS sheet is dismissed or no passkey exists.
+            const lead = ok && (here || !dismissable);
+            if (lead && !autoPrompted.current) {
                 autoPrompted.current = true;
                 void runPasskey();
-            } else if (!ok || !here) {
+            } else if (!lead) {
                 inputRef.current?.focus();
             }
         });
