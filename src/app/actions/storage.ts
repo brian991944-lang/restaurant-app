@@ -237,10 +237,13 @@ export async function moveStorage(input: {
         const where = { ingredientId_location_unit: { ingredientId: input.ingredientId, location: input.from, unit: input.unit } };
         const [row, ing] = await Promise.all([
             prisma.storageStock.findUnique({ where }),
-            prisma.ingredient.findUnique({ where: { id: input.ingredientId }, select: { id: true, name: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true } }),
+            prisma.ingredient.findUnique({ where: { id: input.ingredientId }, select: { id: true, name: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true, trackMode: true } }),
         ]);
         if (!ing) return fail('Ingrediente no encontrado.');
         if (!row || row.qty < input.qty) return fail(`No hay suficiente: hay ${row?.qty ?? 0} ${input.unit}.`);
+        // Modo repuesto: the kitchen never counts these, so a move to the line is
+        // just the sealed spare changing shelves — logged, not credited.
+        const countsInKitchen = ing.trackMode !== 'SPARE';
 
         // The weight that travels with this many units: the row's own share when
         // it carries one, otherwise whatever was weighed at the door.
@@ -250,7 +253,7 @@ export async function moveStorage(input: {
             : input.totalWeightLb != null && input.totalWeightLb > 0 ? input.totalWeightLb : null;
 
         let credited: number | null = null;
-        if (input.to === 'KITCHEN') {
+        if (input.to === 'KITCHEN' && countsInKitchen) {
             const c = computeCredit(ing, { qty: input.qty, unit: input.unit, totalWeightLb: share });
             if (!c.ok) return fail(c.error);
             credited = c.credited;
@@ -267,14 +270,14 @@ export async function moveStorage(input: {
                     create: { ingredientId: input.ingredientId, location: 'BASEMENT_KITCHEN', unit: input.unit, qty: input.qty, totalWeightLb: share },
                     update: { qty: { increment: input.qty }, ...(share != null ? { totalWeightLb: { increment: share } } : {}) },
                 });
-            } else {
+            } else if (credited != null) {
                 await tx.inventory.upsert({
                     where: { ingredientId: input.ingredientId },
-                    create: { ingredientId: input.ingredientId, frozenQty: credited!, thawingQty: 0 },
-                    update: { frozenQty: { increment: credited! } },
+                    create: { ingredientId: input.ingredientId, frozenQty: credited, thawingQty: 0 },
+                    update: { frozenQty: { increment: credited } },
                 });
                 await tx.inventoryTransaction.create({
-                    data: { ingredientId: input.ingredientId, type: 'STORAGE_IN', qty: credited!, note: `Almacén ${input.from} → cocina: ${input.qty} ${input.unit}` },
+                    data: { ingredientId: input.ingredientId, type: 'STORAGE_IN', qty: credited, note: `Almacén ${input.from} → cocina: ${input.qty} ${input.unit}` },
                 });
             }
             await tx.storageMovement.create({
@@ -307,4 +310,56 @@ export async function moveSalonBodegaToFront(ingredientId: string, quantity: num
     }
     revalidate();
     return { success: true as const };
+}
+
+// ───────────────────────── modo repuesto (cook action) ─────────────────────────
+
+export type SpareOpenOutcome = 'FROM_BASEMENT' | 'HOME_ONLY' | 'NONE_LEFT';
+
+/**
+ * "Abrí el repuesto" — the one kitchen action in this file, so it is NOT admin-gated.
+ * Modo repuesto items are never counted; the cook just tells us a sealed one was opened:
+ *   - a spare on the basement shelf → one comes off it (BASEMENT_KITCHEN → KITCHEN)
+ *   - otherwise                     → logged as KITCHEN → OPENED
+ * When no spare is left anywhere, the item is flagged for Compras (needsOrdering).
+ * spareOpenedAt is always stamped; the Inventario card shows it while no spare exists.
+ */
+export async function openSpare(ingredientId: string, byName?: string | null) {
+    try {
+        const ing = await prisma.ingredient.findUnique({ where: { id: ingredientId }, select: { id: true, trackMode: true } });
+        if (!ing) return fail('Ingrediente no encontrado.');
+        if (ing.trackMode !== 'SPARE') return fail('Este artículo se cuenta; no está en modo repuesto.');
+
+        const rows = await prisma.storageStock.findMany({ where: { ingredientId, qty: { gt: 0 } }, orderBy: { updatedAt: 'asc' } });
+        const basement = rows.find(r => r.location === 'BASEMENT_KITCHEN');
+        const remainingAfter = rows.reduce((sum, r) => sum + r.qty, 0) - (basement ? 1 : 0);
+        const outcome: SpareOpenOutcome = basement ? 'FROM_BASEMENT' : rows.some(r => r.location === 'HOME') ? 'HOME_ONLY' : 'NONE_LEFT';
+        const noneLeft = remainingAfter <= 0;
+
+        await prisma.$transaction(async tx => {
+            if (basement) {
+                const share = basement.totalWeightLb != null && basement.totalWeightLb > 0 ? basement.totalWeightLb / basement.qty : null;
+                await tx.storageStock.update({
+                    where: { id: basement.id },
+                    data: { qty: { decrement: 1 }, ...(share != null ? { totalWeightLb: { decrement: share } } : {}) },
+                });
+                await tx.storageMovement.create({
+                    data: { ingredientId, fromLocation: 'BASEMENT_KITCHEN', toLocation: 'KITCHEN', qty: 1, unit: basement.unit, totalWeightLb: share, byName: byName ?? null, note: 'Repuesto abierto' },
+                });
+            } else {
+                await tx.storageMovement.create({
+                    data: { ingredientId, fromLocation: 'KITCHEN', toLocation: 'OPENED', qty: 1, unit: 'unid.', byName: byName ?? null, note: 'Último repuesto abierto' },
+                });
+            }
+            await tx.ingredient.update({
+                where: { id: ingredientId },
+                data: { spareOpenedAt: new Date(), ...(noneLeft ? { needsOrdering: true } : {}) },
+            });
+        });
+        revalidate();
+        return { success: true as const, outcome, needsOrdering: noneLeft };
+    } catch (e: any) {
+        console.error('Error opening spare:', e);
+        return fail(e.message);
+    }
 }

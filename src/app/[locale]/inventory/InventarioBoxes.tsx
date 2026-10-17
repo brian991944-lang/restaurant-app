@@ -3,15 +3,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { getInventarioOverview } from '@/app/actions/inventory';
+import { openSpare, type SpareOpenOutcome } from '@/app/actions/storage';
 import { getConversionFactor } from '@/lib/conversion';
 import { unitLabel } from '@/lib/purchaseUnits';
 
-// Admin "Inventario" box view. Raws with active PROCESSED children are GRUPOS
-// (one box: the raw block + one block per child, color-coded by type); raws
-// without children are compact SIMPLE cards. Read-only; tapping a box header or
-// card opens the page's existing edit modal. Status uses the page's existing
-// fixed rule (> 5 ok, > 0 low, else out). No backdrop-filter / transform /
-// filter / perspective / will-change on anything here.
+// "Inventario" box view (everyone). Raws with active PROCESSED children are
+// GRUPOS (one box: the raw block + one block per child, color-coded by type);
+// raws without children are compact SIMPLE cards. Read-only except for one cook
+// action: modo repuesto cards ("En uso", no number) have "Abrí el repuesto".
+// Tapping a box header or card opens the page's edit modal for admins. Status
+// uses the page's existing fixed rule (> 5 ok, > 0 low, else out). No
+// backdrop-filter / transform / filter / perspective / will-change here.
 
 type Overview = Awaited<ReturnType<typeof getInventarioOverview>>['data'][number];
 type Level = 'OK' | 'LOW' | 'OUT';
@@ -69,6 +71,10 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
     const [items, setItems] = useState<Overview[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [category, setCategory] = useState<string | null>(null);
+    const [refresh, setRefresh] = useState(0);                       // bumped after a cook action
+    const [opening, setOpening] = useState<Overview | null>(null);   // "¿Abriste el repuesto de …?" sheet
+    const [busy, setBusy] = useState(false);
+    const [flash, setFlash] = useState<string | null>(null);
 
     useEffect(() => {
         let alive = true;
@@ -78,7 +84,20 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
             setIsLoading(false);
         });
         return () => { alive = false; };
-    }, [reloadKey]);
+    }, [reloadKey, refresh]);
+
+    const confirmOpen = async () => {
+        if (!opening || busy) return;
+        setBusy(true);
+        const res = await openSpare(opening.id);
+        setBusy(false);
+        setOpening(null);
+        if (!res.success) { setFlash(res.error); setTimeout(() => setFlash(null), 4000); return; }
+        const msg: Record<SpareOpenOutcome, string> = { FROM_BASEMENT: t('spareDoneBasement'), HOME_ONLY: t('spareDoneHome'), NONE_LEFT: t('spareDoneNone') };
+        setFlash(msg[res.outcome]);
+        setTimeout(() => setFlash(null), 4000);
+        setRefresh(n => n + 1);
+    };
 
     const display = (o: { name: string; nameEs: string | null }) => (locale === 'es' && o.nameEs ? o.nameEs : o.name);
     const categoryKey = (r: Overview) => r.category?.name?.trim() || '';
@@ -116,11 +135,13 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
         const rank = { OUT: 0, LOW: 1, OK: 2 } as const;
         const shown = searched.filter(r => activeCategory === null || pillKey(r) === activeCategory);
         // Sorted by the name actually shown (nameEs in ES). Simple items: OUT, then LOW, then A–Z.
+        // Modo repuesto has no count: "sin repuesto" sorts with LOW, otherwise with OK.
         const byName = (a: Overview, b: Overview) => display(a).localeCompare(display(b), locale);
+        const rankOf = (r: Overview) => (r.trackMode === 'SPARE' ? (r.spare === 'NONE' ? rank.LOW : rank.OK) : rank[level(total(r.inventory))]);
         return {
             groups: shown.filter(r => r.children.length > 0).sort(byName),
             simples: shown.filter(r => r.children.length === 0)
-                .sort((a, b) => rank[level(total(a.inventory))] - rank[level(total(b.inventory))] || byName(a, b)),
+                .sort((a, b) => rankOf(a) - rankOf(b) || byName(a, b)),
         };
     }, [searched, activeCategory, locale]); // eslint-disable-line react-hooks/exhaustive-deps
     const visibleCount = groups.length + simples.length;
@@ -244,6 +265,38 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                     <div style={sectionLabel}>{t('simple', { count: simples.length })}</div>
                     <div className="inv-simple">
                         {simples.map(r => {
+                            if (r.trackMode === 'SPARE') {
+                                const has = r.spare !== 'NONE';
+                                const chip: Level = has ? 'OK' : 'LOW';
+                                return (
+                                    <div key={r.id} className="inv-k-raw" style={{ padding: '0.75rem', borderRadius: '10px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <Clickable onEdit={onEdit} id={r.id} title={t('editHint', { name: display(r) })}
+                                            style={{ background: 'transparent', border: 'none', padding: 0, textAlign: 'left', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%', minWidth: 0 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                                <span style={{ fontSize: '0.95rem', fontWeight: 600, overflowWrap: 'anywhere' }}>{display(r)}</span>
+                                                <span style={{ flexShrink: 0, padding: '0.15rem 0.55rem', borderRadius: '999px', fontWeight: 600, fontSize: '0.75rem',
+                                                    background: CHIP[chip].bg, color: CHIP[chip].fg }}>{has ? t('spareHave') : t('spareNoneChip')}</span>
+                                            </div>
+                                            <div style={{ fontSize: '1.35rem', fontWeight: 700, display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+                                                {t('spareInUse')}
+                                                <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', padding: '2px 7px', borderRadius: '999px', background: 'var(--accent-primary)', color: '#fff' }}>{t('spareTag')}</span>
+                                            </div>
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>{r.provider?.name ?? '—'}</div>
+                                        </Clickable>
+                                        <SpareLine spare={r.spare} t={t} />
+                                        {!has && r.spareOpenedAt && (
+                                            <div style={{ fontSize: '0.8rem', color: 'var(--warning)', fontWeight: 600 }}>
+                                                {t('spareOpenedOn', { date: dateFmt.format(new Date(r.spareOpenedAt)) })}
+                                            </div>
+                                        )}
+                                        <button onClick={() => setOpening(r)}
+                                            style={{ marginTop: '0.25rem', minHeight: '44px', borderRadius: '10px', border: '1px solid var(--accent-primary)', background: 'transparent',
+                                                color: 'var(--accent-primary)', fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
+                                            {t('spareOpen')}
+                                        </button>
+                                    </div>
+                                );
+                            }
                             const stock = total(r.inventory);
                             const lv = level(stock);
                             return (
@@ -267,6 +320,35 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                         })}
                     </div>
                 </section>
+            )}
+
+            {/* "¿Abriste el repuesto?" — plain overlay, no backdrop-filter */}
+            {opening && (
+                <div role="dialog" aria-modal="true" onClick={() => !busy && setOpening(null)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div onClick={e => e.stopPropagation()}
+                        style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '14px', padding: '1.25rem', width: '100%', maxWidth: '420px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>{t('spareOpenTitle', { name: display(opening) })}</div>
+                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('spareOpenBody')}</div>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                            <button onClick={() => setOpening(null)} disabled={busy}
+                                style={{ minHeight: '44px', padding: '0 1rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontFamily: 'inherit', fontSize: '0.95rem', cursor: 'pointer' }}>
+                                {t('spareOpenCancel')}
+                            </button>
+                            <button onClick={confirmOpen} disabled={busy}
+                                style={{ minHeight: '44px', padding: '0 1.1rem', borderRadius: '10px', border: 'none', background: 'var(--accent-primary)', color: '#fff', fontFamily: 'inherit', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+                                {t('spareOpenYes')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {flash && (
+                <div role="status" style={{ position: 'fixed', left: '50%', bottom: '1.5rem', marginLeft: '-160px', width: '320px', textAlign: 'center', padding: '0.8rem 1rem', borderRadius: '12px',
+                    background: 'var(--text-primary)', color: 'var(--bg-primary)', fontWeight: 600, fontSize: '0.9rem', boxShadow: '0 4px 12px rgba(0,0,0,0.25)', zIndex: 1001 }}>
+                    {flash}
+                </div>
             )}
         </div>
     );

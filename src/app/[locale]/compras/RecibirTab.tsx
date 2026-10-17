@@ -185,7 +185,8 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
                     <div style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--success)' }}>{confirmed.destination === 'HOME' ? t('savedHome') : t('saved')}</div>
                     {confirmed.lines.map((l, i) => (
                         <div key={i}>
-                            {t(confirmed.destination === 'HOME' ? 'confirmLineHome' : 'confirmLine', { name: l.name, credited: fmt(l.credited), unit: unitLabel(l.unitLabel, locale), stock: fmt(l.newStock) })}
+                            {t(l.landing === 'HOME' ? 'confirmLineHome' : l.landing === 'BASEMENT_KITCHEN' ? 'confirmLineSpare' : 'confirmLine',
+                                { name: l.name, credited: fmt(l.credited), unit: unitLabel(l.unitLabel, locale), stock: fmt(l.newStock) })}
                         </div>
                     ))}
                 </div>

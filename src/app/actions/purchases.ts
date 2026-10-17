@@ -122,9 +122,13 @@ export interface PurchaseInput {
     lines: PurchaseLineInput[];
 }
 
+/** Where one received line actually landed. */
+export type PurchaseLanding = 'KITCHEN' | 'HOME' | 'BASEMENT_KITCHEN';
+
 /**
- * RESTAURANT: credited + unitLabel are in the ingredient's metric, newStock is kitchen stock.
- * HOME: credited + unitLabel are the qty/unit as bought, newStock is what is now at home.
+ * KITCHEN: credited + unitLabel are in the ingredient's metric, newStock is kitchen stock.
+ * HOME / BASEMENT_KITCHEN: credited + unitLabel are the qty/unit as bought, newStock is
+ * what is now on that storage shelf.
  */
 export interface CreditedLine {
     ingredientId: string;
@@ -132,6 +136,7 @@ export interface CreditedLine {
     credited: number;
     unitLabel: string;
     newStock: number;
+    landing: PurchaseLanding;
 }
 
 export type PurchaseResult =
@@ -160,13 +165,17 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
         const ids = [...new Set(input.lines.map(l => l.ingredientId))];
         const ingredients = await prisma.ingredient.findMany({
             where: { id: { in: ids } },
-            select: { id: true, name: true, type: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true },
+            select: { id: true, name: true, type: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true, trackMode: true },
         });
         const byId = new Map(ingredients.map(i => [i.id, i]));
 
-        // Validate every line and work out its credit before anything is written.
-        // HOME keeps the bought unit, so there is nothing to convert yet; the
-        // conversion happens in Almacén when the item is brought to the kitchen.
+        // Validate every line and work out where it lands before anything is written.
+        //   HOME                      → Casa de Brian shelf, in the unit bought
+        //   RESTAURANT + modo repuesto → Sótano·Cocina shelf, in the unit bought
+        //                               (spares are never counted in the kitchen)
+        //   RESTAURANT                → kitchen stock, converted to the metric
+        // Storage keeps the bought unit, so there is nothing to convert yet; the
+        // conversion happens in Almacén when the item is brought to the line.
         const errors: string[] = [];
         const planned = input.lines.map(line => {
             const ing = byId.get(line.ingredientId);
@@ -175,13 +184,14 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
             if (!(typeof line.qty === 'number' && isFinite(line.qty) && line.qty > 0)) {
                 errors.push(`${ing.name}: la cantidad debe ser mayor que 0.`); return null;
             }
-            if (destination === 'HOME') {
+            const landing: PurchaseLanding = destination === 'HOME' ? 'HOME' : ing.trackMode === 'SPARE' ? 'BASEMENT_KITCHEN' : 'KITCHEN';
+            if (landing !== 'KITCHEN') {
                 const unit = (line.unit ?? '').trim() || (ing.isPacked ? 'paq.' : unitLabel(ing.metric));
-                return { line, ing, credited: line.qty, unit };
+                return { line, ing, credited: line.qty, unit, landing };
             }
             const credit = computeCredit(ing, line);
             if (!credit.ok) { errors.push(credit.error); return null; }
-            return { line, ing, credited: credit.credited, unit: '' };
+            return { line, ing, credited: credit.credited, unit: '', landing };
         });
         if (errors.length) return { ok: false, error: errors.join(' ') };
 
@@ -215,22 +225,22 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
 
             const lines: CreditedLine[] = [];
             for (const p of planned) {
-                const { line, ing, credited, unit } = p!;
-                if (destination === 'HOME') {
+                const { line, ing, credited, unit, landing } = p!;
+                if (landing !== 'KITCHEN') {
                     const weight = line.totalWeightLb != null && line.totalWeightLb > 0 ? line.totalWeightLb : null;
                     const row = await tx.storageStock.upsert({
-                        where: { ingredientId_location_unit: { ingredientId: ing.id, location: 'HOME', unit } },
-                        create: { ingredientId: ing.id, location: 'HOME', unit, qty: line.qty, totalWeightLb: weight },
+                        where: { ingredientId_location_unit: { ingredientId: ing.id, location: landing, unit } },
+                        create: { ingredientId: ing.id, location: landing, unit, qty: line.qty, totalWeightLb: weight },
                         update: { qty: { increment: line.qty }, ...(weight != null ? { totalWeightLb: { increment: weight } } : {}) },
                     });
                     await tx.storageMovement.create({
                         data: {
-                            ingredientId: ing.id, fromLocation: 'PURCHASE', toLocation: 'HOME',
+                            ingredientId: ing.id, fromLocation: 'PURCHASE', toLocation: landing,
                             qty: line.qty, unit, totalWeightLb: weight,
                             note: `Compra ${supplierName ?? 'sin proveedor'}`,
                         },
                     });
-                    lines.push({ ingredientId: ing.id, name: ing.name, credited: line.qty, unitLabel: unit, newStock: row.qty });
+                    lines.push({ ingredientId: ing.id, name: ing.name, credited: line.qty, unitLabel: unit, newStock: row.qty, landing });
                     continue;
                 }
                 const inv = await tx.inventory.upsert({
@@ -252,6 +262,7 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
                     credited,
                     unitLabel: unitLabel(ing.metric),
                     newStock: inv.frozenQty + inv.thawingQty,
+                    landing,
                 });
             }
             return { receiptId: receipt.id, lines };
@@ -259,7 +270,7 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
 
         revalidatePath('/[locale]/compras', 'page');
         revalidatePath('/[locale]/inventory', 'page');
-        if (destination === 'HOME') revalidatePath('/[locale]/almacen', 'page');
+        if (result.lines.some(l => l.landing !== 'KITCHEN')) revalidatePath('/[locale]/almacen', 'page');
         return { ok: true, destination, ...result };
     } catch (e: any) {
         // Two posts of the same receipt racing past the pre-check above.

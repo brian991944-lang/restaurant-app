@@ -63,6 +63,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [translatedNamePreview, setTranslatedNamePreview] = useState('');
     const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
     const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(false);
+    const [spareMode, setSpareMode] = useState<boolean>(false); // trackMode SPARE: never counted, cook reports "abrí el repuesto"
     const [isDisabled, setIsDisabled] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
@@ -261,6 +262,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
             setAllowNegativeStock(initialData?.allowNegativeStock ?? false);
+            setSpareMode(initialData?.trackMode === 'SPARE');
             setIsDisabled(initialData ? initialData.isActive === false : false);
             // Derive Área from the two stored booleans; fall back to the DB defaults
             // (isSalonItem false / showInKitchen true) so new items land on Cocina.
@@ -393,6 +395,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             unfrozenQuantity: trackFreezerStatus ? getFinalQuantity(unfrozenStock) : undefined,
             trackFreezerStatus: trackFreezerStatus,
             allowNegativeStock: allowNegativeStock,
+            trackMode: currentType === 'RAW' && spareMode ? 'SPARE' : 'COUNT',
             isActive: !isDisabled,
             isSalonItem: area !== 'cocina',
             showInKitchen: area !== 'salon',
@@ -891,6 +894,21 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             <input value={mappingMultiplier} onChange={e => setMappingMultiplier(parseFloat(e.target.value) || 1)} type="number" step="0.01" className="input-field" />
                         </div>
                     </div>
+
+                    {currentType === 'RAW' && (
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem 1rem', background: 'rgba(59, 130, 246, 0.05)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                            <input
+                                type="checkbox"
+                                checked={spareMode}
+                                onChange={e => setSpareMode(e.target.checked)}
+                                style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px', marginTop: '2px' }}
+                            />
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('modal_spare_mode')}</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('modal_spare_mode_helper')}</span>
+                            </span>
+                        </label>
+                    )}
 
                     {initialData && (
                         <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem 1rem', background: 'rgba(239, 68, 68, 0.06)', border: '1px solid var(--border)', borderRadius: '8px' }}>
