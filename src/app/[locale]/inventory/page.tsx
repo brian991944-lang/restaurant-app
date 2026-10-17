@@ -158,10 +158,10 @@ export default function InventoryPage() {
         setIsSyncing(true);
         const res = await syncCloverSales();
         if (res.success) {
-            alert(`Clover Sync Success: ${res.count} items processed!`);
+            alert(t('clover_sync_success', { count: res.count ?? 0 }));
             loadData();
         } else {
-            alert('Clover Sync Failed.');
+            alert(t('clover_sync_failed'));
         }
         setIsSyncing(false);
     };
@@ -175,7 +175,7 @@ export default function InventoryPage() {
             setWastes(prev => ({ ...prev, [id]: '' }));
             loadData();
         } else {
-            alert('Failed to log waste');
+            alert(t('err_log_waste'));
         }
     };
 
@@ -188,7 +188,7 @@ export default function InventoryPage() {
 
     const handleConfirmAdjustSubmit = async (item: Ingredient) => {
         if (!adjustCook) {
-            alert('Please select a cook before submitting.');
+            alert(t('err_select_cook'));
             return;
         }
         const delta = adjustments[item.id] || 0;
@@ -204,7 +204,7 @@ export default function InventoryPage() {
             setAdjustCook('');
             loadData();
         } else {
-            alert(res.error || 'Failed to adjust inventory');
+            alert(res.error || t('err_adjust_inventory'));
         }
     };
 
@@ -222,7 +222,7 @@ export default function InventoryPage() {
             await loadData();
             router.refresh();
         } else {
-            alert(res.error || 'Failed to update Unfrozen stat.');
+            alert(res.error || t('err_update_unfrozen'));
         }
     };
 
@@ -239,7 +239,7 @@ export default function InventoryPage() {
         if (res.success) {
             loadData();
         } else {
-            alert(res.error || 'Failed to save ingredient');
+            alert(res.error || t('err_save_ingredient'));
         }
     };
 
@@ -253,57 +253,57 @@ export default function InventoryPage() {
             setAdjustingIngredient(null);
             loadData();
         } else {
-            alert(res.error || 'Failed to adjust stock');
+            alert(res.error || t('err_adjust_stock'));
         }
     };
 
     const handleDeleteIngredient = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this ingredient?')) return;
+        if (!confirm(t('confirm_delete_ingredient'))) return;
         const res = await deleteIngredient(id);
         if (res.success) {
             loadData();
         } else {
-            alert(res.error || 'Failed to delete ingredient');
+            alert(res.error || t('err_delete_ingredient'));
         }
     };
 
     const handleDeleteCategory = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this category?')) return;
+        if (!confirm(t('confirm_delete_category'))) return;
         const res = await deleteCategory(id);
         if (res.success) {
             loadData();
         } else {
-            alert(res.error || 'Failed to delete category');
+            alert(res.error || t('err_delete_category'));
         }
     };
 
     const handleEditCategory = async (id: string, oldName: string) => {
-        const name = prompt('Nuevo Nombre (New Name):', oldName);
+        const name = prompt(t('prompt_new_name'), oldName);
         if (!name || name === oldName) return;
         const res = await editCategory(id, name);
         if (res.success) {
             loadData();
         } else {
-            alert(res.error || 'Failed to edit category');
+            alert(res.error || t('err_edit_category'));
         }
     };
 
     const handleAddProvider = async () => {
-        const name = prompt('Nombre del Proveedor (Supplier Name):');
+        const name = prompt(t('prompt_provider_name'));
         if (!name) return;
         await addProvider(name);
         loadData();
     };
 
     const handleEditProvider = async (id: string, oldName: string) => {
-        const name = prompt('Nuevo Nombre (New Name):', oldName);
+        const name = prompt(t('prompt_new_name'), oldName);
         if (!name || name === oldName) return;
         await editProvider(id, name);
         loadData();
     };
 
     const handleDeleteProvider = async (id: string) => {
-        if (!confirm('Eliminar Proveedor (Delete Supplier)?')) return;
+        if (!confirm(t('confirm_delete_provider'))) return;
         await deleteProvider(id);
         loadData();
     };
@@ -339,20 +339,20 @@ export default function InventoryPage() {
                 if (formattedData.length > 0) {
                     const res = await bulkAddIngredients(formattedData);
                     if (res?.success) {
-                        alert(`Successfully imported ${res.count} ingredients!`);
+                        alert(t('csv_import_success', { count: res.count ?? 0 }));
                         loadData();
                     } else {
-                        alert('Error importing ingredients');
+                        alert(t('csv_import_error'));
                     }
                 } else {
-                    alert('No valid ingredients found in CSV - check headers (Name, Category, Provider, Type, Metric, Qty, Yield)');
+                    alert(t('csv_no_valid'));
                 }
                 setIsUploading(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             },
             error: (error: any) => {
                 console.error(error);
-                alert('Failed to parse CSV');
+                alert(t('csv_parse_failed'));
                 setIsUploading(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
@@ -386,7 +386,7 @@ export default function InventoryPage() {
         rawName: item.name,
         nameEs: item.nameEs,
         autoTranslate: item.autoTranslate,
-        category: locale === 'es' && item.category?.nameEs ? item.category.nameEs : (item.category?.name || 'Uncategorized'),
+        category: locale === 'es' && item.category?.nameEs ? item.category.nameEs : (item.category?.name || tInventario('uncategorized')),
         rawCategory: item.category?.name || 'Uncategorized',
         categoryNameEs: item.category?.nameEs,
         type: item.type as any,
@@ -648,7 +648,7 @@ export default function InventoryPage() {
                                                 </div>
                                                 {crossParent && (
                                                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                                        ↳ de: {locale === 'es' && crossParent.nameEs ? crossParent.nameEs : crossParent.name}
+                                                        {t('from_parent', { name: locale === 'es' && crossParent.nameEs ? crossParent.nameEs : crossParent.name })}
                                                     </div>
                                                 )}
                                             </div>
@@ -804,7 +804,7 @@ export default function InventoryPage() {
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                         <button onClick={() => setOverviewTab('PIVOT')} className={overviewTab === 'PIVOT' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'PIVOT' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'PIVOT' ? 'white' : 'var(--text-secondary)' }}>{locale === 'es' ? 'Inventario' : 'Inventory'}</button>
-                        <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>Control de Congelados</button>
+                        <button onClick={() => setOverviewTab('FREEZER')} className={overviewTab === 'FREEZER' ? 'btn-primary' : ''} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 500, borderRadius: '8px', border: overviewTab === 'FREEZER' ? 'none' : '1px solid var(--glass-border)', color: overviewTab === 'FREEZER' ? 'white' : 'var(--text-secondary)' }}>{t('freezer_control')}</button>
                     </div>
 
                     {lastSyncTime && (
@@ -823,8 +823,8 @@ export default function InventoryPage() {
                         {overviewTab === 'FREEZER' && (
                             <div style={{ flex: 1, minWidth: '100%', display: 'flex', flexDirection: 'column', overflowX: 'auto' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', zIndex: 60, marginBottom: '1.5rem' }}>
-                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Control de Congelados</h2>
-                                    <p style={{ color: 'var(--text-secondary)', margin: '-0.5rem 0 0.5rem 0', fontSize: '0.9rem' }}>Tracker mainly for stored prep and Processed Foods evaluating freezer vs fridge.</p>
+                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{t('freezer_control')}</h2>
+                                    <p style={{ color: 'var(--text-secondary)', margin: '-0.5rem 0 0.5rem 0', fontSize: '0.9rem' }}>{t('freezer_control_desc')}</p>
                                 </div>
                                 <div className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
                                     <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '800px' }}>
@@ -903,15 +903,15 @@ export default function InventoryPage() {
                                                 setPivotCategoryFilter(val);
                                                 setPivotIngredientFilter('');
                                             }}
-                                            placeholder="All Categories"
-                                            options={[{ value: '', label: 'All Categories' }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'RAW' || i.type === 'PREP_RECIPE').map(i => i.category))).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(c) }))]}
+                                            placeholder={t('filter_categories')}
+                                            options={[{ value: '', label: t('filter_categories') }, ...Array.from(new Set(filteredInventory.filter(i => i.type === 'RAW' || i.type === 'PREP_RECIPE').map(i => i.category))).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(c) }))]}
                                             wrapperStyle={{ flex: 1, minWidth: '150px' }}
                                         />
                                         <SearchableSelect
                                             value={pivotIngredientFilter}
                                             onChange={(val) => setPivotIngredientFilter(val)}
-                                            placeholder="All Ingredients"
-                                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => (i.type === 'RAW' || i.type === 'PREP_RECIPE') && (!pivotCategoryFilter || i.category === pivotCategoryFilter)).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
+                                            placeholder={t('filter_ingredients')}
+                                            options={[{ value: '', label: t('filter_ingredients') }, ...Array.from(new Set(filteredInventory.filter(i => (i.type === 'RAW' || i.type === 'PREP_RECIPE') && (!pivotCategoryFilter || i.category === pivotCategoryFilter)).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
                                             wrapperStyle={{ flex: 1, minWidth: '150px' }}
                                         />
                                     </div>
@@ -975,11 +975,11 @@ export default function InventoryPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Recipe Name</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Yield / Batch Size</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Cost per Batch</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Cost per Unit</th>
-                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>Actions</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('recipe_name')}</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('recipe_yield_batch')}</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('recipe_cost_batch')}</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('recipe_cost_unit')}</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right' }}>{t('actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1012,8 +1012,8 @@ export default function InventoryPage() {
                                                 <button onClick={(e) => { e.stopPropagation(); setAdjustingIngredient(item); }} style={{ color: 'var(--text-secondary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginRight: '1rem', border: '1px solid var(--border)', borderRadius: '6px' }}>
                                                     {locale === 'es' ? 'Ajustar' : 'Adjust'}
                                                 </button>
-                                                <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>Edit</button>
-                                                <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>Delete</button>
+                                                <button onClick={() => { setEditingIngredient(item); setIsRecipeModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>{t('edit')}</button>
+                                                <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>{t('delete')}</button>
                                             </td>
                                         </tr>
                                     ));
@@ -1035,25 +1035,25 @@ export default function InventoryPage() {
                                 setAllIngredientsCategoryFilter(val);
                                 setAllIngredientsNameFilter('');
                             }}
-                            placeholder="All Categories"
-                            options={[{ value: '', label: 'All Categories' }, ...Object.keys(groupedInventory).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(groupedInventory[c][0]?.category || c) }))]}
+                            placeholder={t('filter_categories')}
+                            options={[{ value: '', label: t('filter_categories') }, ...Object.keys(groupedInventory).sort((a, b) => a.localeCompare(b)).map(c => ({ value: c, label: getOptName(groupedInventory[c][0]?.category || c) }))]}
                             wrapperStyle={{ flex: 1, minWidth: '200px' }}
                         />
                         <SearchableSelect
                             value={allIngredientsNameFilter}
                             onChange={(val) => setAllIngredientsNameFilter(val)}
-                            placeholder="All Ingredients"
-                            options={[{ value: '', label: 'All Ingredients' }, ...Array.from(new Set(filteredInventory.filter(i => (!allIngredientsCategoryFilter || (i.rawCategory || i.category) === allIngredientsCategoryFilter) && (allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent))).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
+                            placeholder={t('filter_ingredients')}
+                            options={[{ value: '', label: t('filter_ingredients') }, ...Array.from(new Set(filteredInventory.filter(i => (!allIngredientsCategoryFilter || (i.rawCategory || i.category) === allIngredientsCategoryFilter) && (allIngredientsTypeFilter === 'ALL' || (allIngredientsTypeFilter === 'PARENT' ? !i.parent : i.parent))).map(i => i.name))).sort((a, b) => a.localeCompare(b)).map(n => ({ value: n, label: n }))]}
                             wrapperStyle={{ flex: 1, minWidth: '200px' }}
                         />
                         <SearchableSelect
                             value={allIngredientsTypeFilter}
                             onChange={(val) => setAllIngredientsTypeFilter(val as any)}
-                            placeholder="All Types"
+                            placeholder={t('filter_types')}
                             options={[
-                                { value: 'ALL', label: 'Item Type: All' },
-                                { value: 'PARENT', label: 'Parent Items Only' },
-                                { value: 'CHILD', label: 'Child Items Only' }
+                                { value: 'ALL', label: t('type_filter_all') },
+                                { value: 'PARENT', label: t('type_filter_parent') },
+                                { value: 'CHILD', label: t('type_filter_child') }
                             ]}
                             wrapperStyle={{ flex: 1, minWidth: '200px' }}
                         />
@@ -1144,12 +1144,12 @@ export default function InventoryPage() {
                                                         <span style={{ opacity: item.isActive === false ? 0.45 : 1 }}>{item.name}</span>
                                                         {item.isActive === false && (
                                                             <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px', verticalAlign: 'middle' }}>
-                                                                Deshabilitado
+                                                                {t('disabled_badge')}
                                                             </span>
                                                         )}
                                                         {item.crossGroupParent && (
                                                             <div style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                                                                ↳ de: {locale === 'es' && item.crossGroupParent.nameEs ? item.crossGroupParent.nameEs : item.crossGroupParent.name}
+                                                                {t('from_parent', { name: locale === 'es' && item.crossGroupParent.nameEs ? item.crossGroupParent.nameEs : item.crossGroupParent.name })}
                                                             </div>
                                                         )}
                                                     </td>
@@ -1198,16 +1198,16 @@ export default function InventoryPage() {
                                                                     borderRadius: '6px',
                                                                     fontSize: '0.75rem'
                                                                 }}
-                                                                title="Manage Market Source"
+                                                                title={t('manage_source_title')}
                                                             >
-                                                                🔗 Source
+                                                                {t('source_btn')}
                                                             </button>
                                                         )}
                                                         <button onClick={() => { setEditingIngredient(item); setIsAddModalOpen(true); }} style={{ color: 'var(--accent-primary)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-                                                            Edit
+                                                            {t('edit')}
                                                         </button>
                                                         <button onClick={() => handleDeleteIngredient(item.id)} style={{ color: 'var(--danger)', padding: '0.25rem 0.5rem', fontSize: '0.9rem', fontWeight: 500, marginLeft: '1rem' }}>
-                                                            Delete
+                                                            {t('delete')}
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -1254,7 +1254,7 @@ export default function InventoryPage() {
                                                     }}></span>
                                                     {dept}
                                                 </h2>
-                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{categories.length} categories</span>
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{t('categories_count', { count: categories.length })}</span>
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                 {categories.sort((a, b) => a.name.localeCompare(b.name)).map((category: any) => {
@@ -1281,7 +1281,7 @@ export default function InventoryPage() {
                                                                     </div>
                                                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                         <span style={{ fontWeight: 500 }}>{category.name}</span>
-                                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{category._count.ingredients} items linked</span>
+                                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('items_linked', { count: category._count.ingredients })}</span>
                                                                     </div>
                                                                 </div>
                                                                 <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }} onClick={(e) => e.stopPropagation()}>
@@ -1317,7 +1317,7 @@ export default function InventoryPage() {
                                                                                                 <span style={{ opacity: ing.isActive === false ? 0.45 : 1 }}>{ing.name}</span>
                                                                                                 {ing.isActive === false && (
                                                                                                     <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
-                                                                                                        Deshabilitado
+                                                                                                        {t('disabled_badge')}
                                                                                                     </span>
                                                                                                 )}
                                                                                             </button>
@@ -1345,7 +1345,7 @@ export default function InventoryPage() {
                                 <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', padding: '1.5rem', gridColumn: '1 / -1' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
                                         <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>{locale === 'es' ? 'Lista de Proveedores' : 'Supplier List'}</h2>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{dbProviders.length} providers</span>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{t('providers_count', { count: dbProviders.length })}</span>
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                         {dbProviders.sort((a, b) => a.name.localeCompare(b.name)).map((prov: any) => {
@@ -1373,7 +1373,7 @@ export default function InventoryPage() {
                                                             </div>
                                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                 <span style={{ fontWeight: 500 }}>{prov.name}</span>
-                                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{prov._count?.ingredients || 0} items linked</span>
+                                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('items_linked', { count: prov._count?.ingredients || 0 })}</span>
                                                             </div>
                                                         </div>
                                                         <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }} onClick={(e) => e.stopPropagation()}>
@@ -1410,7 +1410,7 @@ export default function InventoryPage() {
                                                                                         <span style={{ opacity: ing.isActive === false ? 0.45 : 1 }}>{ing.name}</span>
                                                                                         {ing.isActive === false && (
                                                                                             <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger)', background: 'rgba(239,68,68,0.15)', padding: '0.15rem 0.5rem', borderRadius: '10px' }}>
-                                                                                                Deshabilitado
+                                                                                                {t('disabled_badge')}
                                                                                             </span>
                                                                                         )}
                                                                                     </button>

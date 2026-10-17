@@ -14,6 +14,7 @@ interface ManageOptionsModalProps {
 
 export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'INGREDIENT' }: ManageOptionsModalProps) {
     const t = useTranslations('Inventory');
+    const tCommon = useTranslations('Common');
     const locale = useLocale();
     const [selectedGroup, setSelectedGroup] = useState<'Category' | 'Type' | 'Provider'>('Category');
     const [newOptionName, setNewOptionName] = useState('');
@@ -81,7 +82,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
             setEditingOption(null);
             await loadOptions();
         } else {
-            alert(res.error || 'Failed to save option. Check your database permissions on Vercel.');
+            alert(res.error || t('manage_options_save_failed'));
         }
         setIsLoading(false);
     };
@@ -140,9 +141,9 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                 {/* Current Options List View */}
                 <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflowY: 'auto', maxHeight: '40vh', minHeight: '150px' }}>
                     {isLoading ? (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{tCommon('loading')}</div>
                     ) : options.length === 0 ? (
-                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>No options found for this group.</div>
+                        <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('manage_options_empty')}</div>
                     ) : (options.map((opt, idx) => (
                         <div key={opt.id} style={{
                             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -153,7 +154,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                                 <span style={{ fontWeight: 500 }}>{locale === 'es' && opt.nameEs ? opt.nameEs : opt.name}</span>
                                 {opt.isTranslated && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', background: 'rgba(59, 130, 246, 0.2)', color: 'var(--accent-primary)', padding: '0.2rem 0.5rem', borderRadius: '12px', fontSize: '0.7rem' }}>
-                                        <Globe size={12} /> Auto-Translation On
+                                        <Globe size={12} /> {t('manage_options_auto_on')}
                                     </div>
                                 )}
                             </div>
@@ -183,7 +184,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                             className="input-field"
                             value={newOptionName}
                             onChange={(e) => setNewOptionName(e.target.value)}
-                            placeholder="Type new option..."
+                            placeholder={t('manage_options_placeholder_new')}
                         />
                     </div>
 
@@ -197,20 +198,20 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                                 style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-primary)' }}
                             />
                             <label htmlFor="autoTranslateCheck" style={{ fontSize: '0.9rem', color: 'var(--text-primary)', cursor: 'pointer' }}>
-                                {t('auto_translate') || 'Auto-Translate'}
+                                {t('auto_translate')}
                             </label>
                         </div>
                     )}
 
                     {!autoTranslate && selectedGroup !== 'Provider' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Spanish Name</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_spanish_name')}</label>
                             <input
                                 type="text"
                                 className="input-field"
                                 value={newOptionNameEs}
                                 onChange={(e) => setNewOptionNameEs(e.target.value)}
-                                placeholder="Type Spanish name..."
+                                placeholder={t('manage_options_placeholder_spanish')}
                             />
                         </div>
                     )}
@@ -220,7 +221,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                         onClick={handleAddOrEdit}
                         disabled={!newOptionName || isLoading}
                         style={{ marginTop: '0.5rem', borderRadius: '8px', opacity: (newOptionName && !isLoading) ? 1 : 0.5, cursor: (newOptionName && !isLoading) ? 'pointer' : 'not-allowed' }}>
-                        {isLoading ? 'Saving...' : (editingOption ? 'Save Changes' : t('add_option'))}
+                        {isLoading ? tCommon('saving') : (editingOption ? t('manage_options_save_changes') : t('add_option'))}
                     </button>
                     {editingOption && (
                         <button
@@ -230,7 +231,7 @@ export default function ManageOptionsModal({ isOpen, onClose, categoryType = 'IN
                                 setNewOptionNameEs('');
                             }}
                             style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                            Cancel Edit
+                            {t('manage_options_cancel_edit')}
                         </button>
                     )}
                 </div>

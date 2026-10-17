@@ -2,6 +2,7 @@
 
 import { Search, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { getMenuItems, deleteMenuItem, addMenuItem, editMenuItem } from '@/app/actions/menu';
 import MenuModal from '@/components/modals/MenuModal';
 import { calculateRecipeCost } from '@/lib/calculations';
@@ -9,6 +10,7 @@ import { calculateRecipeCost } from '@/lib/calculations';
 // Legacy "Menu Items & Recipes" costing view (formerly the whole /[locale]/menu page),
 // preserved as a tab alongside the digital menu editor.
 export default function CostosTab() {
+    const t = useTranslations('MenuAdmin');
     const [menuItems, setMenuItems] = useState<any[]>([]);
     const [allIngredients, setAllIngredients] = useState<any[]>([]);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -37,14 +39,14 @@ export default function CostosTab() {
     };
 
     const handleDelete = async (id: string) => {
-        if (confirm("Are you sure you want to delete this menu item?")) {
+        if (confirm(t('confirm_delete_item'))) {
             await deleteMenuItem(id);
             loadData();
         }
     };
 
     const groupedMenu = menuItems.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase())).reduce((acc, item) => {
-        const cat = item.category || 'Uncategorized';
+        const cat = item.category || t('uncategorized');
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(item);
         return acc;
@@ -55,12 +57,12 @@ export default function CostosTab() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h2 style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>Menu Items & Recipes</h2>
-                    <p style={{ color: 'var(--text-secondary)' }}>{menuItems.length} active dishes</p>
+                    <h2 style={{ fontSize: '1.75rem', marginBottom: '0.25rem' }}>{t('costos_title')}</h2>
+                    <p style={{ color: 'var(--text-secondary)' }}>{t('active_dishes', { count: menuItems.length })}</p>
                 </div>
                 <button onClick={() => setIsAddModalOpen(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px' }}>
                     <Plus size={18} />
-                    <span>Create Recipe</span>
+                    <span>{t('create_recipe')}</span>
                 </button>
             </div>
 
@@ -69,7 +71,7 @@ export default function CostosTab() {
                 <Search size={18} style={{ position: 'absolute', left: '1rem', top: 'calc(50% - 9px)', color: 'var(--text-secondary)' }} />
                 <input
                     type="text"
-                    placeholder="Search menu items..."
+                    placeholder={t('search_menu_items')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="input-field"
@@ -99,7 +101,7 @@ export default function CostosTab() {
                                                 <h3 style={{ fontSize: '1.1rem', marginBottom: '0.2rem' }}>{item.name}</h3>
                                                 {isAlert && (
                                                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--danger)', display: 'inline-block', marginBottom: '0.5rem', padding: '0.1rem 0.5rem', background: 'rgba(239,68,68,0.1)', borderRadius: '12px' }}>
-                                                        COST ALERT (Target: {item.targetFoodCostPct}%)
+                                                        {t('cost_alert', { target: item.targetFoodCostPct })}
                                                     </span>
                                                 )}
                                             </div>
@@ -111,23 +113,23 @@ export default function CostosTab() {
 
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                             <div style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Selling Price</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{t('selling_price')}</div>
                                                 <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>${item.salePrice.toFixed(2)}</div>
                                             </div>
                                             <div style={{ flex: 1, backgroundColor: isAlert ? 'rgba(239,68,68,0.1)' : 'rgba(0,0,0,0.2)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: isAlert ? 'var(--danger)' : 'var(--text-secondary)', marginBottom: '0.25rem' }}>Live Cost</div>
+                                                <div style={{ fontSize: '0.75rem', color: isAlert ? 'var(--danger)' : 'var(--text-secondary)', marginBottom: '0.25rem' }}>{t('live_cost')}</div>
                                                 <div style={{ fontSize: '1.1rem', fontWeight: 600, color: isAlert ? 'var(--danger)' : 'var(--text-primary)' }}>
                                                     ${totalCost.toFixed(2)} <span style={{ fontSize: '0.7rem' }}>({currentFoodCostPct.toFixed(1)}%)</span>
                                                 </div>
                                             </div>
                                             <div style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.75rem', textAlign: 'center' }}>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginBottom: '0.25rem' }}>Gross Margin</div>
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginBottom: '0.25rem' }}>{t('gross_margin')}</div>
                                                 <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--success)' }}>{margin.toFixed(1)}%</div>
                                             </div>
                                         </div>
 
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                            Recipe built from {item.recipeIngredients?.length || 0} items
+                                            {t('recipe_built_from', { count: item.recipeIngredients?.length || 0 })}
                                         </div>
                                     </div>
                                 );

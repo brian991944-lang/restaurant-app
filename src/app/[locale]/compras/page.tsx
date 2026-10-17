@@ -43,6 +43,7 @@ export default function ComprasPage() {
     const locale = useLocale();
     const { isAdmin } = useAdmin();
     const tRecibir = useTranslations('Recibir');
+    const t = useTranslations('Compras');
     // Finalizar Compras: count of COMPRADO items not received today; non-null opens the confirm modal.
     const [unreceivedCount, setUnreceivedCount] = useState<number | null>(null);
 
@@ -102,7 +103,7 @@ export default function ComprasPage() {
         if (res.success) {
             loadData();
         } else {
-            alert((res as any).error || 'Failed to save product');
+            alert((res as any).error || t('err_save_product'));
         }
     };
 
@@ -117,7 +118,7 @@ export default function ComprasPage() {
         if (!res.success) {
             // Revert on failure
             setIngredients(ingredients);
-            alert('Failed to update status');
+            alert(t('err_update_status'));
         }
     };
 
@@ -132,13 +133,13 @@ export default function ComprasPage() {
         if (!res.success) {
             // Revert on failure
             setIngredients(ingredients);
-            alert('Failed to update status');
+            alert(t('err_update_status'));
         }
     };
 
     const displayName = (ing: any) => (locale === 'es' && ing.nameEs ? ing.nameEs : ing.name);
     const displayCategory = (ing: any) =>
-        locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
+        locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || t('uncategorized'));
 
     const handleEnviarLista = async () => {
         const activeTabInfo = tabs.find(t => t.id === activeTab);
@@ -292,7 +293,7 @@ export default function ComprasPage() {
                 {activeTab === 'RECIBIR' ? (
                     <RecibirTab locale={locale === 'en' ? 'en' : 'es'} />
                 ) : isLoading ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
+                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{tRecibir('loading')}</div>
                 ) : ingredients.length === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                         <PackageSearch size={48} opacity={0.5} />
@@ -338,7 +339,7 @@ export default function ComprasPage() {
                                     const renderGroups = (list: any[], sectionKey: string, dimmed: boolean) => {
                                         const groupedIngredients = Array.from<[string, any[]]>(
                                             list.reduce((acc, ing) => {
-                                                const cat = locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || 'Uncategorized');
+                                                const cat = locale === 'es' && ing.category?.nameEs ? ing.category.nameEs : (ing.category?.name || t('uncategorized'));
                                                 if (!acc.has(cat)) acc.set(cat, []);
                                                 acc.get(cat).push(ing);
                                                 return acc;
@@ -427,7 +428,7 @@ export default function ComprasPage() {
                                                                             <button
                                                                                 data-no-capture="true"
                                                                                 onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'COMPRADO' ? 'PENDIENTE' : 'COMPRADO')}
-                                                                                title="Comprado"
+                                                                                title={t('status_comprado')}
                                                                                 style={{
                                                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                                                     border: ing.purchaseStatus === 'COMPRADO' ? 'none' : '1px solid var(--border)',
@@ -442,7 +443,7 @@ export default function ComprasPage() {
                                                                             <button
                                                                                 data-no-capture="true"
                                                                                 onClick={() => handleSetPurchaseStatus(ing.id, ing.purchaseStatus === 'NO_DISPONIBLE' ? 'PENDIENTE' : 'NO_DISPONIBLE')}
-                                                                                title="No Disponible"
+                                                                                title={t('status_no_disponible')}
                                                                                 style={{
                                                                                     border: ing.purchaseStatus === 'NO_DISPONIBLE' ? 'none' : '1px solid var(--border)',
                                                                                     background: ing.purchaseStatus === 'NO_DISPONIBLE' ? '#f59e0b' : 'transparent',
@@ -451,7 +452,7 @@ export default function ComprasPage() {
                                                                                     minHeight: '48px', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap'
                                                                                 }}
                                                                             >
-                                                                                No disp.
+                                                                                {t('status_no_disp_short')}
                                                                             </button>
                                                                         </div>
                                                                     ) : (
@@ -478,17 +479,17 @@ export default function ComprasPage() {
                                                                             <>
                                                                                 {ing.purchaseStatus === 'COMPRADO' && (
                                                                                     <span style={{ fontSize: '0.75rem', background: 'rgba(34, 197, 94, 0.1)', color: 'var(--success)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                                                                        Comprado
+                                                                                        {t('status_comprado')}
                                                                                     </span>
                                                                                 )}
                                                                                 {ing.purchaseStatus === 'NO_DISPONIBLE' && (
                                                                                     <span style={{ fontSize: '0.75rem', background: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>
-                                                                                        No Disponible
+                                                                                        {t('status_no_disponible')}
                                                                                     </span>
                                                                                 )}
                                                                                 {ing.carriedOver === true && (
                                                                                     <span style={{ fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
-                                                                                        Pendiente de antes
+                                                                                        {t('carried_over')}
                                                                                     </span>
                                                                                 )}
                                                                             </>
@@ -533,7 +534,7 @@ export default function ComprasPage() {
                                                                             {displayStock}
                                                                         </td>
                                                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'right', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                                                            {ing.provider?.name || 'Unknown'}
+                                                                            {ing.provider?.name || t('unknown_provider')}
                                                                         </td>
                                                                     </>
                                                                 )}

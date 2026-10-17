@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { RefreshCw } from 'lucide-react';
 import { getToastMappings, seedToastMappings, setToastMapping, type PosMappingRow } from '@/app/actions/posMapping';
 import { getToastBaseline, previewToastBaseline, setToastBaseline, type BaselineSummary } from '@/app/actions/toastSales';
@@ -18,11 +19,12 @@ function nowInNewYork(): string {
 
 const showNy = (iso: string) => new Date(iso).toLocaleString('es', { timeZone: NY, dateStyle: 'medium', timeStyle: 'short' });
 
-const ORIGEN: Record<string, string> = {
-    NAME: 'Por nombre',
-    NAME_GF: 'Por nombre (GF)',
-    MANUAL: 'Manual',
-    NONE: 'Sin vincular'
+// matchedBy → MenuAdmin message key for the "Origen del match" column.
+const ORIGEN_KEY: Record<string, string> = {
+    NAME: 'origin_NAME',
+    NAME_GF: 'origin_NAME_GF',
+    MANUAL: 'origin_MANUAL',
+    NONE: 'origin_NONE'
 };
 
 /**
@@ -31,6 +33,7 @@ const ORIGEN: Record<string, string> = {
  * overwrites. Read-only toward Toast.
  */
 export default function MapeoToastTab() {
+    const t = useTranslations('MenuAdmin');
     const [rows, setRows] = useState<PosMappingRow[]>([]);
     const [menuItems, setMenuItems] = useState<{ id: string; name: string }[]>([]);
     const [modifiers, setModifiers] = useState<{ id: string; label: string }[]>([]);
@@ -54,7 +57,7 @@ export default function MapeoToastTab() {
         setPreview(null);
         try {
             const res = await previewToastBaseline(baselineInput);
-            if (!res.success || !res.summary) setBaselineMsg({ text: res.error ?? 'No se pudo calcular.', error: true });
+            if (!res.success || !res.summary) setBaselineMsg({ text: res.error ?? t('err_calc'), error: true });
             else setPreview(res.summary);
         } finally {
             setBaselineBusy(false);
@@ -68,9 +71,9 @@ export default function MapeoToastTab() {
         try {
             const res = await setToastBaseline(baselineInput);
             if (!res.success) {
-                setBaselineMsg({ text: res.error ?? 'No se pudo fijar el punto de conteo.', error: true });
+                setBaselineMsg({ text: res.error ?? t('err_set_baseline'), error: true });
             } else {
-                setBaselineMsg({ text: `Punto de conteo fijado. ${res.summary?.before ?? 0} líneas quedaron como ya contadas, sin mover inventario.`, error: false });
+                setBaselineMsg({ text: t('baseline_set', { count: res.summary?.before ?? 0 }), error: false });
                 setPreview(null);
             }
             setBaseline(await getToastBaseline());
@@ -97,18 +100,18 @@ export default function MapeoToastTab() {
         try {
             const res = await seedToastMappings();
             if (!res.success || !res.report) {
-                setMessage({ text: res.error ?? 'No se pudo sincronizar el mapeo.', error: true });
+                setMessage({ text: res.error ?? t('err_sync_mapping'), error: true });
                 return;
             }
             const r = res.report;
             const sinVincular = r.items.filter(i => i.matchedBy === 'NONE').length + r.modifiers.filter(m => m.matchedBy === 'NONE').length;
             setMessage({
-                text: `Mapeo actualizado: ${r.items.length} platos, ${r.modifiers.length} modificadores, ${sinVincular} sin vincular, ${r.keptManual} manuales conservados.`,
+                text: t('mapping_updated', { items: r.items.length, modifiers: r.modifiers.length, unlinked: sinVincular, kept: r.keptManual }),
                 error: false
             });
             await load();
         } catch (e) {
-            setMessage({ text: e instanceof Error ? e.message : 'No se pudo sincronizar el mapeo.', error: true });
+            setMessage({ text: e instanceof Error ? e.message : t('err_sync_mapping'), error: true });
         } finally {
             setSeeding(false);
         }
@@ -120,7 +123,7 @@ export default function MapeoToastTab() {
         try {
             const res = await setToastMapping(row.id, targetId || null);
             if (!res.success) {
-                setMessage({ text: res.error ?? 'No se pudo guardar el mapeo.', error: true });
+                setMessage({ text: res.error ?? t('err_save_mapping'), error: true });
                 return;
             }
             await load();
@@ -147,10 +150,10 @@ export default function MapeoToastTab() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
-                    <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Mapeo Toast</h2>
+                    <h2 style={{ margin: 0, fontSize: '1.5rem' }}>{t('mapeo_title')}</h2>
                     <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
-                        Qué plato o modificador de la app es cada artículo de Toast. Solo se descuenta inventario de lo vinculado.
-                        {rows.length > 0 && <> {unlinked} sin vincular de {rows.length}.</>}
+                        {t('mapeo_subtitle')}
+                        {rows.length > 0 && <> {t('mapeo_unlinked_of', { unlinked, total: rows.length })}</>}
                     </p>
                 </div>
                 <button
@@ -165,7 +168,7 @@ export default function MapeoToastTab() {
                     }}
                 >
                     <RefreshCw size={18} />
-                    {seeding ? 'Sincronizando…' : 'Volver a sincronizar mapeo'}
+                    {seeding ? t('syncing') : t('resync_mapping')}
                 </button>
             </div>
 
@@ -176,15 +179,15 @@ export default function MapeoToastTab() {
             {/* Counting point: sales before it are already in the counted stock. */}
             <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 <div>
-                    <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Punto de conteo</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{t('baseline_title')}</h3>
                     <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-secondary)' }}>
-                        Las ventas de Toast anteriores a este momento se dan por contadas en el inventario y nunca se descuentan.
-                        {' '}{baseline ? <>Actual: <strong>{showNy(baseline)}</strong> (hora de Nueva York).</> : 'Todavía no hay punto de conteo.'}
+                        {t('baseline_desc')}
+                        {' '}{baseline ? t.rich('baseline_current', { date: showNy(baseline), strong: (chunks) => <strong>{chunks}</strong> }) : t('baseline_none')}
                     </p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flex: '1 1 240px' }}>
-                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Fecha y hora (Nueva York)</span>
+                        <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>{t('baseline_datetime_label')}</span>
                         <input
                             type="datetime-local"
                             value={baselineInput}
@@ -202,7 +205,7 @@ export default function MapeoToastTab() {
                             background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', opacity: baselineBusy ? 0.6 : 1
                         }}
                     >
-                        {baselineBusy && !preview ? 'Calculando…' : 'Fijar punto de conteo'}
+                        {baselineBusy && !preview ? t('calculating') : t('set_baseline')}
                     </button>
                 </div>
 
@@ -211,13 +214,13 @@ export default function MapeoToastTab() {
                         display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1rem', borderRadius: '8px',
                         border: '1px solid var(--warning)', background: 'color-mix(in srgb, var(--warning) 10%, transparent)'
                     }}>
-                        <span style={{ fontWeight: 700 }}>Vista previa — {showNy(preview.baselineAt)}</span>
+                        <span style={{ fontWeight: 700 }}>{t('preview_title', { date: showNy(preview.baselineAt) })}</span>
                         <span>
-                            {preview.before} líneas de Toast quedarían como ya contadas (sin mover inventario).
-                            {' '}{preview.after} líneas posteriores se descontarán cuando se active el consumo.
+                            {t('preview_before', { count: preview.before })}
+                            {' '}{t('preview_after', { count: preview.after })}
                         </span>
                         <span style={{ fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                            {preview.days.map(d => `${d.date}: ${d.before} antes / ${d.after} después`).join(' · ')}
+                            {preview.days.map(d => t('preview_day', { date: d.date, before: d.before, after: d.after })).join(' · ')}
                         </span>
                         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                             <button
@@ -229,7 +232,7 @@ export default function MapeoToastTab() {
                                     background: 'var(--warning)', border: '1px solid var(--warning)', opacity: baselineBusy ? 0.6 : 1
                                 }}
                             >
-                                {baselineBusy ? 'Guardando…' : 'Confirmar punto de conteo'}
+                                {baselineBusy ? t('saving') : t('confirm_baseline')}
                             </button>
                             <button
                                 onClick={() => setPreview(null)}
@@ -239,7 +242,7 @@ export default function MapeoToastTab() {
                                     cursor: 'pointer', color: 'var(--text-secondary)', background: 'transparent', border: '1px solid var(--border)'
                                 }}
                             >
-                                Cancelar
+                                {t('cancel')}
                             </button>
                         </div>
                     </div>
@@ -250,9 +253,9 @@ export default function MapeoToastTab() {
             </div>
 
             {loading ? (
-                <p style={{ color: 'var(--text-secondary)' }}>Cargando…</p>
+                <p style={{ color: 'var(--text-secondary)' }}>{t('loading')}</p>
             ) : rows.length === 0 ? (
-                <p style={{ color: 'var(--text-secondary)' }}>Todavía no hay mapeo. Usa “Volver a sincronizar mapeo”.</p>
+                <p style={{ color: 'var(--text-secondary)' }}>{t('mapeo_empty')}</p>
             ) : (
                 <div className="glass-panel" style={{ padding: 0, overflowX: 'auto' }}>
                     {/* Below ~720px the table scrolls sideways inside this panel, not the page. */}
@@ -261,10 +264,10 @@ export default function MapeoToastTab() {
                         gap: '0.75rem', padding: '0.9rem 1rem', fontSize: '0.95rem', fontWeight: 600,
                         color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)'
                     }}>
-                        <span>Nombre en Toast</span>
-                        <span>Tipo</span>
-                        <span>Plato / Modificador en la app</span>
-                        <span>Origen del match</span>
+                        <span>{t('th_toast_name')}</span>
+                        <span>{t('th_type')}</span>
+                        <span>{t('th_app_target')}</span>
+                        <span>{t('th_match_origin')}</span>
                     </div>
                     {sorted.map(row => {
                         const isNone = row.matchedBy === 'NONE';
@@ -284,20 +287,20 @@ export default function MapeoToastTab() {
                                 <span style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
                                     {row.posDisplayName}
                                 </span>
-                                <span style={{ color: 'var(--text-secondary)' }}>{isItem ? 'Plato' : 'Modificador'}</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{isItem ? t('kind_item') : t('kind_modifier')}</span>
                                 <select
                                     value={value}
                                     disabled={savingId === row.id}
                                     onChange={e => handleAssign(row, e.target.value)}
                                     style={selectStyle}
                                 >
-                                    <option value="">— Sin vincular —</option>
+                                    <option value="">{t('option_unlinked')}</option>
                                     {isItem
                                         ? menuItems.map(m => <option key={m.id} value={m.id}>{m.name}</option>)
                                         : modifiers.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                                 </select>
                                 <span style={{ fontWeight: 600, color: isNone ? 'var(--warning)' : 'var(--text-secondary)' }}>
-                                    {savingId === row.id ? 'Guardando…' : ORIGEN[row.matchedBy] ?? row.matchedBy}
+                                    {savingId === row.id ? t('saving') : ORIGEN_KEY[row.matchedBy] ? t(ORIGEN_KEY[row.matchedBy]) : row.matchedBy}
                                 </span>
                             </div>
                         );

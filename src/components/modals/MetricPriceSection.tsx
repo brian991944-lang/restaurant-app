@@ -55,7 +55,7 @@ export default function MetricPriceSection({
                         </span>
                         <div style={{ fontSize: '1.3rem', fontWeight: 600, color: '#007bff', display: 'flex', flexDirection: 'column' }}>
                             ${(isLinkedToRecipe ? (parentIngredient?.currentPrice || 0) : (costPerPortionPreview * Math.max(0.01, (100 - wastePercent) / 100))).toFixed(4)}
-                            <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 400, marginTop: '2px' }}>Base Unit Price from Recipe</span>
+                            <span style={{ fontSize: '0.75rem', color: '#aaa', fontWeight: 400, marginTop: '2px' }}>{t('modal_base_unit_price_from_recipe')}</span>
                         </div>
                     </div>
                 ) : (
@@ -115,7 +115,7 @@ export default function MetricPriceSection({
                                     ${costPerPortionPreview.toFixed(4)}
                                 </span>
                                 <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
-                                    per {isPortioned ? 'portion' : selectedMetric}
+                                    {t('modal_per_unit', { unit: isPortioned ? t('modal_portion') : selectedMetric })}
                                 </span>
                             </div>
                         )}

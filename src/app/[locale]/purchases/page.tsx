@@ -2,6 +2,7 @@
 
 import { Upload, DollarSign, ChefHat, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { saveVendorItem, getVendorItems } from '@/app/actions/purchases';
 import { getInventory, getProviders, getCategories } from '@/app/actions/inventory';
 
@@ -12,6 +13,7 @@ import { ALLOWED_METRICS } from '@/lib/conversion';
 import { Trash2 } from 'lucide-react';
 
 export default function PurchasesPage() {
+    const t = useTranslations('Purchases');
     const [view, setView] = useState<'PRICE' | 'CULINARY'>('PRICE');
     const [vendorItems, setVendorItems] = useState<any[]>([]);
     const [allIngredients, setAllIngredients] = useState<any[]>([]);
@@ -62,13 +64,13 @@ export default function PurchasesPage() {
         }
 
         if (mappedValue === 'NEW_PARENT') {
-            alert(`Routing to "Create New Target" for ${inboxItem.extractedDesc}. (In production, this would open AddIngredientModal)`);
+            alert(t('routing_new_target', { name: inboxItem.extractedDesc }));
             return;
         }
 
         // Standard mapping to existing ID Let's prompt Brian
         const targetIng = allIngredients.find(i => i.id === mappedValue);
-        const shouldAssign = confirm(`I found '${inboxItem.extractedDesc}' on your ${inboxItem.vendorName} invoice. \n\nShould I assign this as the new active Market Source price for the internal ingredient '${targetIng?.name}'?`);
+        const shouldAssign = confirm(t('confirm_assign_source', { desc: inboxItem.extractedDesc, vendor: inboxItem.vendorName, target: targetIng?.name ?? '' }));
 
         // Always save the vendor product linkage
         const res = await saveVendorItem({
@@ -93,8 +95,8 @@ export default function PurchasesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>Purchases & Vendors</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Automated Vendor Ingestion via AI</p>
+                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>{t('title')}</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>{t('subtitle')}</p>
                 </div>
                 <div>
                     <input
@@ -106,7 +108,7 @@ export default function PurchasesPage() {
                     />
                     <button onClick={() => fileInputRef.current?.click()} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px' }}>
                         <Upload size={18} />
-                        <span>{isUploading ? 'Scanning Invoice...' : 'Upload Invoice'}</span>
+                        <span>{isUploading ? t('scanning_invoice') : t('upload_invoice')}</span>
                     </button>
                 </div>
             </div>
@@ -116,7 +118,7 @@ export default function PurchasesPage() {
                 <div className="glass-panel" style={{ padding: '1.5rem', border: '1px solid var(--warning)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--warning)', marginBottom: '1rem' }}>
                         <AlertCircle size={20} />
-                        <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Human Review Required ({pendingInbox.length})</h2>
+                        <h2 style={{ fontSize: '1.25rem', margin: 0 }}>{t('review_required', { count: pendingInbox.length })}</h2>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {pendingInbox.map((req, idx) => {
@@ -132,7 +134,7 @@ export default function PurchasesPage() {
                                         <div>
                                             <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{req.extractedDesc}</div>
                                             <div style={{ fontSize: '0.8rem', color: req.confidence >= 90 ? 'var(--success)' : 'var(--warning)', marginTop: '0.3rem' }}>
-                                                AI Match Confidence: {req.confidence}%
+                                                {t('ai_confidence', { pct: req.confidence })}
                                             </div>
                                         </div>
                                     </div>
@@ -140,7 +142,7 @@ export default function PurchasesPage() {
                                     {/* Grid Layout for Inputs */}
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Provider Confirmation</label>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('provider_confirmation')}</label>
                                             <SearchableSelect
                                                 value={req.vendorName}
                                                 onChange={(val) => {
@@ -149,15 +151,15 @@ export default function PurchasesPage() {
                                                     setPendingInbox(newInbox);
                                                 }}
                                                 options={[
-                                                    { value: req.vendorName, label: `${req.vendorName} (Invoice Suggestion)` },
+                                                    { value: req.vendorName, label: t('invoice_suggestion', { name: req.vendorName }) },
                                                     ...providers.map(p => ({ value: p.name, label: p.name }))
                                                 ]}
-                                                placeholder="Select Provider..."
+                                                placeholder={t('select_provider')}
                                             />
                                         </div>
 
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Price Paid ($)</label>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('price_paid')}</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -172,7 +174,7 @@ export default function PurchasesPage() {
                                         </div>
 
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                            <label style={{ fontSize: '0.8rem', color: 'var(--accent-primary)' }}>Normalization Metric</label>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--accent-primary)' }}>{t('normalization_metric')}</label>
                                             <SearchableSelect
                                                 value={req.normalizedMetric || ""}
                                                 onChange={(val) => {
@@ -180,13 +182,13 @@ export default function PurchasesPage() {
                                                     newInbox[idx].normalizedMetric = val;
                                                     setPendingInbox(newInbox);
                                                 }}
-                                                placeholder="Select Internal Metric..."
+                                                placeholder={t('select_internal_metric')}
                                                 options={ALLOWED_METRICS.map(m => ({ value: m, label: m }))}
                                             />
                                         </div>
 
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Quantity Paid</label>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('quantity_paid')}</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -201,7 +203,7 @@ export default function PurchasesPage() {
                                         </div>
 
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Unit Purchased</label>
+                                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('unit_purchased')}</label>
                                             <input
                                                 type="text"
                                                 className="input-field"
@@ -226,17 +228,17 @@ export default function PurchasesPage() {
                                                         newInbox[idx].mappedIngredientId = val;
                                                         setPendingInbox(newInbox);
                                                     }}
-                                                    placeholder="Select Master Ingredient..."
+                                                    placeholder={t('select_master_ingredient')}
                                                     options={[
-                                                        { value: 'NEW_PARENT', label: '+ Create New Parent Ingredient' },
+                                                        { value: 'NEW_PARENT', label: t('create_new_parent') },
                                                         ...allIngredients.map(i => ({ value: i.id, label: i.name }))
                                                     ]}
                                                 />
                                             </div>
 
                                             <div style={{ paddingLeft: '1rem', borderLeft: '1px solid var(--border)' }}>
-                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Live Normalized Cost: </span>
-                                                <strong style={{ fontSize: '1.25rem', color: 'var(--success)' }}>${normalizedPrice.toFixed(4)}</strong> <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>/ {req.normalizedMetric || "unit"}</span>
+                                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('live_normalized_cost')}</span>
+                                                <strong style={{ fontSize: '1.25rem', color: 'var(--success)' }}>${normalizedPrice.toFixed(4)}</strong> <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>/ {req.normalizedMetric || t('unit_fallback')}</span>
                                             </div>
                                         </div>
 
@@ -247,7 +249,7 @@ export default function PurchasesPage() {
                                                 onClick={() => handleSyncItem(req, idx, currentIngredientId)}
                                                 style={{ padding: '0.5rem 1.5rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', opacity: isReadyToSync ? 1 : 0.5, cursor: isReadyToSync ? 'pointer' : 'not-allowed' }}
                                             >
-                                                <CheckCircle2 size={16} /> Sync
+                                                <CheckCircle2 size={16} /> {t('sync')}
                                             </button>
                                             <button
                                                 onClick={() => {
@@ -257,7 +259,7 @@ export default function PurchasesPage() {
                                                 }}
                                                 style={{ padding: '0.5rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(239,68,68,0.1)', color: 'var(--danger)' }}
                                             >
-                                                <Trash2 size={16} /> Dismiss
+                                                <Trash2 size={16} /> {t('dismiss')}
                                             </button>
                                         </div>
                                     </div>
@@ -280,7 +282,7 @@ export default function PurchasesPage() {
                         display: 'flex', alignItems: 'center', gap: '0.5rem'
                     }}
                 >
-                    <DollarSign size={16} /> Price View
+                    <DollarSign size={16} /> {t('price_view')}
                 </button>
                 <button
                     onClick={() => setView('CULINARY')}
@@ -292,7 +294,7 @@ export default function PurchasesPage() {
                         display: 'flex', alignItems: 'center', gap: '0.5rem'
                     }}
                 >
-                    <ChefHat size={16} /> Culinary View
+                    <ChefHat size={16} /> {t('culinary_view')}
                 </button>
             </div>
 
@@ -300,7 +302,7 @@ export default function PurchasesPage() {
                 <div style={{ maxWidth: '400px' }}>
                     <input
                         type="text"
-                        placeholder="Search culinary notes... (e.g., 'Jumbo')"
+                        placeholder={t('search_culinary_notes')}
                         className="input-field"
                         value={culinaryFilter}
                         onChange={(e) => setCulinaryFilter(e.target.value)}
@@ -328,12 +330,12 @@ export default function PurchasesPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead>
                                     <tr style={{ color: 'var(--text-secondary)' }}>
-                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>Invoice Desc</th>
-                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>Vendor</th>
-                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>Pack Size</th>
-                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>Base Unit Price</th>
+                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>{t('th_invoice_desc')}</th>
+                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>{t('th_vendor')}</th>
+                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>{t('th_pack_size')}</th>
+                                        <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>{t('th_base_unit_price')}</th>
                                         {view === 'CULINARY' && (
-                                            <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>Culinary Notes</th>
+                                            <th style={{ padding: '0.8rem 1rem', fontWeight: 500 }}>{t('th_culinary_notes')}</th>
                                         )}
                                     </tr>
                                 </thead>
@@ -350,13 +352,13 @@ export default function PurchasesPage() {
                                             }}>
                                                 <td style={{ padding: '1rem' }}>
                                                     <div style={{ fontWeight: 600 }}>{vItem.invoiceDescription}</div>
-                                                    {isBestBuy && <span style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700, padding: '0.1rem 0.4rem', background: 'rgba(16,185,129,0.2)', borderRadius: '12px' }}>BEST BUY</span>}
+                                                    {isBestBuy && <span style={{ fontSize: '0.7rem', color: 'var(--success)', fontWeight: 700, padding: '0.1rem 0.4rem', background: 'rgba(16,185,129,0.2)', borderRadius: '12px' }}>{t('best_buy')}</span>}
                                                 </td>
                                                 <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{vItem.vendorName}</td>
                                                 <td style={{ padding: '1rem' }}>{vItem.packSize} {vItem.packUnit} <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>${vItem.currentPackPrice.toFixed(2)}</div></td>
                                                 <td style={{ padding: '1rem', fontWeight: 600 }}>${unitPrice.toFixed(4)} / {vItem.packUnit}</td>
                                                 {view === 'CULINARY' && (
-                                                    <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{vItem.culinaryNotes || 'No notes'}</td>
+                                                    <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>{vItem.culinaryNotes || t('no_notes')}</td>
                                                 )}
                                             </tr>
                                         )

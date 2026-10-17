@@ -10,6 +10,7 @@ import { SearchableSelect } from '@/components/ui/SearchableSelect';
 
 export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSave, dbIngredients }: any) {
     const t = useTranslations('Inventory');
+    const tr = useTranslations('RecipeBuilder');
     const locale = useLocale();
 
     const [groups, setGroups] = useState<{ id: string, name: string }[]>([]);
@@ -138,7 +139,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
         if (result.success) {
             onSave(result.ingredient);
         } else {
-            alert("Database Error: " + (result.error || "Failed to save prep recipe"));
+            alert(tr('db_error', { error: result.error || tr('save_failed') }));
         }
     };
 
@@ -163,7 +164,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                             <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Nombre de la Receta' : 'Recipe Name'}</label>
-                            <input name="name" className="input-field" placeholder="e.g. Salsa Huancaina" defaultValue={initialData?.name} required />
+                            <input name="name" className="input-field" placeholder={tr('placeholder_recipe_name')} defaultValue={initialData?.name} required />
                         </div>
                     </div>
 
@@ -175,7 +176,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                 value={selectedMetric}
                                 onChange={setSelectedMetric}
                                 options={ALLOWED_METRICS.map(m => ({ value: m, label: m }))}
-                                placeholder="Select batch unit..."
+                                placeholder={tr('placeholder_batch_unit')}
                                 required
                             />
                         </div>
@@ -199,7 +200,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                         <input
                                             value={group.name}
                                             onChange={e => updateGroupName(group.id, e.target.value)}
-                                            placeholder="Group Name (e.g. Relleno) - REQUIRED"
+                                            placeholder={tr('placeholder_group_name')}
                                             style={{ background: 'rgba(128,128,128,0.08)', border: '1px solid var(--border)', padding: '0.5rem 1rem', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600, outline: 'none', minWidth: '300px' }}
                                             required
                                         />
@@ -207,7 +208,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                             <button type="button" onClick={() => addComponent(group.id)} className="btn-secondary" style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                                                 <Plus size={14} /> {locale === 'es' ? 'Agregar Insumo' : 'Add Ingredient'}
                                             </button>
-                                            <button type="button" onClick={() => removeGroup(group.id)} style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.3rem' }} title="Remove Group">
+                                            <button type="button" onClick={() => removeGroup(group.id)} style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.3rem' }} title={tr('remove_group')}>
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
@@ -215,7 +216,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
 
                                     {groupComps.length === 0 ? (
                                         <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                                            No items. Click "Add Ingredient" to start building this group.
+                                            {tr('empty_group')}
                                         </div>
                                     ) : (
                                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginTop: '0.5rem' }}>
@@ -223,8 +224,8 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                                                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Insumo' : 'Ingredient'}</th>
                                                     <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>{locale === 'es' ? 'Cant.' : 'Qty'}</th>
-                                                    <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>Unidad</th>
-                                                    <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right', width: '100px' }}>Costo</th>
+                                                    <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>{tr('col_unit')}</th>
+                                                    <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'right', width: '100px' }}>{tr('col_cost')}</th>
                                                     <th style={{ padding: '0.5rem', width: '40px' }}></th>
                                                 </tr>
                                             </thead>
@@ -253,16 +254,16 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                         })}
 
                         <button type="button" onClick={addGroup} className="btn-secondary" style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', border: '2px dashed var(--accent-primary)', color: 'var(--text-primary)', background: 'rgba(128,128,128,0.05)', borderRadius: '8px', opacity: 0.9, transition: 'opacity 0.2s', fontWeight: 600 }} onMouseOver={e => e.currentTarget.style.opacity = '1'} onMouseOut={e => e.currentTarget.style.opacity = '0.9'}>
-                            <Plus size={18} /> Agregar Otro Componente (Add Block)
+                            <Plus size={18} /> {tr('add_group')}
                         </button>
 
                         <div style={{ marginTop: '2rem', padding: '1.25rem', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Costo Total de la Receta (Total Batch Cost)</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{tr('total_batch_cost')}</span>
                                 <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#007bff' }}>${totalCalculatedCost.toFixed(2)}</span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Costo por {selectedMetric || 'Unit'} (Cost per Yield Unit)</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{tr('cost_per_unit', { unit: selectedMetric || tr('col_unit') })}</span>
                                 <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#007bff' }}>${currentPricePreview.toFixed(2)}</span>
                             </div>
                         </div>
@@ -273,7 +274,7 @@ export default function RecipeBuilderModal({ isOpen, onClose, initialData, onSav
                             {t('modal_cancel')}
                         </button>
                         <button type="submit" className="btn-primary" style={{ padding: '0.6rem 2rem', borderRadius: '8px', fontWeight: 600 }}>
-                            Guardar Receta
+                            {tr('save_recipe')}
                         </button>
                     </div>
                 </form>

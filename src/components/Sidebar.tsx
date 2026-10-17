@@ -259,7 +259,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                 Fusionista
                             </h2>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Inventory & Prep</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('brand_tagline')}</span>
                         </div>
                     </div>
                 )}

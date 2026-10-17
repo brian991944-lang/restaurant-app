@@ -11,7 +11,8 @@ interface AdjustStockModalProps {
 }
 
 export default function AdjustStockModal({ ingredient, onClose, onSave }: AdjustStockModalProps) {
-    const t = useTranslations('Inventory');
+    const t = useTranslations('AdjustStock');
+    const tCommon = useTranslations('Common');
     const [amount, setAmount] = useState<number>(1);
     const [action, setAction] = useState<'ADD' | 'REMOVE'>('ADD');
     const [notes, setNotes] = useState('');
@@ -19,7 +20,7 @@ export default function AdjustStockModal({ ingredient, onClose, onSave }: Adjust
 
     if (!ingredient) return null;
 
-    const unitLabel = ingredient.isPacked ? 'Bolsas / Bags' : ingredient.metric;
+    const unitLabel = ingredient.isPacked ? t('unit_bags') : ingredient.metric;
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,7 +39,7 @@ export default function AdjustStockModal({ ingredient, onClose, onSave }: Adjust
             <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', borderBottom: '1px solid var(--border)' }}>
                     <div>
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>Ajustar / Adjust Stock</h2>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0 }}>{t('title')}</h2>
                         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{ingredient.name}</span>
                     </div>
                     <button onClick={onClose} style={{ background: 'transparent', color: 'var(--text-secondary)' }}><X size={20} /></button>
@@ -58,7 +59,7 @@ export default function AdjustStockModal({ ingredient, onClose, onSave }: Adjust
                                 transition: 'all 0.2s ease'
                             }}
                         >
-                            <Plus size={18} /> Añadir / Add
+                            <Plus size={18} /> {t('add')}
                         </button>
                         <button
                             type="button"
@@ -72,13 +73,13 @@ export default function AdjustStockModal({ ingredient, onClose, onSave }: Adjust
                                 transition: 'all 0.2s ease'
                             }}
                         >
-                            <Minus size={18} /> Retirar / Remove
+                            <Minus size={18} /> {t('remove')}
                         </button>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            Cantidad / Quantity (<span style={{ color: 'var(--text-primary)' }}>{unitLabel}</span>)
+                            {t('quantity')} (<span style={{ color: 'var(--text-primary)' }}>{unitLabel}</span>)
                         </label>
                         <input
                             type="number"
@@ -98,11 +99,11 @@ export default function AdjustStockModal({ ingredient, onClose, onSave }: Adjust
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Nota / Reason (Opcional)</label>
+                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('note_optional')}</label>
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="e.g. Received new shipment | Waste"
+                            placeholder={t('note_placeholder')}
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                         />
@@ -110,10 +111,10 @@ export default function AdjustStockModal({ ingredient, onClose, onSave }: Adjust
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
                         <button type="button" onClick={onClose} disabled={isSubmitting} style={{ padding: '0.6rem 1rem', borderRadius: '8px', color: 'var(--text-secondary)', background: 'transparent' }}>
-                            Cancelar
+                            {tCommon('cancel')}
                         </button>
                         <button type="submit" className="btn-primary" disabled={isSubmitting} style={{ padding: '0.6rem 1.5rem', borderRadius: '8px' }}>
-                            {isSubmitting ? 'Guardando...' : 'Confirmar'}
+                            {isSubmitting ? tCommon('saving') : tCommon('confirm')}
                         </button>
                     </div>
                 </form>

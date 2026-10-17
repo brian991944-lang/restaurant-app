@@ -161,7 +161,7 @@ export default function PrepSchedulePage() {
     };
 
     const handleRemoveRecurringRule = async (id: string) => {
-        if (!confirm("Delete this recurring rule?")) return;
+        if (!confirm(t('PrepSchedule.confirm_delete_recurring_rule'))) return;
         setIsLoading(true);
         await deleteRecurringRule(id);
         setRecurringRules(await getRecurringRules());
@@ -257,7 +257,7 @@ export default function PrepSchedulePage() {
                 setRecurringRules(rules);
             } catch (err) {
                 console.error("Tab data loading failed:", err);
-                alert("Could not load Defrosting Station data fully. Please try refreshing.");
+                alert(t('PrepSchedule.alert_defrost_load_failed'));
             }
         } else if (tab === 'airtight') {
             const [rules, tasks] = await Promise.all([getAirTightRules(), getPrepTaskItems()]);
@@ -325,7 +325,7 @@ export default function PrepSchedulePage() {
                 return;
             }
             const cook = prepUsers.find(u => u.id === deleteTaskCook);
-            const cookName = cook ? cook.name : 'Unknown Cook';
+            const cookName = cook ? cook.name : t('PrepSchedule.unknown_cook');
             const res = await completePrepTask(task.ingredientId, 0, [deleteTaskCook], task.assignmentId, `Not Necessary, skipped by ${cookName}`);
             if (res.success) {
                 if (isTodayTasks) setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: true, actualAmount: 0, completedBy: cookName } : t));
@@ -426,7 +426,8 @@ export default function PrepSchedulePage() {
             </div>
         );
 
-        const catKey = (t: PrepTask) => (t.category || 'Uncategorized').trim().toLowerCase();
+        const uncategorizedLabel = t('PrepSchedule.uncategorized');
+        const catKey = (t: PrepTask) => (t.category || uncategorizedLabel).trim().toLowerCase();
 
         const groupedTasks = [...tasksObj].sort((a, b) => {
             const catCmp = catKey(a).localeCompare(catKey(b));
@@ -437,7 +438,7 @@ export default function PrepSchedulePage() {
         const groups = groupedTasks.reduce<Array<{ catName: string; tasks: typeof groupedTasks }>>((acc, task) => {
             const last = acc[acc.length - 1];
             if (!last || catKey(last.tasks[0]) !== catKey(task)) {
-                acc.push({ catName: (task.category || 'Uncategorized').trim(), tasks: [task] });
+                acc.push({ catName: (task.category || uncategorizedLabel).trim(), tasks: [task] });
             } else {
                 last.tasks.push(task);
             }
@@ -458,11 +459,11 @@ export default function PrepSchedulePage() {
                                 <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', width: '60px' }}></th>
                                 <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad a Preparar' : 'Target'}</th>
-                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center', minWidth: '120px' }}>{t('Nav.sales') === 'Ventas' ? 'Cantidad Preparada' : 'Actual'}</th>
-                                <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Unidad de Medida</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_target')}</th>
+                                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center', minWidth: '120px' }}>{t('PrepSchedule.th_actual')}</th>
+                                <th className="hide-on-tablet" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_unit')}</th>
                                 <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', minWidth: '150px' }}>{t('PrepSchedule.th_preparer_assigned')}</th>
-                                <th className="status-column-responsive" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Status</th>
+                                <th className="status-column-responsive" style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_status')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -508,22 +509,22 @@ export default function PrepSchedulePage() {
                                                         <button
                                                             onClick={() => setViewingRecipeId(task.digitalRecipeId!)}
                                                             style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
-                                                            title={task.digitalRecipeName || 'Ver Receta'}
+                                                            title={task.digitalRecipeName || t('PrepSchedule.view_recipe')}
                                                         >
                                                             <BookOpen size={16} color="var(--accent-primary)" />
                                                         </button>
                                                     )}
                                                     <span onClick={task.digitalRecipeId ? () => setViewingRecipeId(task.digitalRecipeId!) : undefined} style={{ fontSize: '0.95rem', textDecoration: isDone ? 'line-through' : 'none', color: task.digitalRecipeId ? 'var(--accent-primary)' : 'inherit', fontWeight: 500, cursor: task.digitalRecipeId ? 'pointer' : 'default' }}>{task.ingredientName}</span>
-                                                    {task.isUrgent && !task.isEmergency && <span style={{ fontSize: '1.1rem' }} title="Urgent Task">🚨</span>}
+                                                    {task.isUrgent && !task.isEmergency && <span style={{ fontSize: '1.1rem' }} title={t('PrepSchedule.urgent_task')}>🚨</span>}
                                                 </div>
                                                 {task.isEmergency && (
                                                     <div style={{ fontSize: '0.85rem', color: '#ff4d4f', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(239, 68, 68, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start' }}>
-                                                        <span style={{ fontSize: '1rem' }}>🚨</span> EMERGENCIA: Stock Crítico
+                                                        <span style={{ fontSize: '1rem' }}>🚨</span> {t('PrepSchedule.emergency_critical_stock')}
                                                     </div>
                                                 )}
                                                 {task.suggestedBaseIngredientName && task.suggestedBaseAmount !== null && !task.isEmergency && (
                                                     <div style={{ fontSize: '0.85rem', color: 'var(--accent-primary)', fontWeight: 500, background: 'rgba(59, 130, 246, 0.05)', padding: '0.4rem 0.6rem', borderRadius: '6px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
-                                                        Sugerencia: Procesar {task.suggestedBaseAmount} kg de {task.suggestedBaseIngredientName} para {task.ingredientName}
+                                                        {t('PrepSchedule.suggestion_process', { amount: task.suggestedBaseAmount ?? 0, base: task.suggestedBaseIngredientName, task: task.ingredientName })}
                                                     </div>
                                                 )}
                                             </div>
@@ -576,7 +577,7 @@ export default function PrepSchedulePage() {
                                                 <div className="spinner" style={{ width: '20px', height: '20px', margin: '0 auto', borderTopColor: 'var(--accent-primary)' }} />
                                             ) : isDone ? (
                                                 <button onClick={() => handleUndoTask(task)} style={{ background: 'transparent', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                                                    <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Deshacer' : 'Undo'}</span>
+                                                    <span className="hide-on-tablet">{t('PrepSchedule.undo_btn')}</span>
                                                     <span className="show-on-tablet"><X size={16} /></span>
                                                 </button>
                                             ) : (
@@ -592,14 +593,14 @@ export default function PrepSchedulePage() {
                                                     setCompleteCandidate(task);
                                                     setCompletionCooks([]);
                                                 }} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Completar' : 'Complete'}</span>
+                                                        <span className="hide-on-tablet">{t('PrepSchedule.complete_btn')}</span>
                                                         <span className="show-on-tablet"><Check size={16} /></span>
                                                     </button>
                                                     <button onClick={() => {
                                                         setIsTodayTasks(isTodayList);
                                                         setDeleteTaskCandidate(task);
                                                     }} className="btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem', color: 'white', background: 'var(--danger)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                        <span className="hide-on-tablet">{t('Nav.sales') === 'Ventas' ? 'Borrar' : 'Delete'}</span>
+                                                        <span className="hide-on-tablet">{t('PrepSchedule.delete_btn')}</span>
                                                         <span className="show-on-tablet"><Trash2 size={16} /></span>
                                                     </button>
                                                 </div>
@@ -653,21 +654,21 @@ export default function PrepSchedulePage() {
                         <button
                             onClick={() => setDayView('hoy')}
                             style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dayView === 'hoy' ? 600 : 400, background: dayView === 'hoy' ? 'var(--accent-primary)' : 'transparent', color: dayView === 'hoy' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
-                            Hoy
+                            {t('PrepSchedule.day_today')}
                         </button>
                         <button
                             onClick={() => setDayView('manana')}
                             style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: dayView === 'manana' ? 600 : 400, background: dayView === 'manana' ? 'var(--accent-primary)' : 'transparent', color: dayView === 'manana' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
-                            Mañana
+                            {t('PrepSchedule.day_tomorrow')}
                         </button>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Filtrar por Cocinero</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{t('PrepSchedule.filter_by_cook')}</span>
                         <select
                             value={cookFilter}
                             onChange={(e) => setCookFilter(e.target.value)}
                             style={{ minWidth: '200px', padding: '0.5rem 0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontSize: '0.95rem' }}>
-                            <option value="">Todos los Cocineros</option>
+                            <option value="">{t('PrepSchedule.all_cooks')}</option>
                             {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                         </select>
                     </div>
@@ -676,9 +677,9 @@ export default function PrepSchedulePage() {
                 {isLoading ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading')}</div>
                 ) : dayView === 'hoy' ? (
-                    renderTaskTable(filterByCook(sortedMorningTasks), t('Nav.sales') === 'Ventas' ? "Hoy (Tareas Asignadas para Hoy)" : "Today (Today's Assigned Tasks)", t('PrepSchedule.no_tasks_today'), true)
+                    renderTaskTable(filterByCook(sortedMorningTasks), t('PrepSchedule.today_table_title'), t('PrepSchedule.no_tasks_today'), true)
                 ) : (
-                    renderTaskTable(filterByCook(sortedTomorrowTasks), `${t('Nav.sales') === 'Ventas' ? 'Mañana' : 'Tomorrow'} - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)
+                    renderTaskTable(filterByCook(sortedTomorrowTasks), `${t('PrepSchedule.day_tomorrow')} - ${tmwDateStr}`, `${t('PrepSchedule.no_tasks_tomorrow')}${tmwDateStr}`, false)
                 )}
             </div>
         );
@@ -722,10 +723,10 @@ export default function PrepSchedulePage() {
 
         const res = await assignNightShiftTasks(tasksPayload, targetAssignDate);
         if (res.success) {
-            alert("Tasks assigned successfully!");
+            alert(t('PrepSchedule.alert_tasks_assigned'));
             await loadDataForTab('night');
         } else {
-            alert("Error saving: " + res.error);
+            alert(t('PrepSchedule.alert_save_error', { error: res.error ?? '' }));
         }
         setIsLoading(false);
     };
@@ -743,7 +744,7 @@ export default function PrepSchedulePage() {
         const nightFlatRows = (() => {
             const filtered = prepItems
                 .filter(item => !(item.category?.name || 'Uncategorized').toLowerCase().includes('descongelar'))
-                .map(item => ({ item, catName: (item.category?.nameEs || item.category?.name || 'Uncategorized').trim() }));
+                .map(item => ({ item, catName: (item.category?.nameEs || item.category?.name || t('PrepSchedule.uncategorized')).trim() }));
             filtered.sort((a, b) => {
                 const catCmp = nightCatKey(a.catName).localeCompare(nightCatKey(b.catName));
                 if (catCmp !== 0) return catCmp;
@@ -777,17 +778,17 @@ export default function PrepSchedulePage() {
                             <button
                                 onClick={() => { setAssignDateMode('hoy'); setTargetAssignDate(getBusinessDate()); }}
                                 style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'hoy' ? 600 : 400, background: assignDateMode === 'hoy' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'hoy' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
-                                Hoy
+                                {t('PrepSchedule.day_today')}
                             </button>
                             <button
                                 onClick={() => { setAssignDateMode('manana'); setTargetAssignDate(getNextBusinessDate()); }}
                                 style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'manana' ? 600 : 400, background: assignDateMode === 'manana' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'manana' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
-                                Mañana
+                                {t('PrepSchedule.day_tomorrow')}
                             </button>
                             <button
                                 onClick={() => setAssignDateMode('otra')}
                                 style={{ padding: '0.4rem 1.1rem', borderRadius: '999px', border: 'none', cursor: 'pointer', fontWeight: assignDateMode === 'otra' ? 600 : 400, background: assignDateMode === 'otra' ? 'var(--accent-primary)' : 'transparent', color: assignDateMode === 'otra' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
-                                Otra Fecha
+                                {t('PrepSchedule.other_date')}
                             </button>
                         </div>
                         {assignDateMode === 'otra' && (
@@ -799,7 +800,7 @@ export default function PrepSchedulePage() {
                     </button>
                 </div>
                 {isLoading ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading Tasks...</div>
+                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading_tasks')}</div>
                 ) : (
                     <div className="glass-panel table-wrapper-responsive" style={{ overflowX: 'auto', padding: 0 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '100%' }}>
@@ -863,7 +864,7 @@ export default function PrepSchedulePage() {
             const qtyStr = defrostQuantities[ing.id];
             const userId = globalDefrostCook;
             if (!qtyStr || !userId) {
-                alert(t('Nav.sales') === 'Ventas' ? "Seleccione un preparador y cantidad." : "Select a preparer and quantity.");
+                alert(t('PrepSchedule.err_select_preparer_qty'));
                 return;
             }
 
@@ -875,13 +876,13 @@ export default function PrepSchedulePage() {
                 setCompletedLogs(logs);
                 setDefrostQuantities(prev => ({ ...prev, [ing.id]: '' }));
             } else {
-                alert("Error completando la tarea.");
+                alert(t('PrepSchedule.err_complete_task'));
             }
             setCompleting(null);
         };
 
         const handleUndoDefrost = async (ing: any, logs: any[]) => {
-            if (!confirm('¿Estás seguro de que deseas revertir esta tarea? El inventario se ajustará automáticamente.')) return;
+            if (!confirm(t('PrepSchedule.confirm_undo_defrost'))) return;
             setCompleting(ing.id);
 
             let successCount = 0;
@@ -894,7 +895,7 @@ export default function PrepSchedulePage() {
                 const freshLogs = await getCompletedPrepLogs();
                 setCompletedLogs(freshLogs);
             } else {
-                alert('Error al deshacer la tarea.');
+                alert(t('PrepSchedule.err_undo_task'));
             }
             setCompleting(null);
         };
@@ -918,12 +919,12 @@ export default function PrepSchedulePage() {
                         <button
                             onClick={() => setDefrostSubTab('cocinero1')}
                             style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero1' ? '2px solid #3b82f6' : '2px solid transparent', color: defrostSubTab === 'cocinero1' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero1' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
-                            Cocinero 1 (Seafood)
+                            {t('PrepSchedule.defrost_cook1_tab')}
                         </button>
                         <button
                             onClick={() => setDefrostSubTab('cocinero2')}
                             style={{ padding: '0.8rem 1.5rem', background: 'transparent', border: 'none', borderBottom: defrostSubTab === 'cocinero2' ? '2px solid #ef4444' : '2px solid transparent', color: defrostSubTab === 'cocinero2' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: defrostSubTab === 'cocinero2' ? 'bold' : 'normal', cursor: 'pointer', fontSize: '1.05rem', transition: '0.2s' }}>
-                            Cocinero 2 (Pollo/Carnes)
+                            {t('PrepSchedule.defrost_cook2_tab')}
                         </button>
                     </div>
 
@@ -932,7 +933,7 @@ export default function PrepSchedulePage() {
                             value={globalDefrostCook}
                             onChange={(e) => setGlobalDefrostCook(e.target.value)}
                             style={{ padding: '0.6rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                            <option value="">Seleccionar Preparador...</option>
+                            <option value="">{t('PrepSchedule.select_user')}</option>
                             {teamMembers.map(m => (
                                 <option key={m.id} value={m.id}>{m.name}</option>
                             ))}
@@ -949,23 +950,23 @@ export default function PrepSchedulePage() {
                 </div>
 
                 {isLoading ? (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Cargando Estación...</div>
+                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading_station')}</div>
                 ) : (
                     <div className="glass-panel" style={{ overflowX: 'auto', padding: 0 }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
                             <thead>
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Tarea de Descongelado</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Sugerido</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Cantidad</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Acción</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_defrost_task')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_suggested')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_quantity')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_action')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {activeIngredients.length === 0 ? (
                                     <tr>
                                         <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                            No hay ingredientes asignados a Cocinero {activeCookNumber}. Configura la asignación en Programación Semanal.
+                                            {t('PrepSchedule.no_defrost_for_cook', { n: activeCookNumber })}
                                         </td>
                                     </tr>
                                 ) : activeIngredients.map((ing: any) => {
@@ -990,7 +991,7 @@ export default function PrepSchedulePage() {
                                             <tr key={ing.id} style={{ borderBottom: '1px solid var(--border)', background: 'rgba(16, 185, 129, 0.05)' }}>
                                                 <td style={{ padding: '1rem', textDecoration: 'line-through', color: 'var(--text-secondary)' }}>{ing.nameEs || taskName}</td>
                                                 <td colSpan={2} style={{ padding: '1rem', color: 'var(--success)', fontWeight: 'bold' }}>
-                                                    ✅ Completado ({totalQty} {displayMetric(ing.metric)}) - Por: {preparers}
+                                                    {t('PrepSchedule.defrost_completed_by', { qty: totalQty, metric: displayMetric(ing.metric), by: preparers })}
                                                 </td>
                                                 <td style={{ padding: '1rem', textAlign: 'center' }}>
                                                     <button
@@ -998,7 +999,7 @@ export default function PrepSchedulePage() {
                                                         onClick={() => handleUndoDefrost(ing, completedLogsToday)}
                                                         className="btn-secondary"
                                                         style={{ padding: '0.4rem 0.8rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                                                        {completing === ing.id ? 'Revertiendo...' : 'Deshacer'}
+                                                        {completing === ing.id ? t('PrepSchedule.reverting') : t('PrepSchedule.undo_btn')}
                                                     </button>
                                                 </td>
                                             </tr>
@@ -1011,7 +1012,7 @@ export default function PrepSchedulePage() {
                                             <td style={{ padding: '1rem' }}>
                                                 <button
                                                     onClick={() => setDefrostQuantities(prev => ({ ...prev, [ing.id]: suggested.toString() }))}
-                                                    title="Click para autocompletar"
+                                                    title={t('PrepSchedule.click_autofill')}
                                                     style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6', border: '1px solid var(--border)', padding: '0.4rem 0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', transition: '0.2s' }}>
                                                     {suggested} {displayMetric(ing.metric)}
                                                 </button>
@@ -1035,7 +1036,7 @@ export default function PrepSchedulePage() {
                                                     onClick={() => handleCompleteDefrost(ing)}
                                                     className="btn-primary"
                                                     style={{ padding: '0.6rem 1rem', background: completing === ing.id ? 'var(--text-secondary)' : '#3b82f6', opacity: (!globalDefrostCook || !defrostQuantities[ing.id]) ? 0.5 : 1 }}>
-                                                    {completing === ing.id ? 'Procesando...' : 'Completar'}
+                                                    {completing === ing.id ? t('PrepSchedule.processing') : t('PrepSchedule.complete_btn')}
                                                 </button>
                                             </td>
                                         </tr>
@@ -1053,7 +1054,7 @@ export default function PrepSchedulePage() {
         // Group and sort prep items for dropdown
         const groupedItems: Record<string, any[]> = {};
         prepItems.forEach(item => {
-            const cat = item.category?.nameEs || item.category?.name || 'Uncategorized';
+            const cat = item.category?.nameEs || item.category?.name || t('PrepSchedule.uncategorized');
             if (cat.toLowerCase().includes('descongelar')) return;
             if (!groupedItems[cat]) groupedItems[cat] = [];
             groupedItems[cat].push(item);
@@ -1069,16 +1070,16 @@ export default function PrepSchedulePage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                     <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{t('PrepSchedule.recurring_desc')}</p>
                     <button className="btn-primary" onClick={() => setShowRecurringForm(!showRecurringForm)} style={{ padding: '0.6rem 1.2rem', borderRadius: '12px' }}>
-                        {showRecurringForm ? 'Cancel' : t('PrepSchedule.new_recurring')}
+                        {showRecurringForm ? t('PrepSchedule.cancel') : t('PrepSchedule.new_recurring')}
                     </button>
                 </div>
 
                 {showRecurringForm && (
                     <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)', display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                         <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Prep Task</label>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('PrepSchedule.label_prep_task')}</label>
                             <select value={newRecurringTask} onChange={(e) => setNewRecurringTask(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                <option value="">Select Task...</option>
+                                <option value="">{t('PrepSchedule.select_task')}</option>
                                 {sortedCats.map(cat => (
                                     <optgroup key={cat} label={cat}>
                                         {groupedItems[cat].map(item => (
@@ -1089,9 +1090,9 @@ export default function PrepSchedulePage() {
                             </select>
                         </div>
                         <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Insumo Base (Ingredient)</label>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('PrepSchedule.label_base_ingredient')}</label>
                             <select value={newRecurringBase} onChange={(e) => setNewRecurringBase(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                <option value="">Select Base...</option>
+                                <option value="">{t('PrepSchedule.select_base')}</option>
                                 {baseIngredients.map(item => (
                                     <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
@@ -1100,16 +1101,16 @@ export default function PrepSchedulePage() {
                         <div style={{ flex: 1, minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Día de la Semana' : 'Day of Week'}</label>
                             <select value={newRecurringDay} onChange={(e) => setNewRecurringDay(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                <option value="0">Sunday</option>
-                                <option value="1">Monday</option>
-                                <option value="2">Tuesday</option>
-                                <option value="3">Wednesday</option>
-                                <option value="4">Thursday</option>
-                                <option value="5">Friday</option>
-                                <option value="6">Saturday</option>
+                                <option value="0">{t('PrepSchedule.weekday', { day: 0 })}</option>
+                                <option value="1">{t('PrepSchedule.weekday', { day: 1 })}</option>
+                                <option value="2">{t('PrepSchedule.weekday', { day: 2 })}</option>
+                                <option value="3">{t('PrepSchedule.weekday', { day: 3 })}</option>
+                                <option value="4">{t('PrepSchedule.weekday', { day: 4 })}</option>
+                                <option value="5">{t('PrepSchedule.weekday', { day: 5 })}</option>
+                                <option value="6">{t('PrepSchedule.weekday', { day: 6 })}</option>
                             </select>
-                            {newRecurringDay === '1' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.2rem' }}>Cubre: Mar, Mié, Jue, Vie</span>}
-                            {newRecurringDay === '3' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.2rem' }}>Cubre: Sáb, Dom, Lun</span>}
+                            {newRecurringDay === '1' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.2rem' }}>{t('PrepSchedule.covers_monday_rule')}</span>}
+                            {newRecurringDay === '3' && <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '0.2rem' }}>{t('PrepSchedule.covers_wednesday_rule')}</span>}
                         </div>
                         <div style={{ flex: 1, minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{locale === 'es' ? 'Demanda Total (Porciones)' : 'Total Demand (Portions)'}</label>
@@ -1127,8 +1128,7 @@ export default function PrepSchedulePage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
                         {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, idx) => {
                             const dayRules = recurringRules.filter(r => r.dayOfWeek === idx);
-                            // Convert days to Spanish if using Spanish local
-                            const displayDay = t('Nav.sales') === 'Ventas' ? ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][idx] : day;
+                            const displayDay = t('PrepSchedule.weekday', { day: idx });
 
                             return (
                                 <div key={day} className="glass-panel" style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.01)' }}>
@@ -1185,13 +1185,13 @@ export default function PrepSchedulePage() {
         return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-                    <p style={{ color: 'var(--text-secondary)', margin: 0 }}>View a historical log of completed prep duties and assignments.</p>
+                    <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{t('PrepSchedule.logs_desc')}</p>
                 </div>
                 {isLoading ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('PrepSchedule.loading')}</div>
                 ) : completedLogs.length === 0 ? (
                     <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', borderRadius: '12px' }}>
-                        <p>No completed logs found.</p>
+                        <p>{t('PrepSchedule.no_logs')}</p>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1223,11 +1223,11 @@ export default function PrepSchedulePage() {
                                                         <div key={log.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '1rem 1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
                                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                                 <strong style={{ fontSize: '1.1rem' }}>{log.ingredientName}</strong>
-                                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.category} • Prepped by {log.completedBy}</span>
+                                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{log.category} • {t('PrepSchedule.prepped_by', { name: log.completedBy ?? '' })}</span>
                                                             </div>
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
                                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Amount</span>
+                                                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('PrepSchedule.th_quantity')}</span>
                                                                     <div style={{ color: 'var(--success)', fontWeight: 'bold' }}>
                                                                         {log.actualAmount} kg
                                                                     </div>
@@ -1252,7 +1252,7 @@ export default function PrepSchedulePage() {
     };
 
     const handleAddTeamMember = async () => {
-        const name = prompt("Enter kitchen worker's name:");
+        const name = prompt(t('PrepSchedule.prompt_worker_name'));
         if (!name) return;
         setIsLoading(true);
         await addTeamMember(name);
@@ -1297,8 +1297,8 @@ export default function PrepSchedulePage() {
     const [editTaskHervido, setEditTaskHervido] = useState(false);
 
     const handleAddPrepTask = async () => {
-        if (!newTaskName) return alert("Enter task name");
-        if (!newTaskCatId) return alert("Select a Category");
+        if (!newTaskName) return alert(t('PrepSchedule.err_enter_task_name'));
+        if (!newTaskCatId) return alert(t('PrepSchedule.err_select_category'));
         setIsLoading(true);
         await addPrepTaskItem(newTaskName, newTaskCatId, newTaskMetric, newTaskParentId || undefined, newTaskSubtract, newTaskRecipeId || undefined, newTaskHervido ? 'HERVIDO' : 'MANUAL');
         setPrepItems(await getPrepTaskItems());
@@ -1326,8 +1326,8 @@ export default function PrepSchedulePage() {
     };
 
     const handleSaveEditTask = async () => {
-        if (!editTaskName) return alert("Enter task name");
-        if (!editTaskCatId) return alert("Select a Category");
+        if (!editTaskName) return alert(t('PrepSchedule.err_enter_task_name'));
+        if (!editTaskCatId) return alert(t('PrepSchedule.err_select_category'));
         setIsLoading(true);
         await editPrepTaskItem(editingTask.id, editTaskName, editTaskCatId, editTaskMetric, editTaskParentId || undefined, editTaskSubtract, editTaskRecipeId || undefined, editTaskHervido ? 'HERVIDO' : 'MANUAL');
         setPrepItems(await getPrepTaskItems());
@@ -1337,8 +1337,8 @@ export default function PrepSchedulePage() {
     };
 
     const handleRemovePrepTask = async (id: string, uses: number) => {
-        if (uses > 0) return alert("Cannot delete a task being used in recipes.");
-        if (!confirm("Delete this prep task element?")) return;
+        if (uses > 0) return alert(t('PrepSchedule.err_task_in_use'));
+        if (!confirm(t('PrepSchedule.confirm_delete_task'))) return;
         setIsLoading(true);
         await removePrepTaskItem(id);
         setPrepItems(await getPrepTaskItems());
@@ -1347,13 +1347,17 @@ export default function PrepSchedulePage() {
 
     const renderTeamAndTasks = () => {
         const query = taskSearchQuery.toLowerCase().trim();
+        // Hoisted: the row map below names its callback param `t`, shadowing the translator.
+        const editTaskTitle = t('PrepSchedule.edit_task');
+        const deleteTaskTitle = t('PrepSchedule.delete_task_title');
+        const cannotDeleteTitle = t('PrepSchedule.cannot_delete_in_use');
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
-            const cat = item.category?.nameEs || item.category?.name || 'Uncategorized';
-            let parent = item.parent?.name || 'Base Tasks';
+            const cat = item.category?.nameEs || item.category?.name || t('PrepSchedule.uncategorized');
+            let parent = item.parent?.name || t('PrepSchedule.base_tasks_group');
             // Explicitly classify 'Descongelar' without parent as belonging directly to the 'Descongelar Tasks' group to stand out
             if (cat === 'Descongelar' && !item.parentId) {
-                parent = 'Descongelar Tasks';
+                parent = t('PrepSchedule.defrost_tasks_group');
             }
 
             if (query) {
@@ -1391,7 +1395,7 @@ export default function PrepSchedulePage() {
                                 <Search size={16} color="var(--text-secondary)" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                                 <input 
                                     type="text" 
-                                    placeholder="Search base or task..." 
+                                    placeholder={t('PrepSchedule.placeholder_search_task')}
                                     value={taskSearchQuery}
                                     onChange={(e) => setTaskSearchQuery(e.target.value)}
                                     style={{ width: '100%', padding: '0.5rem 2rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', height: '36px' }}
@@ -1417,8 +1421,8 @@ export default function PrepSchedulePage() {
                                 <tr style={{ background: 'rgba(255,255,255,0.05)', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_category')}</th>
                                     <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>Base / {t('PrepSchedule.th_ingredient')}</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')} / Metric</th>
-                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>Actions</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>{t('PrepSchedule.th_task')} / {t('PrepSchedule.th_metric')}</th>
+                                    <th style={{ padding: '1rem', borderBottom: '1px solid var(--border)', textAlign: 'center' }}>{t('PrepSchedule.th_actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1448,8 +1452,8 @@ export default function PrepSchedulePage() {
                                                     </td>
                                                     <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                                         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.8rem', alignItems: 'center' }}>
-                                                            <button onClick={() => handleOpenEditTask(t)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }} title="Edit Task"><Pencil size={16} /></button>
-                                                            <button onClick={() => handleRemovePrepTask(t.id, t._count.usedInPreps)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t._count.usedInPreps > 0 ? 'var(--text-secondary)' : 'var(--danger)' }} title={t._count.usedInPreps > 0 ? "Cannot delete: currently used." : "Delete task"}><Trash2 size={16} /></button>
+                                                            <button onClick={() => handleOpenEditTask(t)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-primary)' }} title={editTaskTitle}><Pencil size={16} /></button>
+                                                            <button onClick={() => handleRemovePrepTask(t.id, t._count.usedInPreps)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: t._count.usedInPreps > 0 ? 'var(--text-secondary)' : 'var(--danger)' }} title={t._count.usedInPreps > 0 ? cannotDeleteTitle : deleteTaskTitle}><Trash2 size={16} /></button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -1515,7 +1519,7 @@ export default function PrepSchedulePage() {
                 <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                     <input
                         type="number"
-                        placeholder="Umbral"
+                        placeholder={t('PrepSchedule.placeholder_threshold')}
                         value={triggerThreshold}
                         onChange={(e) => setTriggerThreshold(e.target.value)}
                         style={{
@@ -1549,11 +1553,11 @@ export default function PrepSchedulePage() {
                                 type="checkbox"
                                 checked={calcMode === 'ALGORITHM'}
                                 onChange={(e) => setCalcMode(e.target.checked ? 'ALGORITHM' : 'MANUAL')}
-                            /> Algoritmo
+                            /> {t('PrepSchedule.algorithm')}
                         </label>
                         <input
                             type="number"
-                            placeholder="Monto"
+                            placeholder={t('PrepSchedule.placeholder_amount')}
                             value={fixedAmount}
                             onChange={(e) => setFixedAmount(e.target.value)}
                             disabled={calcMode === 'ALGORITHM'}
@@ -1566,7 +1570,7 @@ export default function PrepSchedulePage() {
                 </td>
                 <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                     <button onClick={handleSave} className="btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', opacity: hasChanges() ? 1 : 0.5 }}>
-                        Guardar
+                        {t('PrepSchedule.save')}
                     </button>
                 </td>
             </tr>
@@ -1577,7 +1581,7 @@ export default function PrepSchedulePage() {
         // Group by Categoría
         const grouped: Record<string, Record<string, any[]>> = {};
         prepItems.forEach(item => {
-            const catName = item.category?.nameEs || item.category?.name || 'Comunes';
+            const catName = item.category?.nameEs || item.category?.name || t('PrepSchedule.common_category');
             const parentName = item.parent?.name || 'Top Level';
             if (!grouped[catName]) grouped[catName] = {};
             if (!grouped[catName][parentName]) grouped[catName][parentName] = [];
@@ -1586,7 +1590,7 @@ export default function PrepSchedulePage() {
 
         // Helper to quickly apply rule setting to all inside category
         const handleCategoryApplyAll = async (catName: string, categoryId: string) => {
-            if (!confirm(`Apply [Mo, Tu, We, Th, Fr, Sa, Su] Algoritmo rules to all under ${catName}?`)) return;
+            if (!confirm(t('PrepSchedule.confirm_apply_category', { category: catName }))) return;
             const res = await applyRulesToCategory(categoryId, {
                 activeDays: [0, 1, 2, 3, 4, 5, 6],
                 calculationMode: 'ALGORITHM',
@@ -1602,7 +1606,7 @@ export default function PrepSchedulePage() {
             <MatrixErrorBoundary>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-                        <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Matriz de Reglas - Configuración Avanzada</p>
+                        <p style={{ color: 'var(--text-secondary)', margin: 0 }}>{t('PrepSchedule.rules_matrix_title')}</p>
                     </div>
 
                     {isLoading ? (
@@ -1621,7 +1625,7 @@ export default function PrepSchedulePage() {
                                             <h3 style={{ margin: 0, fontWeight: 600 }}>{catName}</h3>
                                             {categoryId && (
                                                 <button onClick={() => handleCategoryApplyAll(catName, categoryId)} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}>
-                                                    Aplicar Diario/Algoritmo a Todo
+                                                    {t('PrepSchedule.apply_daily_algorithm_all')}
                                                 </button>
                                             )}
                                         </div>
@@ -1629,12 +1633,12 @@ export default function PrepSchedulePage() {
                                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                                 <thead>
                                                     <tr style={{ background: 'rgba(255,255,255,0.02)', textAlign: 'left', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                                        <th style={{ padding: '0.8rem 1rem' }}>Insumo</th>
-                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Stock Total</th>
-                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Umbral (Min Stock)</th>
-                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('Nav.sales') === 'Ventas' ? 'Ventana de Producción' : 'Production Window'}</th>
-                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Cálculo</th>
-                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>Acción</th>
+                                                        <th style={{ padding: '0.8rem 1rem' }}>{t('PrepSchedule.th_insumo')}</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('PrepSchedule.th_total_stock')}</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('PrepSchedule.th_threshold')}</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('PrepSchedule.th_production_window')}</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('PrepSchedule.th_calculation')}</th>
+                                                        <th style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>{t('PrepSchedule.th_action')}</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1710,7 +1714,7 @@ export default function PrepSchedulePage() {
                         onClick={() => setActiveTab('defrosting')}
                         style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'defrosting' ? '2px solid #3b82f6' : '2px solid transparent', color: activeTab === 'defrosting' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'defrosting' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
                         <Snowflake size={20} color={activeTab === 'defrosting' ? '#3b82f6' : 'inherit'} />
-                        Estación de Descongelado
+                        {t('PrepSchedule.tab_defrosting')}
                     </button>
                     {isAdmin && (
                         <>
@@ -1718,7 +1722,7 @@ export default function PrepSchedulePage() {
                                 onClick={() => setActiveTab('thawschedule')}
                                 style={{ flex: 1, padding: '1.2rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem', background: 'transparent', border: 'none', borderBottom: activeTab === 'thawschedule' ? '2px solid #06b6d4' : '2px solid transparent', color: activeTab === 'thawschedule' ? 'var(--text-primary)' : 'var(--text-secondary)', fontWeight: activeTab === 'thawschedule' ? 600 : 400, fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.2s' }}>
                                 <CalendarDays size={20} color={activeTab === 'thawschedule' ? '#06b6d4' : 'inherit'} />
-                                Programación Semanal de Descongelado
+                                {t('PrepSchedule.tab_thaw_schedule')}
                             </button>
                             <button
                                 onClick={() => setActiveTab('recurring')}
@@ -1762,41 +1766,41 @@ export default function PrepSchedulePage() {
                     zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
                 }}>
                     <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '400px', maxWidth: '100%', border: '1px solid var(--border)' }}>
-                        <h3 style={{ margin: '0 0 1rem 0' }}>{t('Nav.sales') === 'Ventas' ? 'Borrar Tarea' : 'Delete Task'}</h3>
+                        <h3 style={{ margin: '0 0 1rem 0' }}>{t('PrepSchedule.delete_task_title')}</h3>
                         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{deleteTaskCandidate.ingredientName}</p>
 
                         {!deleteTaskReason ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <button onClick={() => setDeleteTaskReason('NOT_NECESSARY')} className="btn-secondary" style={{ padding: '0.8rem', width: '100%', justifyContent: 'center' }}>
-                                    {t('Nav.sales') === 'Ventas' ? 'No Necesario' : 'Not Necessary'}
+                                    {t('PrepSchedule.reason_not_necessary')}
                                 </button>
                                 {isTodayTasks && (
                                     <button onClick={() => setDeleteTaskReason('MISTAKE')} className="btn-secondary" style={{ padding: '0.8rem', width: '100%', justifyContent: 'center', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-                                        {t('Nav.sales') === 'Ventas' ? 'Asignado por Error' : 'Assigned by Mistake'}
+                                        {t('PrepSchedule.reason_mistake')}
                                     </button>
                                 )}
                                 <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
-                                    <button onClick={() => setDeleteTaskCandidate(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancel</button>
+                                    <button onClick={() => setDeleteTaskCandidate(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>{t('PrepSchedule.cancel')}</button>
                                 </div>
                             </div>
                         ) : deleteTaskReason === 'MISTAKE' ? (
                             <div>
-                                <p style={{ marginBottom: '1.5rem', color: 'var(--danger)' }}>{t('Nav.sales') === 'Ventas' ? '¿Estás seguro de que deseas eliminar esta tarea permanentemente?' : 'Are you sure you want to permanently delete this task?'}</p>
+                                <p style={{ marginBottom: '1.5rem', color: 'var(--danger)' }}>{t('PrepSchedule.confirm_permanent_delete')}</p>
                                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                                    <button onClick={() => setDeleteTaskReason(null)} className="btn-secondary">Back</button>
-                                    <button onClick={handleConfirmDeleteComplete} className="btn-primary" style={{ background: 'var(--danger)' }}>Delete</button>
+                                    <button onClick={() => setDeleteTaskReason(null)} className="btn-secondary">{t('PrepSchedule.back')}</button>
+                                    <button onClick={handleConfirmDeleteComplete} className="btn-primary" style={{ background: 'var(--danger)' }}>{t('PrepSchedule.delete_btn')}</button>
                                 </div>
                             </div>
                         ) : (
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>{t('Nav.sales') === 'Ventas' ? 'Autorizado Por:' : 'Authorized By:'}</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>{t('PrepSchedule.authorized_by')}</label>
                                 <select value={deleteTaskCook} onChange={(e) => setDeleteTaskCook(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                                     <option value="">{t('PrepSchedule.select_user')}</option>
                                     {prepUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                                 </select>
                                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                                    <button onClick={() => setDeleteTaskReason(null)} className="btn-secondary">Back</button>
-                                    <button onClick={handleConfirmDeleteComplete} className="btn-primary" disabled={!deleteTaskCook}>Confirm</button>
+                                    <button onClick={() => setDeleteTaskReason(null)} className="btn-secondary">{t('PrepSchedule.back')}</button>
+                                    <button onClick={handleConfirmDeleteComplete} className="btn-primary" disabled={!deleteTaskCook}>{t('PrepSchedule.confirm')}</button>
                                 </div>
                             </div>
                         )}
@@ -1822,10 +1826,10 @@ export default function PrepSchedulePage() {
                         </div>
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                             <button onClick={() => { setCompleteCandidate(null); setCompletionCooks([]); }} className="btn-secondary">
-                                {locale === 'es' ? 'Cancelar' : 'Cancel'}
+                                {t('PrepSchedule.cancel')}
                             </button>
                             <button onClick={handleConfirmComplete} className="btn-primary" disabled={completionCooks.length === 0}>
-                                {locale === 'es' ? 'Confirmar' : 'Confirm'}
+                                {t('PrepSchedule.confirm')}
                             </button>
                         </div>
                     </div>
@@ -1845,21 +1849,21 @@ export default function PrepSchedulePage() {
             {showAddTaskModal && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                     <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '500px', maxWidth: '100%', border: '1px solid var(--border)' }}>
-                        <h3 style={{ margin: '0 0 1.5rem 0' }}>Add New Task</h3>
+                        <h3 style={{ margin: '0 0 1.5rem 0' }}>{t('PrepSchedule.add_task_title')}</h3>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Nombre de la Tarea' : 'Task Name'}</label>
-                                <input type="text" placeholder="e.g. Cortar Cebolla" value={newTaskName} onChange={e => setNewTaskName(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
+                                <input type="text" placeholder={t('PrepSchedule.placeholder_task_name')} value={newTaskName} onChange={e => setNewTaskName(e.target.value)} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }} />
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Category</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{t('PrepSchedule.th_category')}</label>
                                 <SearchableSelect
                                     value={newTaskCatId}
                                     onChange={(val) => setNewTaskCatId(val)}
-                                    options={[{ value: '', label: '-- Select Category --' }, ...[...categories].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ value: c.id, label: c.name }))]}
-                                    placeholder="-- Select Category --"
+                                    options={[{ value: '', label: t('PrepSchedule.select_category_placeholder') }, ...[...categories].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ value: c.id, label: c.name }))]}
+                                    placeholder={t('PrepSchedule.select_category_placeholder')}
                                 />
                             </div>
 
@@ -1868,8 +1872,8 @@ export default function PrepSchedulePage() {
                                 <SearchableSelect
                                     value={newTaskParentId}
                                     onChange={(val) => setNewTaskParentId(val)}
-                                    options={[{ value: '', label: '-- None --' }, ...[...baseIngredients].sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ value: b.id, label: b.name }))]}
-                                    placeholder="-- None --"
+                                    options={[{ value: '', label: t('PrepSchedule.none_option') }, ...[...baseIngredients].sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ value: b.id, label: b.name }))]}
+                                    placeholder={t('PrepSchedule.none_option')}
                                 />
                             </div>
 
@@ -1881,22 +1885,22 @@ export default function PrepSchedulePage() {
                                 <SearchableSelect
                                     value={newTaskRecipeId}
                                     onChange={(val) => setNewTaskRecipeId(val)}
-                                    options={[{ value: '', label: '-- None --' }, ...[...digitalRecipes].sort((a, b) => a.name.localeCompare(b.name)).map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
-                                    placeholder="-- None --"
+                                    options={[{ value: '', label: t('PrepSchedule.none_option') }, ...[...digitalRecipes].sort((a, b) => a.name.localeCompare(b.name)).map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
+                                    placeholder={t('PrepSchedule.none_option')}
                                 />
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
                                 <select value={newTaskMetric} onChange={e => setNewTaskMetric(e.target.value)} disabled={!!newTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: newTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: newTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    <option value="units">units</option>
-                                    <option value="Lbs">Lbs</option>
-                                    <option value="oz">oz</option>
-                                    <option value="kilogramos (kg)">kilogramos (kg)</option>
-                                    <option value="Grams">Grams</option>
-                                    <option value="Pound">Pound</option>
-                                    <option value="liters">liters</option>
-                                    <option value="gallons">gallons</option>
+                                    <option value="units">{t('PrepSchedule.unit_units')}</option>
+                                    <option value="Lbs">{t('PrepSchedule.unit_lbs')}</option>
+                                    <option value="oz">{t('PrepSchedule.unit_oz')}</option>
+                                    <option value="kilogramos (kg)">{t('PrepSchedule.unit_kg')}</option>
+                                    <option value="Grams">{t('PrepSchedule.unit_grams')}</option>
+                                    <option value="Pound">{t('PrepSchedule.unit_pound')}</option>
+                                    <option value="liters">{t('PrepSchedule.unit_liters')}</option>
+                                    <option value="gallons">{t('PrepSchedule.unit_gallons')}</option>
                                 </select>
                             </div>
 
@@ -1946,8 +1950,8 @@ export default function PrepSchedulePage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                            <button onClick={() => setShowAddTaskModal(false)} className="btn-secondary">{locale === 'es' ? 'Cancelar' : 'Cancel'}</button>
-                            <button onClick={handleAddPrepTask} className="btn-primary">Save Task</button>
+                            <button onClick={() => setShowAddTaskModal(false)} className="btn-secondary">{t('PrepSchedule.cancel')}</button>
+                            <button onClick={handleAddPrepTask} className="btn-primary">{t('PrepSchedule.save_task')}</button>
                         </div>
                     </div>
                 </div>
@@ -1966,12 +1970,12 @@ export default function PrepSchedulePage() {
                             </div>
 
                             <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Categoría</label>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{t('PrepSchedule.th_category')}</label>
                                 <SearchableSelect
                                     value={editTaskCatId}
                                     onChange={(val) => setEditTaskCatId(val)}
                                     options={[...categories].sort((a, b) => a.name.localeCompare(b.name)).map(c => ({ value: c.id, label: c.name }))}
-                                    placeholder="-- Select Category --"
+                                    placeholder={t('PrepSchedule.select_category_placeholder')}
                                 />
                             </div>
 
@@ -1980,8 +1984,8 @@ export default function PrepSchedulePage() {
                                 <SearchableSelect
                                     value={editTaskParentId}
                                     onChange={(val) => setEditTaskParentId(val)}
-                                    options={[{ value: '', label: '-- None --' }, ...[...baseIngredients].sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ value: b.id, label: b.name }))]}
-                                    placeholder="-- None --"
+                                    options={[{ value: '', label: t('PrepSchedule.none_option') }, ...[...baseIngredients].sort((a, b) => a.name.localeCompare(b.name)).map(b => ({ value: b.id, label: b.name }))]}
+                                    placeholder={t('PrepSchedule.none_option')}
                                 />
                             </div>
 
@@ -1993,21 +1997,21 @@ export default function PrepSchedulePage() {
                                 <SearchableSelect
                                     value={editTaskRecipeId}
                                     onChange={(val) => setEditTaskRecipeId(val)}
-                                    options={[{ value: '', label: '-- None --' }, ...[...digitalRecipes].sort((a, b) => a.name.localeCompare(b.name)).map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
-                                    placeholder="-- None --"
+                                    options={[{ value: '', label: t('PrepSchedule.none_option') }, ...[...digitalRecipes].sort((a, b) => a.name.localeCompare(b.name)).map(r => ({ value: r.id, label: `${r.recipeCode} - ${r.name}` }))]}
+                                    placeholder={t('PrepSchedule.none_option')}
                                 />
                             </div>
 
                             <div>
                                 <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{locale === 'es' ? 'Unidad / Métrica' : 'Unit / Metric'}</label>
                                 <select value={editTaskMetric} onChange={e => setEditTaskMetric(e.target.value)} disabled={!!editTaskParentId} style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', background: editTaskParentId ? 'rgba(255,255,255,0.05)' : 'var(--bg-secondary)', color: editTaskParentId ? 'var(--text-secondary)' : 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                                    <option value="units">Unidades</option>
-                                    <option value="Lbs">Libras</option>
-                                    <option value="oz">Onzas</option>
-                                    <option value="kilogramos (kg)">Kilogramos</option>
-                                    <option value="Grams">Gramos</option>
-                                    <option value="liters">Litros</option>
-                                    <option value="gallons">Galones</option>
+                                    <option value="units">{t('PrepSchedule.unit_units')}</option>
+                                    <option value="Lbs">{t('PrepSchedule.unit_lbs')}</option>
+                                    <option value="oz">{t('PrepSchedule.unit_oz')}</option>
+                                    <option value="kilogramos (kg)">{t('PrepSchedule.unit_kg')}</option>
+                                    <option value="Grams">{t('PrepSchedule.unit_grams')}</option>
+                                    <option value="liters">{t('PrepSchedule.unit_liters')}</option>
+                                    <option value="gallons">{t('PrepSchedule.unit_gallons')}</option>
                                 </select>
                             </div>
 
@@ -2057,7 +2061,7 @@ export default function PrepSchedulePage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
-                            <button onClick={() => { setShowEditTaskModal(false); setEditingTask(null); }} className="btn-secondary">{locale === 'es' ? 'Cancelar' : 'Cancel'}</button>
+                            <button onClick={() => { setShowEditTaskModal(false); setEditingTask(null); }} className="btn-secondary">{t('PrepSchedule.cancel')}</button>
                             <button onClick={handleSaveEditTask} className="btn-primary">{locale === 'es' ? 'Guardar Cambios' : 'Save Changes'}</button>
                         </div>
                     </div>
@@ -2078,7 +2082,7 @@ export default function PrepSchedulePage() {
                     <div style={{ background: 'var(--bg-primary)', padding: '2rem', borderRadius: '12px', width: '800px', maxWidth: '100%', border: '1px solid var(--border)', maxHeight: '90vh', overflowY: 'auto' }}>
                         {(() => {
                             const recipe = digitalRecipes.find(r => r.id === viewingRecipeId);
-                            if (!recipe) return <div style={{ textAlign: 'center' }}>Cargando Receta...</div>;
+                            if (!recipe) return <div style={{ textAlign: 'center' }}>{t('PrepSchedule.loading_recipe')}</div>;
 
                             let items: any[] = [];
                             try { const _i = JSON.parse((recipe as any).ingredientsJson || '[]'); if (Array.isArray(_i)) items = _i; } catch (e) { }
@@ -2102,16 +2106,16 @@ export default function PrepSchedulePage() {
                                                 <h2 style={{ margin: 0 }}>{recipe.name}</h2>
                                                 <span style={{ background: 'rgba(255,255,255,0.1)', padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.8rem' }}>{recipe.recipeCode}</span>
                                             </div>
-                                            {(recipe as any).yield && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem', display: 'block' }}>Rendimiento: {(recipe as any).yield}</span>}
+                                            {(recipe as any).yield && <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.5rem', display: 'block' }}>{t('PrepSchedule.recipe_yield', { value: String((recipe as any).yield) })}</span>}
                                         </div>
                                         <button onClick={() => setViewingRecipeId(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>&times;</button>
                                     </div>
 
-                                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{recipe.overview || 'Sin descripción general.'}</p>
+                                    <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>{recipe.overview || t('PrepSchedule.no_overview')}</p>
 
-                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Ingredientes</h4>
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>{t('PrepSchedule.recipe_ingredients')}</h4>
                                     {groupKeys.length === 0 ? (
-                                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '2rem' }}>No hay ingredientes definidos.</p>
+                                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '2rem' }}>{t('PrepSchedule.no_ingredients_defined')}</p>
                                     ) : (
                                         groupKeys.map(groupName => (
                                             <div key={groupName} style={{ marginBottom: '1.5rem' }}>
@@ -2121,10 +2125,10 @@ export default function PrepSchedulePage() {
                                                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                                     <thead>
                                                         <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                                                            <th style={{ padding: '0.5rem' }}>Ingrediente</th>
-                                                            <th style={{ padding: '0.5rem' }}>Cantidad</th>
-                                                            <th style={{ padding: '0.5rem' }}>U. de Medida</th>
-                                                            <th style={{ padding: '0.5rem' }}>Notas</th>
+                                                            <th style={{ padding: '0.5rem' }}>{t('PrepSchedule.th_ingredient')}</th>
+                                                            <th style={{ padding: '0.5rem' }}>{t('PrepSchedule.th_quantity')}</th>
+                                                            <th style={{ padding: '0.5rem' }}>{t('PrepSchedule.th_unit_short')}</th>
+                                                            <th style={{ padding: '0.5rem' }}>{t('PrepSchedule.th_notes')}</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -2142,7 +2146,7 @@ export default function PrepSchedulePage() {
                                         ))
                                     )}
 
-                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Procedimiento</h4>
+                                    <h4 style={{ marginBottom: '1rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>{t('PrepSchedule.recipe_procedure')}</h4>
                                     <div style={{ marginBottom: '2rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                                         {steps.map((st: any, i: number) => (
                                             <div key={i} style={{ display: 'flex', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
@@ -2154,7 +2158,7 @@ export default function PrepSchedulePage() {
 
                                     {recipe.chefNotes && (
                                         <>
-                                            <h4 style={{ marginBottom: '1rem', color: 'var(--warning)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>Notas del Chef</h4>
+                                            <h4 style={{ marginBottom: '1rem', color: 'var(--warning)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>{t('PrepSchedule.recipe_chef_notes')}</h4>
                                             <div style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1.5rem', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
                                                 {recipe.chefNotes}
                                             </div>

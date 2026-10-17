@@ -156,6 +156,7 @@ export default function RecetarioPage() {
     const [batchMultiplier, setBatchMultiplier] = useState<number | string>(1);
     const activeMultiplier = typeof batchMultiplier === 'number' && batchMultiplier >= 1 ? batchMultiplier : 1;
 
+    const t = useTranslations('Recetario');
     const tOptions = useTranslations('Options');
     // Absent key = show the raw name. Most values here are user-created category
     // names, which are already in the user's language and were never meant to be
@@ -306,20 +307,20 @@ export default function RecetarioPage() {
         }
         const codeToSave = (editData.recipeCode || '').trim();
         if (!codeToSave) {
-            alert('El código es requerido');
+            alert(t('code_required'));
             return;
         }
         if (editData.type === 'EMPLATADO' && !codeToSave.startsWith('E-')) {
-            alert('Los códigos de emplatado deben empezar con E-');
+            alert(t('code_plating_prefix'));
             return;
         }
         if (editData.type !== 'EMPLATADO' && codeToSave.startsWith('E-')) {
-            alert('Solo los emplatados deben empezar con E-');
+            alert(t('code_only_plating_prefix'));
             return;
         }
         const availRes = await isRecipeCodeAvailable(codeToSave, selectedRecipe?.id);
         if (!availRes.available) {
-            alert(`El código '${codeToSave}' ya está en uso por otra receta`);
+            alert(t('code_in_use', { code: codeToSave }));
             return;
         }
         setIsLoading(true);
@@ -334,7 +335,7 @@ export default function RecetarioPage() {
             setSelectedRecipe(res.recipe);
             setIsEditing(false);
         } else {
-            alert((res as any).error || 'Error saving recipe');
+            alert((res as any).error || t('err_save'));
         }
         setIsLoading(false);
     };
@@ -500,7 +501,7 @@ export default function RecetarioPage() {
                 )}
 
                 {isLoading ? (
-                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>Loading...</div>
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('loading')}</div>
                 ) : filteredList.length === 0 ? (
                     <div style={{ padding: '2rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                         {locale === 'es' ? 'No hay documentos en esta sección.' : 'No documents in this section.'}
@@ -533,7 +534,7 @@ export default function RecetarioPage() {
                             return grouped.map(group => (
                                 <div key={group.category?.id || 'none'} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     <h2 style={{ fontSize: '1.4rem', color: 'var(--text-primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', margin: 0, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                                        {locale === 'es' && group.category?.nameEs ? group.category.nameEs : (group.category?.name || 'SIN CATEGORÍA')}
+                                        {locale === 'es' && group.category?.nameEs ? group.category.nameEs : (group.category?.name || t('no_category'))}
                                     </h2>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '1rem' }}>
                                         {group.items.map(recipe => (
@@ -548,12 +549,12 @@ export default function RecetarioPage() {
                                                 </div>
                                                 <h3 style={{ margin: '0.5rem 0', fontSize: '1.25rem', whiteSpace: 'normal' }}>{recipe.name}</h3>
                                                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', flex: 1, margin: 0, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', whiteSpace: 'normal' }}>
-                                                    {recipe.overview || 'Sin descripción'}
+                                                    {recipe.overview || t('no_description')}
                                                 </p>
                                                 {isAdmin && (
                                                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.5rem' }}>
                                                         <button onClick={(e) => { e.stopPropagation(); handleEdit(recipe); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
-                                                            <Pencil size={14} /> Editar
+                                                            <Pencil size={14} /> {t('edit')}
                                                         </button>
                                                     </div>
                                                 )}
@@ -585,9 +586,9 @@ export default function RecetarioPage() {
     const codeValidationError = (() => {
         if (!isEditing || !editData) return '';
         const code = (editData.recipeCode || '').trim();
-        if (!code) return 'El código es requerido';
-        if (editData.type === 'EMPLATADO' && !code.startsWith('E-')) return 'Los códigos de emplatado deben empezar con E-';
-        if (editData.type !== 'EMPLATADO' && code.startsWith('E-')) return 'Solo los emplatados deben empezar con E-';
+        if (!code) return t('code_required');
+        if (editData.type === 'EMPLATADO' && !code.startsWith('E-')) return t('code_plating_prefix');
+        if (editData.type !== 'EMPLATADO' && code.startsWith('E-')) return t('code_only_plating_prefix');
         return '';
     })();
 
@@ -608,7 +609,7 @@ export default function RecetarioPage() {
 
     const addPlatingTrack = () => {
         const newData = { ...platingData };
-        newData.tracks.push({ id: Math.random().toString(36).substring(7), name: 'Nuevo Track' });
+        newData.tracks.push({ id: Math.random().toString(36).substring(7), name: t('new_track') });
         updatePlatingState(newData);
     };
     const updatePlatingTrack = (id: string, name: string) => {
@@ -721,13 +722,13 @@ export default function RecetarioPage() {
                     <div style={{ flex: 1 }}>
                         {!isEditing && (
                             <div style={{ color: '#60a5fa', fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-                                {docData.recipeCode || 'NEW'}
+                                {docData.recipeCode || t('code_new')}
                             </div>
                         )}
                         {isEditing ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <div>
-                                    <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Código</label>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>{t('code_label')}</label>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <input
                                             value={editData.recipeCode || ''}
@@ -736,7 +737,7 @@ export default function RecetarioPage() {
                                             style={{ width: '130px', fontFamily: 'monospace', fontWeight: 700, background: 'transparent', border: `1px solid ${codeValidationError ? 'var(--danger)' : 'var(--border)'}`, borderRadius: '4px', padding: '0.4rem 0.6rem', color: '#60a5fa', fontSize: '1rem' }}
                                         />
                                         <button type="button" onClick={handleSuggestCode} className="btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                                            Sugerir código
+                                            {t('suggest_code')}
                                         </button>
                                     </div>
                                     {codeValidationError && (
@@ -751,7 +752,7 @@ export default function RecetarioPage() {
                                 />
                                 {docData.type === 'RECETA' && (
                                     <div>
-                                        <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>Enlace a Receta del Inventario (Opcional)</label>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', marginBottom: '0.25rem', display: 'block' }}>{t('link_inventory_recipe')}</label>
                                         <SearchableSelect
                                             name="linkedIngredientId"
                                             value={docData.linkedIngredientId || ''}
@@ -779,8 +780,8 @@ export default function RecetarioPage() {
                                                 }
                                                 setEditData(newEditData);
                                             }}
-                                            options={[{ value: '', label: 'Ninguno' }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
-                                            placeholder="Vincular con Receta de Inventario..."
+                                            options={[{ value: '', label: t('none_option') }, ...availablePreps.filter(p => !p.digitalRecipeId || p.digitalRecipeId === selectedRecipe?.id).map(p => ({ value: p.id, label: p.name }))]}
+                                            placeholder={t('link_placeholder')}
                                         />
                                     </div>
                                 )}
@@ -797,8 +798,8 @@ export default function RecetarioPage() {
                                             }
                                             setEditData(newEditData);
                                         }}
-                                        options={[{ value: '', label: 'Sin Categoría' }, ...categories.map(c => ({ value: c.id, label: (locale === 'es' && c.nameEs) ? c.nameEs : c.name }))]}
-                                        placeholder="Seleccionar Categoría..."
+                                        options={[{ value: '', label: t('no_category') }, ...categories.map(c => ({ value: c.id, label: (locale === 'es' && c.nameEs) ? c.nameEs : c.name }))]}
+                                        placeholder={t('select_category')}
                                     />
                                 </div>
                             </div>
@@ -807,7 +808,7 @@ export default function RecetarioPage() {
                                 <h1 style={{ fontSize: '2.5rem', margin: 0 }}>{docData.name}</h1>
                                 {docData.id && availablePreps.find(p => p.digitalRecipeId === docData.id) && (
                                     <span style={{ fontSize: '0.9rem', color: 'var(--accent-primary)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', marginTop: '0.5rem', display: 'inline-block' }}>
-                                        Vinculado a: {availablePreps.find(p => p.digitalRecipeId === docData.id)?.name}
+                                        {t('linked_to', { name: availablePreps.find(p => p.digitalRecipeId === docData.id)?.name ?? '' })}
                                     </span>
                                 )}
                             </div>
@@ -843,7 +844,7 @@ export default function RecetarioPage() {
                                         <input
                                             value={docData.yield || ''}
                                             onChange={e => setEditData({ ...docData, yield: e.target.value })}
-                                            placeholder="e.g. Approx. 5 Litros"
+                                            placeholder={t('yield_placeholder')}
                                             style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '0.4rem', borderRadius: '4px', color: 'var(--text-primary)', textAlign: 'right' }}
                                         />
                                     ) : (
@@ -863,7 +864,7 @@ export default function RecetarioPage() {
                         </div>
                         <div>
                             <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', display: 'block' }}>{locale === 'es' ? 'Fecha de Revisión' : 'Revision Date'}</span>
-                            <span style={{ fontWeight: 600 }}>{docData.revisionDate ? new Date(docData.revisionDate).toLocaleDateString() : 'Pending'}</span>
+                            <span style={{ fontWeight: 600 }}>{docData.revisionDate ? new Date(docData.revisionDate).toLocaleDateString() : t('pending')}</span>
                         </div>
                     </div>
                 </div>
@@ -884,10 +885,10 @@ export default function RecetarioPage() {
                         ) : (
                             mediaData.finalPhotoUrl ? (
                                 <div style={{ maxWidth: '400px', cursor: 'pointer' }} onClick={() => window.open(mediaData.finalPhotoUrl, '_blank')}>
-                                    <img src={mediaData.finalPhotoUrl} alt="Plato Final" style={{ width: '100%', borderRadius: '8px', border: '2px solid var(--border)' }} />
+                                    <img src={mediaData.finalPhotoUrl} alt={t('final_plate_alt')} style={{ width: '100%', borderRadius: '8px', border: '2px solid var(--border)' }} />
                                 </div>
                             ) : (
-                                <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Sin imagen final.</span>
+                                <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>{t('no_final_image')}</span>
                             )
                         )}
                     </div>
@@ -1044,7 +1045,7 @@ export default function RecetarioPage() {
 
                     {isEditing && !activeLinkedId && (
                         <button onClick={addIngredientRow} style={{ marginTop: '0.5rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
-                            <Plus size={16} /> Agregar Ingrediente
+                            <Plus size={16} /> {t('add_ingredient')}
                         </button>
                     )}
                     </div>
@@ -1098,7 +1099,7 @@ export default function RecetarioPage() {
                                                     {platingData.tracks.map((track: any) => (
                                                         <div key={track.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.8rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', borderRadius: '6px' }}>
                                                             {isEditing ? (
-                                                                <input value={track.name} onChange={e => updatePlatingTrack(track.id, e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', outline: 'none', width: '100%' }} placeholder="Nombre de Pista" />
+                                                                <input value={track.name} onChange={e => updatePlatingTrack(track.id, e.target.value)} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontWeight: 'bold', outline: 'none', width: '100%' }} placeholder={t('track_name_placeholder')} />
                                                             ) : (
                                                                 <span style={{ fontWeight: 'bold', color: 'var(--accent-primary)', fontSize: '1.1rem' }}>{track.name}</span>
                                                             )}
@@ -1140,7 +1141,7 @@ export default function RecetarioPage() {
                                                                                             <div style={{ background: '#fbbf24', color: '#000', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 'bold', flexShrink: 0, marginTop: '4px' }}>
                                                                                                 {rIdx + 1}
                                                                                             </div>
-                                                                                            <textarea placeholder="Descripción del paso final unificado..." value={row.cells['merged']?.text || ''} onChange={e => updatePlatingCell(row.id, 'merged', e.target.value, row.cells['merged']?.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '1rem', textAlign: 'left' }} />
+                                                                                            <textarea placeholder={t('merged_step_placeholder')} value={row.cells['merged']?.text || ''} onChange={e => updatePlatingCell(row.id, 'merged', e.target.value, row.cells['merged']?.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '1rem', textAlign: 'left' }} />
                                                                                         </div>
                                                                                         <div style={{ paddingLeft: '3.5rem' }}>
                                                                                             <ImageUpload 
@@ -1161,7 +1162,7 @@ export default function RecetarioPage() {
                                                                                         </div>
                                                                                         {row.cells['merged']?.imageUrl && (
                                                                                             <div style={{ paddingLeft: '3.5rem', width: '100%' }}>
-                                                                                                <img src={row.cells['merged']?.imageUrl} alt="Referencia" style={{ maxWidth: '600px', width: '100%', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '350px', objectFit: 'cover' }} />
+                                                                                                <img src={row.cells['merged']?.imageUrl} alt={t('reference_alt')} style={{ maxWidth: '600px', width: '100%', borderRadius: '6px', border: '1px solid var(--border)', maxHeight: '350px', objectFit: 'cover' }} />
                                                                                             </div>
                                                                                         )}
                                                                                     </div>
@@ -1233,7 +1234,7 @@ export default function RecetarioPage() {
 
                                                                                         {isEditing ? (
                                                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                                                                <textarea placeholder="Descripción del paso..." value={cellData.text} onChange={e => updatePlatingCell(row.id, track.id, e.target.value, cellData.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '0.9rem' }} />
+                                                                                                <textarea placeholder={t('step_placeholder')} value={cellData.text} onChange={e => updatePlatingCell(row.id, track.id, e.target.value, cellData.imageUrl)} rows={3} style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.6rem', color: 'var(--text-primary)', resize: 'vertical', borderRadius: '4px', fontSize: '0.9rem' }} />
                                                                                                 <ImageUpload 
                                                                                                     currentUrl={cellData.imageUrl}
                                                                                                     onUploadComplete={(url) => updatePlatingCell(row.id, track.id, cellData.text, url)}
@@ -1247,7 +1248,7 @@ export default function RecetarioPage() {
                                                                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                                                                         <span style={{ fontSize: '0.95rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{renderBoldText(cellData.text)}</span>
                                                                                                         {cellData.imageUrl && (
-                                                                                                            <img src={cellData.imageUrl} alt="Referencia" style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--border)', maxHeight: '200px', objectFit: 'cover' }} />
+                                                                                                            <img src={cellData.imageUrl} alt={t('reference_alt')} style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--border)', maxHeight: '200px', objectFit: 'cover' }} />
                                                                                                         )}
                                                                                                     </div>
                                                                                                 ) : (
@@ -1281,10 +1282,10 @@ export default function RecetarioPage() {
                                 {isEditing && (
                                     <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
                                         <button type="button" onClick={addPlatingRow} style={{ flex: 1, background: 'transparent', border: '2px dashed var(--accent-primary)', padding: '0.8rem', color: 'var(--text-primary)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600 }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
-                                            <Plus size={18} /> Agregar Pasos (Time Block)
+                                            <Plus size={18} /> {t('add_time_block')}
                                         </button>
                                         <button type="button" onClick={addMergedPlatingRow} style={{ flex: 1, background: 'transparent', border: '2px dashed #fbbf24', padding: '0.8rem', color: 'var(--text-primary)', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600 }} onMouseOver={(e) => e.currentTarget.style.background = 'rgba(251, 191, 36, 0.1)'} onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}>
-                                            <Plus size={18} /> Agregar Paso Unificado (Merged)
+                                            <Plus size={18} /> {t('add_merged_step')}
                                         </button>
                                     </div>
                                 )}
@@ -1347,7 +1348,7 @@ export default function RecetarioPage() {
                                                 {activeDragStep.idx + 1}
                                             </div>
                                             <div style={{ flex: 1 }}>
-                                                <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{activeDragStep.step || '(empty step)'}</p>
+                                                <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{activeDragStep.step || t('empty_step')}</p>
                                             </div>
                                         </div>
                                     )}
@@ -1369,7 +1370,7 @@ export default function RecetarioPage() {
                         )}
                         {isEditing && (
                             <button onClick={addProcedureRow} style={{ marginTop: '1rem', background: 'transparent', border: '1px dashed var(--border)', padding: '0.5rem', width: '100%', color: 'var(--text-secondary)', borderRadius: '4px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.color = 'white'} onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}>
-                                + Agregar Paso
+                                {t('add_step')}
                             </button>
                         )}
                     </div>
@@ -1407,10 +1408,10 @@ export default function RecetarioPage() {
                         style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '12px', padding: '2rem', width: '420px', maxWidth: '90%', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
                     >
                         <h2 style={{ margin: 0, fontSize: '1.4rem' }}>
-                            ¿Eliminar {selectedRecipe.type === 'RECETA' ? 'receta' : selectedRecipe.type === 'EMPLATADO' ? 'emplatado' : 'guía'}?
+                            {t('delete_confirm_title', { kind: t(selectedRecipe.type === 'RECETA' ? 'kind_RECETA' : selectedRecipe.type === 'EMPLATADO' ? 'kind_EMPLATADO' : 'kind_GUIA') })}
                         </h2>
                         <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                            Estás a punto de eliminar <strong>"{selectedRecipe.name}"</strong>. Esta acción no se puede deshacer.
+                            {t.rich('delete_confirm_body', { name: selectedRecipe.name, strong: (chunks) => <strong>{chunks}</strong> })}
                         </p>
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                             <button
@@ -1418,14 +1419,14 @@ export default function RecetarioPage() {
                                 className="btn-secondary"
                                 style={{ padding: '0.6rem 1.2rem' }}
                             >
-                                Cancelar
+                                {t('cancel')}
                             </button>
                             <button
                                 onClick={handleDelete}
                                 disabled={isLoading}
                                 style={{ padding: '0.6rem 1.2rem', background: 'var(--danger)', color: 'white', border: 'none', borderRadius: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: isLoading ? 0.7 : 1 }}
                             >
-                                {isLoading ? 'Eliminando...' : 'Eliminar'}
+                                {isLoading ? t('deleting') : t('delete')}
                             </button>
                         </div>
                     </div>
@@ -1441,20 +1442,20 @@ export default function RecetarioPage() {
                         </div>
                         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {historyLogs.length === 0 ? (
-                                <p style={{ color: 'var(--text-secondary)' }}>No history found.</p>
+                                <p style={{ color: 'var(--text-secondary)' }}>{t('no_history')}</p>
                             ) : (
                                 historyLogs.map(log => (
                                     <div key={log.id} style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                             <span style={{ fontWeight: 600 }}>{new Date(log.savedAt).toLocaleString()}</span>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{log.savedBy || 'System'}</span>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-primary)', border: '1px solid var(--border)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>{log.savedBy || t('system')}</span>
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                            <div><strong>Name:</strong> {log.name}</div>
-                                            <div><strong>Yield:</strong> {log.yield || '-'}</div>
+                                            <div><strong>{t('history_name')}</strong> {log.name}</div>
+                                            <div><strong>{t('history_yield')}</strong> {log.yield || '-'}</div>
                                         </div>
                                         <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                                            <strong>Revision Date:</strong> {new Date(log.revisionDate).toLocaleDateString()}
+                                            <strong>{t('history_revision_date')}</strong> {new Date(log.revisionDate).toLocaleDateString()}
                                         </div>
                                     </div>
                                 ))

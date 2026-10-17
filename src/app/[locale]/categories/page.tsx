@@ -1,6 +1,7 @@
 'use client';
 
 import { Search, Plus, Eye, Pencil, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 interface Category {
     id: string;
@@ -20,6 +21,7 @@ const MOCK_CATEGORIES: Category[] = [
 ];
 
 export default function CategoriesPage() {
+    const t = useTranslations('Categories');
     const getDepartmentColor = (dept: string) => {
         switch (dept) {
             case 'FOOD': return { bg: 'rgba(59, 130, 246, 0.2)', text: 'var(--accent-primary)' };
@@ -41,12 +43,12 @@ export default function CategoriesPage() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>Categories Structure</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Manage your ingredient and menu categories</p>
+                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>{t('title')}</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>{t('subtitle')}</p>
                 </div>
                 <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px' }}>
                     <Plus size={18} />
-                    <span>Add Category</span>
+                    <span>{t('add_category')}</span>
                 </button>
             </div>
 
@@ -65,7 +67,7 @@ export default function CategoriesPage() {
                                     }}></span>
                                     {dept}
                                 </h2>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{categories.length} categories</span>
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{t('categories_count', { count: categories.length })}</span>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -77,7 +79,7 @@ export default function CategoriesPage() {
                                     }}>
                                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                                             <span style={{ fontWeight: 500 }}>{category.name}</span>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{category.itemCount} items linked</span>
+                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('items_linked', { count: category.itemCount })}</span>
                                         </div>
 
                                         <div style={{ display: 'flex', gap: '0.5rem', color: 'var(--text-secondary)' }}>

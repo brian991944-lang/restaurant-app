@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface Option {
     value: string;
@@ -18,6 +19,7 @@ interface SearchableSelectProps {
 }
 
 export function SearchableSelect({ options, value, onChange, placeholder, name, required, disabled, wrapperStyle }: SearchableSelectProps) {
+    const tCommon = useTranslations('Common');
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const wrapperRef = useRef<HTMLDivElement>(null);
@@ -83,13 +85,13 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                         autoFocus
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        placeholder="Search..."
+                        placeholder={tCommon('search')}
                         style={{ background: 'transparent', border: 'none', outline: 'none', color: 'inherit', width: '100%', fontSize: '0.9rem' }}
                         onClick={(e) => e.stopPropagation()}
                     />
                 ) : (
                     <span style={{ fontSize: '0.9rem', color: selectedOption ? 'inherit' : 'var(--text-secondary)' }}>
-                        {selectedOption ? selectedOption.label : placeholder || 'Select...'}
+                        {selectedOption ? selectedOption.label : placeholder || tCommon('select')}
                     </span>
                 )}
                 <span style={{ fontSize: '0.8rem', opacity: 0.5, marginLeft: '0.5rem' }}>▼</span>
@@ -137,7 +139,7 @@ export function SearchableSelect({ options, value, onChange, placeholder, name, 
                             </React.Fragment>
                         );
                     }) : (
-                        <div style={{ padding: '0.6rem 1rem', opacity: 0.5, fontSize: '0.9rem' }}>No results</div>
+                        <div style={{ padding: '0.6rem 1rem', opacity: 0.5, fontSize: '0.9rem' }}>{tCommon('no_results')}</div>
                     )}
                 </div>
             )}

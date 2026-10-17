@@ -8,7 +8,7 @@ import { fetchCloverMenuItems, fetchCloverModifiers, fetchCloverItemDetails } fr
 import { getConversionFactor, ALLOWED_METRICS } from '@/lib/conversion';
 import { calculateRecipeCost, resolveIngredientCost } from '@/lib/calculations';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
 interface MenuModalProps {
     isOpen: boolean;
@@ -19,6 +19,8 @@ interface MenuModalProps {
 
 export default function MenuModal({ isOpen, onClose, onSave, initialData }: MenuModalProps) {
     const locale = useLocale();
+    const t = useTranslations('MenuModal');
+    const tCommon = useTranslations('Common');
     const [ingredientsList, setIngredientsList] = useState<any[]>([]);
 
     // Form state
@@ -166,18 +168,18 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
         }}>
             <div className="glass-panel" style={{ width: '100%', maxWidth: '700px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'fadeIn 0.2s ease-out', background: 'var(--bg-primary)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
-                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
+                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{initialData ? t('title_edit') : t('title_add')}</h2>
                     <button onClick={onClose} style={{ color: 'var(--text-secondary)', padding: '0.25rem' }}><X size={20} /></button>
                 </div>
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Menu Item Name</label>
-                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="input-field" placeholder="e.g. Lomo Saltado" required disabled={!!cloverId} />
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('label_name')}</label>
+                            <input value={name} onChange={e => setName(e.target.value)} type="text" className="input-field" placeholder={t('placeholder_name')} required disabled={!!cloverId} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Category</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('label_category')}</label>
                             <select
                                 value={isNewCategory ? '__new__' : category}
                                 onChange={e => {
@@ -193,50 +195,50 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                 required={!isNewCategory}
                                 disabled={!!cloverId}
                             >
-                                <option value="" disabled>Select a category...</option>
+                                <option value="" disabled>{t('placeholder_select_category')}</option>
                                 {(categoriesList.includes(category) || !category ? categoriesList : [category, ...categoriesList]).map(cat => (
                                     <option key={cat} value={cat}>{cat}</option>
                                 ))}
-                                <option value="__new__">+ New category...</option>
+                                <option value="__new__">{t('option_new_category')}</option>
                             </select>
                             {isNewCategory && (
-                                <input value={category} onChange={e => setCategory(e.target.value)} type="text" className="input-field" placeholder="New category name" required autoFocus />
+                                <input value={category} onChange={e => setCategory(e.target.value)} type="text" className="input-field" placeholder={t('placeholder_new_category')} required autoFocus />
                             )}
                         </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Selling Price ($)</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('label_selling_price')}</label>
                             <input value={salePrice} onChange={e => setSalePrice(e.target.value)} type="number" step="0.01" className="input-field" placeholder="25.00" required disabled={!!cloverId} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Target Food Cost %</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('label_target_food_cost')}</label>
                             <input value={targetFoodCostPct} onChange={e => setTargetFoodCostPct(e.target.value)} type="number" step="0.1" className="input-field" placeholder="25.0" required />
                         </div>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(59, 130, 246, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                        <label style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>POS Item Link (Clover)</label>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Bind this menu dish permanently to a Clover POS item.</p>
+                        <label style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('label_pos_link')}</label>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('pos_link_help')}</p>
                         <SearchableSelect
                             value={cloverId}
                             onChange={(val) => setCloverId(val)}
-                            options={[{ value: '', label: 'None' }, ...cloverItems.map(item => ({ value: item.id, label: `${item.name} - ${item.id}` }))]}
-                            placeholder="Select a Clover Item..."
+                            options={[{ value: '', label: t('option_none') }, ...cloverItems.map(item => ({ value: item.id, label: `${item.name} - ${item.id}` }))]}
+                            placeholder={t('placeholder_select_clover_item')}
                         />
                         {cloverId && (
                             <>
                                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
-                                    Linked: name, price &amp; category mirror Clover automatically. Description below is saved to Clover.
+                                    {t('pos_linked_note')}
                                 </p>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>Description (Clover)</label>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{t('label_clover_description')}</label>
                                 <textarea
                                     value={cloverDescription}
                                     onChange={e => setCloverDescription(e.target.value)}
                                     className="input-field"
                                     rows={3}
-                                    placeholder="Item description shown in Clover / online ordering..."
+                                    placeholder={t('placeholder_clover_description')}
                                     style={{ resize: 'vertical', minHeight: '70px' }}
                                 />
                             </>
@@ -245,23 +247,23 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
 
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Recipe Builder (Bill of Materials)</h3>
+                            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>{t('recipe_builder_title')}</h3>
                             <button type="button" onClick={handleAddIngredient} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                                <Plus size={14} /> Add Ingredient
+                                <Plus size={14} /> {t('add_ingredient')}
                             </button>
                         </div>
 
                         {ingredients.length === 0 ? (
                             <div style={{ padding: '2rem', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', color: 'var(--text-secondary)' }}>
-                                No ingredients added yet. Build your recipe!
+                                {t('empty_recipe')}
                             </div>
                         ) : (
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead>
                                     <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
-                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>Qty (e.g. 0.25)</th>
-                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Metric</th>
+                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('col_ingredient')}</th>
+                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '150px' }}>{t('col_qty_hint')}</th>
+                                        <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>{t('col_metric')}</th>
                                         <th style={{ padding: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)', width: '100px', textAlign: 'right' }}>{locale === 'es' ? 'Costo' : 'Cost'}</th>
                                         <th style={{ padding: '0.75rem', width: '60px' }}></th>
                                     </tr>
@@ -274,7 +276,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                     value={ing.ingredientId}
                                                     onChange={(val) => handleIngredientChange(ing.id, 'ingredientId', val)}
                                                     options={ingredientsList.map(item => ({ value: item.id, label: item.name }))}
-                                                    placeholder="Select..."
+                                                    placeholder={tCommon('select')}
                                                     required
                                                 />
                                             </td>
@@ -295,7 +297,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                     const baseUnit = dbIng ? (dbIng.metric || 'Units') : 'Units';
 
                                                     const options = baseUnit.toLowerCase() === 'units'
-                                                        ? [{ value: 'Units', label: 'Units' }]
+                                                        ? [{ value: 'Units', label: tCommon('units') }]
                                                         : ALLOWED_METRICS.filter(m => m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }));
 
                                                     return (
@@ -346,15 +348,15 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                         {ingredients.length > 0 && (
                             <div style={{ marginTop: '1.5rem', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', textAlign: 'center' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Recipe Cost</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('total_recipe_cost')}</span>
                                     <span style={{ fontSize: '1.2rem', fontWeight: 600 }}>${totalCalculatedCost.toFixed(2)}</span>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Selling Price</span>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('selling_price')}</span>
                                     <span style={{ fontSize: '1.2rem', fontWeight: 600 }}>${parseFloat(salePrice).toFixed(2)}</span>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <span style={{ fontSize: '0.8rem', color: currentFoodCostPct > parseFloat(targetFoodCostPct) ? 'var(--danger)' : 'var(--text-secondary)' }}>Actual Food Cost %</span>
+                                    <span style={{ fontSize: '0.8rem', color: currentFoodCostPct > parseFloat(targetFoodCostPct) ? 'var(--danger)' : 'var(--text-secondary)' }}>{t('actual_food_cost')}</span>
                                     <span style={{ fontSize: '1.2rem', fontWeight: 600, color: currentFoodCostPct > parseFloat(targetFoodCostPct) ? 'var(--danger)' : 'var(--text-primary)' }}>{currentFoodCostPct.toFixed(1)}%</span>
                                 </div>
                             </div>
@@ -364,7 +366,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem' }}>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '1rem', fontWeight: 500 }}>
                             <input type="checkbox" checked={hasInventoryModifiers} onChange={e => setHasInventoryModifiers(e.target.checked)} style={{ width: '18px', height: '18px' }} />
-                            Does this item have inventory-relevant modifiers?
+                            {t('has_modifiers_question')}
                         </label>
 
                         {hasInventoryModifiers && (
@@ -391,7 +393,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                                 } : m));
                                                             }}
                                                             options={[...cloverModifiersOpt].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(m => ({ value: m.id, label: `${m.name} (${m.group})` }))}
-                                                            placeholder="Select Clover Modifier..."
+                                                            placeholder={t('placeholder_select_clover_modifier')}
                                                         />
                                                     </div>
                                                 </div>
@@ -400,15 +402,15 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                             <div>
                                                 {mod.ingredients.length === 0 ? (
                                                     <div style={{ padding: '1rem', textAlign: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: '8px', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                                                        No ingredients added yet. Build your modifier recipe!
+                                                        {t('empty_modifier_recipe')}
                                                     </div>
                                                 ) : (
                                                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', marginBottom: '1rem' }}>
                                                         <thead>
                                                             <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>Ingredient</th>
-                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>Qty</th>
-                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '110px' }}>Metric</th>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{t('col_ingredient')}</th>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '120px' }}>{t('col_qty')}</th>
+                                                                <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '110px' }}>{t('col_metric')}</th>
                                                                 <th style={{ padding: '0.5rem', fontWeight: 500, color: 'var(--text-secondary)', width: '90px', textAlign: 'right' }}>{locale === 'es' ? 'Costo' : 'Cost'}</th>
                                                                 <th style={{ padding: '0.5rem', width: '40px' }}></th>
                                                             </tr>
@@ -424,7 +426,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                                                 setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: m.ingredients.map(i => i.id === ing.id ? { ...i, ingredientId: val, unit: selectedItem?.metric || 'units' } : i) } : m));
                                                                             }}
                                                                             options={ingredientsList.map(item => ({ value: item.id, label: item.name }))}
-                                                                            placeholder="Select..."
+                                                                            placeholder={tCommon('select')}
                                                                             required
                                                                         />
                                                                     </td>
@@ -445,7 +447,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                                                             const baseUnit = dbIng ? (dbIng.metric || 'Units') : 'Units';
 
                                                                             const options = baseUnit.toLowerCase() === 'units'
-                                                                                ? [{ value: 'Units', label: 'Units' }]
+                                                                                ? [{ value: 'Units', label: tCommon('units') }]
                                                                                 : ALLOWED_METRICS.filter(m => m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }));
 
                                                                             return (
@@ -494,7 +496,7 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
 
                                                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                                                     <button type="button" onClick={() => setModifiers(modifiers.map(m => m.id === mod.id ? { ...m, ingredients: [...m.ingredients, { id: Math.random().toString(), ingredientId: '', quantity: '0', unit: 'units' }] } : m))} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
-                                                        <Plus size={14} /> Add Modifier Ingredient
+                                                        <Plus size={14} /> {t('add_modifier_ingredient')}
                                                     </button>
                                                 </div>
 
@@ -525,14 +527,14 @@ export default function MenuModal({ isOpen, onClose, onSave, initialData }: Menu
                                         </div>
                                     )
                                 })}
-                                <button type="button" onClick={() => setModifiers([...modifiers, { id: Math.random().toString(), name: '', cloverModifierId: '', ingredients: [] }])} className="btn-secondary" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', borderStyle: 'dashed' }}><Plus size={16} /> New Modifier Mapping</button>
+                                <button type="button" onClick={() => setModifiers([...modifiers, { id: Math.random().toString(), name: '', cloverModifierId: '', ingredients: [] }])} className="btn-secondary" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', borderStyle: 'dashed' }}><Plus size={16} /> {t('new_modifier_mapping')}</button>
                             </div>
                         )}
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-                        <button type="button" onClick={onClose} style={{ padding: '0.6rem 1.5rem', color: 'var(--text-secondary)' }}>Cancel</button>
-                        <button type="submit" className="btn-primary" style={{ padding: '0.6rem 2rem', borderRadius: '8px' }}>Save Recipe</button>
+                        <button type="button" onClick={onClose} style={{ padding: '0.6rem 1.5rem', color: 'var(--text-secondary)' }}>{tCommon('cancel')}</button>
+                        <button type="submit" className="btn-primary" style={{ padding: '0.6rem 2rem', borderRadius: '8px' }}>{t('save_recipe')}</button>
                     </div>
                 </form>
             </div>

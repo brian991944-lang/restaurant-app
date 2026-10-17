@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { getCategories } from '@/app/actions/inventory';
 
@@ -21,6 +22,8 @@ export default function CreateProductComprasModal({
     defaultProvider,
     locale
 }: CreateProductComprasModalProps) {
+    const t = useTranslations('ComprasProduct');
+    const tCommon = useTranslations('Common');
     const [name, setName] = useState('');
     const [selectedMetric, setSelectedMetric] = useState('Units');
     const [selectedCategory, setSelectedCategory] = useState('');
@@ -81,11 +84,11 @@ export default function CreateProductComprasModal({
                 onSave();
                 onClose();
             } else {
-                alert(res.error || 'Failed to save product');
+                alert(res.error || t('save_failed'));
             }
         } catch (error) {
             console.error('Failed to add product:', error);
-            alert('An error occurred while saving.');
+            alert(tCommon('error_saving'));
         }
         setIsSaving(false);
     };

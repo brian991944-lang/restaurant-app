@@ -1,10 +1,12 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Calendar, Repeat } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getRecurringRules } from '@/app/actions/recurringPrep';
 
 export default function RecurringPrepPage() {
+    const t = useTranslations();
     const [rules, setRules] = useState<any[]>([]);
 
     useEffect(() => {
@@ -17,8 +19,8 @@ export default function RecurringPrepPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Recurring Prep Rules</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>Set items to naturally drop into the Morning Prep Schedule on specific days.</p>
+                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{t('RecurringPrep.title')}</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>{t('RecurringPrep.subtitle')}</p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Repeat size={32} color="var(--accent-primary)" />
@@ -26,9 +28,9 @@ export default function RecurringPrepPage() {
             </div>
 
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Active Network Rules: <strong>{rules.length}</strong></span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('RecurringPrep.active_rules')} <strong>{rules.length}</strong></span>
                 <button className="btn-primary" style={{ padding: '0.6rem 1.2rem', borderRadius: '12px' }}>
-                    + Add New Weekly Rule
+                    {t('RecurringPrep.add_weekly_rule')}
                 </button>
             </div>
 
@@ -39,11 +41,11 @@ export default function RecurringPrepPage() {
                         <div key={day} className="glass-panel" style={{ padding: '1.5rem' }}>
                             <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', fontSize: '1.1rem' }}>
                                 <Calendar size={18} color={dayRules.length > 0 ? "var(--accent-primary)" : "var(--text-secondary)"} />
-                                {day}
+                                {t('PrepSchedule.weekday', { day: idx })}
                             </h3>
                             {dayRules.length === 0 ? (
                                 <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', padding: '1rem', background: 'rgba(255,255,255,0.01)', borderRadius: '8px' }}>
-                                    No rules scheduled
+                                    {t('PrepSchedule.no_tasks')}
                                 </div>
                             ) : (
                                 dayRules.map(rule => (

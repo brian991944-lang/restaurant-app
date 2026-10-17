@@ -304,7 +304,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                 const yieldDecimal = Math.max(0.01, (100 - wastePercent) / 100);
                 costPerPortionPreview = (parentPrice / cFactor) * size / yieldDecimal;
             } else {
-                conversionError = `Cannot convert ${parentMetric} to ${targetUnit}`;
+                conversionError = t('modal_cannot_convert', { from: parentMetric, to: targetUnit });
             }
         }
     } else if (currentType === 'PREP_RECIPE') {
@@ -458,7 +458,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                     {currentType === 'PREP_RECIPE' ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Recipe Name / Nombre de la Receta</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_recipe_name')}</label>
                             <div style={{ fontWeight: 'bold', border: '1px solid var(--border)', padding: '12px', borderRadius: '8px', background: 'rgba(0,0,0,0.2)', color: 'var(--text-primary)', fontSize: '1.1rem' }}>
                                 {nameInput}
                             </div>
@@ -466,7 +466,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>English Name</label>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_english_name')}</label>
                                 {itemType === 'ingredient' && (
                                 <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', color: 'var(--accent-primary)' }}>
                                     <input
@@ -475,7 +475,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                         onChange={e => setAutoTranslate(e.target.checked)}
                                         style={{ accentColor: 'var(--accent-primary)' }}
                                     />
-                                    Auto-Translate Info
+                                    {t('auto_translate')}
                                 </label>
                                 )}
                             </div>
@@ -491,13 +491,13 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             />
 
                             {itemType === 'ingredient' && (<>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{locale === 'es' ? 'Nombre en Español' : 'Spanish Name'}</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>{t('modal_spanish_name')}</label>
                             <input
                                 name="nameEs"
                                 type="text"
                                 className="input-field"
-                                placeholder={autoTranslate ? "Translating..." : "Nombre en Español"}
-                                value={autoTranslate ? (translatedNamePreview || (nameInput ? "Translating..." : "")) : nameEsInput}
+                                placeholder={autoTranslate ? t('modal_translating') : t('modal_spanish_name')}
+                                value={autoTranslate ? (translatedNamePreview || (nameInput ? t('modal_translating') : "")) : nameEsInput}
                                 onChange={(e) => setNameEsInput(e.target.value)}
                                 disabled={autoTranslate}
                                 required={!autoTranslate}
@@ -582,15 +582,15 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                     {isAdmin && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Área</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_area')}</label>
                             <select
                                 className="input-field"
                                 value={area}
                                 onChange={(e) => setArea(e.target.value as 'cocina' | 'salon' | 'ambos')}
                             >
-                                <option value="cocina">Cocina</option>
-                                <option value="salon">Salón</option>
-                                <option value="ambos">Ambos</option>
+                                <option value="cocina">{t('modal_area_cocina')}</option>
+                                <option value="salon">{t('modal_area_salon')}</option>
+                                <option value="ambos">{t('modal_area_ambos')}</option>
                             </select>
                         </div>
                     )}
@@ -605,7 +605,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         </div>
                         {currentType === 'RAW' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Current Price per Unit</label>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_price_per_unit')}</label>
                                 <input
                                     name="currentPrice"
                                     type="number"
@@ -650,13 +650,13 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 onChange={e => setIsPacked(e.target.checked)}
                                 style={{ accentColor: 'var(--accent-primary)', width: '18px', height: '18px' }}
                             />
-                            Is Packed/Bagged Item?
+                            {t('modal_is_packed')}
                         </label>
                         {isPacked && (
                             <>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Weight/Units per Pack</label>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_units_per_pack')}</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -668,7 +668,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                         />
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Unit of Measurement</label>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_unit_of_measurement')}</label>
                                         <select
                                             className="input-field"
                                             value={packUnit}
@@ -684,18 +684,18 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
-                                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Invoice Calculator (Optional)</label>
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '-0.3rem' }}>Calculate unit price automatically from the supplier invoice.</span>
+                                    <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('modal_invoice_calculator')}</label>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '-0.3rem' }}>{t('modal_invoice_calculator_help')}</span>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.5rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Packs/Bags in Box</label>
+                                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('modal_packs_in_box')}</label>
                                             <input
                                                 type="number"
                                                 step="1"
                                                 min="1"
                                                 id="calcPacksPerBox"
                                                 className="input-field"
-                                                placeholder="e.g. 6"
+                                                placeholder={t('modal_packs_in_box_placeholder')}
                                                 value={calcPacks === '' ? '' : calcPacks}
                                                 onChange={(e) => {
                                                     const packs = e.target.value === '' ? '' : (parseFloat(e.target.value) || 0);
@@ -704,14 +704,14 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                             />
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Total Box Price ($)</label>
+                                            <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('modal_total_box_price')}</label>
                                             <input
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
                                                 id="calcBoxPrice"
                                                 className="input-field"
-                                                placeholder="e.g. 120.00"
+                                                placeholder={t('modal_total_box_price_placeholder')}
                                                 value={calcBoxPrice === '' ? '' : calcBoxPrice}
                                                 onChange={(e) => {
                                                     const price = e.target.value === '' ? '' : (parseFloat(e.target.value) || 0);
@@ -722,7 +722,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                     </div>
                                     {unitsPerPack > 0 && currentPriceValue > 0 && typeof calcBoxPrice === 'number' && calcBoxPrice > 0 && (
                                         <div style={{ fontSize: '0.85rem', color: 'var(--success)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                            ✓ Base Price securely calculated to <strong>${currentPriceValue}</strong> per {selectedMetric}
+                                            ✓ {t('modal_base_price_calculated')} <strong>${currentPriceValue}</strong> {t('modal_per_unit', { unit: selectedMetric })}
                                         </div>
                                     )}
                                 </div>
@@ -736,7 +736,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '-0.2rem' }}>
                                     <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                        {!initialData ? `Admin Override (Total Stock)` : `Admin Override (Total Stock)`}
+                                        {t('modal_admin_override_total')}
                                     </label>
                                     {isPacked && (
                                         <select
@@ -755,7 +755,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                                     {initialData?.inventory && (
                                         <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--accent-primary)', marginTop: '0.2rem', fontWeight: 600 }}>
-                                            Current DB Total: {(() => {
+                                            {t('modal_current_db_total')} {(() => {
                                                 if (!initialData.isPacked) return Number((initialData.inventory.thawingQty + initialData.inventory.frozenQty).toFixed(4)) + " " + (initialData.metric || 'Units');
                                                 let amt = initialData.inventory.thawingQty + initialData.inventory.frozenQty; // amt is in Metric
                                                 let targetUnit = overrideDisplayUnit === 'Packs' ? (initialData.packUnit || 'Units') : overrideDisplayUnit;
@@ -766,7 +766,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                                 if (overrideDisplayUnit === 'Packs') {
                                                     amt = amt / (initialData.unitsPerPack || 1);
                                                 }
-                                                return formatDisplayQty(amt, overrideDisplayUnit) + " " + (overrideDisplayUnit === 'Packs' ? 'Packs' : overrideDisplayUnit);
+                                                return formatDisplayQty(amt, overrideDisplayUnit) + " " + (overrideDisplayUnit === 'Packs' ? t('modal_packs') : overrideDisplayUnit);
                                             })()}
                                         </span>
                                     )}
@@ -785,7 +785,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                         )}
                         {!initialData && (currentType === 'PROCESSED' || currentType === 'PREP_RECIPE') && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>How many are going to the Fridge (Unfrozen)?</label>
+                                <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>{t('modal_to_fridge_question')}</label>
                                 <input
                                     name="unfrozenQuantity"
                                     type="number"
@@ -814,7 +814,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                         onChange={e => setTrackFreezerStatus(e.target.checked)}
                                         style={{ accentColor: '#60a5fa', width: '16px', height: '16px' }}
                                     />
-                                    <span style={{ fontWeight: 600 }}>Rastrear en Control de Congelados (Track in Freezer/Fridge)</span>
+                                    <span style={{ fontWeight: 600 }}>{t('modal_track_freezer')}</span>
                                 </label>
 
                                 <label style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
@@ -831,9 +831,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             {trackFreezerStatus && initialData && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                                     <label style={{ fontSize: '0.9rem', color: 'var(--warning)' }}>
-                                        Cantidad Descongelada / Unfrozen in Fridge
+                                        {t('modal_unfrozen_qty')}
                                         <span style={{ display: 'block', fontSize: '0.8rem', color: isDescongeladoInvalid ? 'var(--danger)' : 'var(--warning)', marginTop: '0.2rem', fontWeight: 600 }}>
-                                            {isDescongeladoInvalid ? 'Error: Descongelado cannot exceed Total Stock.' : `Current DB Unfrozen: ${initialData.inventory?.thawingQty !== undefined ? initialData.inventory.thawingQty : 0} ${initialData.metric || 'Units'}`}
+                                            {isDescongeladoInvalid ? t('modal_unfrozen_exceeds_error') : t('modal_current_db_unfrozen', { qty: initialData.inventory?.thawingQty !== undefined ? initialData.inventory.thawingQty : 0, unit: initialData.metric || 'Units' })}
                                         </span>
                                     </label>
                                     <input
@@ -858,7 +858,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             {isPortioned && (
                                 <>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Portion Weight</label>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_portion_weight')}</label>
                                         <input
                                             type="number"
                                             step="0.01"
@@ -868,7 +868,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                         />
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Portion Unit</label>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_portion_unit')}</label>
                                         <SearchableSelect
                                             value={portionUnit}
                                             onChange={setPortionUnit}
@@ -889,11 +889,11 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Clover Item ID (Optional)</label>
-                            <input value={cloverId} onChange={e => setCloverId(e.target.value)} type="text" className="input-field" placeholder="e.g. WVH7N66BZZ5WT" />
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_clover_item_id')}</label>
+                            <input value={cloverId} onChange={e => setCloverId(e.target.value)} type="text" className="input-field" placeholder={t('modal_clover_item_id_placeholder')} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Clover Sync Multiplier</label>
+                            <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_clover_multiplier')}</label>
                             <input value={mappingMultiplier} onChange={e => setMappingMultiplier(parseFloat(e.target.value) || 1)} type="number" step="0.01" className="input-field" />
                         </div>
                     </div>
@@ -937,8 +937,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                 style={{ accentColor: 'var(--danger)', width: '16px', height: '16px', marginTop: '2px' }}
                             />
                             <span style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Deshabilitar ingrediente</span>
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Los cocineros no verán este ingrediente en ninguna lista</span>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('modal_disable_ingredient')}</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('modal_disable_ingredient_helper')}</span>
                             </span>
                         </label>
                     )}

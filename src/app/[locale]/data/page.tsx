@@ -14,6 +14,7 @@ const MOCK_DATA = [
 ];
 
 export default function RawDataPage() {
+    const t = useTranslations('Data');
     const [search, setSearch] = useState('');
 
     const filteredData = MOCK_DATA.filter(item =>
@@ -47,17 +48,17 @@ export default function RawDataPage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>Raw Data Storage</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>View, verify, and export raw ingested data</p>
+                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>{t('title')}</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>{t('subtitle')}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <button className="btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
                         <Download size={18} />
-                        <span>Export CSV</span>
+                        <span>{t('export_csv')}</span>
                     </button>
                     <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem' }}>
                         <UploadCloud size={18} />
-                        <span>Manual Upload</span>
+                        <span>{t('manual_upload')}</span>
                     </button>
                 </div>
             </div>
@@ -66,13 +67,13 @@ export default function RawDataPage() {
             <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px' }}>
                     <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 500, fontSize: '0.9rem', color: '#fff', background: 'var(--bg-secondary)', border: '1px solid var(--border)', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                        All Data Logs
+                        {t('tab_all')}
                     </button>
                     <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-secondary)', background: 'transparent', border: '1px solid transparent' }}>
-                        Invoices
+                        {t('tab_invoices')}
                     </button>
                     <button style={{ padding: '0.5rem 1rem', borderRadius: '8px', fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-secondary)', background: 'transparent', border: '1px solid transparent' }}>
-                        Sales Data
+                        {t('tab_sales')}
                     </button>
                 </div>
 
@@ -81,7 +82,7 @@ export default function RawDataPage() {
                         <Search size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                         <input
                             type="text"
-                            placeholder="Search Source or Type..."
+                            placeholder={t('search_placeholder')}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="input-field"
@@ -96,12 +97,12 @@ export default function RawDataPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                         <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Date Ingested</th>
-                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Source</th>
-                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Data Type</th>
-                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Records Read</th>
-                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Status</th>
-                            <th style={{ padding: '1rem 1.5rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>Actions</th>
+                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>{t('th_date')}</th>
+                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>{t('th_source')}</th>
+                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>{t('th_type')}</th>
+                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>{t('th_records')}</th>
+                            <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>{t('th_status')}</th>
+                            <th style={{ padding: '1rem 1.5rem', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.9rem' }}>{t('th_actions')}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -110,7 +111,7 @@ export default function RawDataPage() {
                                 <td style={{ padding: '1rem 1.5rem', fontWeight: 500 }}>{item.date}</td>
                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{item.source}</td>
                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)' }}>{item.type}</td>
-                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)', fontWeight: 500 }}>{item.records} items</td>
+                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)', fontWeight: 500 }}>{t('items_count', { count: item.records })}</td>
                                 <td style={{ padding: '1rem 1.5rem' }}>
                                     <span style={{
                                         padding: '0.2rem 0.6rem',
@@ -132,7 +133,7 @@ export default function RawDataPage() {
                         {filteredData.length === 0 && (
                             <tr>
                                 <td colSpan={6} style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                                    No records found matching "{search}"
+                                    {t('no_records', { search })}
                                 </td>
                             </tr>
                         )}

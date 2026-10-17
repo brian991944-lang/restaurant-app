@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Menu } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { AdminProvider } from '@/components/AdminContext';
@@ -15,6 +16,7 @@ export default function AppLayout({
   children: React.ReactNode;
   locale: string;
 }) {
+  const t = useTranslations('Nav');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
@@ -47,7 +49,7 @@ export default function AppLayout({
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
-              aria-label="Open menu"
+              aria-label={t('open_menu')}
             >
               <Menu size={24} />
             </button>
