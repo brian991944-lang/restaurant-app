@@ -21,17 +21,27 @@ import {
  *
  * Step "offer": shown once per device right after a password unlock when the
  * device could use a passkey but hasn't enrolled one. "Not now" is remembered.
+ *
+ * variant "sheet" (default): the dismissable modal the sidebar opens.
+ * variant "screen": the Admin install's lock screen — solid background, no
+ * close button, no backdrop/Esc dismiss. Same unlock logic, same endpoints.
  */
 export default function AdminUnlockModal({
     open,
     onClose,
     onUnlocked,
+    variant = 'sheet',
+    footnote,
 }: {
     open: boolean;
     onClose: () => void;
     onUnlocked: () => void;
+    variant?: 'sheet' | 'screen';
+    /** Screen variant only: a line under the card (e.g. how to install the Admin app). */
+    footnote?: React.ReactNode;
 }) {
     const t = useTranslations('Nav');
+    const dismissable = variant === 'sheet';
 
     const [step, setStep] = useState<'unlock' | 'offer'>('unlock');
     const [password, setPassword] = useState('');
@@ -68,13 +78,13 @@ export default function AdminUnlockModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
-    // Esc closes.
+    // Esc closes (the sheet only — the lock screen has nowhere to go back to).
     useEffect(() => {
-        if (!open) return;
+        if (!open || !dismissable) return;
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [open, busy, onClose]);
+    }, [open, busy, onClose, dismissable]);
 
     const finish = () => {
         onUnlocked();
@@ -148,11 +158,11 @@ export default function AdminUnlockModal({
 
     return (
         <div
-            onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+            onMouseDown={(e) => { if (dismissable && e.target === e.currentTarget && !busy) onClose(); }}
             style={{
                 position: 'fixed', inset: 0, zIndex: 9999,
-                background: 'rgba(0,0,0,0.55)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: dismissable ? 'rgba(0,0,0,0.55)' : 'var(--bg-primary)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem',
                 padding: '1rem',
                 animation: 'adminSheetFade 160ms ease-out',
             }}
@@ -179,19 +189,21 @@ export default function AdminUnlockModal({
                     animation: 'adminSheetRise 200ms cubic-bezier(.2,.8,.2,1)',
                 }}
             >
-                <button
-                    onClick={onClose}
-                    disabled={!!busy}
-                    aria-label={t('cancel')}
-                    style={{
-                        position: 'absolute', top: '0.9rem', right: '0.9rem',
-                        width: 32, height: 32, borderRadius: 16,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        background: 'transparent', color: 'var(--text-secondary)',
-                    }}
-                >
-                    <X size={18} />
-                </button>
+                {dismissable && (
+                    <button
+                        onClick={onClose}
+                        disabled={!!busy}
+                        aria-label={t('cancel')}
+                        style={{
+                            position: 'absolute', top: '0.9rem', right: '0.9rem',
+                            width: 32, height: 32, borderRadius: 16,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'transparent', color: 'var(--text-secondary)',
+                        }}
+                    >
+                        <X size={18} />
+                    </button>
+                )}
 
                 {/* Badge */}
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
@@ -325,6 +337,12 @@ export default function AdminUnlockModal({
                     </>
                 )}
             </div>
+
+            {!dismissable && footnote && (
+                <div style={{ maxWidth: '380px', textAlign: 'center', fontSize: '0.8rem', lineHeight: 1.45, color: 'var(--text-secondary)', padding: '0 0.5rem' }}>
+                    {footnote}
+                </div>
+            )}
         </div>
     );
 }

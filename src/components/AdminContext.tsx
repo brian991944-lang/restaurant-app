@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 interface AdminContextProps {
     isAdmin: boolean;
     setIsAdmin: (val: boolean) => void;
+    /** False until sessionStorage has been read; the Admin lock screen waits for it so it never flashes. */
+    isLoaded: boolean;
 }
 
 const AdminContext = createContext<AdminContextProps | undefined>(undefined);
@@ -65,7 +67,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const hideContent = isLoaded && isRestricted && !isAdmin;
 
     return (
-        <AdminContext.Provider value={{ isAdmin, setIsAdmin }}>
+        <AdminContext.Provider value={{ isAdmin, setIsAdmin, isLoaded }}>
             {hideContent ? (
                 <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
                     <div style={{ color: 'var(--text-secondary)' }}>Redirigiendo...</div>

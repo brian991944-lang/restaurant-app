@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard, Users, Star, Warehouse } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard, Users, Star, Warehouse, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import AdminUnlockModal from '@/components/AdminUnlockModal';
@@ -164,6 +164,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         },
         { key: 'almacen', name: t('almacen'), href: `/${locale}/almacen`, icon: Warehouse, station: 'Management' },
         { key: 'raw_data', name: t('raw_data'), href: `/${locale}/data`, icon: Database, station: 'Management' },
+        { key: 'admin_app', name: t('admin_app'), href: `/${locale}/admin`, icon: Smartphone, station: 'Management' },
         { key: 'finanzas', name: t('finanzas'), href: `/${locale}/finanzas`, icon: Landmark, station: 'Management' },
         { key: 'payroll', name: t('payroll'), href: `/${locale}/payroll`, icon: Clock, station: 'Management' },
         {
