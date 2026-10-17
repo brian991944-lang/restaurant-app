@@ -69,7 +69,6 @@
   "Inventory": {
     "title": "Inventario",
     "subtitle": "Controla y gestiona tus ingredientes",
-    "ingredients_tracked": "{count} ingredientes rastreados",
     "add_ingredient": "Agregar Ingrediente",
     "add_production": "Agregar Producción",
     "overview": "Resumen",
@@ -1100,19 +1099,12 @@
     "cancel": "Cancelar"
   },
   "Inventario": {
-    "tabBoxes": "Inventario",
+    "tabBoxes": "Tarjetas",
     "tabTable": "Tabla",
-    "count": "{count} artículos",
     "all": "Todos",
-    "toOrder": "Por pedir · {count}",
-    "search": "Buscar… también encuentra sub-productos",
+    "search": "Buscar ingrediente…",
     "groups": "Grupos · {count}",
-    "groupsSub": "ingredientes con sub-productos",
     "simple": "Artículos simples · {count}",
-    "simpleSub": "todos crudos · un solo número",
-    "legendRaw": "Crudo · como se compra",
-    "legendProcessed": "Procesado · porciones y bases",
-    "legendTrim": "Merma",
     "tagRaw": "CRUDO",
     "tagPortions": "PORCIONES",
     "tagBase": "BASE",
@@ -1133,6 +1125,21 @@
     "lastPurchase": "Última compra: {date}",
     "frozenFridge": "cong. {frozen} · refri {fridge}",
     "portions": "porc.",
-    "editHint": "Editar {name}"
+    "editHint": "Editar {name}",
+    "tabIngredients": "Ingredientes",
+    "headerCount": "{count} ingredientes",
+    "headerCountGroups": "{count} ingredientes · {groups} grupos",
+    "catMeat": "Carnes",
+    "catSeafood": "Mariscos",
+    "catDairy": "Lácteos",
+    "catProduce": "Vegetales",
+    "catPantry": "Despensa",
+    "catSpices": "Especias",
+    "catPeruvian": "Peruanos",
+    "catDrinks": "Bebidas",
+    "catCleaning": "Limpieza",
+    "catPaper": "Papel",
+    "catEquipment": "Equipo",
+    "catOther": "Otros"
   }
 }

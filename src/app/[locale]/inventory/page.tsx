@@ -80,6 +80,8 @@ export default function InventoryPage() {
     const { isAdmin } = useAdmin();
     const [activeTab, setActiveTab] = useState<'BOXES' | 'ALL' | 'ALL_INGREDIENTS' | 'CATEGORIES' | 'PRODUCTION' | 'PREP_RECIPES'>('BOXES');
     const tInventario = useTranslations('Inventario');
+    const [boxSearch, setBoxSearch] = useState('');
+    const [boxGroups, setBoxGroups] = useState<number | null>(null);
     const [categoryTab, setCategoryTab] = useState<'CATEGORIES' | 'PROVEEDORES'>('CATEGORIES');
     const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
     const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
@@ -682,13 +684,74 @@ export default function InventoryPage() {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
 
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Command row: title + view switcher, search (Tarjetas only), actions */}
+            <style>{`
+                .inv-cmd { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+                .inv-cmd-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+                .inv-seg { display: inline-flex; gap: 2px; height: 34px; padding: 2px; border-radius: 8px; background: rgba(15,23,42,0.06); }
+                .dark .inv-seg { background: rgba(255,255,255,0.08); }
+                .inv-seg button { height: 30px; padding: 0 0.85rem; border: none; border-radius: 6px; background: transparent; color: var(--text-secondary);
+                    font-size: 0.9rem; font-weight: 500; cursor: pointer; white-space: nowrap; }
+                .inv-seg button.active { background: var(--bg-primary); color: var(--text-primary); box-shadow: 0 1px 2px rgba(15,23,42,0.15); }
+                .dark .inv-seg button.active { background: #334155; }
+                @media (max-width: 900px) {
+                    .inv-cmd { flex-direction: column; align-items: flex-start; }
+                }
+            `}</style>
+            <div className="inv-cmd">
                 <div>
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '0.25rem' }}>{t('title')}</h1>
-                    <p style={{ color: 'var(--text-secondary)' }}>{t('ingredients_tracked', { count: dbIngredients.length })}</p>
+                    <h1 style={{ fontSize: '2rem', margin: 0 }}>{t('title')}</h1>
+                    <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
+                        {activeTab === 'BOXES' && boxGroups !== null
+                            ? tInventario('headerCountGroups', { count: dbIngredients.length, groups: boxGroups })
+                            : tInventario('headerCount', { count: dbIngredients.length })}
+                    </p>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
+                <div className="inv-cmd-controls">
+                    <div className="inv-seg" role="tablist">
+                        {[
+                            { id: 'BOXES', label: tInventario('tabBoxes') },
+                            { id: 'ALL', label: tInventario('tabTable') },
+                            { id: 'ALL_INGREDIENTS', label: tInventario('tabIngredients') },
+                            ...(isAdmin ? [
+                                { id: 'PREP_RECIPES', label: locale === 'es' ? 'Costeo de Receta' : 'Recipe Costing' },
+                                { id: 'CATEGORIES', label: locale === 'es' ? 'Categorías y Proveedores' : 'Categories & Suppliers' }
+                            ] : [])
+                        ].map(tab => (
+                            <button key={tab.id} role="tab" aria-selected={activeTab === tab.id} className={activeTab === tab.id ? 'active' : ''}
+                                onClick={() => setActiveTab(tab.id as any)}>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    {activeTab === 'BOXES' && (
+                        <input value={boxSearch} onChange={e => setBoxSearch(e.target.value)} placeholder={tInventario('search')}
+                            style={{ width: '260px', maxWidth: '100%', height: '40px', padding: '0 0.75rem', borderRadius: '10px', border: '1px solid var(--border)',
+                                background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '1rem' }} />
+                    )}
+                    {activeTab === 'PREP_RECIPES' && (
+                        <select
+                            value={prepRecipeNameFilter}
+                            onChange={(e) => setPrepRecipeNameFilter(e.target.value)}
+                            style={{
+                                padding: '0.6rem 1rem',
+                                borderRadius: '8px',
+                                fontSize: '0.9rem',
+                                minHeight: '44px',
+                                color: 'var(--text-primary)',
+                                background: 'var(--bg-primary)',
+                                border: '1px solid var(--border)',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <option value="">{locale === 'es' ? 'Todas las Recetas' : 'All Recipes'}</option>
+                            {Array.from(new Set(filteredInventory.filter(i => i.type === 'PREP_RECIPE').map(i => i.name)))
+                                .sort((a, b) => a.localeCompare(b, locale))
+                                .map(name => (
+                                    <option key={name} value={name}>{name}</option>
+                                ))}
+                        </select>
+                    )}
                     {activeTab === 'ALL_INGREDIENTS' && (
                         <button className="btn-secondary" onClick={() => setIsManageOptionsOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderRadius: '8px', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)' }}>
                             <Settings size={18} />
@@ -716,70 +779,13 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            {/* Controls Container */}
-            <div className="glass-panel" style={{ padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.3rem', borderRadius: '12px' }}>
-                    {[
-                        { id: 'BOXES', label: tInventario('tabBoxes') },
-                        { id: 'ALL', label: tInventario('tabTable') },
-                        { id: 'ALL_INGREDIENTS', label: locale === 'es' ? 'Ingredientes' : 'Ingredients' },
-                        ...(isAdmin ? [
-                            { id: 'PREP_RECIPES', label: locale === 'es' ? 'Costeo de Receta' : 'Recipe Costing' },
-                            { id: 'CATEGORIES', label: locale === 'es' ? 'Categorías y Proveedores' : 'Categories & Suppliers' }
-                        ] : [])
-                    ].map(tab => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
-                            style={{
-                                padding: '0.5rem 1rem',
-                                borderRadius: '8px',
-                                fontWeight: 500,
-                                fontSize: '0.9rem',
-                                color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-                                background: activeTab === tab.id ? 'var(--bg-primary)' : 'transparent',
-                                transition: 'all 0.2s',
-                                border: activeTab === tab.id ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent',
-                                boxShadow: activeTab === tab.id ? '0 4px 12px rgba(0,0,0,0.1)' : 'none'
-                            }}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-
-                {activeTab === 'PREP_RECIPES' && (
-                    <select
-                        value={prepRecipeNameFilter}
-                        onChange={(e) => setPrepRecipeNameFilter(e.target.value)}
-                        style={{
-                            padding: '0.6rem 1rem',
-                            borderRadius: '8px',
-                            fontSize: '0.9rem',
-                            minHeight: '44px',
-                            color: 'var(--text-primary)',
-                            background: 'var(--bg-primary)',
-                            border: '1px solid var(--border)',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <option value="">{locale === 'es' ? 'Todas las Recetas' : 'All Recipes'}</option>
-                        {Array.from(new Set(filteredInventory.filter(i => i.type === 'PREP_RECIPE').map(i => i.name)))
-                            .sort((a, b) => a.localeCompare(b, locale))
-                            .map(name => (
-                                <option key={name} value={name}>{name}</option>
-                            ))}
-                    </select>
-                )}
-            </div>
-
             {/* Main View */}
             {activeTab === 'BOXES' && (
                 <InventarioBoxes
                     locale={locale === 'en' ? 'en' : 'es'}
                     reloadKey={dbIngredients}
+                    search={boxSearch}
+                    onCounts={c => setBoxGroups(c.groups)}
                     onEdit={!isAdmin ? undefined : rawId => {
                         const item = mappedInventory.find(i => i.id === rawId);
                         if (!item) return;

@@ -40,15 +40,35 @@ interface Props {
     reloadKey: unknown;
     /** Omit for read-only viewers: headers and simple cards render as plain, non-clickable divs. */
     onEdit?: (rawId: string) => void;
+    /** Search text from the page's command row. */
+    search: string;
+    /** Reports the group / simple totals once the data loads (used in the page subtitle). */
+    onCounts?: (counts: { groups: number; simples: number }) => void;
 }
 
-export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
+// Short pill labels, keyed by the Category's stored English name. Several names can share a pill.
+const SHORT_CATEGORY: Record<string, string> = {
+    'Meat & Poultry': 'catMeat',
+    'Seafood': 'catSeafood',
+    'Dairy & Eggs': 'catDairy',
+    'Produce': 'catProduce',
+    'Pantry & Dry Goods': 'catPantry',
+    'Spices, Sauces & Condiments': 'catSpices',
+    'Productos Peruanos': 'catPeruvian',
+    'Bebidas Salón': 'catDrinks',
+    'Sodas y Bebidas': 'catDrinks',
+    'Cleaning Supplies': 'catCleaning',
+    'Papel y Contenedores': 'catPaper',
+    'Kitchen Equipment': 'catEquipment',
+    '': 'catOther',
+};
+const PILL_ORDER = [...new Set(Object.values(SHORT_CATEGORY))];
+
+export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onCounts }: Props) {
     const t = useTranslations('Inventario');
     const [items, setItems] = useState<Overview[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [category, setCategory] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-    const [onlyOrder, setOnlyOrder] = useState(false);
 
     useEffect(() => {
         let alive = true;
@@ -67,22 +87,34 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
         return locale === 'es' && r.category?.nameEs ? r.category.nameEs : r.category!.name;
     };
 
+    // Pill id: the short catalog key, or the stored name for categories without one.
+    const pillKey = (r: Overview) => SHORT_CATEGORY[categoryKey(r)] ?? `name:${categoryKey(r)}`;
+
+    useEffect(() => {
+        if (!isLoading) onCounts?.({ groups: items.filter(r => r.children.length > 0).length, simples: items.filter(r => r.children.length === 0).length });
+    }, [items, isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const searched = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return !q ? items : items.filter(r => r.name.toLowerCase().includes(q) || (r.nameEs ?? '').toLowerCase().includes(q) ||
+            r.children.some(c => c.name.toLowerCase().includes(q) || (c.nameEs ?? '').toLowerCase().includes(q)));
+    }, [items, search]);
+
+    // Only categories with at least one item in the current search result.
     const pills = useMemo(() => {
         const seen = new Map<string, string>();
-        for (const r of items) if (!seen.has(categoryKey(r))) seen.set(categoryKey(r), categoryLabel(r));
-        return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1], locale));
-    }, [items, locale]);
-
-    const toOrderCount = useMemo(() => items.filter(r => level(total(r.inventory)) !== 'OK').length, [items]);
+        for (const r of searched) {
+            const key = pillKey(r);
+            if (!seen.has(key)) seen.set(key, key.startsWith('name:') ? categoryLabel(r) : t(key));
+        }
+        const pos = (k: string) => { const i = PILL_ORDER.indexOf(k); return i === -1 ? PILL_ORDER.length - 1 : i; };
+        return [...seen.entries()].sort((a, b) => pos(a[0]) - pos(b[0]) || a[1].localeCompare(b[1], locale));
+    }, [searched, locale]); // eslint-disable-line react-hooks/exhaustive-deps
+    const activeCategory = category !== null && pills.some(([k]) => k === category) ? category : null;
 
     const { groups, simples } = useMemo(() => {
-        const q = search.trim().toLowerCase();
         const rank = { OUT: 0, LOW: 1, OK: 2 } as const;
-        const shown = items.filter(r =>
-            (category === null || categoryKey(r) === category) &&
-            (!onlyOrder || level(total(r.inventory)) !== 'OK') &&
-            (!q || r.name.toLowerCase().includes(q) || (r.nameEs ?? '').toLowerCase().includes(q) ||
-                r.children.some(c => c.name.toLowerCase().includes(q) || (c.nameEs ?? '').toLowerCase().includes(q))));
+        const shown = searched.filter(r => activeCategory === null || pillKey(r) === activeCategory);
         // Sorted by the name actually shown (nameEs in ES). Simple items: OUT, then LOW, then A–Z.
         const byName = (a: Overview, b: Overview) => display(a).localeCompare(display(b), locale);
         return {
@@ -90,7 +122,7 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
             simples: shown.filter(r => r.children.length === 0)
                 .sort((a, b) => rank[level(total(a.inventory))] - rank[level(total(b.inventory))] || byName(a, b)),
         };
-    }, [items, category, onlyOrder, search, locale]);
+    }, [searched, activeCategory, locale]); // eslint-disable-line react-hooks/exhaustive-deps
     const visibleCount = groups.length + simples.length;
 
     const dateFmt = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' });
@@ -122,15 +154,15 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
     }
 
     const pillStyle = (active: boolean): React.CSSProperties => ({
-        minHeight: '44px', padding: '0.5rem 1rem', borderRadius: '999px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-        border: active ? 'none' : '1px solid var(--border)',
-        background: active ? 'var(--accent-primary)' : 'transparent',
-        color: active ? '#fff' : 'var(--text-secondary)',
+        height: '40px', padding: '0 1rem', borderRadius: '999px', fontSize: '15px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+        border: active ? '1px solid var(--accent-primary)' : '1px solid var(--border)',
+        background: active ? 'var(--accent-primary)' : 'var(--bg-primary)',
+        color: active ? '#fff' : 'var(--text-primary)',
     });
-    const sectionLabel: React.CSSProperties = { fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-primary)' };
+    const sectionLabel: React.CSSProperties = { fontSize: '13px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-secondary)' };
 
     return (
-        <div style={{ marginTop: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <style>{`
                 .inv-k-raw { background: rgba(59,130,246,0.10); border: 1px solid rgba(59,130,246,0.45); }
                 .inv-k-proc { background: rgba(139,92,246,0.10); border: 1px solid rgba(139,92,246,0.45); }
@@ -138,18 +170,12 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
                 .dark .inv-k-raw { background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.6); }
                 .dark .inv-k-proc { background: rgba(139,92,246,0.18); border-color: rgba(139,92,246,0.6); }
                 .dark .inv-k-merma { background: rgba(236,72,153,0.18); border-color: rgba(236,72,153,0.6); }
-                .inv-filters { display: flex; align-items: center; gap: 0.5rem; }
-                .inv-strip-wrap { position: relative; flex: 1 1 0; min-width: 0; }
-                .inv-strip-wrap::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 36px; pointer-events: none;
-                    background: linear-gradient(to right, transparent, var(--bg-primary)); }
-                .inv-strip { display: flex; gap: 0.5rem; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; padding-right: 36px; }
-                .inv-strip::-webkit-scrollbar { display: none; }
+                .inv-pills { display: flex; flex-wrap: wrap; gap: 8px; }
                 .inv-boxes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row dense; gap: 1rem; }
                 .inv-box-full { grid-column: 1 / -1; }
                 .inv-blocks { display: flex; flex-wrap: wrap; gap: 0.75rem; }
                 .inv-block { flex: 1 1 0; min-width: 170px; }
                 .inv-simple { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
-                .inv-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
                 @media (max-width: 900px) {
                     .inv-simple { grid-template-columns: repeat(2, minmax(0, 1fr)); }
                 }
@@ -158,41 +184,18 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
                 }
             `}</style>
 
-            <div className="inv-filters">
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                    <button onClick={() => { setCategory(null); setOnlyOrder(false); }} style={pillStyle(category === null && !onlyOrder)}>{t('all')}</button>
-                    <button onClick={() => setOnlyOrder(v => !v)} style={pillStyle(onlyOrder)}>{t('toOrder', { count: toOrderCount })}</button>
-                </div>
-                <div className="inv-strip-wrap">
-                    <div className="inv-strip">
-                        {pills.map(([key, label]) => (
-                            <button key={key} onClick={() => setCategory(category === key ? null : key)} style={pillStyle(category === key)}>{label}</button>
-                        ))}
-                    </div>
-                </div>
-                <span style={{ flexShrink: 0, fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{t('count', { count: visibleCount })}</span>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')}
-                    style={{ minHeight: '44px', padding: '0.5rem 0.5rem', borderRadius: '8px', border: '1px solid var(--border)',
-                        background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '1rem', flex: '0 1 280px', minWidth: '140px' }} />
+            <div className="inv-pills">
+                <button onClick={() => setCategory(null)} style={pillStyle(activeCategory === null)}>{t('all')}</button>
+                {pills.map(([key, label]) => (
+                    <button key={key} onClick={() => setCategory(activeCategory === key ? null : key)} style={pillStyle(activeCategory === key)}>{label}</button>
+                ))}
             </div>
 
             {visibleCount === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>{t('noResults')}</div>}
 
             {groups.length > 0 && (
                 <section style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap' }}>
-                        <div>
-                            <div style={sectionLabel}>{t('groups', { count: groups.length })}</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('groupsSub')}</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            {([['inv-k-raw', t('legendRaw')], ['inv-k-proc', t('legendProcessed')], ['inv-k-merma', t('legendTrim')]] as const).map(([cls, label]) => (
-                                <span key={cls} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <span className={`inv-swatch ${cls}`} />{label}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
+                    <div style={sectionLabel}>{t('groups', { count: groups.length })}</div>
 
                     <div className="inv-boxes">
                         {groups.map(r => {
@@ -237,10 +240,7 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit }: Props) {
 
             {simples.length > 0 && (
                 <section style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div>
-                        <div style={sectionLabel}>{t('simple', { count: simples.length })}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('simpleSub')}</div>
-                    </div>
+                    <div style={sectionLabel}>{t('simple', { count: simples.length })}</div>
                     <div className="inv-simple">
                         {simples.map(r => {
                             const stock = total(r.inventory);

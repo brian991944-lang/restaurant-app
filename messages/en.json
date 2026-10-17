@@ -69,7 +69,6 @@
   "Inventory": {
     "title": "Inventory",
     "subtitle": "Track and manage your ingredients",
-    "ingredients_tracked": "{count} ingredients tracked",
     "add_ingredient": "Add Ingredient",
     "add_production": "Add Production",
     "overview": "Overview",
@@ -1100,19 +1099,12 @@
     "cancel": "Cancel"
   },
   "Inventario": {
-    "tabBoxes": "Inventory",
+    "tabBoxes": "Cards",
     "tabTable": "Table",
-    "count": "{count} items",
     "all": "All",
-    "toOrder": "To order · {count}",
-    "search": "Search… also finds sub-products",
+    "search": "Search ingredient…",
     "groups": "Groups · {count}",
-    "groupsSub": "ingredients with sub-products",
     "simple": "Simple items · {count}",
-    "simpleSub": "all raw · one number each",
-    "legendRaw": "Raw · as purchased",
-    "legendProcessed": "Processed · portions and bases",
-    "legendTrim": "Trim",
     "tagRaw": "RAW",
     "tagPortions": "PORTIONS",
     "tagBase": "BASE",
@@ -1133,6 +1125,21 @@
     "lastPurchase": "Last purchase: {date}",
     "frozenFridge": "frozen {frozen} · fridge {fridge}",
     "portions": "port.",
-    "editHint": "Edit {name}"
+    "editHint": "Edit {name}",
+    "tabIngredients": "Ingredients",
+    "headerCount": "{count} ingredients",
+    "headerCountGroups": "{count} ingredients · {groups} groups",
+    "catMeat": "Meat",
+    "catSeafood": "Seafood",
+    "catDairy": "Dairy",
+    "catProduce": "Produce",
+    "catPantry": "Pantry",
+    "catSpices": "Spices",
+    "catPeruvian": "Peruvian",
+    "catDrinks": "Drinks",
+    "catCleaning": "Cleaning",
+    "catPaper": "Paper",
+    "catEquipment": "Equipment",
+    "catOther": "Other"
   }
 }
