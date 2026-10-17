@@ -27,6 +27,9 @@ export const metadata: Metadata = {
   },
   other: {
     'apple-mobile-web-app-capable': 'yes',
+    // Both languages are built in (sidebar / Más → Idioma). A browser's machine
+    // translation of the English UI is what the family in Peru saw — never again.
+    google: 'notranslate',
   },
 };
 

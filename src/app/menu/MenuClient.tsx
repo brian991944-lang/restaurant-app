@@ -10,6 +10,7 @@ import StaffPanel, { formatClock } from './offline/StaffPanel';
 import type { MenuCategoryData, MenuItemData, SyncState } from './offline/types';
 
 const THEME_STORAGE_KEY = 'fusionista-menu-theme';
+const LANG_STORAGE_KEY = 'fusionista-menu-lang';
 
 // Runs while the HTML is still parsing (before first paint) so the body class
 // matches the visitor's stored theme even though layout.tsx pre-applies
@@ -243,6 +244,29 @@ export default function MenuClient({
         const stored = localStorage.getItem(THEME_STORAGE_KEY);
         if (stored === 'light' || stored === 'dark') setTheme(stored);
     }, []);
+
+    // Language: what the guest chose last time, else the phone's language. A
+    // Spanish phone gets the Spanish menu natively — never Google's translation
+    // of the English one. The toggle below remembers the choice.
+    const [langChosen, setLangChosen] = useState(false);
+    useEffect(() => {
+        // ?lang=es|en wins (the website embeds the menu per language page), then the guest's last choice, then the phone.
+        const fromUrl = new URLSearchParams(window.location.search).get('lang');
+        if (fromUrl === 'en' || fromUrl === 'es') { setLang(fromUrl); return; }
+        try {
+            const stored = localStorage.getItem(LANG_STORAGE_KEY);
+            if (stored === 'en' || stored === 'es') { setLang(stored); setLangChosen(true); return; }
+        } catch { /* storage unavailable */ }
+        if (typeof navigator !== 'undefined' && (navigator.languages?.[0] ?? navigator.language ?? '').toLowerCase().startsWith('es')) setLang('es');
+    }, []);
+    const chooseLang = (next: Lang) => {
+        setLang(next);
+        setLangChosen(true);
+        try { localStorage.setItem(LANG_STORAGE_KEY, next); } catch { /* storage unavailable */ }
+    };
+    // <html lang> follows the language on screen, so browsers do not offer to translate it.
+    useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+    void langChosen;
 
     // prefers-reduced-motion: the featured video is replaced by its poster.
     // Tracked in JS (not CSS display) so the <video> is never mounted at all —
@@ -764,14 +788,14 @@ export default function MenuClient({
                         <div className="mp-lang-toggle" role="group" aria-label="Language / Idioma">
                             <button
                                 className={`mp-lang-btn${lang === 'en' ? ' mp-lang-active' : ''}`}
-                                onClick={() => setLang('en')}
+                                onClick={() => chooseLang('en')}
                                 aria-pressed={lang === 'en'}
                             >
                                 EN
                             </button>
                             <button
                                 className={`mp-lang-btn${lang === 'es' ? ' mp-lang-active' : ''}`}
-                                onClick={() => setLang('es')}
+                                onClick={() => chooseLang('es')}
                                 aria-pressed={lang === 'es'}
                             >
                                 ES

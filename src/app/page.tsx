@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
 export default function RootPage() {
-    redirect('/en/dashboard');
+    // Normally the middleware picks the locale from the browser before this runs; Spanish-first when it does not.
+    redirect('/es/dashboard');
 }

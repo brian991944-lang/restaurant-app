@@ -56,7 +56,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
         if (isRestricted && !isAdmin) {
             const localeMatch = pathname.match(/^\/([a-z]{2})/);
-            const localePrefix = localeMatch ? `/${localeMatch[1]}` : '/en';
+            const localePrefix = localeMatch ? `/${localeMatch[1]}` : '/es';
 
             sessionStorage.setItem('showRestrictedAlert', 'true');
             window.location.replace(`${localePrefix}/inventory`);

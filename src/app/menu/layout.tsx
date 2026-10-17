@@ -37,6 +37,8 @@ export const metadata: Metadata = {
     // Next emits the modern `mobile-web-app-capable` for appleWebApp.capable;
     // older iPadOS builds only honour the Apple-prefixed name, so send both.
     other: {
+        // The menu ships both languages itself (toggle + browser language); never let a browser machine-translate it.
+        google: 'notranslate',
         'apple-mobile-web-app-capable': 'yes',
     },
 };
