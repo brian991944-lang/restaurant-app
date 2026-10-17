@@ -64,6 +64,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [trackFreezerStatus, setTrackFreezerStatus] = useState<boolean>(false);
     const [allowNegativeStock, setAllowNegativeStock] = useState<boolean>(false);
     const [spareMode, setSpareMode] = useState<boolean>(false); // trackMode SPARE: never counted, cook reports "abrí el repuesto"
+    const [cleaningMode, setCleaningMode] = useState<boolean>(false); // RAW protein: child tasks complete through the Hoja de limpieza
     const [isDisabled, setIsDisabled] = useState<boolean>(false);
     const [wastePercent, setWastePercent] = useState<number>(0);
     const [isPortioned, setIsPortioned] = useState<boolean>(true);
@@ -263,6 +264,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
             setAllowNegativeStock(initialData?.allowNegativeStock ?? false);
             setSpareMode(initialData?.trackMode === 'SPARE');
+            setCleaningMode(initialData?.cleaningMode === true);
             setIsDisabled(initialData ? initialData.isActive === false : false);
             // Derive Área from the two stored booleans; fall back to the DB defaults
             // (isSalonItem false / showInKitchen true) so new items land on Cocina.
@@ -396,6 +398,7 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             trackFreezerStatus: trackFreezerStatus,
             allowNegativeStock: allowNegativeStock,
             trackMode: currentType === 'RAW' && spareMode ? 'SPARE' : 'COUNT',
+            cleaningMode: currentType === 'RAW' && cleaningMode,
             isActive: !isDisabled,
             isSalonItem: area !== 'cocina',
             showInKitchen: area !== 'salon',
@@ -906,6 +909,21 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                             <span style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                                 <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('modal_spare_mode')}</span>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('modal_spare_mode_helper')}</span>
+                            </span>
+                        </label>
+                    )}
+
+                    {currentType === 'RAW' && (
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', padding: '0.75rem 1rem', background: 'rgba(236, 72, 153, 0.05)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                            <input
+                                type="checkbox"
+                                checked={cleaningMode}
+                                onChange={e => setCleaningMode(e.target.checked)}
+                                style={{ accentColor: 'var(--merma)', width: '16px', height: '16px', marginTop: '2px' }}
+                            />
+                            <span style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t('modal_cleaning_mode')}</span>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('modal_cleaning_mode_helper')}</span>
                             </span>
                         </label>
                     )}

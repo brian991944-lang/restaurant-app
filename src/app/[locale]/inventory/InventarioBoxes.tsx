@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { getInventarioOverview } from '@/app/actions/inventory';
 import { openSpare, type SpareOpenOutcome } from '@/app/actions/storage';
+import CleaningHistorySheet, { FlagChip } from '@/components/preparaciones/CleaningHistorySheet';
 import { getConversionFactor } from '@/lib/conversion';
 import { unitLabel } from '@/lib/purchaseUnits';
 
@@ -75,6 +76,8 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
     const [opening, setOpening] = useState<Overview | null>(null);   // "¿Abriste el repuesto de …?" sheet
     const [busy, setBusy] = useState(false);
     const [flash, setFlash] = useState<string | null>(null);
+    const [history, setHistory] = useState<{ id: string; name: string } | null>(null); // admin: cleaning history sheet
+    const tl = useTranslations('Limpieza');
 
     useEffect(() => {
         let alive = true;
@@ -253,6 +256,26 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                                             );
                                         })}
                                     </div>
+                                    {onEdit && r.cleaningMode && (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', marginTop: '0.75rem', padding: '0.6rem 0.9rem', borderRadius: '10px', background: 'rgba(59,130,246,0.06)', border: '1px dashed rgba(59,130,246,0.35)' }}>
+                                            <div style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', minWidth: 0 }}>
+                                                {r.lastCleaning ? (<>
+                                                    <span>
+                                                        <strong>{tl('lastCleaning')}</strong> · {dateFmt.format(new Date(r.lastCleaning.createdAt))}{r.lastCleaning.cookNames ? `, ${r.lastCleaning.cookNames}` : ''}
+                                                        {r.lastCleaning.rawUnits != null ? ` · ${fmt(r.lastCleaning.rawUnits)} ${tl('pieces')}` : ''} · {fmt(r.lastCleaning.rawWeightLb)} lb → {r.lastCleaning.outputs.filter(o => !o.isWaste).map(o => `${fmt(o.qty)} ${display(o)}`).join(' · ')}
+                                                        {r.lastCleaning.wasteWeightLb > 0 ? ` · ${tl('wasteShort', { lb: fmt(r.lastCleaning.wasteWeightLb) })}` : ''} · <strong>{fmt(r.lastCleaning.yieldPct)}%</strong>
+                                                    </span>
+                                                    <FlagChip flag={r.lastCleaning.flag} unaccountedLb={r.lastCleaning.unaccountedLb} t={tl} />
+                                                </>) : (
+                                                    <span style={{ color: 'var(--text-secondary)' }}>{tl('activeNoSessions')}</span>
+                                                )}
+                                            </div>
+                                            <button onClick={() => setHistory({ id: r.id, name: display(r) })}
+                                                style={{ minHeight: '36px', padding: '0 0.8rem', borderRadius: '9px', border: '1px solid var(--accent-primary)', background: 'transparent', color: 'var(--accent-primary)', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                                {tl('seeHistory')}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
@@ -343,6 +366,8 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                     </div>
                 </div>
             )}
+
+            {history && <CleaningHistorySheet rawId={history.id} rawName={history.name} locale={locale} onClose={() => setHistory(null)} />}
 
             {flash && (
                 <div role="status" style={{ position: 'fixed', left: '50%', bottom: '1.5rem', marginLeft: '-160px', width: '320px', textAlign: 'center', padding: '0.8rem 1rem', borderRadius: '12px',

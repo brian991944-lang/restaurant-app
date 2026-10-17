@@ -3,6 +3,8 @@
 import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen, Search, X, CalendarDays } from 'lucide-react';
 import WeeklyThawScheduleGrid from '@/components/preparaciones/WeeklyThawScheduleGrid';
+import CleaningSheet from '@/components/preparaciones/CleaningSheet';
+import { undoCleaningSession } from '@/app/actions/cleaning';
 import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
 import { getDailyPrepTasks, completePrepTask, PrepTask, undoPrepTask, getCompletedPrepLogs, createManualPrepAssignment, deletePrepAssignment, getDefrostingPresets, getAirTightRules, createOrUpdatePrepRule, deleteAirTightRule, applyRulesToCategory } from '@/app/actions/prepSchedule';
@@ -88,6 +90,7 @@ export default function PrepSchedulePage() {
 
     // Complete Modal State
     const [completeCandidate, setCompleteCandidate] = useState<PrepTask | null>(null);
+    const [cleaningRawId, setCleaningRawId] = useState<string | null>(null); // Hoja de limpieza open for this raw
     const [completionCooks, setCompletionCooks] = useState<string[]>([]);
 
     const [viewingRecipeId, setViewingRecipeId] = useState<string | null>(null);
@@ -374,6 +377,15 @@ export default function PrepSchedulePage() {
         setCompleting(task.ingredientId);
         const actual = task.actualAmount || 0;
 
+        if (task.cleaningSessionId) {
+            // Closed by a Hoja de limpieza: reverse raw, portions and merma together, reopen its sibling tasks.
+            const undone = await undoCleaningSession(task.cleaningSessionId);
+            if (!undone.success) alert(undone.error);
+            setCompleting(null);
+            await loadDataForTab('morning');
+            return;
+        }
+
         const res = await undoPrepTask(task.ingredientId, actual, task.assignmentId);
         if (res.success) {
             setMorningTasks(prev => prev.map(t => t.ingredientId === task.ingredientId ? { ...t, completed: false, actualAmount: null, completedBy: undefined } : t));
@@ -523,6 +535,8 @@ export default function PrepSchedulePage() {
                                         <td style={{ padding: '0.8rem 1rem', textAlign: 'center' }}>
                                             {isDone ? (
                                                 <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--success)' }}>{task.actualAmount}</span>
+                                            ) : task.cleaningRawId ? (
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', fontWeight: 600 }}>{t('Limpieza.inSheet')}</span>
                                             ) : (
                                                 <div style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '0.4rem' }}>
                                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -568,6 +582,7 @@ export default function PrepSchedulePage() {
                                             ) : (
                                                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                                                     <button onClick={() => {
+                                                    if (task.cleaningRawId) { setCleaningRawId(task.cleaningRawId); return; }
                                                     const rawInput = actuals[task.ingredientId];
                                                     if (!rawInput || parseFloat(rawInput) <= 0) {
                                                         setAmountWarnings(prev => new Set(prev).add(task.ingredientId));
@@ -1815,6 +1830,15 @@ export default function PrepSchedulePage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {cleaningRawId && (
+                <CleaningSheet
+                    rawId={cleaningRawId}
+                    locale={locale === 'es' ? 'es' : 'en'}
+                    onClose={() => setCleaningRawId(null)}
+                    onDone={() => { setCleaningRawId(null); loadDataForTab('morning'); }}
+                />
             )}
 
             {/* ADD TASK MODAL */}

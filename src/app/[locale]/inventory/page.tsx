@@ -45,6 +45,7 @@ interface Ingredient {
     unfrozenQuantity?: number;
     trackFreezerStatus?: boolean;
     trackMode?: string;
+    cleaningMode?: boolean;
     isPacked?: boolean;
     unitsPerPack?: number;
     packUnit?: string;
@@ -410,6 +411,7 @@ export default function InventoryPage() {
         trackFreezerStatus: item.trackFreezerStatus || false,
         allowNegativeStock: item.allowNegativeStock || false,
         trackMode: item.trackMode || 'COUNT',
+        cleaningMode: item.cleaningMode === true,
         isPacked: item.isPacked || false,
         unitsPerPack: item.unitsPerPack || 1,
         packUnit: item.packUnit || 'Units',

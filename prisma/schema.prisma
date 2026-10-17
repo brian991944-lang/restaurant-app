@@ -80,6 +80,7 @@ model Ingredient {
   esfuerzo       String  @default("MANUAL")       // MANUAL | HERVIDO
   trackMode      String  @default("COUNT")        // COUNT = stock number | SPARE = one in use + sealed spares in storage (cheap dry goods)
   spareOpenedAt  DateTime?                        // SPARE: when a cook last tapped "Abrí el repuesto"
+  cleaningMode   Boolean @default(false)          // RAW: completing any child task opens the Hoja de limpieza (peso crudo → merma → porciones)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?
@@ -96,6 +97,8 @@ model Ingredient {
   purchaseLines     PurchaseLine[]
   storageStocks     StorageStock[]
   storageMovements  StorageMovement[]
+  cleaningSessions  CleaningSession[]
+  cleaningOutputs   CleaningOutput[]
 
   // Rules
   isRuleTarget    RecurringPrepRule[] @relation("RuleTarget")
@@ -434,6 +437,45 @@ model StorageMovement {
 
   @@index([ingredientId, createdAt])
   @@index([createdAt])
+}
+
+// Hoja de limpieza: one session = one raw protein (Teres Major…) cleaned and
+// portioned. The cook enters peso crudo, merma and portions per child product;
+// the session keeps the yield math so the admin can audit it later. Stock
+// effects: raw −rawWeightLb (metric), each child +qty, merma child +wasteWeightLb.
+// assignmentIds = the PrepAssignments it closed, so undo reverses everything.
+model CleaningSession {
+  id               String     @id @default(cuid())
+  rawIngredientId  String
+  rawUnits         Float?     // bolas
+  rawWeightLb      Float
+  wasteWeightLb    Float      @default(0)
+  producedWeightLb Float      // Σ portions × portionWeightG, in lb
+  yieldPct         Float      // producedWeightLb / rawWeightLb × 100
+  unaccountedLb    Float      // rawWeightLb − wasteWeightLb − producedWeightLb
+  flag             String     // OK | LOW | HIGH | MISSING
+  cookNames        String?
+  note             String?
+  assignmentIds    String[]   @default([])
+  createdAt        DateTime   @default(now())
+  rawIngredient    Ingredient @relation(fields: [rawIngredientId], references: [id])
+  outputs          CleaningOutput[]
+
+  @@index([rawIngredientId, createdAt], map: "CleaningSession_raw_created_idx")
+}
+
+model CleaningOutput {
+  id             String          @id @default(cuid())
+  sessionId      String
+  ingredientId   String
+  qty            Float           // portions, or lb for the merma row
+  portionWeightG Float?          // snapshot of the child's portion weight (null for merma)
+  isWaste        Boolean         @default(false)
+  session        CleaningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  ingredient     Ingredient      @relation(fields: [ingredientId], references: [id])
+
+  @@index([sessionId], map: "CleaningOutput_session_idx")
+  @@index([ingredientId], map: "CleaningOutput_ingredient_idx")
 }
 
 // What was bought, as the caller described it (qty + unit as sent, for audit).

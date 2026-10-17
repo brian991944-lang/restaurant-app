@@ -7,6 +7,7 @@ import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
 import { pushSalonItemToClover } from '@/app/actions/clover';
 import { getRecentPurchaseWeights } from '@/app/actions/purchases';
+import { isAdminSession } from '@/lib/adminGuard';
 
 async function translateToSpanish(text: string): Promise<string> {
     if (!text) return text;
@@ -394,7 +395,7 @@ export async function getInventarioOverview() {
                 category: { select: { name: true, nameEs: true } },
                 provider: { select: { name: true } },
                 inventory: { select: { frozenQty: true, thawingQty: true } },
-                trackMode: true, spareOpenedAt: true,
+                trackMode: true, spareOpenedAt: true, cleaningMode: true,
                 // Only used to derive a yes/no signal below; quantities never leave the server here.
                 storageStocks: { where: { qty: { gt: 0 } }, select: { location: true } },
                 purchaseLines: {
@@ -413,6 +414,26 @@ export async function getInventarioOverview() {
             },
         });
 
+        // Hoja de limpieza: the latest session per raw, admin only (the kitchen never sees yields here).
+        type LastCleaning = { createdAt: string; cookNames: string | null; rawUnits: number | null; rawWeightLb: number; wasteWeightLb: number; yieldPct: number; unaccountedLb: number; flag: string; outputs: { name: string; nameEs: string | null; qty: number; isWaste: boolean }[] };
+        const lastCleaningByRaw = new Map<string, LastCleaning>();
+        const cleaningIds = raws.filter(r => r.cleaningMode).map(r => r.id);
+        if (cleaningIds.length > 0 && (await isAdminSession())) {
+            const sessions = await prisma.cleaningSession.findMany({
+                where: { rawIngredientId: { in: cleaningIds } },
+                orderBy: { createdAt: 'desc' },
+                distinct: ['rawIngredientId'],
+                include: { outputs: { include: { ingredient: { select: { name: true, nameEs: true } } } } },
+            });
+            for (const s of sessions) {
+                lastCleaningByRaw.set(s.rawIngredientId, {
+                    createdAt: s.createdAt.toISOString(), cookNames: s.cookNames, rawUnits: s.rawUnits, rawWeightLb: s.rawWeightLb, wasteWeightLb: s.wasteWeightLb,
+                    yieldPct: s.yieldPct, unaccountedLb: s.unaccountedLb, flag: s.flag,
+                    outputs: s.outputs.map(o => ({ name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste })),
+                });
+            }
+        }
+
         const items = await Promise.all(raws.map(async r => {
             const last = r.purchaseLines[0];
             const lastPurchase = last
@@ -428,7 +449,7 @@ export async function getInventarioOverview() {
             // Where a spare exists, if anywhere. Basement wins over home: the cook can go get it.
             const spare: 'BASEMENT' | 'HOME' | 'NONE' = storageStocks.some(s => s.location === 'BASEMENT_KITCHEN')
                 ? 'BASEMENT' : storageStocks.some(s => s.location === 'HOME') ? 'HOME' : 'NONE';
-            return { ...rest, lastPurchase, avgLbPerUnit, spare, children: prepItems };
+            return { ...rest, lastPurchase, avgLbPerUnit, spare, children: prepItems, lastCleaning: lastCleaningByRaw.get(r.id) ?? null };
         }));
 
         items.sort((a, b) =>
@@ -514,6 +535,7 @@ export async function addIngredient(data: any) {
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : false,
                 allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
                 trackMode: data.trackMode === 'SPARE' ? 'SPARE' : 'COUNT',
+                cleaningMode: data.cleaningMode === true,
                 isSalonItem: data.isSalonItem !== undefined ? data.isSalonItem : false,
                 showInKitchen: data.showInKitchen !== undefined ? data.showInKitchen : true,
                 isPacked: data.isPacked !== undefined ? data.isPacked : false,
@@ -626,6 +648,7 @@ export async function editIngredient(id: string, data: any) {
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : undefined,
                 allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : undefined,
                 trackMode: data.trackMode === 'SPARE' || data.trackMode === 'COUNT' ? data.trackMode : undefined,
+                cleaningMode: typeof data.cleaningMode === 'boolean' ? data.cleaningMode : undefined,
                 isSalonItem: data.isSalonItem !== undefined ? data.isSalonItem : undefined,
                 showInKitchen: data.showInKitchen !== undefined ? data.showInKitchen : undefined,
                 isPacked: data.isPacked !== undefined ? data.isPacked : undefined,

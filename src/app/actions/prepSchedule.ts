@@ -30,6 +30,11 @@ export interface PrepTask {
     suggestedBaseAmount?: number | null;
     isEmergency?: boolean;
     airTightSuggestedAmount?: number;
+    /** Set when the task's product hangs off a RAW with cleaningMode: "Completar" opens the Hoja de limpieza for that raw. */
+    cleaningRawId?: string | null;
+    cleaningRawName?: string | null;
+    /** Set when today's completion came from a Hoja de limpieza; undo must reverse the whole session. */
+    cleaningSessionId?: string | null;
 }
 
 /**
@@ -117,6 +122,20 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
         }
         // A void inside the window for a sale before it can leave a negative.
         for (const [id, v] of demandMap) if (v < 0) demandMap.set(id, 0);
+
+        // Hoja de limpieza: product id → the raw whose sheet closes its task, and
+        // today's sessions so a session-closed task undoes as a whole.
+        const [cleaningRaws, todaySessions] = await Promise.all([
+            prisma.ingredient.findMany({
+                where: { cleaningMode: true, isActive: true },
+                select: { id: true, name: true, nameEs: true, prepItems: { where: { type: 'PROCESSED' }, select: { id: true } } },
+            }),
+            prisma.cleaningSession.findMany({ where: { createdAt: { gte: startOfDay, lte: endOfDay } }, select: { id: true, assignmentIds: true } }),
+        ]);
+        const cleaningByProduct = new Map<string, { id: string; name: string; nameEs: string | null }>();
+        for (const r of cleaningRaws) for (const p of r.prepItems) cleaningByProduct.set(p.id, { id: r.id, name: r.name, nameEs: r.nameEs });
+        const sessionByAssignment = new Map<string, string>();
+        for (const s of todaySessions) for (const a of s.assignmentIds) sessionByAssignment.set(a, s.id);
 
         const mergedTasks: PrepTask[] = [];
 
@@ -216,7 +235,10 @@ export async function getDailyPrepTasks(targetDate: Date): Promise<PrepTask[]> {
                 suggestedBaseIngredientName,
                 suggestedBaseAmount,
                 isEmergency,
-                airTightSuggestedAmount
+                airTightSuggestedAmount,
+                cleaningRawId: ingredient.parentId ? cleaningByProduct.get(ingredient.parentId)?.id ?? null : null,
+                cleaningRawName: ingredient.parentId ? cleaningByProduct.get(ingredient.parentId)?.name ?? null : null,
+                cleaningSessionId: assignment ? sessionByAssignment.get(assignment.id) ?? null : null,
             });
         }
 
