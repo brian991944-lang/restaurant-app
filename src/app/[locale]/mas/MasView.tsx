@@ -23,7 +23,10 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
     // be set on a tablet or a PC, so the row is not offered there.
     const phone = useIsPhone();
     const [adminDevice, setAdminDevice] = useState(false);
-    useEffect(() => { setAdminDevice(isAdminDevice()); return onAdminDeviceChange(() => setAdminDevice(isAdminDevice())); }, []);
+    // The theme is unknown on the server (next-themes), so its label is filled in after mount
+    // instead of hydrating "Sistema" over "Oscuro".
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); setAdminDevice(isAdminDevice()); return onAdminDeviceChange(() => setAdminDevice(isAdminDevice())); }, []);
     const toggleAdminDevice = () => { if (adminDevice) clearAdminDevice(); else markAdminDevice(); };
 
     const other = locale === 'en' ? 'es' : 'en';
@@ -74,7 +77,7 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
             <Card style={{ padding: '0.75rem 1rem 0.35rem' }}>
                 <Section title={t('groupSettings')} />
                 <div style={{ marginTop: 2 }}>
-                    <Row title={t('theme')} sub={theme === 'dark' ? t('themeDark') : theme === 'light' ? t('themeLight') : t('themeSystem')}
+                    <Row title={t('theme')} sub={!mounted ? '' : theme === 'dark' ? t('themeDark') : theme === 'light' ? t('themeLight') : t('themeSystem')}
                         onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')} />
                     <Row title={t('language')} sub={locale === 'es' ? 'Español' : 'English'} rsub={locale === 'es' ? 'English →' : 'Español →'} onClick={switchLanguage} />
                     {phone && <Row title={t('adminDevice')} sub={adminDevice ? t('adminDeviceOn') : t('adminDeviceOff')} onClick={toggleAdminDevice} />}
