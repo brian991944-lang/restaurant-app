@@ -149,6 +149,13 @@ button {
   }
 }
 
+/* Admin phone: nothing paints until AdminContext has rendered the lock screen
+   or the page (the inline script in [locale]/layout.tsx sets the attribute,
+   AdminProvider removes it). Other devices never carry the attribute. */
+html[data-admin-device] body > * {
+  visibility: hidden;
+}
+
 .responsive-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

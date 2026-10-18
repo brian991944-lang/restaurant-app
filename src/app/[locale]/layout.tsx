@@ -57,6 +57,13 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body>
+        {/* Admin phone (lib/adminDevice.ts): keep the page invisible until AdminContext
+            has rendered its first decision — lock screen or page — so no sales figure
+            flashes before the fingerprint prompt. AdminProvider lifts the attribute. */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('fusionista_admin_device')==='1')document.documentElement.setAttribute('data-admin-device','1')}catch(e){}" }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

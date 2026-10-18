@@ -7,7 +7,8 @@ import { useAdmin } from '@/components/AdminContext';
 import { Card, PhoneHeader, Row, Section, page } from '@/components/phone/ui';
 import { analyticsHref, ANALYTICS_VIEWS } from '@/lib/analyticsView';
 import { useEffect, useState } from 'react';
-import { isAdminDevice, clearAdminDevice, markAdminDevice } from '@/lib/adminDevice';
+import { isAdminDevice, clearAdminDevice, markAdminDevice, onAdminDeviceChange } from '@/lib/adminDevice';
+import { useIsPhone } from '@/components/phone/usePhone';
 
 /** Más — everything the sidebar offers, as grouped lists for the phone, plus theme, language and leaving Admin. */
 export default function MasView({ locale }: { locale: 'es' | 'en' }) {
@@ -18,9 +19,12 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
     const router = useRouter();
     const pathname = usePathname();
 
+    // "Pedir huella al abrir": the Admin-phone flag. Phones only — the flag cannot
+    // be set on a tablet or a PC, so the row is not offered there.
+    const phone = useIsPhone();
     const [adminDevice, setAdminDevice] = useState(false);
-    useEffect(() => { setAdminDevice(isAdminDevice()); }, []);
-    const toggleAdminDevice = () => { if (adminDevice) clearAdminDevice(); else markAdminDevice(); setAdminDevice(v => !v); };
+    useEffect(() => { setAdminDevice(isAdminDevice()); return onAdminDeviceChange(() => setAdminDevice(isAdminDevice())); }, []);
+    const toggleAdminDevice = () => { if (adminDevice) clearAdminDevice(); else markAdminDevice(); };
 
     const other = locale === 'en' ? 'es' : 'en';
     const switchLanguage = () => router.push(pathname.replace(`/${locale}`, `/${other}`));
@@ -73,7 +77,7 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
                     <Row title={t('theme')} sub={theme === 'dark' ? t('themeDark') : theme === 'light' ? t('themeLight') : t('themeSystem')}
                         onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')} />
                     <Row title={t('language')} sub={locale === 'es' ? 'Español' : 'English'} rsub={locale === 'es' ? 'English →' : 'Español →'} onClick={switchLanguage} />
-                    <Row title={t('adminDevice')} sub={adminDevice ? t('adminDeviceOn') : t('adminDeviceOff')} onClick={toggleAdminDevice} />
+                    {phone && <Row title={t('adminDevice')} sub={adminDevice ? t('adminDeviceOn') : t('adminDeviceOff')} onClick={toggleAdminDevice} />}
                     <Row title={tn('exit_admin')} sub={t('exitAdminSub')} onClick={leaveAdmin} last />
                 </div>
             </Card>
