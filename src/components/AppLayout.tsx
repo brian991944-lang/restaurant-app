@@ -8,6 +8,7 @@ import { AdminProvider } from '@/components/AdminContext';
 import { WorkstationProvider } from '@/components/WorkstationContext';
 import AutoSync from '@/components/AutoSync';
 import PhoneTabBar from '@/components/phone/PhoneTabBar';
+import AdminDeviceGate from '@/components/AdminDeviceGate';
 
 export default function AppLayout({
   children,
@@ -23,6 +24,7 @@ export default function AppLayout({
     <AdminProvider>
       <AutoSync />
       <PhoneTabBar locale={locale} />
+      <AdminDeviceGate locale={locale} />
       <WorkstationProvider>
         <div className="layout-container" style={{ flexDirection: 'column', width: '100%', height: '100vh', overflow: 'hidden' }}>
           {/* Mobile Top Header */}

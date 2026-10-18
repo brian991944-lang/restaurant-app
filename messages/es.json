@@ -1553,7 +1553,10 @@
     "themeLight": "Claro",
     "themeSystem": "Sistema",
     "language": "Idioma",
-    "exitAdminSub": "Vuelve a la vista de cocina"
+    "exitAdminSub": "Vuelve a la vista de cocina",
+    "adminDevice": "Pedir huella al abrir",
+    "adminDeviceOn": "Activado en este teléfono · tocar para quitar",
+    "adminDeviceOff": "Desactivado · tocar para que este teléfono pida huella o contraseña al abrir"
   },
   "Common": {
     "search": "Buscar...",

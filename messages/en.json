@@ -1553,7 +1553,10 @@
     "themeLight": "Light",
     "themeSystem": "System",
     "language": "Language",
-    "exitAdminSub": "Back to the kitchen view"
+    "exitAdminSub": "Back to the kitchen view",
+    "adminDevice": "Ask for fingerprint on open",
+    "adminDeviceOn": "On for this phone · tap to turn off",
+    "adminDeviceOff": "Off · tap so this phone asks for fingerprint or password on open"
   },
   "Common": {
     "search": "Search...",

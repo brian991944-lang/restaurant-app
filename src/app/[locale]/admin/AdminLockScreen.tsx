@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { ShieldCheck } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
 import AdminUnlockModal from '@/components/AdminUnlockModal';
+import { markAdminDevice } from '@/lib/adminDevice';
 
 /**
  * Full-screen lock for the Admin install. Reuses the sidebar's unlock sheet in
@@ -31,11 +32,15 @@ export default function AdminLockScreen({ locale }: { locale: 'es' | 'en' }) {
     }, []);
 
     // Phones land on the Hoy screen (bottom tabs); tablets and PCs keep the dashboard.
-    const dashboard = typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches ? `/${locale}/hoy` : `/${locale}/dashboard`;
+    const isPhone = typeof window !== 'undefined' && window.matchMedia('(max-width: 700px)').matches;
+    const dashboard = isPhone ? `/${locale}/hoy` : `/${locale}/dashboard`;
     useEffect(() => {
         if (standalone === null || !isLoaded) return;
+        // An admin on this page from a phone makes it the Admin phone: from now on the
+        // app locks on every launch, whichever icon opened it. Never on a tablet.
+        if (isAdmin && isPhone) markAdminDevice();
         if (isAdmin && standalone) router.replace(dashboard);
-    }, [standalone, isLoaded, isAdmin, dashboard, router]);
+    }, [standalone, isLoaded, isAdmin, isPhone, dashboard, router]);
 
     // Solid cover while AdminContext reads sessionStorage, and during the redirect.
     if (!isLoaded || standalone === null || (isAdmin && standalone)) {

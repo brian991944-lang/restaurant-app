@@ -6,6 +6,8 @@ import { useTheme } from 'next-themes';
 import { useAdmin } from '@/components/AdminContext';
 import { Card, PhoneHeader, Row, Section, page } from '@/components/phone/ui';
 import { analyticsHref, ANALYTICS_VIEWS } from '@/lib/analyticsView';
+import { useEffect, useState } from 'react';
+import { isAdminDevice, clearAdminDevice, markAdminDevice } from '@/lib/adminDevice';
 
 /** Más — everything the sidebar offers, as grouped lists for the phone, plus theme, language and leaving Admin. */
 export default function MasView({ locale }: { locale: 'es' | 'en' }) {
@@ -15,6 +17,10 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
     const { setIsAdmin } = useAdmin();
     const router = useRouter();
     const pathname = usePathname();
+
+    const [adminDevice, setAdminDevice] = useState(false);
+    useEffect(() => { setAdminDevice(isAdminDevice()); }, []);
+    const toggleAdminDevice = () => { if (adminDevice) clearAdminDevice(); else markAdminDevice(); setAdminDevice(v => !v); };
 
     const other = locale === 'en' ? 'es' : 'en';
     const switchLanguage = () => router.push(pathname.replace(`/${locale}`, `/${other}`));
@@ -67,6 +73,7 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
                     <Row title={t('theme')} sub={theme === 'dark' ? t('themeDark') : theme === 'light' ? t('themeLight') : t('themeSystem')}
                         onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')} />
                     <Row title={t('language')} sub={locale === 'es' ? 'Español' : 'English'} rsub={locale === 'es' ? 'English →' : 'Español →'} onClick={switchLanguage} />
+                    <Row title={t('adminDevice')} sub={adminDevice ? t('adminDeviceOn') : t('adminDeviceOff')} onClick={toggleAdminDevice} />
                     <Row title={tn('exit_admin')} sub={t('exitAdminSub')} onClick={leaveAdmin} last />
                 </div>
             </Card>
