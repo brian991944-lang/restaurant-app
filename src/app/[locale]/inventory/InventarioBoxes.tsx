@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { getInventarioOverview } from '@/app/actions/inventory';
 import { openSpare, type SpareOpenOutcome } from '@/app/actions/storage';
+import { countLooseMeat } from '@/app/actions/cleaning';
 import CleaningHistorySheet, { FlagChip } from '@/components/preparaciones/CleaningHistorySheet';
 import { getConversionFactor } from '@/lib/conversion';
 import { unitLabel } from '@/lib/purchaseUnits';
@@ -244,8 +245,11 @@ export default function InventarioBoxes({ locale, reloadKey, onEdit, search, onC
                                     </Clickable>
 
                                     <div className="inv-blocks">
-                                        <Block kind="RAW" tag={tagOf('RAW')} title={rawTitle(r)} value={stock} unit={unitLabel(r.metric, locale)} info={rawInfo(r, stock)} t={t}
-                                            footer={<SpareLine spare={r.spare} t={t} />} />
+                                        <Block kind="RAW" tag={tagOf('RAW')} title={rawTitle(r)} value={stock} unit={unitLabel(r.metric, locale)} info={r.balls ? '' : rawInfo(r, stock)} t={t}
+                                            footer={<>
+                                                {r.balls && <BallsLine rawId={r.id} balls={r.balls} tl={tl} onSaved={(msg) => { setFlash(msg); setTimeout(() => setFlash(null), 4000); setRefresh(n => n + 1); }} />}
+                                                <SpareLine spare={r.spare} t={t} />
+                                            </>} />
                                         {children.map(c => {
                                             const kind = kindOf(c);
                                             return (
@@ -385,6 +389,50 @@ function Clickable({ onEdit, id, title, className, style, children }: {
 }) {
     if (!onEdit) return <div className={className} style={style}>{children}</div>;
     return <button onClick={() => onEdit(id)} title={title} className={className} style={{ ...style, cursor: 'pointer' }}>{children}</button>;
+}
+
+// Hoja de limpieza with balls: whole balls left (automatic) and the one number the
+// kitchen gives at closing — loose, unportioned meat in grams.
+function BallsLine({ rawId, balls, tl, onSaved }: {
+    rawId: string;
+    balls: { count: number; wholeLb: number; looseLb: number; numbers: number[] };
+    tl: ReturnType<typeof useTranslations>;
+    onSaved: (msg: string) => void;
+}) {
+    const looseG = Math.round(balls.looseLb * 453.59237);
+    const [grams, setGrams] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState<string | null>(null);
+    const save = async () => {
+        const g = parseFloat(grams);
+        if (!(g >= 0) || saving) return;
+        setSaving(true); setErr(null);
+        const res = await countLooseMeat(rawId, g);
+        setSaving(false);
+        if (!res.success) { setErr(res.error); return; }
+        setGrams('');
+        onSaved(tl('looseSaved', { g: Math.round(g) }));
+    };
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.4rem', paddingTop: '0.4rem', borderTop: '1px dashed rgba(59,130,246,0.35)' }}>
+            <div style={{ fontSize: '0.85rem' }}>
+                <strong>{tl('ballsWhole', { count: balls.count })}</strong> · {fmt(balls.wholeLb)} lb
+                {balls.numbers.length > 0 && <span style={{ color: 'var(--text-secondary)' }}> · {balls.numbers.map(n => `#${n}`).join(' ')}</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.85rem' }}>{tl('looseLabel')}</span>
+                <input type="number" inputMode="numeric" min="0" step="1" value={grams} onChange={e => setGrams(e.target.value)} placeholder={String(looseG)}
+                    aria-label={tl('looseLabel')}
+                    style={{ width: 84, height: 40, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600, textAlign: 'center', fontFamily: 'inherit' }} />
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>g</span>
+                <button type="button" onClick={save} disabled={saving || !(parseFloat(grams) >= 0)}
+                    style={{ minHeight: 40, padding: '0 0.8rem', borderRadius: 8, border: 'none', background: 'var(--accent-primary)', color: '#fff', fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', opacity: saving || !(parseFloat(grams) >= 0) ? 0.5 : 1 }}>
+                    {saving ? '…' : tl('looseSave')}
+                </button>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: err ? 'var(--danger)' : 'var(--text-secondary)' }}>{err ?? tl('looseHint', { g: looseG })}</div>
+        </div>
+    );
 }
 
 // The storage signal a cook sees: where a sealed spare exists, never how many.

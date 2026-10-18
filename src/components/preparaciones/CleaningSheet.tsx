@@ -31,6 +31,10 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
     const [qty, setQty] = useState<Record<string, number>>({});
     const [cooks, setCooks] = useState<string[]>(defaultCookIds);
     const [busy, setBusy] = useState(false);
+    // Ball picked from the purchase ('MANUAL' = a ball that isn't registered: weigh it).
+    const [pieceId, setPieceId] = useState<string | 'MANUAL' | null>(null);
+    // The kitchen weighs merma in grams; lb stays available.
+    const [wasteUnit, setWasteUnit] = useState<'g' | 'lb'>('g');
 
     useEffect(() => {
         let alive = true;
@@ -47,8 +51,11 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
     }, [rawId]);
 
     const display = (o: { name: string; nameEs: string | null }) => (locale === 'es' && o.nameEs ? o.nameEs : o.name);
-    const rawLb = parseFloat(rawWeight) || 0;
-    const wasteLb = parseFloat(waste) || 0;
+    const hasPieces = (ctx?.pieces.length ?? 0) > 0;
+    const piece = ctx && pieceId && pieceId !== 'MANUAL' ? ctx.pieces.find(p => p.id === pieceId) ?? null : null;
+    // A registered ball with a weight: that weight, nothing to type.
+    const rawLb = piece?.weightLb != null ? piece.weightLb : parseFloat(rawWeight) || 0;
+    const wasteLb = (parseFloat(waste) || 0) / (wasteUnit === 'g' ? 453.59237 : 1);
 
     const math = useMemo(() => ctx ? computeCleaning({
         rawWeightLb: rawLb, wasteWeightLb: wasteLb,
@@ -56,7 +63,8 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
         band: ctx.band,
     }) : null, [ctx, rawLb, wasteLb, qty]);
     const anyPortion = Object.values(qty).some(q => q > 0);
-    const ready = rawLb > 0 && anyPortion && cooks.length > 0;
+    const pickedBall = !hasPieces || pieceId !== null;
+    const ready = pickedBall && rawLb > 0 && anyPortion && cooks.length > 0;
 
     const perUnitHint = useMemo(() => {
         if (!ctx) return null;
@@ -73,7 +81,8 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
         setError(null);
         const res = await completeCleaningSession({
             rawIngredientId: ctx.raw.id,
-            rawUnits: units > 0 ? units : null,
+            pieceId: piece ? piece.id : null,
+            rawUnits: piece ? 1 : units > 0 ? units : null,
             rawWeightLb: rawLb,
             wasteWeightLb: wasteLb,
             outputs: ctx.products.map(p => ({ ingredientId: p.id, qty: qty[p.id] ?? 0 })),
@@ -133,7 +142,41 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                 {error && <div style={{ padding: '0.6rem 0.8rem', borderRadius: '10px', border: '1px solid var(--danger)', color: 'var(--danger)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>{error}</div>}
 
                 {ctx && (<>
-                    {step(1, t('step1Title'), perUnitHint ? `${t('step1Hint')} ${perUnitHint}` : t('step1Hint'), (
+                    {hasPieces && step(1, t('ballTitle'), t('ballHint'), (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                {ctx.pieces.map(p => {
+                                    const on = pieceId === p.id;
+                                    return (
+                                        <button key={p.id} type="button" onClick={() => { setPieceId(p.id); setRawWeight(''); }}
+                                            style={{ minHeight: 48, padding: '0 14px', borderRadius: 12, border: on ? '2px solid var(--accent-primary)' : '1px solid var(--border)', background: on ? 'rgba(59,130,246,0.12)' : 'var(--bg-secondary)', color: 'var(--text-primary)', fontFamily: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                                            <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>#{p.number}</span>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{p.weightLb != null ? `${fmt(p.weightLb, 2)} lb` : t('ballWeigh')}</span>
+                                        </button>
+                                    );
+                                })}
+                                <button type="button" onClick={() => { setPieceId('MANUAL'); setRawWeight(''); }}
+                                    style={{ minHeight: 48, padding: '0 14px', borderRadius: 12, border: pieceId === 'MANUAL' ? '2px solid var(--accent-primary)' : '1px dashed var(--border)', background: pieceId === 'MANUAL' ? 'rgba(59,130,246,0.12)' : 'transparent', color: 'var(--text-secondary)', fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>
+                                    {t('ballOther')}
+                                </button>
+                            </div>
+                            {piece && piece.weightLb != null && (
+                                <div style={{ fontSize: '0.95rem' }}>{t('ballChosen', { n: piece.number, lb: fmt(piece.weightLb, 2) })}</div>
+                            )}
+                            {ctx.looseLb * 453.59237 >= 5 && (
+                                <div style={sub}>{t('looseGoesIn', { g: Math.round(ctx.looseLb * 453.59237) })}</div>
+                            )}
+                            {((piece && piece.weightLb == null) || pieceId === 'MANUAL') && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                    <input type="number" inputMode="decimal" min="0" step="any" value={rawWeight} onChange={e => setRawWeight(e.target.value)} placeholder="0.0" style={numBox} aria-label={t('rawWeight')} />
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>lb</span>
+                                    <span style={sub}>{t('ballWeighFirst')}</span>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+
+                    {!hasPieces && step(1, t('step1Title'), perUnitHint ? `${t('step1Hint')} ${perUnitHint}` : t('step1Hint'), (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <button type="button" aria-label="−" style={stepBtn(false)} onClick={() => setUnits(u => Math.max(0, u - 1))}>−</button>
@@ -149,8 +192,21 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
 
                     {step(2, t('step2Title'), t('step2Hint'), (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                            <input type="number" inputMode="decimal" min="0" step="any" value={waste} onChange={e => setWaste(e.target.value)} placeholder="0.0" style={numBox} aria-label={t('step2Title')} />
-                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>lb</span>
+                            <input type="number" inputMode="decimal" min="0" step="any" value={waste} onChange={e => setWaste(e.target.value)} placeholder={wasteUnit === 'g' ? '0' : '0.0'} style={numBox} aria-label={t('step2Title')} />
+                            <div role="radiogroup" aria-label={t('step2Title')} style={{ display: 'flex', gap: 2, padding: 3, borderRadius: 10, background: 'rgba(127,127,127,0.12)' }}>
+                                {(['g', 'lb'] as const).map(u => (
+                                    <button key={u} type="button" role="radio" aria-checked={wasteUnit === u}
+                                        onClick={() => {
+                                            if (u === wasteUnit) return;
+                                            const v = parseFloat(waste);
+                                            if (v > 0) setWaste(u === 'g' ? String(Math.round(v * 453.59237)) : fmt(v / 453.59237, 2));
+                                            setWasteUnit(u);
+                                        }}
+                                        style={{ minWidth: 44, minHeight: 40, borderRadius: 8, border: 'none', fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: wasteUnit === u ? 700 : 500, background: wasteUnit === u ? 'var(--bg-primary)' : 'transparent', color: wasteUnit === u ? 'var(--text-primary)' : 'var(--text-secondary)', cursor: 'pointer' }}>
+                                        {u}
+                                    </button>
+                                ))}
+                            </div>
                             {tag('var(--merma)', t('tagMerma'))}
                             <span style={sub}>{ctx.merma ? t('mermaGoesTo', { name: display(ctx.merma) }) : t('noMerma')}</span>
                         </div>
@@ -215,7 +271,7 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                     </div>
                     {!ready && (rawLb > 0 || anyPortion || cooks.length > 0) && (
                         <div style={{ ...sub, textAlign: 'right', paddingTop: 4 }}>
-                            {rawLb <= 0 ? t('needRaw') : !anyPortion ? t('needPortions') : t('needCook')}
+                            {!pickedBall ? t('needBall') : rawLb <= 0 ? t('needRaw') : !anyPortion ? t('needPortions') : t('needCook')}
                         </div>
                     )}
                 </>)}

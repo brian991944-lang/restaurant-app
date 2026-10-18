@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
     unit: String(l.unit ?? ""),
     totalWeightLb: l.totalWeightLb == null ? null : Number(l.totalWeightLb),
     priceCents: l.priceCents == null ? null : Math.round(Number(l.priceCents)),
+    // Optional: each ball's weight (lb) for cleaning-mode meats, e.g. [12.92, 12.36, …].
+    pieceWeightsLb: Array.isArray(l.pieceWeightsLb) ? l.pieceWeightsLb.map(Number) : null,
   }));
 
   const result = await registerPurchase({

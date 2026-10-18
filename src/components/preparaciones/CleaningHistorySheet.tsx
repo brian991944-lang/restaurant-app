@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { getCleaningHistory, type CleaningHistoryRow } from '@/app/actions/cleaning';
+import { getCleaningHistory, type CleaningBatch, type CleaningHistoryRow } from '@/app/actions/cleaning';
+import { formatMoney } from '@/lib/money';
 
 // Admin: the cleaning sessions of one raw protein, with the review flag per row.
 // Opened from the Inventario group box ("Ver historial"). Read-only.
@@ -25,6 +26,7 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
     const [rows, setRows] = useState<CleaningHistoryRow[] | null>(null);
     const [summary, setSummary] = useState<{ avgYield: number | null; wastePct: number | null; missing: number; count: number } | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [batch, setBatch] = useState<CleaningBatch | null>(null);
 
     useEffect(() => {
         let alive = true;
@@ -32,7 +34,7 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
         getCleaningHistory(rawId, days).then(res => {
             if (!alive) return;
             if (!res.success) { setError(res.error); return; }
-            setRows(res.rows); setSummary(res.summary);
+            setRows(res.rows); setSummary(res.summary); setBatch(res.batch);
         });
         return () => { alive = false; };
     }, [rawId, days]);
@@ -68,11 +70,25 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
                 {error && <div style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{error}</div>}
                 {!rows && !error && <div style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>{t('loading')}</div>}
 
+                {batch && (
+                    <div style={{ padding: '0.7rem 0.9rem', borderRadius: 12, background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.3)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>
+                            {t('batchTitle', { date: dateFmt.format(new Date(batch.purchasedAt)), supplier: batch.supplierName ?? '—', count: batch.pieces, lb: fmt(batch.rawLb, 2) })}
+                            {batch.costCents != null ? ` · ${formatMoney(batch.costCents)}` : ''}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            {t('batchProgress', { cleaned: batch.cleaned, count: batch.pieces, raw: fmt(batch.cleanedRawLb, 2), produced: fmt(batch.producedLb, 2), waste: fmt(batch.wasteLb, 2) })}
+                            {Math.abs(batch.looseLb) >= 0.01 ? ` · ${t('batchLoose', { g: Math.round(batch.looseLb * 453.59237) })}` : ''}
+                            {batch.yieldPct != null ? <> · <strong style={{ color: 'var(--text-primary)' }}>{t('batchYield', { pct: fmt(batch.yieldPct, 1) })}</strong></> : ''}
+                        </div>
+                    </div>
+                )}
+
                 {rows && rows.length > 0 && (
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead><tr>
-                                <th style={th}>{t('colDate')}</th><th style={th}>{t('colCook')}</th><th style={th}>{t('colUnits')}</th><th style={th}>{t('colRaw')}</th>
+                                <th style={th}>{t('colDate')}</th><th style={th}>{t('colCook')}</th><th style={th}>{batch ? t('colBall') : t('colUnits')}</th><th style={th}>{t('colRaw')}</th>
                                 <th style={th}>{t('colWaste')}</th><th style={th}>{t('colPortions')}</th><th style={th}>{t('colYield')}</th><th style={th}>{t('colReview')}</th>
                             </tr></thead>
                             <tbody>
@@ -80,12 +96,20 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
                                     <tr key={r.id}>
                                         <td style={{ ...td, fontWeight: 600, whiteSpace: 'nowrap' }}>{dateFmt.format(new Date(r.createdAt))}</td>
                                         <td style={td}>{r.cookNames ?? '—'}</td>
-                                        <td style={td}>{r.rawUnits != null ? fmt(r.rawUnits, 0) : '—'}</td>
+                                        <td style={{ ...td, fontWeight: r.pieceNumber != null ? 700 : 400 }}>{r.pieceNumber != null ? `#${r.pieceNumber}` : r.rawUnits != null ? fmt(r.rawUnits, 0) : '—'}</td>
                                         <td style={td}>{fmt(r.rawWeightLb)}</td>
                                         <td style={td}>{fmt(r.wasteWeightLb)}</td>
                                         <td style={td}>{r.outputs.filter(o => !o.isWaste).map(o => `${fmt(o.qty, 0)} ${display(o)}`).join(' · ') || '—'}</td>
                                         <td style={{ ...td, fontWeight: 700 }}>{fmt(r.yieldPct, 0)}%</td>
-                                        <td style={td}><FlagChip flag={r.flag} unaccountedLb={r.unaccountedLb} t={t} /></td>
+                                        <td style={td}>
+                                            <FlagChip flag={r.flag} unaccountedLb={r.unaccountedLb} t={t} />
+                                            {Math.abs(r.looseLb) >= 0.005 && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap' }}>
+                                                    {r.looseLb > 0 ? t('looseLeft', { g: Math.round(r.looseLb * 453.59237) }) : t('looseUsed', { g: Math.round(-r.looseLb * 453.59237) })}
+                                                    {' · '}{t('looseNet', { lb: fmt(r.unaccountedLb - r.looseLb, 2) })}
+                                                </div>
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

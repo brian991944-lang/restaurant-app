@@ -99,6 +99,7 @@ model Ingredient {
   storageMovements  StorageMovement[]
   cleaningSessions  CleaningSession[]
   cleaningOutputs   CleaningOutput[]
+  rawPieces         RawPiece[]
 
   // Rules
   isRuleTarget    RecurringPrepRule[] @relation("RuleTarget")
@@ -460,8 +461,31 @@ model CleaningSession {
   createdAt        DateTime   @default(now())
   rawIngredient    Ingredient @relation(fields: [rawIngredientId], references: [id])
   outputs          CleaningOutput[]
+  rawPiece         RawPiece?
 
   @@index([rawIngredientId, createdAt], map: "CleaningSession_raw_created_idx")
+}
+
+// One bola (ball) of a cleaning-mode raw cut, as bought: its number is written on
+// the bag, its weight comes from the receipt (or is weighed before cleaning when
+// null). Cleaning one ball = one CleaningSession; undo puts it back to AVAILABLE.
+model RawPiece {
+  id                String           @id @default(cuid())
+  ingredientId      String
+  number            Int              // #1, #2… per ingredient, never reused
+  weightLb          Float?           // null = weigh before cleaning
+  costCents         Int?
+  purchaseLineId    String?
+  receivedAt        DateTime         @default(now())
+  status            String           @default("AVAILABLE") // AVAILABLE | CLEANED | DISCARDED
+  cleaningSessionId String?          @unique
+  createdAt         DateTime         @default(now())
+  ingredient        Ingredient       @relation(fields: [ingredientId], references: [id])
+  purchaseLine      PurchaseLine?    @relation(fields: [purchaseLineId], references: [id], onDelete: SetNull)
+  cleaningSession   CleaningSession? @relation(fields: [cleaningSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([ingredientId, number], map: "RawPiece_ingredient_number_key")
+  @@index([ingredientId, status], map: "RawPiece_ingredient_status_idx")
 }
 
 model CleaningOutput {
@@ -491,6 +515,7 @@ model PurchaseLine {
   createdAt     DateTime        @default(now())
   receipt       PurchaseReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   ingredient    Ingredient      @relation(fields: [ingredientId], references: [id])
+  rawPieces     RawPiece[]
 
   @@index([ingredientId, createdAt])
 }

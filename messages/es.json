@@ -1304,7 +1304,11 @@
     "confirmLineSpare": "{name}: +{credited} {unit} · repuestos en el sótano: {stock} {unit}",
     "unreceived": "Hay {count} artículos comprados sin recibir. ¿Finalizar igual?",
     "finalizeAnyway": "Finalizar igual",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "pieceWeights": "Peso de cada bola (lb)",
+    "pieceWeightsHint": "Del recibo, separados por coma. Cada bola queda numerada para la hoja de limpieza.",
+    "pieceWeightsSum": "{count} bolas · {lb} lb en total",
+    "pieceUnit": "bolas"
   },
   "Inventario": {
     "tabBoxes": "Tarjetas",
@@ -1475,7 +1479,28 @@
     "flagMissing": "● faltan {lb} lb",
     "legendOk": "crudo ≈ porciones + merma y rendimiento dentro de lo esperado",
     "legendLow": "rendimiento fuera de la banda esperada: limpieza descuidada o porciones de otro peso",
-    "legendMissing": "más de 1 lb (o 5%) que no es ni porción ni merma"
+    "legendMissing": "más de 1 lb (o 5%) que no es ni porción ni merma",
+    "ballTitle": "¿Qué bola vas a limpiar?",
+    "ballHint": "Elige el número escrito en la bolsa. El peso ya viene del recibo.",
+    "ballWeigh": "pesar",
+    "ballOther": "Bola sin registrar",
+    "ballChosen": "Bola #{n} · {lb} lb crudo",
+    "ballWeighFirst": "Pésala antes de limpiar.",
+    "needBall": "Elige la bola.",
+    "looseGoesIn": "Hay {g} g de carne suelta del cierre: úsala con esta bola.",
+    "ballsWhole": "{count, plural, =0 {Sin bolas enteras} one {# bola entera} other {# bolas enteras}}",
+    "looseLabel": "Carne suelta",
+    "looseSave": "Guardar",
+    "looseSaved": "Carne suelta: {g} g guardado",
+    "looseHint": "Al cierre: lo que quedó sin porcionar (ahora {g} g). 0 si no quedó nada.",
+    "batchTitle": "Compra {date} · {supplier} · {count} bolas · {lb} lb",
+    "batchProgress": "{cleaned} de {count} limpias · {raw} lb crudo → {produced} lb en porciones · merma {waste} lb",
+    "batchLoose": "carne suelta {g} g",
+    "batchYield": "rendimiento {pct}%",
+    "colBall": "BOLA",
+    "looseLeft": "Sobró {g} g (cierre)",
+    "looseUsed": "+{g} g de antes",
+    "looseNet": "sin cuadrar {lb} lb"
   },
   "AutoSync": {
     "running": "Actualizando ventas de Toast…",

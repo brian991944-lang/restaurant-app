@@ -1304,7 +1304,11 @@
     "confirmLineSpare": "{name}: +{credited} {unit} · spares in the basement: {stock} {unit}",
     "unreceived": "There are {count} purchased items not received. Complete anyway?",
     "finalizeAnyway": "Complete anyway",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "pieceWeights": "Weight of each ball (lb)",
+    "pieceWeightsHint": "From the receipt, comma-separated. Each ball gets a number for the cleaning sheet.",
+    "pieceWeightsSum": "{count} balls · {lb} lb total",
+    "pieceUnit": "balls"
   },
   "Inventario": {
     "tabBoxes": "Cards",
@@ -1475,7 +1479,28 @@
     "flagMissing": "● {lb} lb missing",
     "legendOk": "raw ≈ portions + trim and yield within the expected band",
     "legendLow": "yield outside the expected band: careless cleaning or off-weight portions",
-    "legendMissing": "more than 1 lb (or 5%) that is neither portions nor trim"
+    "legendMissing": "more than 1 lb (or 5%) that is neither portions nor trim",
+    "ballTitle": "Which ball are you cleaning?",
+    "ballHint": "Pick the number written on the bag. The weight comes from the receipt.",
+    "ballWeigh": "weigh",
+    "ballOther": "Unregistered ball",
+    "ballChosen": "Ball #{n} · {lb} lb raw",
+    "ballWeighFirst": "Weigh it before cleaning.",
+    "needBall": "Pick the ball.",
+    "looseGoesIn": "There are {g} g of loose meat from closing: use it with this ball.",
+    "ballsWhole": "{count, plural, =0 {No whole balls} one {# whole ball} other {# whole balls}}",
+    "looseLabel": "Loose meat",
+    "looseSave": "Save",
+    "looseSaved": "Loose meat: {g} g saved",
+    "looseHint": "At closing: what is left unportioned (now {g} g). 0 if nothing is left.",
+    "batchTitle": "Purchase {date} · {supplier} · {count} balls · {lb} lb",
+    "batchProgress": "{cleaned} of {count} cleaned · {raw} lb raw → {produced} lb in portions · trim {waste} lb",
+    "batchLoose": "loose meat {g} g",
+    "batchYield": "yield {pct}%",
+    "colBall": "BALL",
+    "looseLeft": "{g} g left (closing)",
+    "looseUsed": "+{g} g from before",
+    "looseNet": "unaccounted {lb} lb"
   },
   "AutoSync": {
     "running": "Updating Toast sales…",

@@ -20,6 +20,7 @@ interface RecibirIngredient {
     unitsPerPack: number;
     packUnit: string;
     purchaseStatus: string;
+    cleaningMode?: boolean;
     providerId: string | null;
     provider: { name: string } | null;
     inventory: { frozenQty: number; thawingQty: number } | null;
@@ -31,7 +32,12 @@ interface Row {
     unit: string;
     weight: string;
     price: string;
+    /** Cleaning-mode meats: each ball's weight, as typed ("12.92, 12.36 …"). */
+    pieces: string;
 }
+
+/** "12.92, 12.36 14.84" → [12.92, 12.36, 14.84]; commas, spaces or new lines. */
+const parsePieces = (s: string) => s.split(/[\s,;]+/).map(x => parseFloat(x)).filter(n => isFinite(n) && n > 0);
 
 const OTHER = '__OTHER__';
 
@@ -77,7 +83,7 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
     const byId = useMemo(() => new Map(ingredients.map(i => [i.id, i])), [ingredients]);
 
     const defaultUnit = (ing: RecibirIngredient) => (ing.isPacked ? t('packUnit') : unitLabel(ing.metric, locale));
-    const newRow = (ing: RecibirIngredient): Row => ({ ingredientId: ing.id, qty: '', unit: defaultUnit(ing), weight: '', price: '' });
+    const newRow = (ing: RecibirIngredient): Row => ({ ingredientId: ing.id, qty: '', unit: defaultUnit(ing), weight: '', price: '', pieces: '' });
 
     const load = async () => {
         setIsLoading(true);
@@ -124,6 +130,7 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
                 unit: r.unit,
                 totalWeightLb: parseFloat(r.weight) > 0 ? parseFloat(r.weight) : null,
                 priceCents: parseFloat(r.price) > 0 ? Math.round(parseFloat(r.price) * 100) : null,
+                pieceWeightsLb: byId.get(r.ingredientId)?.cleaningMode ? parsePieces(r.pieces) : null,
             })),
         });
 
@@ -238,6 +245,27 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
                             style={{ ...inputStyle, minWidth: '44px', cursor: 'pointer', color: 'var(--text-secondary)' }} aria-label={t('remove')} title={t('remove')}>
                             ✕
                         </button>
+                        {ing.cleaningMode && destination === 'RESTAURANT' && (() => {
+                            const w = parsePieces(row.pieces);
+                            const sum = w.reduce((a, b) => a + b, 0);
+                            return (
+                                <div style={{ flex: '1 1 100%' }}>
+                                    <label style={labelStyle}>{t('pieceWeights')}</label>
+                                    <input value={row.pieces} inputMode="decimal" placeholder="12.92, 12.36, 14.84"
+                                        onChange={e => {
+                                            const pieces = e.target.value;
+                                            const ws = parsePieces(pieces);
+                                            const total = ws.reduce((a, b) => a + b, 0);
+                                            // Fill qty / total weight from the balls while they are empty or were filled this way.
+                                            updateRow(idx, { pieces, ...(ws.length ? { weight: fmt(total), unit: t('pieceUnit'), qty: row.qty && parseFloat(row.qty) !== w.length ? row.qty : String(ws.length) } : {}) });
+                                        }}
+                                        style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                        {w.length ? t('pieceWeightsSum', { count: w.length, lb: fmt(sum) }) : t('pieceWeightsHint')}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 );
             })}

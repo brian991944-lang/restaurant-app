@@ -7,6 +7,7 @@ import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
 import { pushSalonItemToClover } from '@/app/actions/clover';
 import { getRecentPurchaseWeights } from '@/app/actions/purchases';
+import { getPieceSummary } from '@/app/actions/cleaning';
 import { isAdminSession } from '@/lib/adminGuard';
 
 async function translateToSpanish(text: string): Promise<string> {
@@ -449,7 +450,14 @@ export async function getInventarioOverview() {
             // Where a spare exists, if anywhere. Basement wins over home: the cook can go get it.
             const spare: 'BASEMENT' | 'HOME' | 'NONE' = storageStocks.some(s => s.location === 'BASEMENT_KITCHEN')
                 ? 'BASEMENT' : storageStocks.some(s => s.location === 'HOME') ? 'HOME' : 'NONE';
-            return { ...rest, lastPurchase, avgLbPerUnit, spare, children: prepItems, lastCleaning: lastCleaningByRaw.get(r.id) ?? null };
+            // Hoja de limpieza with registered balls: whole balls left + loose meat (kitchen-visible, no costs).
+            let balls: { count: number; wholeLb: number; looseLb: number; numbers: number[] } | null = null;
+            if (r.cleaningMode) {
+                const s = await getPieceSummary(r.id, r.metric, (r.inventory?.frozenQty ?? 0) + (r.inventory?.thawingQty ?? 0));
+                const everRegistered = s.pieces.length > 0 || (await prisma.rawPiece.count({ where: { ingredientId: r.id } })) > 0;
+                if (everRegistered) balls = { count: s.pieces.length, wholeLb: s.wholeLb, looseLb: s.looseLb, numbers: s.pieces.map(p => p.number) };
+            }
+            return { ...rest, lastPurchase, avgLbPerUnit, spare, children: prepItems, lastCleaning: lastCleaningByRaw.get(r.id) ?? null, balls };
         }));
 
         items.sort((a, b) =>

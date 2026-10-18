@@ -108,6 +108,12 @@ export interface PurchaseLineInput {
     unit: string;
     totalWeightLb?: number | null;
     priceCents?: number | null;
+    /**
+     * Cleaning-mode raws (Teres Major…): the weight of each ball as printed on the
+     * receipt. Each becomes a numbered RawPiece the cleaning sheet picks from.
+     * Kitchen landings only; the line's totalWeightLb defaults to their sum.
+     */
+    pieceWeightsLb?: number[] | null;
 }
 
 export interface PurchaseInput {
@@ -165,8 +171,18 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
         const ids = [...new Set(input.lines.map(l => l.ingredientId))];
         const ingredients = await prisma.ingredient.findMany({
             where: { id: { in: ids } },
-            select: { id: true, name: true, type: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true, trackMode: true },
+            select: { id: true, name: true, type: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true, trackMode: true, cleaningMode: true },
         });
+        // Per-ball weights: positive numbers only; their sum stands in for a missing total weight.
+        input = {
+            ...input,
+            lines: input.lines.map(l => {
+                const w = Array.isArray(l.pieceWeightsLb) ? l.pieceWeightsLb.map(Number).filter(n => isFinite(n) && n > 0) : [];
+                if (w.length === 0) return { ...l, pieceWeightsLb: null };
+                const sum = Math.round(w.reduce((a, b) => a + b, 0) * 1000) / 1000;
+                return { ...l, pieceWeightsLb: w, totalWeightLb: l.totalWeightLb != null && l.totalWeightLb > 0 ? l.totalWeightLb : sum };
+            }),
+        };
         const byId = new Map(ingredients.map(i => [i.id, i]));
 
         // Validate every line and work out where it lands before anything is written.
@@ -222,6 +238,29 @@ export async function registerPurchase(input: PurchaseInput): Promise<PurchaseRe
                     },
                 },
             });
+
+            // Balls: one numbered RawPiece per weight, numbers continuing per ingredient.
+            const createdLines = await tx.purchaseLine.findMany({ where: { receiptId: receipt.id }, orderBy: { createdAt: 'asc' }, select: { id: true, ingredientId: true } });
+            const usedLineIds = new Set<string>();
+            for (const p of planned) {
+                const { line, ing, landing } = p!;
+                const weights = line.pieceWeightsLb ?? [];
+                if (landing !== 'KITCHEN' || !ing.cleaningMode || weights.length === 0) continue;
+                const lineRow = createdLines.find(r => r.ingredientId === ing.id && !usedLineIds.has(r.id));
+                if (lineRow) usedLineIds.add(lineRow.id);
+                const top = await tx.rawPiece.aggregate({ where: { ingredientId: ing.id }, _max: { number: true } });
+                const totalW = weights.reduce((a, b) => a + b, 0);
+                await tx.rawPiece.createMany({
+                    data: weights.map((w, i) => ({
+                        ingredientId: ing.id,
+                        number: (top._max.number ?? 0) + i + 1,
+                        weightLb: w,
+                        costCents: line.priceCents != null && totalW > 0 ? Math.round((line.priceCents * w) / totalW) : null,
+                        purchaseLineId: lineRow?.id ?? null,
+                        receivedAt: purchasedAt,
+                    })),
+                });
+            }
 
             const lines: CreditedLine[] = [];
             for (const p of planned) {
@@ -309,7 +348,7 @@ export async function getRecibirData() {
                 where: { type: 'RAW', isActive: true },
                 select: {
                     id: true, name: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true,
-                    purchaseStatus: true, providerId: true,
+                    purchaseStatus: true, providerId: true, cleaningMode: true,
                     provider: { select: { name: true } },
                     inventory: { select: { frozenQty: true, thawingQty: true } },
                 },
