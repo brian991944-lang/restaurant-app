@@ -21,8 +21,18 @@ export function isBrowserTab(): boolean {
     } catch { return false; }
 }
 
+/**
+ * '1' = full view, '0' = phone view (chosen by hand). Unset: the Admin phone
+ * (lib/adminDevice) gets the full view in Chrome by default; every other phone
+ * keeps the phone layout.
+ */
 export function isFullViewPreferred(): boolean {
-    try { return localStorage.getItem(KEY) === '1'; } catch { return false; }
+    try {
+        const v = localStorage.getItem(KEY);
+        if (v === '1') return true;
+        if (v === '0') return false;
+        return localStorage.getItem('fusionista_admin_device') === '1';
+    } catch { return false; }
 }
 
 /** True when this page is currently laid out in the full view. */
@@ -43,7 +53,7 @@ export function applyViewMode(): void {
 
 export function setFullViewPreferred(on: boolean): void {
     try {
-        if (on) localStorage.setItem(KEY, '1'); else localStorage.removeItem(KEY);
+        localStorage.setItem(KEY, on ? '1' : '0');
     } catch { /* storage unavailable */ }
     applyViewMode();
     try { window.dispatchEvent(new Event(EVENT)); } catch { /* no DOM */ }
