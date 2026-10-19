@@ -67,7 +67,8 @@
     "reports_archivos": "Files",
     "almacen": "Storage",
     "brand_tagline": "Inventory & Prep",
-    "open_menu": "Open menu"
+    "open_menu": "Open menu",
+    "phone_view": "Phone view"
   },
   "Dashboard": {
     "welcome": "Welcome back",
@@ -1582,7 +1583,10 @@
     "exitAdminSub": "Back to the kitchen view",
     "adminDevice": "Ask for fingerprint on open",
     "adminDeviceOn": "On · fingerprint on launch and when back after 15 min · tap to turn off",
-    "adminDeviceOff": "Off · turns on by itself when Admin is unlocked on a phone · tap to turn on"
+    "adminDeviceOff": "Off · turns on by itself when Admin is unlocked on a phone · tap to turn on",
+    "fullView": "Full view in the browser",
+    "fullViewSub": "Only in this Chrome tab: the desktop/tablet layout. The installed app stays the same.",
+    "fullViewGo": "Switch →"
   },
   "Common": {
     "search": "Search...",

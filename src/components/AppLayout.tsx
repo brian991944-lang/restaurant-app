@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { applyViewMode } from '@/lib/viewMode';
 import { Menu } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import { AdminProvider } from '@/components/AdminContext';
@@ -18,6 +20,9 @@ export default function AppLayout({
 }) {
   const t = useTranslations('Nav');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Re-assert the browser-tab full view after client navigations (head tags can be re-rendered).
+  const pathname = usePathname();
+  useEffect(() => { applyViewMode(); }, [pathname]);
 
   return (
     <AdminProvider>

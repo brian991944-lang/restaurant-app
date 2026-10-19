@@ -67,7 +67,8 @@
     "reports_archivos": "Archivos",
     "almacen": "Almacén",
     "brand_tagline": "Inventario y Prep",
-    "open_menu": "Abrir menú"
+    "open_menu": "Abrir menú",
+    "phone_view": "Vista teléfono"
   },
   "Dashboard": {
     "welcome": "Bienvenido de nuevo",
@@ -1582,7 +1583,10 @@
     "exitAdminSub": "Vuelve a la vista de cocina",
     "adminDevice": "Pedir huella al abrir",
     "adminDeviceOn": "Activado · huella al abrir y al volver tras 15 min · tocar para quitar",
-    "adminDeviceOff": "Desactivado · se activa solo al desbloquear Admin en un teléfono · tocar para activar"
+    "adminDeviceOff": "Desactivado · se activa solo al desbloquear Admin en un teléfono · tocar para activar",
+    "fullView": "Vista completa en el navegador",
+    "fullViewSub": "Solo en esta pestaña de Chrome: la vista de escritorio/tablet. La app instalada sigue igual.",
+    "fullViewGo": "Cambiar →"
   },
   "Common": {
     "search": "Buscar...",

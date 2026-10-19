@@ -64,6 +64,12 @@ export default async function LocaleLayout({
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('fusionista_admin_device')==='1')document.documentElement.setAttribute('data-admin-device','1')}catch(e){}" }}
         />
+        {/* "Vista completa en el navegador" (lib/viewMode.ts): in a browser tab only, lay out
+            at desktop width before the first paint; the installed app keeps the phone layout. */}
+        <script
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('fusionista_browser_full_view')==='1'&&matchMedia('(display-mode: browser)').matches&&navigator.standalone!==true){document.querySelectorAll('meta[name=\"viewport\"]').forEach(function(m){m.setAttribute('content','width=1100')})}}catch(e){}" }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

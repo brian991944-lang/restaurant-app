@@ -10,6 +10,7 @@ import { useAdmin } from '@/components/AdminContext';
 import AdminUnlockModal from '@/components/AdminUnlockModal';
 import { useWorkstation } from '@/components/WorkstationContext';
 import { readReportsTab } from '@/lib/reportsTab';
+import { isFullViewActive, onViewModeChange, setFullViewPreferred } from '@/lib/viewMode';
 import { ANALYTICS_VIEWS, analyticsHref, type AnalyticsView } from '@/lib/analyticsView';
 
 /**
@@ -103,6 +104,10 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    // Phone in a Chrome tab showing the full view (Más → "Vista completa"): offer the way back.
+    const [fullView, setFullView] = useState(false);
+    useEffect(() => { setFullView(isFullViewActive()); return onViewModeChange(() => setFullView(isFullViewActive())); }, []);
 
     // Leaving admin takes the Management pill away with it, so a station that
     // no longer has a pill has to move somewhere that does. Guarded, so it
@@ -515,6 +520,14 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
                         style={{ width: '100%', padding: '0.8rem', borderRadius: '12px', textAlign: 'center' }}
                     >
                         {isAdmin ? t('exit_admin') : t('admin_view')}
+                    </button>
+                )}
+
+                {fullView && (
+                    <button onClick={() => setFullViewPreferred(false)}
+                        style={{ width: '100%', padding: '0.7rem', borderRadius: '12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)', fontWeight: 500 }}>
+                        <Smartphone size={16} />
+                        {!isCollapsed && t('phone_view')}
                     </button>
                 )}
             </div>

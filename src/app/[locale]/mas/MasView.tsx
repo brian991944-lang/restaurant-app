@@ -9,6 +9,7 @@ import { analyticsHref, ANALYTICS_VIEWS } from '@/lib/analyticsView';
 import { useEffect, useState } from 'react';
 import { isAdminDevice, clearAdminDevice, markAdminDevice, onAdminDeviceChange } from '@/lib/adminDevice';
 import { useIsPhone } from '@/components/phone/usePhone';
+import { isBrowserTab, setFullViewPreferred } from '@/lib/viewMode';
 
 /** Más — everything the sidebar offers, as grouped lists for the phone, plus theme, language and leaving Admin. */
 export default function MasView({ locale }: { locale: 'es' | 'en' }) {
@@ -26,7 +27,9 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
     // The theme is unknown on the server (next-themes), so its label is filled in after mount
     // instead of hydrating "Sistema" over "Oscuro".
     const [mounted, setMounted] = useState(false);
-    useEffect(() => { setMounted(true); setAdminDevice(isAdminDevice()); return onAdminDeviceChange(() => setAdminDevice(isAdminDevice())); }, []);
+    // Full desktop layout is offered only in a Chrome tab; the installed app stays phone-shaped.
+    const [browserTab, setBrowserTab] = useState(false);
+    useEffect(() => { setMounted(true); setBrowserTab(isBrowserTab()); setAdminDevice(isAdminDevice()); return onAdminDeviceChange(() => setAdminDevice(isAdminDevice())); }, []);
     const toggleAdminDevice = () => { if (adminDevice) clearAdminDevice(); else markAdminDevice(); };
 
     const other = locale === 'en' ? 'es' : 'en';
@@ -81,6 +84,7 @@ export default function MasView({ locale }: { locale: 'es' | 'en' }) {
                         onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')} />
                     <Row title={t('language')} sub={locale === 'es' ? 'Español' : 'English'} rsub={locale === 'es' ? 'English →' : 'Español →'} onClick={switchLanguage} />
                     {phone && <Row title={t('adminDevice')} sub={adminDevice ? t('adminDeviceOn') : t('adminDeviceOff')} onClick={toggleAdminDevice} />}
+                    {browserTab && <Row title={t('fullView')} sub={t('fullViewSub')} rsub={t('fullViewGo')} onClick={() => setFullViewPreferred(true)} />}
                     <Row title={tn('exit_admin')} sub={t('exitAdminSub')} onClick={leaveAdmin} last />
                 </div>
             </Card>
