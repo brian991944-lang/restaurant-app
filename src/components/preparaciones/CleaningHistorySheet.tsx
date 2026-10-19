@@ -103,11 +103,15 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
                                         <td style={{ ...td, fontWeight: 700 }}>{fmt(r.yieldPct, 0)}%</td>
                                         <td style={td}>
                                             <FlagChip flag={r.flag} unaccountedLb={r.unaccountedLb} t={t} />
-                                            {Math.abs(r.looseLb) >= 0.005 && (
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap' }}>
-                                                    {r.looseLb > 0 ? t('looseLeft', { g: Math.round(r.looseLb * 453.59237) }) : t('looseUsed', { g: Math.round(-r.looseLb * 453.59237) })}
-                                                    {' · '}{t('looseNet', { lb: fmt(r.unaccountedLb - r.looseLb, 2) })}
-                                                </div>
+                                            {[
+                                                r.carryInLb >= 0.005 ? t('looseUsed', { g: Math.round(r.carryInLb * 453.59237) }) : null,
+                                                r.carryOutLb >= 0.005 ? t('looseLeft', { g: Math.round(r.carryOutLb * 453.59237) }) : null,
+                                                Math.abs(r.countLb) >= 0.005 ? t('looseCorrection', { g: `${r.countLb > 0 ? '+' : '−'}${Math.round(Math.abs(r.countLb) * 453.59237)}` }) : null,
+                                            ].filter(Boolean).map((line, i) => (
+                                                <div key={i} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap' }}>{line}</div>
+                                            ))}
+                                            {Math.abs(r.countLb) >= 0.005 && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2, whiteSpace: 'nowrap' }}>{t('looseNet', { lb: fmt(r.unaccountedLb - r.countLb, 2) })}</div>
                                             )}
                                         </td>
                                     </tr>

@@ -160,7 +160,15 @@ export interface CleaningInput {
     note?: string | null;
     /** The ball being cleaned. Its receipt weight wins over rawWeightLb; an unweighed ball takes rawWeightLb. */
     pieceId?: string | null;
+    /** Loose meat from before that went into this cleaning (lb). Capped at what is loose in stock. */
+    carryInLb?: number | null;
+    /** Meat left unportioned, kept as loose raw for the next ball (lb). Not merma. */
+    carryOutLb?: number | null;
 }
+
+/** The meat that actually went through the cleaning: ball + loose used − loose kept. */
+const effectiveRaw = (s: { rawWeightLb: number; carryInLb?: number | null; carryOutLb?: number | null }) =>
+    s.rawWeightLb + (s.carryInLb ?? 0) - (s.carryOutLb ?? 0);
 
 export async function completeCleaningSession(input: CleaningInput): Promise<{ success: true; sessionId: string; math: CleaningMath } | Fail> {
     try {
@@ -184,18 +192,25 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
         if (!ctx.success) return ctx;
         const { raw, products, merma, band } = ctx.context;
 
+        const carryInLb = Math.max(0, Math.min(input.carryInLb ?? 0, ctx.context.looseLb + 0.001));
+        const carryOutLb = Math.max(0, input.carryOutLb ?? 0);
+        if (carryOutLb >= input.rawWeightLb + carryInLb) return fail('El sobrante no puede ser mayor que la carne cruda.');
+        input = { ...input, carryInLb, carryOutLb };
+        const usedLb = effectiveRaw(input);
+
         const byId = new Map(products.map(p => [p.id, p]));
         for (const o of wanted) if (!byId.has(o.ingredientId)) return fail('Producto desconocido en la hoja.');
         if (input.wasteWeightLb > 0 && merma && !isWeightMetric(merma.metric)) return fail(`${merma.name} no se mide por peso.`);
 
         const math = computeCleaning({
-            rawWeightLb: input.rawWeightLb, wasteWeightLb: input.wasteWeightLb,
+            rawWeightLb: usedLb, wasteWeightLb: input.wasteWeightLb,
             outputs: wanted.map(o => ({ qty: o.qty, portionWeightG: byId.get(o.ingredientId)!.portionWeightG, yieldPercent: byId.get(o.ingredientId)!.yieldPercent })),
             band,
         });
 
         const rawFactor = lbToMetric(raw.metric)!;
-        const rawOut = input.rawWeightLb * rawFactor;
+        // The leftover kept stays in raw stock (as loose meat); the leftover used leaves it.
+        const rawOut = usedLb * rawFactor;
         const mermaFactor = merma ? lbToMetric(merma.metric) ?? 1 : 1;
 
         const rawRow = await prisma.ingredient.findUnique({ where: { id: raw.id }, select: { allowNegativeStock: true } });
@@ -225,7 +240,7 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
             });
             await tx.ingredient.update({ where: { id: raw.id }, data: { unfrozenQuantity: rawInv.thawingQty - takeThaw } });
             await tx.inventoryTransaction.create({
-                data: { ingredientId: raw.id, type: 'CLEANING_RAW', qty: -rawOut, note: `Hoja de limpieza: ${piece ? `bola #${piece.number}, ` : ''}${input.rawWeightLb} lb crudo (${cookNames})` },
+                data: { ingredientId: raw.id, type: 'CLEANING_RAW', qty: -rawOut, note: `Hoja de limpieza: ${piece ? `bola #${piece.number}, ` : ''}${input.rawWeightLb} lb crudo${carryInLb > 0 ? ` + ${Math.round(carryInLb * GRAMS_PER_LB)} g suelta` : ''}${carryOutLb > 0 ? ` − ${Math.round(carryOutLb * GRAMS_PER_LB)} g sobrante` : ''} (${cookNames})` },
             });
 
             // 2. products in + close their tasks for today
@@ -290,6 +305,8 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
                     producedWeightLb: math.producedWeightLb,
                     yieldPct: math.yieldPct,
                     unaccountedLb: math.unaccountedLb,
+                    carryInLb,
+                    carryOutLb,
                     flag: math.flag,
                     cookNames,
                     note: input.note?.trim() || null,
@@ -381,7 +398,7 @@ export async function undoCleaningSession(sessionId: string): Promise<{ success:
         });
         if (!session) return { success: true }; // already undone
         const rawFactor = lbToMetric(session.rawIngredient.metric) ?? 1;
-        const rawBack = session.rawWeightLb * rawFactor;
+        const rawBack = effectiveRaw(session) * rawFactor;
 
         await prisma.$transaction(async tx => {
             const rawInv = await tx.inventory.upsert({
@@ -430,8 +447,11 @@ export interface CleaningHistoryRow {
     outputs: { ingredientId: string; name: string; nameEs: string | null; qty: number; isWaste: boolean }[];
     /** Ball number, when the session cleaned a registered ball. */
     pieceNumber: number | null;
-    /** Closing counts of loose meat that business day, net lb: > 0 left over, < 0 leftover used. */
-    looseLb: number;
+    /** Loose meat used from before / kept for the next ball, as entered on the sheet (lb). */
+    carryInLb: number;
+    carryOutLb: number;
+    /** Corrections of loose meat from the inventory card that business day, net lb (+ more found, − less). */
+    countLb: number;
 }
 
 export interface CleaningBatch {
@@ -477,7 +497,9 @@ export async function getCleaningHistory(rawIngredientId: string, days = 30): Pr
             wasteWeightLb: s.wasteWeightLb, producedWeightLb: s.producedWeightLb, yieldPct: s.yieldPct, unaccountedLb: s.unaccountedLb, flag: s.flag,
             outputs: s.outputs.map(o => ({ ingredientId: o.ingredientId, name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste })),
             pieceNumber: s.rawPiece?.number ?? null,
-            looseLb: looseBySession.get(s.id) ?? 0,
+            carryInLb: s.carryInLb,
+            carryOutLb: s.carryOutLb,
+            countLb: looseBySession.get(s.id) ?? 0,
         }));
 
         // The latest purchase that registered balls: how the whole batch is doing so far.
@@ -492,19 +514,20 @@ export async function getCleaningHistory(rawIngredientId: string, days = 30): Pr
                 where: { id: latest.purchaseLineId },
                 select: {
                     priceCents: true, receipt: { select: { purchasedAt: true, supplierName: true } },
-                    rawPieces: { select: { weightLb: true, status: true, cleaningSession: { select: { id: true, rawWeightLb: true, producedWeightLb: true, wasteWeightLb: true, createdAt: true } } } },
+                    rawPieces: { select: { weightLb: true, status: true, cleaningSession: { select: { id: true, rawWeightLb: true, carryInLb: true, carryOutLb: true, producedWeightLb: true, wasteWeightLb: true, createdAt: true } } } },
                 },
             });
             if (line) {
                 const cleanedSessions = line.rawPieces.map(p => p.cleaningSession).filter((s): s is NonNullable<typeof s> => !!s);
                 const firstClean = cleanedSessions.reduce<Date | null>((a, s) => (!a || s.createdAt < a ? s.createdAt : a), null);
-                // Loose meat counted since this batch started being cleaned (net: what is still sitting there).
-                const looseSince = firstClean
+                // Card corrections of the loose meat since this batch started being cleaned.
+                const countSince = firstClean
                     ? (await prisma.inventoryTransaction.aggregate({ where: { ingredientId: rawIngredientId, type: 'LOOSE_COUNT', createdAt: { gte: firstClean } }, _sum: { qty: true } }))._sum.qty ?? 0
                     : 0;
                 const cleanedRawLb = cleanedSessions.reduce((a, s) => a + s.rawWeightLb, 0);
                 const producedLb = cleanedSessions.reduce((a, s) => a + s.producedWeightLb, 0);
-                const looseLb = looseSince / factor;
+                // Loose meat this batch left sitting in stock: kept − used again + corrections.
+                const looseLb = cleanedSessions.reduce((a, s) => a + s.carryOutLb - s.carryInLb, 0) + countSince / factor;
                 const usedLb = cleanedRawLb - looseLb;
                 batch = {
                     purchasedAt: line.receipt.purchasedAt.toISOString(), supplierName: line.receipt.supplierName,

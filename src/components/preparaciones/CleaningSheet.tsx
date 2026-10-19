@@ -35,6 +35,10 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
     const [pieceId, setPieceId] = useState<string | 'MANUAL' | null>(null);
     // The kitchen weighs merma in grams; lb stays available.
     const [wasteUnit, setWasteUnit] = useState<'g' | 'lb'>('g');
+    // Leftover too small for a portion (g), kept as loose raw meat for the next ball.
+    const [leftover, setLeftover] = useState('');
+    // Loose meat from before goes into this ball unless the cook unticks it.
+    const [useLoose, setUseLoose] = useState(true);
 
     useEffect(() => {
         let alive = true;
@@ -56,12 +60,17 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
     // A registered ball with a weight: that weight, nothing to type.
     const rawLb = piece?.weightLb != null ? piece.weightLb : parseFloat(rawWeight) || 0;
     const wasteLb = (parseFloat(waste) || 0) / (wasteUnit === 'g' ? 453.59237 : 1);
+    const looseG = ctx ? Math.round(ctx.looseLb * 453.59237) : 0;
+    const carryInLb = ctx && useLoose && looseG >= 5 ? ctx.looseLb : 0;
+    const carryOutLb = (parseFloat(leftover) || 0) / 453.59237;
+    // The meat that really went through: ball + loose used − leftover kept.
+    const usedLb = rawLb > 0 ? rawLb + carryInLb - carryOutLb : 0;
 
     const math = useMemo(() => ctx ? computeCleaning({
-        rawWeightLb: rawLb, wasteWeightLb: wasteLb,
+        rawWeightLb: usedLb, wasteWeightLb: wasteLb,
         outputs: ctx.products.map(p => ({ qty: qty[p.id] ?? 0, portionWeightG: p.portionWeightG, yieldPercent: p.yieldPercent })),
         band: ctx.band,
-    }) : null, [ctx, rawLb, wasteLb, qty]);
+    }) : null, [ctx, usedLb, wasteLb, qty]);
     const anyPortion = Object.values(qty).some(q => q > 0);
     const pickedBall = !hasPieces || pieceId !== null;
     const ready = pickedBall && rawLb > 0 && anyPortion && cooks.length > 0;
@@ -85,6 +94,8 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
             rawUnits: piece ? 1 : units > 0 ? units : null,
             rawWeightLb: rawLb,
             wasteWeightLb: wasteLb,
+            carryInLb,
+            carryOutLb,
             outputs: ctx.products.map(p => ({ ingredientId: p.id, qty: qty[p.id] ?? 0 })),
             cookIds: cooks,
         });
@@ -120,7 +131,7 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
 
     const balanceText = (() => {
         if (!math || !ctx) return '';
-        const vals = { raw: fmt(rawLb), produced: fmt(math.producedWeightLb), waste: fmt(wasteLb), diff: fmt(Math.abs(math.unaccountedLb)) };
+        const vals = { raw: fmt(usedLb), produced: fmt(math.producedWeightLb), waste: fmt(wasteLb), diff: fmt(Math.abs(math.unaccountedLb)) };
         if (rawLb <= 0) return '';
         if (math.flag === 'MISSING') return t('balanceMissing', vals);
         if (math.unaccountedLb < -math.toleranceLb) return t('balanceOver', vals);
@@ -163,8 +174,12 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                             {piece && piece.weightLb != null && (
                                 <div style={{ fontSize: '0.95rem' }}>{t('ballChosen', { n: piece.number, lb: fmt(piece.weightLb, 2) })}</div>
                             )}
-                            {ctx.looseLb * 453.59237 >= 5 && (
-                                <div style={sub}>{t('looseGoesIn', { g: Math.round(ctx.looseLb * 453.59237) })}</div>
+                            {looseG >= 5 && (
+                                <button type="button" role="checkbox" aria-checked={useLoose} onClick={() => setUseLoose(v => !v)}
+                                    style={{ alignSelf: 'flex-start', minHeight: 44, padding: '0 12px', borderRadius: 10, border: useLoose ? '1px solid rgba(16,185,129,0.5)' : '1px solid var(--border)', background: useLoose ? 'rgba(16,185,129,0.12)' : 'transparent', color: useLoose ? 'var(--success)' : 'var(--text-secondary)', fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: 5, border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{useLoose ? '✓' : ''}</span>
+                                    {t('looseUse', { g: looseG })}
+                                </button>
                             )}
                             {((piece && piece.weightLb == null) || pieceId === 'MANUAL') && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -229,6 +244,15 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    ))}
+
+                    {step(4, t('step4Title'), t('step4Hint'), (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <input type="number" inputMode="numeric" min="0" step="1" value={leftover} onChange={e => setLeftover(e.target.value)} placeholder="0" style={numBox} aria-label={t('step4Title')} />
+                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>g</span>
+                            {tag('var(--accent-primary)', t('tagLoose'))}
+                            <span style={sub}>{t('step4GoesTo')}</span>
                         </div>
                     ))}
 

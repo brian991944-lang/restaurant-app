@@ -453,7 +453,9 @@ model CleaningSession {
   wasteWeightLb    Float      @default(0)
   producedWeightLb Float      // Σ portions × portionWeightG, in lb
   yieldPct         Float      // producedWeightLb / rawWeightLb × 100
-  unaccountedLb    Float      // rawWeightLb − wasteWeightLb − producedWeightLb
+  unaccountedLb    Float      // (rawWeightLb + carryInLb − carryOutLb) − wasteWeightLb − producedWeightLb
+  carryInLb        Float      @default(0) // loose meat from before, used in this cleaning
+  carryOutLb       Float      @default(0) // loose meat left unportioned, kept for the next ball
   flag             String     // OK | LOW | HIGH | MISSING
   cookNames        String?
   note             String?
