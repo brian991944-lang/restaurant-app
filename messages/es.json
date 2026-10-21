@@ -208,7 +208,11 @@
     "source_btn": "🔗 Fuente",
     "categories_count": "{count, plural, one {# categoría} other {# categorías}}",
     "items_linked": "{count, plural, one {# artículo vinculado} other {# artículos vinculados}}",
-    "providers_count": "{count, plural, one {# proveedor} other {# proveedores}}"
+    "providers_count": "{count, plural, one {# proveedor} other {# proveedores}}",
+    "modal_portion_range": "Rango por porción (g)",
+    "modal_portion_range_min": "Mínimo (g)",
+    "modal_portion_range_max": "Máximo (g)",
+    "modal_portion_range_hint": "Lo que aceptas al cortar. La hoja de limpieza lo usa para cuadrar."
   },
   "Options": {
     "Seafood": "Mariscos",
@@ -1504,7 +1508,8 @@
     "looseUse": "Usé los {g} g de carne suelta en esta bola",
     "looseCorrection": "Ajuste en inventario {g} g",
     "leftoverShort": "sobró",
-    "leftoverBy": "Sobró: {list}"
+    "leftoverBy": "Sobró: {list}",
+    "unaccountedRange": "sin cuadrar {min}–{max} lb"
   },
   "AutoSync": {
     "running": "Actualizando ventas de Toast…",

@@ -48,6 +48,8 @@ function lbToMetric(metric: string): number | null {
 
 export interface CleaningProduct {
     id: string; name: string; nameEs: string | null; portionWeightG: number; yieldPercent: number; stock: number;
+    /** Accepted range per portion (g); null = portionWeightG. */
+    portionMinG: number | null; portionMaxG: number | null;
     /** The task (type PREP/TASK) under this product that the sheet closes, when one exists. */
     taskIngredientId: string | null;
 }
@@ -97,7 +99,7 @@ export async function getCleaningContext(rawIngredientId: string): Promise<{ suc
                     where: { type: 'PROCESSED', isActive: true },
                     orderBy: { name: 'asc' },
                     select: {
-                        id: true, name: true, nameEs: true, metric: true, portionWeightG: true, yieldPercent: true,
+                        id: true, name: true, nameEs: true, metric: true, portionWeightG: true, yieldPercent: true, portionMinG: true, portionMaxG: true,
                         inventory: { select: { frozenQty: true, thawingQty: true } },
                         prepItems: { where: { type: { in: ['PREP', 'TASK'] }, isActive: true }, orderBy: { name: 'asc' }, select: { id: true }, take: 1 },
                     },
@@ -120,6 +122,7 @@ export async function getCleaningContext(rawIngredientId: string): Promise<{ suc
         const mermaChild = raw.prepItems.find(p => isMerma(p.name)) ?? null;
         const products: CleaningProduct[] = raw.prepItems.filter(p => !isMerma(p.name)).map(p => ({
             id: p.id, name: p.name, nameEs: p.nameEs, portionWeightG: p.portionWeightG, yieldPercent: p.yieldPercent,
+            portionMinG: p.portionMinG, portionMaxG: p.portionMaxG,
             stock: stock(p.inventory), taskIngredientId: p.prepItems[0]?.id ?? null,
         }));
         if (products.length === 0) return fail(`${raw.name} no tiene productos (porciones) debajo.`);
@@ -222,7 +225,7 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
 
         const math = computeCleaning({
             rawWeightLb: usedLb, wasteWeightLb: input.wasteWeightLb,
-            outputs: wanted.map(o => ({ qty: o.qty, portionWeightG: byId.get(o.ingredientId)!.portionWeightG, yieldPercent: byId.get(o.ingredientId)!.yieldPercent })),
+            outputs: wanted.map(o => { const p = byId.get(o.ingredientId)!; return { qty: o.qty, portionWeightG: p.portionWeightG, yieldPercent: p.yieldPercent, portionMinG: p.portionMinG, portionMaxG: p.portionMaxG }; }),
             band,
         });
 
@@ -321,6 +324,8 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
                     rawWeightLb: input.rawWeightLb,
                     wasteWeightLb: input.wasteWeightLb,
                     producedWeightLb: math.producedWeightLb,
+                    producedMinLb: math.producedMinLb,
+                    producedMaxLb: math.producedMaxLb,
                     yieldPct: math.yieldPct,
                     unaccountedLb: math.unaccountedLb,
                     carryInLb,
@@ -463,6 +468,8 @@ export async function undoCleaningSession(sessionId: string): Promise<{ success:
 export interface CleaningHistoryRow {
     id: string; createdAt: string; cookNames: string | null; rawUnits: number | null; rawWeightLb: number; wasteWeightLb: number;
     producedWeightLb: number; yieldPct: number; unaccountedLb: number; flag: string;
+    /** With the portion ranges: yield lightest–heaviest, unaccounted best–worst case. */
+    yieldMinPct: number; yieldMaxPct: number; unaccountedMinLb: number; unaccountedMaxLb: number;
     outputs: { ingredientId: string; name: string; nameEs: string | null; qty: number; isWaste: boolean; leftoverG: number }[];
     /** Ball number, when the session cleaned a registered ball. */
     pieceNumber: number | null;
@@ -514,6 +521,14 @@ export async function getCleaningHistory(rawIngredientId: string, days = 30): Pr
         const rows: CleaningHistoryRow[] = sessions.map(s => ({
             id: s.id, createdAt: s.createdAt.toISOString(), cookNames: s.cookNames, rawUnits: s.rawUnits, rawWeightLb: s.rawWeightLb,
             wasteWeightLb: s.wasteWeightLb, producedWeightLb: s.producedWeightLb, yieldPct: s.yieldPct, unaccountedLb: s.unaccountedLb, flag: s.flag,
+            ...(() => {
+                const used = effectiveRaw(s);
+                const lo = s.producedMinLb ?? s.producedWeightLb, hi = s.producedMaxLb ?? s.producedWeightLb;
+                return {
+                    yieldMinPct: used > 0 ? (lo / used) * 100 : 0, yieldMaxPct: used > 0 ? (hi / used) * 100 : 0,
+                    unaccountedMinLb: used - s.wasteWeightLb - hi, unaccountedMaxLb: used - s.wasteWeightLb - lo,
+                };
+            })(),
             outputs: s.outputs.map(o => ({ ingredientId: o.ingredientId, name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste, leftoverG: o.leftoverG })),
             pieceNumber: s.rawPiece?.number ?? null,
             carryInLb: s.carryInLb,

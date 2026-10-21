@@ -208,7 +208,11 @@
     "source_btn": "🔗 Source",
     "categories_count": "{count, plural, one {# category} other {# categories}}",
     "items_linked": "{count, plural, one {# item linked} other {# items linked}}",
-    "providers_count": "{count, plural, one {# supplier} other {# suppliers}}"
+    "providers_count": "{count, plural, one {# supplier} other {# suppliers}}",
+    "modal_portion_range": "Range per portion (g)",
+    "modal_portion_range_min": "Minimum (g)",
+    "modal_portion_range_max": "Maximum (g)",
+    "modal_portion_range_hint": "What you accept when cutting. The cleaning sheet uses it to balance."
   },
   "Options": {
     "Seafood": "Seafood",
@@ -1504,7 +1508,8 @@
     "looseUse": "I used the {g} g of loose meat in this ball",
     "looseCorrection": "Inventory correction {g} g",
     "leftoverShort": "left",
-    "leftoverBy": "Left over: {list}"
+    "leftoverBy": "Left over: {list}",
+    "unaccountedRange": "unaccounted {min}–{max} lb"
   },
   "AutoSync": {
     "running": "Updating Toast sales…",

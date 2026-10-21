@@ -429,7 +429,9 @@ export async function getInventarioOverview() {
             for (const s of sessions) {
                 lastCleaningByRaw.set(s.rawIngredientId, {
                     createdAt: s.createdAt.toISOString(), cookNames: s.cookNames, rawUnits: s.rawUnits, rawWeightLb: s.rawWeightLb, wasteWeightLb: s.wasteWeightLb,
-                    yieldPct: s.yieldPct, unaccountedLb: s.unaccountedLb, flag: s.flag,
+                    yieldPct: s.yieldPct, flag: s.flag,
+                    // Best case (portions at their heaviest accepted weight) — what the flag is based on.
+                    unaccountedLb: (s.rawWeightLb + s.carryInLb - s.carryOutLb) - s.wasteWeightLb - (s.producedMaxLb ?? s.producedWeightLb),
                     outputs: s.outputs.filter(o => o.isWaste || o.qty > 0).map(o => ({ name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste })),
                 });
             }
@@ -539,6 +541,8 @@ export async function addIngredient(data: any) {
                 metric: data.metric || 'units',
                 providerId: providerId,
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : 1000,
+                portionMinG: data.portionMinG > 0 ? Number(data.portionMinG) : null,
+                portionMaxG: data.portionMaxG > 0 ? Number(data.portionMaxG) : null,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : false,
                 allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : false,
@@ -652,6 +656,9 @@ export async function editIngredient(id: string, data: any) {
                 metric: data.metric || 'units',
                 providerId: providerId !== undefined ? providerId : undefined,
                 portionWeightG: data.portionSize !== null && data.portionSize !== undefined ? parseFloat(data.portionSize) : undefined,
+                // Only the edit modal sends the range; other callers leave it as is.
+                portionMinG: 'portionMinG' in data ? (data.portionMinG > 0 ? Number(data.portionMinG) : null) : undefined,
+                portionMaxG: 'portionMaxG' in data ? (data.portionMaxG > 0 ? Number(data.portionMaxG) : null) : undefined,
                 yieldPercent: data.yieldPercent !== undefined ? data.yieldPercent : 100,
                 trackFreezerStatus: data.trackFreezerStatus !== undefined ? data.trackFreezerStatus : undefined,
                 allowNegativeStock: data.allowNegativeStock !== undefined ? data.allowNegativeStock : undefined,

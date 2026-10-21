@@ -55,6 +55,8 @@ model Ingredient {
   providerId     String?
   provider       Provider? @relation(fields: [providerId], references: [id])
   portionWeightG Float     @default(1000.0)
+  portionMinG    Float?    // accepted range per portion (g), used by the hoja de limpieza; null = portionWeightG
+  portionMaxG    Float?
   metric         String    @default("units")
   currentPrice   Float     @default(0.0)
   yieldPercent   Float     @default(100.0)
@@ -452,6 +454,8 @@ model CleaningSession {
   rawWeightLb      Float
   wasteWeightLb    Float      @default(0)
   producedWeightLb Float      // Σ portions × portionWeightG, in lb
+  producedMinLb    Float?     // Σ portions × portionMinG (null on sessions saved before ranges)
+  producedMaxLb    Float?     // Σ portions × portionMaxG
   yieldPct         Float      // producedWeightLb / rawWeightLb × 100
   unaccountedLb    Float      // (rawWeightLb + carryInLb − carryOutLb) − wasteWeightLb − producedWeightLb
   carryInLb        Float      @default(0) // loose meat from before, used in this cleaning

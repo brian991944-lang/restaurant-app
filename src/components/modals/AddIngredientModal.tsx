@@ -73,6 +73,9 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
     const [recipeYield, setRecipeYield] = useState<number>(1);
     const [components, setComponents] = useState<{ id: string, ingredientId: string, quantity: string, unit: string }[]>([]);
     const [portionSize, setPortionSize] = useState<number>(1);
+    // Accepted range per portion in grams (hoja de limpieza): e.g. lomo 180–185. Empty = the portion weight.
+    const [portionMin, setPortionMin] = useState('');
+    const [portionMax, setPortionMax] = useState('');
     const [portionUnit, setPortionUnit] = useState<string>('g');
     const [selectedMetric, setSelectedMetric] = useState<string>('Units');
     const [selectedParentId, setSelectedParentId] = useState<string>('');
@@ -259,6 +262,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                 setIsPortioned(false);
             }
             setPortionSize(initialData?.portionWeightG || 1);
+            setPortionMin(initialData?.portionMinG != null ? String(initialData.portionMinG) : '');
+            setPortionMax(initialData?.portionMaxG != null ? String(initialData.portionMaxG) : '');
             setCloverId(initialData?.cloverId || '');
             setMappingMultiplier(initialData?.mappingMultiplier ?? 1);
             setTrackFreezerStatus(initialData?.trackFreezerStatus ?? false);
@@ -392,6 +397,8 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
             isPortioned: currentType === 'PROCESSED' ? isPortioned : false,
             portionSize: currentType === 'PROCESSED' && isPortioned ? portionSize : null,
             portionUnit: currentType === 'PROCESSED' && isPortioned ? portionUnit : null,
+            portionMinG: currentType === 'PROCESSED' && isPortioned && parseFloat(portionMin) > 0 ? parseFloat(portionMin) : null,
+            portionMaxG: currentType === 'PROCESSED' && isPortioned && parseFloat(portionMax) > 0 ? parseFloat(portionMax) : null,
             cloverId: cloverId || null,
             mappingMultiplier: mappingMultiplier,
             unfrozenQuantity: trackFreezerStatus ? getFinalQuantity(unfrozenStock) : undefined,
@@ -874,6 +881,17 @@ export default function AddIngredientModal({ isOpen, onClose, onSave, initialDat
                                             onChange={setPortionUnit}
                                             options={ALLOWED_METRICS.filter(m => m.toLowerCase() !== 'units').map(m => ({ value: m, label: m }))}
                                         />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('modal_portion_range')}</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <input type="number" step="1" min="0" className="input-field" value={portionMin} placeholder={String(portionSize || '')}
+                                                onChange={e => setPortionMin(e.target.value)} aria-label={t('modal_portion_range_min')} style={{ minWidth: 0 }} />
+                                            <span style={{ color: 'var(--text-secondary)' }}>–</span>
+                                            <input type="number" step="1" min="0" className="input-field" value={portionMax} placeholder={String(portionSize || '')}
+                                                onChange={e => setPortionMax(e.target.value)} aria-label={t('modal_portion_range_max')} style={{ minWidth: 0 }} />
+                                        </div>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{t('modal_portion_range_hint')}</span>
                                     </div>
                                 </>
                             )}

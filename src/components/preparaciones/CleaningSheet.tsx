@@ -129,15 +129,18 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
         MISSING: { bg: 'rgba(239,68,68,0.12)', fg: 'var(--danger)', border: 'rgba(239,68,68,0.4)' },
     };
 
+    // "11.6–12.1" when the portion ranges make a spread, a single number otherwise.
+    const span = (a: number, b: number, d = 1) => (fmt(a, d) === fmt(b, d) ? fmt(a, d) : `${fmt(Math.min(a, b), d)}–${fmt(Math.max(a, b), d)}`);
     const balanceText = (() => {
         if (!math || !ctx) return '';
-        const vals = { raw: fmt(usedLb), produced: fmt(math.producedWeightLb), waste: fmt(wasteLb), diff: fmt(Math.abs(math.unaccountedLb)) };
         if (rawLb <= 0) return '';
-        if (math.flag === 'MISSING') return t('balanceMissing', vals);
-        if (math.unaccountedLb < -math.toleranceLb) return t('balanceOver', vals);
-        return t('balanceOk', vals);
+        const base = { raw: fmt(usedLb), produced: span(math.producedMinLb, math.producedMaxLb), waste: fmt(wasteLb) };
+        // Missing = even the heaviest portions leave this much; over = even the lightest are too many.
+        if (math.flag === 'MISSING') return t('balanceMissing', { ...base, diff: fmt(math.unaccountedMinLb) });
+        if (math.unaccountedMaxLb < -math.toleranceLb) return t('balanceOver', { ...base, diff: fmt(-math.unaccountedMaxLb) });
+        return t('balanceOk', { ...base, diff: span(Math.abs(math.unaccountedMinLb), Math.abs(math.unaccountedMaxLb)) });
     })();
-    const flagText = math?.flag === 'LOW' ? t('lowYield') : math?.flag === 'HIGH' && math.unaccountedLb >= -math.toleranceLb ? t('highYield') : '';
+    const flagText = math?.flag === 'LOW' ? t('lowYield') : math?.flag === 'HIGH' && math.unaccountedMaxLb >= -math.toleranceLb ? t('highYield') : '';
 
     return (
         <div style={overlay} onMouseDown={e => { if (e.target === e.currentTarget && !busy) onClose(); }}>
@@ -234,7 +237,7 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                                 <div key={p.id} className="inv-k-proc" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.5rem 0.75rem', borderRadius: '12px', background: 'rgba(139,92,246,0.10)', border: '1px solid rgba(139,92,246,0.45)' }}>
                                     <div style={{ minWidth: 0, flex: '1 1 160px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span style={{ fontSize: '0.95rem', fontWeight: 600 }}>{display(p)}</span>{tag('var(--accent-secondary)', t('tagPortions'))}</div>
-                                        <div style={sub}>{t('perPortion', { g: fmt(p.portionWeightG, 0) })}</div>
+                                        <div style={sub}>{t('perPortion', { g: span(p.portionMinG ?? p.portionWeightG, p.portionMaxG ?? p.portionWeightG, 0) })}</div>
                                     </div>
                                     {/* Left short of a portion: stays as loose meat, not merma. */}
                                     <label style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, ...sub }}>
@@ -262,7 +265,7 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                         <div style={{ margin: '0.6rem 0 0.2rem', padding: '0.8rem 0.9rem', borderRadius: '12px', background: FLAG[math.flag].bg, border: `1px solid ${FLAG[math.flag].border}`, display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
                                 <span style={{ fontSize: '0.95rem', fontWeight: 600, color: FLAG[math.flag].fg }}>{t('yield')}</span>
-                                <span style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1, color: FLAG[math.flag].fg }}>{fmt(math.yieldPct, 0)}% <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>· {t('expected', { min: fmt(ctx.band.min, 0), max: fmt(ctx.band.max, 0) })}{math.flag === 'OK' ? ' ✓' : ''}</span></span>
+                                <span style={{ fontSize: '1.7rem', fontWeight: 700, lineHeight: 1, color: FLAG[math.flag].fg }}>{span(math.yieldMinPct, math.yieldMaxPct, 0)}% <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>· {t('expected', { min: fmt(ctx.band.min, 0), max: fmt(ctx.band.max, 0) })}{math.flag === 'OK' ? ' ✓' : ''}</span></span>
                             </div>
                             <div style={{ height: 8, borderRadius: 999, background: 'rgba(127,127,127,0.18)', position: 'relative', overflow: 'hidden' }}>
                                 <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${Math.min(100, Math.max(0, math.yieldPct))}%`, background: FLAG[math.flag].fg, borderRadius: 999 }} />

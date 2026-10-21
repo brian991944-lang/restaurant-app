@@ -107,9 +107,16 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
                                                 </div>
                                             )}
                                         </td>
-                                        <td style={{ ...td, fontWeight: 700 }}>{fmt(r.yieldPct, 0)}%</td>
+                                        <td style={{ ...td, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                            {fmt(r.yieldMinPct, 0) === fmt(r.yieldMaxPct, 0) ? fmt(r.yieldPct, 0) : `${fmt(r.yieldMinPct, 0)}–${fmt(r.yieldMaxPct, 0)}`}%
+                                        </td>
                                         <td style={td}>
-                                            <FlagChip flag={r.flag} unaccountedLb={r.unaccountedLb} t={t} />
+                                            <FlagChip flag={r.flag} unaccountedLb={r.unaccountedMinLb} t={t} />
+                                            {r.flag === 'OK' && Math.abs(r.unaccountedMaxLb - r.unaccountedMinLb) >= 0.01 && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap' }}>
+                                                    {t('unaccountedRange', { min: fmt(Math.max(0, r.unaccountedMinLb), 2), max: fmt(Math.max(0, r.unaccountedMaxLb), 2) })}
+                                                </div>
+                                            )}
                                             {[
                                                 r.carryInLb >= 0.005 ? t('looseUsed', { g: Math.round(r.carryInLb * 453.59237) }) : null,
                                                 r.carryOutLb >= 0.005 && !r.outputs.some(o => o.leftoverG > 0) ? t('looseLeft', { g: Math.round(r.carryOutLb * 453.59237) }) : null,
