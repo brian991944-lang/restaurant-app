@@ -497,6 +497,7 @@ model CleaningOutput {
   qty            Float           // portions, or lb for the merma row
   portionWeightG Float?          // snapshot of the child's portion weight (null for merma)
   isWaste        Boolean         @default(false)
+  leftoverG      Float           @default(0) // grams of this product's cut left short of a portion (kept as loose meat)
   session        CleaningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   ingredient     Ingredient      @relation(fields: [ingredientId], references: [id])
 

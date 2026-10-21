@@ -430,7 +430,7 @@ export async function getInventarioOverview() {
                 lastCleaningByRaw.set(s.rawIngredientId, {
                     createdAt: s.createdAt.toISOString(), cookNames: s.cookNames, rawUnits: s.rawUnits, rawWeightLb: s.rawWeightLb, wasteWeightLb: s.wasteWeightLb,
                     yieldPct: s.yieldPct, unaccountedLb: s.unaccountedLb, flag: s.flag,
-                    outputs: s.outputs.map(o => ({ name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste })),
+                    outputs: s.outputs.filter(o => o.isWaste || o.qty > 0).map(o => ({ name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste })),
                 });
             }
         }

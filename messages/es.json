@@ -1439,7 +1439,7 @@
     "mermaGoesTo": "va a «{name}» en el congelador",
     "noMerma": "sin bloque de merma: solo se registra",
     "step3Title": "¿Cuántas porciones salieron?",
-    "step3Hint": "Una fila por producto. Déjalo en 0 si hoy no se cortó.",
+    "step3Hint": "Una fila por producto. «Sobró» = lo que no alcanzó para una porción: queda como carne suelta, no es merma.",
     "perPortion": "{g} g por porción",
     "yield": "Rendimiento",
     "expected": "esperado {min}–{max}%",
@@ -1501,12 +1501,10 @@
     "looseLeft": "Sobró {g} g",
     "looseUsed": "+{g} g de antes",
     "looseNet": "sin cuadrar {lb} lb",
-    "step4Title": "¿Sobró carne sin porcionar?",
-    "step4Hint": "Trozos que no alcanzaron para una porción de lomo o chaufa. No es merma.",
-    "step4GoesTo": "queda como carne suelta para la próxima bola",
-    "tagLoose": "SUELTA",
     "looseUse": "Usé los {g} g de carne suelta en esta bola",
-    "looseCorrection": "Ajuste en inventario {g} g"
+    "looseCorrection": "Ajuste en inventario {g} g",
+    "leftoverShort": "sobró",
+    "leftoverBy": "Sobró: {list}"
   },
   "AutoSync": {
     "running": "Actualizando ventas de Toast…",

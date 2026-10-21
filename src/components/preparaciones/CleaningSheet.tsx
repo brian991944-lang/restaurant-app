@@ -35,8 +35,8 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
     const [pieceId, setPieceId] = useState<string | 'MANUAL' | null>(null);
     // The kitchen weighs merma in grams; lb stays available.
     const [wasteUnit, setWasteUnit] = useState<'g' | 'lb'>('g');
-    // Leftover too small for a portion (g), kept as loose raw meat for the next ball.
-    const [leftover, setLeftover] = useState('');
+    // Per product: grams of its cut left short of a portion, kept as loose raw meat for the next ball.
+    const [left, setLeft] = useState<Record<string, string>>({});
     // Loose meat from before goes into this ball unless the cook unticks it.
     const [useLoose, setUseLoose] = useState(true);
 
@@ -62,7 +62,8 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
     const wasteLb = (parseFloat(waste) || 0) / (wasteUnit === 'g' ? 453.59237 : 1);
     const looseG = ctx ? Math.round(ctx.looseLb * 453.59237) : 0;
     const carryInLb = ctx && useLoose && looseG >= 5 ? ctx.looseLb : 0;
-    const carryOutLb = (parseFloat(leftover) || 0) / 453.59237;
+    const leftG = (id: string) => Math.max(0, parseFloat(left[id] ?? '') || 0);
+    const carryOutLb = ctx ? ctx.products.reduce((a, p) => a + leftG(p.id), 0) / 453.59237 : 0;
     // The meat that really went through: ball + loose used − leftover kept.
     const usedLb = rawLb > 0 ? rawLb + carryInLb - carryOutLb : 0;
 
@@ -95,8 +96,7 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
             rawWeightLb: rawLb,
             wasteWeightLb: wasteLb,
             carryInLb,
-            carryOutLb,
-            outputs: ctx.products.map(p => ({ ingredientId: p.id, qty: qty[p.id] ?? 0 })),
+            outputs: ctx.products.map(p => ({ ingredientId: p.id, qty: qty[p.id] ?? 0, leftoverG: leftG(p.id) })),
             cookIds: cooks,
         });
         setBusy(false);
@@ -179,6 +179,7 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                                     style={{ alignSelf: 'flex-start', minHeight: 44, padding: '0 12px', borderRadius: 10, border: useLoose ? '1px solid rgba(16,185,129,0.5)' : '1px solid var(--border)', background: useLoose ? 'rgba(16,185,129,0.12)' : 'transparent', color: useLoose ? 'var(--success)' : 'var(--text-secondary)', fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span aria-hidden="true" style={{ width: 20, height: 20, borderRadius: 5, border: '2px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13 }}>{useLoose ? '✓' : ''}</span>
                                     {t('looseUse', { g: looseG })}
+                                    {ctx.looseBreakdown.length > 0 && <span style={{ fontWeight: 500 }}>({ctx.looseBreakdown.map(b => `${display(b)} ${b.g} g`).join(' · ')})</span>}
                                 </button>
                             )}
                             {((piece && piece.weightLb == null) || pieceId === 'MANUAL') && (
@@ -230,11 +231,20 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                     {step(3, t('step3Title'), t('step3Hint'), (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             {ctx.products.map(p => (
-                                <div key={p.id} className="inv-k-proc" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '12px', background: 'rgba(139,92,246,0.10)', border: '1px solid rgba(139,92,246,0.45)' }}>
-                                    <div style={{ minWidth: 0 }}>
+                                <div key={p.id} className="inv-k-proc" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', padding: '0.5rem 0.75rem', borderRadius: '12px', background: 'rgba(139,92,246,0.10)', border: '1px solid rgba(139,92,246,0.45)' }}>
+                                    <div style={{ minWidth: 0, flex: '1 1 160px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><span style={{ fontSize: '0.95rem', fontWeight: 600 }}>{display(p)}</span>{tag('var(--accent-secondary)', t('tagPortions'))}</div>
                                         <div style={sub}>{t('perPortion', { g: fmt(p.portionWeightG, 0) })}</div>
                                     </div>
+                                    {/* Left short of a portion: stays as loose meat, not merma. */}
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, ...sub }}>
+                                        {t('leftoverShort')}
+                                        <input type="number" inputMode="numeric" min="0" step="1" value={left[p.id] ?? ''} placeholder="0"
+                                            onChange={e => setLeft(l => ({ ...l, [p.id]: e.target.value }))}
+                                            aria-label={`${t('leftoverShort')} · ${display(p)}`}
+                                            style={{ width: 72, height: 44, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 600, textAlign: 'center', fontFamily: 'inherit' }} />
+                                        g
+                                    </label>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                                         <button type="button" aria-label="−" style={stepBtn(false)} onClick={() => setQty(q => ({ ...q, [p.id]: Math.max(0, (q[p.id] ?? 0) - 1) }))}>−</button>
                                         <input type="number" inputMode="numeric" min="0" step="1" value={qty[p.id] ?? 0}
@@ -244,15 +254,6 @@ export default function CleaningSheet({ rawId, locale, defaultCookIds = [], onCl
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    ))}
-
-                    {step(4, t('step4Title'), t('step4Hint'), (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                            <input type="number" inputMode="numeric" min="0" step="1" value={leftover} onChange={e => setLeftover(e.target.value)} placeholder="0" style={numBox} aria-label={t('step4Title')} />
-                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>g</span>
-                            {tag('var(--accent-primary)', t('tagLoose'))}
-                            <span style={sub}>{t('step4GoesTo')}</span>
                         </div>
                     ))}
 

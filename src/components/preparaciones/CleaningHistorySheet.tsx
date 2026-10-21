@@ -99,13 +99,20 @@ export default function CleaningHistorySheet({ rawId, rawName, locale, onClose }
                                         <td style={{ ...td, fontWeight: r.pieceNumber != null ? 700 : 400 }}>{r.pieceNumber != null ? `#${r.pieceNumber}` : r.rawUnits != null ? fmt(r.rawUnits, 0) : '—'}</td>
                                         <td style={td}>{fmt(r.rawWeightLb)}</td>
                                         <td style={td}>{fmt(r.wasteWeightLb)}</td>
-                                        <td style={td}>{r.outputs.filter(o => !o.isWaste).map(o => `${fmt(o.qty, 0)} ${display(o)}`).join(' · ') || '—'}</td>
+                                        <td style={td}>
+                                            {r.outputs.filter(o => !o.isWaste && o.qty > 0).map(o => `${fmt(o.qty, 0)} ${display(o)}`).join(' · ') || '—'}
+                                            {r.outputs.some(o => o.leftoverG > 0) && (
+                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                                                    {t('leftoverBy', { list: r.outputs.filter(o => o.leftoverG > 0).map(o => `${Math.round(o.leftoverG)} g ${display(o)}`).join(' · ') })}
+                                                </div>
+                                            )}
+                                        </td>
                                         <td style={{ ...td, fontWeight: 700 }}>{fmt(r.yieldPct, 0)}%</td>
                                         <td style={td}>
                                             <FlagChip flag={r.flag} unaccountedLb={r.unaccountedLb} t={t} />
                                             {[
                                                 r.carryInLb >= 0.005 ? t('looseUsed', { g: Math.round(r.carryInLb * 453.59237) }) : null,
-                                                r.carryOutLb >= 0.005 ? t('looseLeft', { g: Math.round(r.carryOutLb * 453.59237) }) : null,
+                                                r.carryOutLb >= 0.005 && !r.outputs.some(o => o.leftoverG > 0) ? t('looseLeft', { g: Math.round(r.carryOutLb * 453.59237) }) : null,
                                                 Math.abs(r.countLb) >= 0.005 ? t('looseCorrection', { g: `${r.countLb > 0 ? '+' : '−'}${Math.round(Math.abs(r.countLb) * 453.59237)}` }) : null,
                                             ].filter(Boolean).map((line, i) => (
                                                 <div key={i} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4, whiteSpace: 'nowrap' }}>{line}</div>

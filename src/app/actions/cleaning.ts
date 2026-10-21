@@ -65,6 +65,7 @@ export interface CleaningContext {
     pieces: { id: string; number: number; weightLb: number | null }[];
     /** Loose meat counted at the last closing, still in stock (lb). */
     looseLb: number;
+    looseBreakdown: { name: string; nameEs: string | null; g: number }[];
 }
 
 const GRAMS_PER_LB = 453.59237;
@@ -102,7 +103,13 @@ export async function getCleaningContext(rawIngredientId: string): Promise<{ suc
                     },
                 },
                 purchaseLines: { orderBy: { createdAt: 'desc' }, take: 1, select: { qty: true, unit: true, totalWeightLb: true, receipt: { select: { purchasedAt: true } } } },
-                cleaningSessions: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true, rawUnits: true, rawWeightLb: true, yieldPct: true, flag: true } },
+                cleaningSessions: {
+                    orderBy: { createdAt: 'desc' }, take: 1,
+                    select: {
+                        createdAt: true, rawUnits: true, rawWeightLb: true, yieldPct: true, flag: true,
+                        outputs: { where: { leftoverG: { gt: 0 } }, select: { leftoverG: true, ingredient: { select: { name: true, nameEs: true } } } },
+                    },
+                },
             },
         });
         if (!raw) return fail('Ingrediente no encontrado.');
@@ -140,6 +147,10 @@ export async function getCleaningContext(rawIngredientId: string): Promise<{ suc
                 pieces,
                 // Only meaningful once balls are registered (otherwise all stock is "loose").
                 looseLb: pieces.length > 0 ? looseLb : 0,
+                // What the last cleaning left, by product — the label on the "usé la carne suelta" tick.
+                looseBreakdown: pieces.length > 0 && looseLb > 0
+                    ? (s?.outputs ?? []).map(o => ({ name: o.ingredient.name, nameEs: o.ingredient.nameEs, g: Math.round(o.leftoverG) }))
+                    : [],
             },
         };
     } catch (e: any) {
@@ -155,7 +166,8 @@ export interface CleaningInput {
     rawUnits?: number | null;
     rawWeightLb: number;
     wasteWeightLb: number;
-    outputs: { ingredientId: string; qty: number }[];
+    /** Per product: portions, and grams of its cut left short of a portion (kept as loose meat). */
+    outputs: { ingredientId: string; qty: number; leftoverG?: number | null }[];
     cookIds: string[];
     note?: string | null;
     /** The ball being cleaned. Its receipt weight wins over rawWeightLb; an unweighed ball takes rawWeightLb. */
@@ -185,8 +197,14 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
         if (!(input.rawWeightLb > 0)) return fail('Escribe el peso crudo.');
         if (!(input.wasteWeightLb >= 0)) return fail('La merma no puede ser negativa.');
         if (!input.cookIds?.length) return fail('Elige quién limpió.');
+        const leftoverOf = (o: { leftoverG?: number | null }) => Math.max(0, Number(o.leftoverG) || 0);
         const wanted = input.outputs.filter(o => o.qty > 0);
         if (wanted.length === 0) return fail('Escribe al menos una porción.');
+        // Rows saved on the session: any with portions or with a leftover.
+        const rowsOut = input.outputs.filter(o => o.qty > 0 || leftoverOf(o) > 0);
+        // Leftover per product adds up to the loose meat kept (overrides a bare carryOutLb).
+        const leftoverTotalG = input.outputs.reduce((a, o) => a + leftoverOf(o), 0);
+        if (leftoverTotalG > 0) input = { ...input, carryOutLb: leftoverTotalG / GRAMS_PER_LB };
 
         const ctx = await getCleaningContext(input.rawIngredientId);
         if (!ctx.success) return ctx;
@@ -199,7 +217,7 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
         const usedLb = effectiveRaw(input);
 
         const byId = new Map(products.map(p => [p.id, p]));
-        for (const o of wanted) if (!byId.has(o.ingredientId)) return fail('Producto desconocido en la hoja.');
+        for (const o of rowsOut) if (!byId.has(o.ingredientId)) return fail('Producto desconocido en la hoja.');
         if (input.wasteWeightLb > 0 && merma && !isWeightMetric(merma.metric)) return fail(`${merma.name} no se mide por peso.`);
 
         const math = computeCleaning({
@@ -313,7 +331,7 @@ export async function completeCleaningSession(input: CleaningInput): Promise<{ s
                     assignmentIds,
                     outputs: {
                         create: [
-                            ...wanted.map(o => ({ ingredientId: o.ingredientId, qty: o.qty, portionWeightG: byId.get(o.ingredientId)!.portionWeightG, isWaste: false })),
+                            ...rowsOut.map(o => ({ ingredientId: o.ingredientId, qty: o.qty, portionWeightG: byId.get(o.ingredientId)!.portionWeightG, isWaste: false, leftoverG: leftoverOf(o) })),
                             ...(merma && input.wasteWeightLb > 0 ? [{ ingredientId: merma.id, qty: input.wasteWeightLb, portionWeightG: null as number | null, isWaste: true }] : []),
                         ],
                     },
@@ -411,6 +429,7 @@ export async function undoCleaningSession(sessionId: string): Promise<{ success:
             });
             void rawInv;
             for (const o of session.outputs) {
+                if (!o.isWaste && o.qty === 0) continue; // a leftover-only row moved no portions
                 const qty = o.isWaste ? o.qty * (lbToMetric(o.ingredient.metric) ?? 1) : o.qty;
                 const inv = await tx.inventory.findUnique({ where: { ingredientId: o.ingredientId } });
                 if (inv) {
@@ -444,7 +463,7 @@ export async function undoCleaningSession(sessionId: string): Promise<{ success:
 export interface CleaningHistoryRow {
     id: string; createdAt: string; cookNames: string | null; rawUnits: number | null; rawWeightLb: number; wasteWeightLb: number;
     producedWeightLb: number; yieldPct: number; unaccountedLb: number; flag: string;
-    outputs: { ingredientId: string; name: string; nameEs: string | null; qty: number; isWaste: boolean }[];
+    outputs: { ingredientId: string; name: string; nameEs: string | null; qty: number; isWaste: boolean; leftoverG: number }[];
     /** Ball number, when the session cleaned a registered ball. */
     pieceNumber: number | null;
     /** Loose meat used from before / kept for the next ball, as entered on the sheet (lb). */
@@ -495,7 +514,7 @@ export async function getCleaningHistory(rawIngredientId: string, days = 30): Pr
         const rows: CleaningHistoryRow[] = sessions.map(s => ({
             id: s.id, createdAt: s.createdAt.toISOString(), cookNames: s.cookNames, rawUnits: s.rawUnits, rawWeightLb: s.rawWeightLb,
             wasteWeightLb: s.wasteWeightLb, producedWeightLb: s.producedWeightLb, yieldPct: s.yieldPct, unaccountedLb: s.unaccountedLb, flag: s.flag,
-            outputs: s.outputs.map(o => ({ ingredientId: o.ingredientId, name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste })),
+            outputs: s.outputs.map(o => ({ ingredientId: o.ingredientId, name: o.ingredient.name, nameEs: o.ingredient.nameEs, qty: o.qty, isWaste: o.isWaste, leftoverG: o.leftoverG })),
             pieceNumber: s.rawPiece?.number ?? null,
             carryInLb: s.carryInLb,
             carryOutLb: s.carryOutLb,

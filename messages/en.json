@@ -1439,7 +1439,7 @@
     "mermaGoesTo": "goes to “{name}” in the freezer",
     "noMerma": "no trim block: recorded only",
     "step3Title": "How many portions came out?",
-    "step3Hint": "One row per product. Leave 0 if it wasn't cut today.",
+    "step3Hint": "One row per product. \"Left\" = what was short of a portion: it stays as loose meat, not trim.",
     "perPortion": "{g} g per portion",
     "yield": "Yield",
     "expected": "expected {min}–{max}%",
@@ -1501,12 +1501,10 @@
     "looseLeft": "{g} g left over",
     "looseUsed": "+{g} g from before",
     "looseNet": "unaccounted {lb} lb",
-    "step4Title": "Any meat left unportioned?",
-    "step4Hint": "Pieces too small for a lomo or chaufa portion. Not trim.",
-    "step4GoesTo": "stays as loose meat for the next ball",
-    "tagLoose": "LOOSE",
     "looseUse": "I used the {g} g of loose meat in this ball",
-    "looseCorrection": "Inventory correction {g} g"
+    "looseCorrection": "Inventory correction {g} g",
+    "leftoverShort": "left",
+    "leftoverBy": "Left over: {list}"
   },
   "AutoSync": {
     "running": "Updating Toast sales…",
