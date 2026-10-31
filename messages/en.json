@@ -1868,5 +1868,17 @@
     "subtitle": "Set items to drop into the Morning Prep Schedule automatically on specific days.",
     "active_rules": "Active rules:",
     "add_weekly_rule": "+ Add New Weekly Rule"
+  },
+  "SalonLive": {
+    "liveNote": "Live from Toast: the last count minus what has sold (paid and open) since.",
+    "salesAsOf": "Toast sales as of {time}",
+    "salesNotYet": "Today's Toast sales haven't been read yet.",
+    "colSold": "Sold",
+    "countedOn": "Counted: {date}",
+    "noCount": "No count yet",
+    "countedAtLabel": "Counted at",
+    "countedAtHint": "Changing Bodega or Front saves a new count at this time; Toast sales are subtracted from then on.",
+    "errCountTime": "The count time is invalid or in the future.",
+    "errCountToast": "Couldn't read Toast for the count's day. Nothing was saved; try again."
   }
 }

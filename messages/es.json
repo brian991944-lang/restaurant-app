@@ -1868,5 +1868,17 @@
     "subtitle": "Programa ítems para que entren automáticamente al Cronograma de Prep de la mañana en días específicos.",
     "active_rules": "Reglas activas:",
     "add_weekly_rule": "+ Agregar Regla Semanal"
+  },
+  "SalonLive": {
+    "liveNote": "En vivo con Toast: el último conteo menos lo vendido (pagado y abierto) desde entonces.",
+    "salesAsOf": "Ventas de Toast al {time}",
+    "salesNotYet": "Las ventas de Toast de hoy todavía no se han leído.",
+    "colSold": "Vendidos",
+    "countedOn": "Conteo: {date}",
+    "noCount": "Sin conteo",
+    "countedAtLabel": "Contado a las",
+    "countedAtHint": "Si cambias Bodega o Front se guarda un conteo nuevo a esta hora; desde ahí se restan las ventas de Toast.",
+    "errCountTime": "La hora del conteo no es válida o está en el futuro.",
+    "errCountToast": "No se pudo leer Toast para el día del conteo. No se guardó nada; intenta de nuevo."
   }
 }

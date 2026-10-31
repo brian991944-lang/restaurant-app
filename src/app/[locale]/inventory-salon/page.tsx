@@ -1,17 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useLocale, useTranslations } from 'next-intl';
 import { ChevronDown, ChevronRight, Download, RefreshCw, Package, Pencil, Tags, Trash2 } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
 import { fetchCloverItemsForSalon, importSalonDrinksFromClover, pushSalonItemToClover, syncSalonFromClover } from '@/app/actions/clover';
 import {
-    getSalonStock, updateSalonStock,
+    getSalonLiveStock, refreshSalonSales, updateSalonStock,
     getSalonGroups, createSalonGroup, renameSalonGroup, deleteSalonGroup
 } from '@/app/actions/inventory';
 
 type CloverResult = Awaited<ReturnType<typeof fetchCloverItemsForSalon>>;
 type CloverItem = CloverResult['items'][number];
-type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
+type SalonRow = Awaited<ReturnType<typeof getSalonLiveStock>>['rows'][number];
 type ImportResult = Awaited<ReturnType<typeof importSalonDrinksFromClover>>;
 type PushResult = Awaited<ReturnType<typeof pushSalonItemToClover>>;
 type SyncResult = Awaited<ReturnType<typeof syncSalonFromClover>>;
@@ -27,6 +28,11 @@ interface Draft {
     parFront: string;
     priceDollars: string;
     autoManage: boolean;
+    /** When the count was taken (New York, datetime-local format). */
+    countedAt: string;
+    /** The live figures the form opened with: changing either one records a new count. */
+    baseBodega: number;
+    baseFront: number;
 }
 
 // Clover sends prices as integer cents; every price on this page goes through here.
@@ -35,6 +41,110 @@ const money = (cents: number | null | undefined) =>
 
 const num = (value: number | null | undefined) =>
     typeof value === 'number' ? String(value) : '—';
+
+const TZ = 'America/New_York';
+const LIVE_REFRESH_MS = 5 * 60 * 1000;
+
+/** Now in New York as 'YYYY-MM-DDTHH:mm' — the value a datetime-local input takes. */
+function nyNowLocal(): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+    }).formatToParts(new Date());
+    const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+    return `${get('year')}-${get('month')}-${get('day')}T${String(Number(get('hour')) % 24).padStart(2, '0')}:${get('minute')}`;
+}
+
+const formatCountDate = (iso: string, locale: string) =>
+    new Intl.DateTimeFormat(locale, { timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+
+const formatTime = (iso: string, locale: string) =>
+    new Intl.DateTimeFormat(locale, { timeZone: TZ, hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+
+/** What a row shows: live when the sales could be read, else the counted numbers. */
+function shownStock(row: SalonRow) {
+    const s = row.salonStock;
+    if (!s) return null;
+    return row.live ?? { tracked: false, front: s.qtyFront, bodega: s.qtyBodega, total: s.qtyFront + s.qtyBodega, sold: 0, countedAt: null };
+}
+
+/**
+ * The Salón list with live stock. Loads, then asks the server to re-read
+ * today's Toast sales if they are stale and redraws when it did; repeats every
+ * few minutes while the page stays open (kitchen tablets), and redraws when
+ * the app-wide auto-sync writes new sales.
+ */
+function useSalonLive() {
+    const [rows, setRows] = useState<SalonRow[]>([]);
+    const [salesUpdatedAt, setSalesUpdatedAt] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = useCallback(async (quiet = false) => {
+        if (!quiet) {
+            setIsLoading(true);
+            setError(null);
+        }
+        try {
+            const result = await getSalonLiveStock();
+            setRows(result.rows);
+            setSalesUpdatedAt(result.salesUpdatedAt);
+        } catch (e) {
+            if (!quiet) setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            if (!quiet) setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        // On the timer the list is redrawn even without new sales, so a count
+        // saved on another device shows up too.
+        const refresh = async (alwaysRedraw: boolean) => {
+            const { synced } = await refreshSalonSales().catch(() => ({ synced: false }));
+            if ((synced || alwaysRedraw) && !cancelled) await load(true);
+        };
+        void load().then(() => refresh(false));
+        const timer = setInterval(() => { void refresh(true); }, LIVE_REFRESH_MS);
+        const onSynced = () => { if (!cancelled) void load(true); };
+        window.addEventListener('fusionista:synced', onSynced);
+        return () => {
+            cancelled = true;
+            clearInterval(timer);
+            window.removeEventListener('fusionista:synced', onSynced);
+        };
+    }, [load]);
+
+    return { rows, salesUpdatedAt, isLoading, error, load };
+}
+
+/** "Live from Toast" line above the tables, with when today's sales were last read. */
+function LiveNote({ salesUpdatedAt }: { salesUpdatedAt: string | null }) {
+    const t = useTranslations('SalonLive');
+    const locale = useLocale();
+    return (
+        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+            {t('liveNote')}{' '}
+            <span style={{ whiteSpace: 'nowrap' }}>
+                {salesUpdatedAt ? t('salesAsOf', { time: formatTime(salesUpdatedAt, locale) }) : t('salesNotYet')}
+            </span>
+        </p>
+    );
+}
+
+/** Count date under an item's name. */
+function CountLine({ countedAt }: { countedAt: string | null }) {
+    const t = useTranslations('SalonLive');
+    const locale = useLocale();
+    return (
+        <div style={{ fontSize: '0.8rem', fontWeight: 400, color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+            {countedAt ? t('countedOn', { date: formatCountDate(countedAt, locale) }) : t('noCount')}
+        </div>
+    );
+}
+
+/** A stock figure: red when negative or below par. */
+const stockColor = (value: number, par?: number) =>
+    value < 0 || (par !== undefined && value < par) ? 'var(--danger)' : undefined;
 
 // Tap-target sized for tablet use.
 const inputStyle: React.CSSProperties = {
@@ -255,6 +365,7 @@ function GroupsModal({ groups, onChanged, onClose }: {
 
 function AdminSalonView() {
     const { isAdmin } = useAdmin();
+    const t = useTranslations('SalonLive');
     const [isImportOpen, setIsImportOpen] = useState(false);
 
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -281,9 +392,7 @@ function AdminSalonView() {
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
     const [importError, setImportError] = useState<string | null>(null);
 
-    const [salonRows, setSalonRows] = useState<SalonRow[]>([]);
-    const [isLoadingSalon, setIsLoadingSalon] = useState(true);
-    const [salonError, setSalonError] = useState<string | null>(null);
+    const { rows: salonRows, salesUpdatedAt, isLoading: isLoadingSalon, error: salonError, load: loadSalon } = useSalonLive();
 
     const loadClover = useCallback(async () => {
         setIsLoadingClover(true);
@@ -305,18 +414,6 @@ function AdminSalonView() {
         }
     }, []);
 
-    const loadSalon = useCallback(async () => {
-        setIsLoadingSalon(true);
-        setSalonError(null);
-        try {
-            setSalonRows(await getSalonStock());
-        } catch (e) {
-            setSalonError(e instanceof Error ? e.message : String(e));
-        } finally {
-            setIsLoadingSalon(false);
-        }
-    }, []);
-
     const loadGroups = useCallback(async () => {
         try {
             setGroups(await getSalonGroups());
@@ -325,7 +422,6 @@ function AdminSalonView() {
         }
     }, []);
 
-    useEffect(() => { loadSalon(); }, [loadSalon]);
     useEffect(() => { loadGroups(); }, [loadGroups]);
 
     const handleToggleImport = () => {
@@ -360,6 +456,11 @@ function AdminSalonView() {
 
     const startEdit = (row: SalonRow) => {
         const stock = row.salonStock;
+        // The form opens on the live figures (never below 0, the inputs' floor);
+        // leaving them as they are keeps the stored count untouched.
+        const shown = shownStock(row);
+        const baseBodega = Math.max(0, shown?.bodega ?? 0);
+        const baseFront = Math.max(0, shown?.front ?? 0);
         setEditingId(row.id);
         setEditError(null);
         setDraft({
@@ -367,11 +468,14 @@ function AdminSalonView() {
             // Blank rather than "Sin grupo": that label is a display placeholder,
             // not a value to write back to the database.
             salonGroup: stock?.salonGroup ?? '',
-            qtyBodega: String(stock?.qtyBodega ?? 0),
-            qtyFront: String(stock?.qtyFront ?? 0),
+            qtyBodega: String(baseBodega),
+            qtyFront: String(baseFront),
             parFront: String(stock?.parFront ?? 0),
             priceDollars: ((stock?.salePrice ?? 0) / 100).toFixed(2),
-            autoManage: stock?.autoManage ?? true
+            autoManage: stock?.autoManage ?? true,
+            countedAt: nyNowLocal(),
+            baseBodega,
+            baseFront
         });
     };
 
@@ -415,13 +519,16 @@ function AdminSalonView() {
             return;
         }
 
+        // Bodega or Front changed from the live figures → a new count at the
+        // time given; otherwise the stored count and its time stay as they are.
+        const isCount = parsed['Bodega'] !== draft.baseBodega || parsed['Front'] !== draft.baseFront;
+
         setIsSaving(true);
         setEditError(null);
         try {
             const result = await updateSalonStock(editingId, {
                 name,
-                qtyBodega: parsed['Bodega'],
-                qtyFront: parsed['Front'],
+                ...(isCount ? { qtyBodega: parsed['Bodega'], qtyFront: parsed['Front'], countedAt: draft.countedAt } : {}),
                 parFront: parsed['Par'],
                 salePrice: Math.round(dollars * 100),
                 autoManage: draft.autoManage,
@@ -432,7 +539,11 @@ function AdminSalonView() {
             if (!result.success) {
                 // The push is deliberately not attempted when the save fails —
                 // Clover must never receive values the database rejected.
-                setEditError(result.error ?? 'Error al guardar los cambios.');
+                setEditError(
+                    result.code === 'COUNT_TIME' ? t('errCountTime')
+                        : result.code === 'COUNT_TOAST' ? t('errCountToast')
+                            : result.error ?? 'Error al guardar los cambios.'
+                );
                 return;
             }
 
@@ -489,7 +600,7 @@ function AdminSalonView() {
         else grouped.set(key, [row]);
     }
     const groupNames = [...grouped.keys()].sort((a, b) => a.localeCompare(b, 'es'));
-    const columnCount = isAdmin ? 8 : 7;
+    const columnCount = isAdmin ? 9 : 8;
 
     const cellStyle = { padding: '1rem 1.25rem', fontSize: '1.05rem' };
     const headStyle = { padding: '1rem 1.25rem', fontWeight: 500, fontSize: '0.95rem' };
@@ -696,6 +807,7 @@ function AdminSalonView() {
             {/* SECTION B — Inventario del salón */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Productos del Salón</h2>
+                <LiveNote salesUpdatedAt={salesUpdatedAt} />
 
                 {salonError && (
                     <p style={{ color: 'var(--danger)', fontSize: '1.05rem' }}>Error al cargar el inventario: {salonError}</p>
@@ -716,7 +828,7 @@ function AdminSalonView() {
 
                 {!isLoadingSalon && !salonError && salonRows.length > 0 && (
                     <div className="glass-panel" style={{ padding: '0', overflowX: 'auto' }}>
-                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '760px' }}>
+                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', minWidth: '840px' }}>
                             <thead>
                                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                                     <th style={headStyle} />
@@ -724,6 +836,7 @@ function AdminSalonView() {
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Bodega</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Front</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Total</th>
+                                    <th style={{ ...headStyle, textAlign: 'center' }}>{t('colSold')}</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Par</th>
                                     <th style={{ ...headStyle, textAlign: 'right' }}>Precio</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Stock</th>
@@ -746,7 +859,7 @@ function AdminSalonView() {
                                         <Fragment key={groupName}>
                                             {rows.map((row, index) => {
                                                 const stock = row.salonStock;
-                                                const total = stock ? stock.qtyBodega + stock.qtyFront : null;
+                                                const shown = shownStock(row);
 
                                                 if (isAdmin && editingId === row.id && draft) {
                                                     return (
@@ -799,6 +912,15 @@ function AdminSalonView() {
                                                                                 style={inputStyle}
                                                                             />
                                                                         </Field>
+                                                                        <Field label={t('countedAtLabel')} wide>
+                                                                            <input
+                                                                                type="datetime-local"
+                                                                                value={draft.countedAt}
+                                                                                max={nyNowLocal()}
+                                                                                onChange={e => setDraft({ ...draft, countedAt: e.target.value })}
+                                                                                style={inputStyle}
+                                                                            />
+                                                                        </Field>
                                                                         <Field label="Par">
                                                                             <input
                                                                                 type="number"
@@ -828,6 +950,10 @@ function AdminSalonView() {
                                                                             </select>
                                                                         </Field>
                                                                     </div>
+
+                                                                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                                                                        {t('countedAtHint')}
+                                                                    </p>
 
                                                                     <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
                                                                         Automático: Clover descuenta el stock en cada venta y desactiva el producto al llegar a 0.
@@ -884,10 +1010,12 @@ function AdminSalonView() {
                                                                     <Badge label="Inactivo" tone="danger" />
                                                                 </span>
                                                             )}
+                                                            {shown && <CountLine countedAt={shown.countedAt} />}
                                                         </td>
-                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyBodega)}</td>
-                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyFront)}</td>
-                                                        <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700 }}>{num(total)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center', color: shown ? stockColor(shown.bodega) : undefined }}>{num(shown?.bodega)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center', fontWeight: shown && stockColor(shown.front, stock?.parFront) ? 700 : undefined, color: shown ? stockColor(shown.front, stock?.parFront) : undefined }}>{num(shown?.front)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: shown ? stockColor(shown.total) : undefined }}>{num(shown?.total)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--text-secondary)' }}>{shown?.tracked ? shown.sold : '—'}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.parFront)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'right' }}>{money(stock?.salePrice)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'center' }}>
@@ -1048,18 +1176,7 @@ function AdminSalonView() {
  * prices, par levels, stock-control state, or any action.
  */
 function WorkerSalonTable() {
-    const [rows, setRows] = useState<SalonRow[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        getSalonStock()
-            .then(r => { if (!cancelled) setRows(r); })
-            .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
-            .finally(() => { if (!cancelled) setIsLoading(false); });
-        return () => { cancelled = true; };
-    }, []);
+    const { rows, salesUpdatedAt, isLoading, error } = useSalonLive();
 
     const grouped = new Map<string, SalonRow[]>();
     for (const row of rows) {
@@ -1079,6 +1196,8 @@ function WorkerSalonTable() {
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Inventario Salón</h1>
                 <p style={{ color: 'var(--text-secondary)' }}>Productos del salón y su stock actual.</p>
             </div>
+
+            <LiveNote salesUpdatedAt={salesUpdatedAt} />
 
             {error && (
                 <p style={{ color: 'var(--danger)', fontSize: '1.05rem' }}>Error al cargar el inventario: {error}</p>
@@ -1118,14 +1237,18 @@ function WorkerSalonTable() {
                                     <Fragment key={groupName}>
                                         {groupRows.map((row, index) => {
                                             const stock = row.salonStock;
-                                            const total = stock ? stock.qtyBodega + stock.qtyFront : null;
+                                            const shown = shownStock(row);
+                                            const frontColor = shown ? stockColor(shown.front, stock?.parFront) : undefined;
                                             return (
                                                 <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     {index === 0 && <td rowSpan={groupRows.length} style={groupCellStyle}>{groupName}</td>}
-                                                    <td style={{ ...cellStyle, fontWeight: 500, color: 'var(--text-primary)' }}>{row.name}</td>
-                                                    <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyBodega)}</td>
-                                                    <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.qtyFront)}</td>
-                                                    <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700 }}>{num(total)}</td>
+                                                    <td style={{ ...cellStyle, fontWeight: 500, color: 'var(--text-primary)' }}>
+                                                        {row.name}
+                                                        {shown && <CountLine countedAt={shown.countedAt} />}
+                                                    </td>
+                                                    <td style={{ ...cellStyle, textAlign: 'center', color: shown ? stockColor(shown.bodega) : undefined }}>{num(shown?.bodega)}</td>
+                                                    <td style={{ ...cellStyle, textAlign: 'center', fontWeight: frontColor ? 700 : undefined, color: frontColor }}>{num(shown?.front)}</td>
+                                                    <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: shown ? stockColor(shown.total) : undefined }}>{num(shown?.total)}</td>
                                                 </tr>
                                             );
                                         })}

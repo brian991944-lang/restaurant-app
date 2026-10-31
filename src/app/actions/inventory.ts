@@ -3,12 +3,15 @@
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getConversionFactor } from '@/lib/conversion';
-import { getBusinessDate, getScheduleWindowUtc } from '@/lib/businessDay';
+import { getBusinessDate, getScheduleWindowUtc, nyWallToUtc } from '@/lib/businessDay';
 import { revalidatePath } from 'next/cache';
 import { pushSalonItemToClover } from '@/app/actions/clover';
 import { getRecentPurchaseWeights } from '@/app/actions/purchases';
 import { getPieceSummary } from '@/app/actions/cleaning';
 import { isAdminSession } from '@/lib/adminGuard';
+import {
+    computeSalonLive, countBaseQtyFor, refreshToastSalesIfStale, toastTodayUpdatedAt, type SalonLive
+} from '@/lib/salon/liveStock';
 
 async function translateToSpanish(text: string): Promise<string> {
     if (!text) return text;
@@ -82,9 +85,73 @@ export async function getSalonStock() {
 }
 
 /**
+ * The Salón list with live stock: each drink's last count minus the Toast
+ * sales (paid + open) since then — see src/lib/salon/liveStock.ts. `live` is
+ * null for an item with no stock row, or for every item if the sales could
+ * not be read (the page then shows the counted numbers as they are).
+ */
+export async function getSalonLiveStock(): Promise<{
+    rows: (Awaited<ReturnType<typeof getSalonStock>>[number] & { live: SalonLive | null })[];
+    salesUpdatedAt: string | null;
+}> {
+    const rows = await getSalonStock();
+    let live = new Map<string, SalonLive>();
+    let salesUpdatedAt: Date | null = null;
+    try {
+        [live, salesUpdatedAt] = await Promise.all([
+            computeSalonLive(rows.filter(r => r.salonStock).map(r => ({
+                ingredientId: r.id,
+                qtyFront: r.salonStock!.qtyFront,
+                qtyBodega: r.salonStock!.qtyBodega,
+                countedAt: r.salonStock!.countedAt,
+                countBaseQty: r.salonStock!.countBaseQty,
+                cloverItemId: r.salonStock!.cloverItemId
+            }))),
+            toastTodayUpdatedAt()
+        ]);
+    } catch (e) {
+        console.error('Salón live stock failed:', e instanceof Error ? e.message : e);
+    }
+    return {
+        rows: rows.map(r => ({ ...r, live: live.get(r.id) ?? null })),
+        salesUpdatedAt: salesUpdatedAt?.toISOString() ?? null
+    };
+}
+
+/**
+ * Re-read today's Toast sales if they are more than 10 minutes old. Open to
+ * staff as well as admins: it only reads Toast and rewrites the same daily
+ * figures the nightly cron does, and the age check keeps it to one read
+ * every few minutes however many tablets ask.
+ */
+export async function refreshSalonSales(): Promise<{ synced: boolean }> {
+    try {
+        return { synced: await refreshToastSalesIfStale() };
+    } catch (e) {
+        console.error('Salón Toast refresh failed:', e instanceof Error ? e.message : e);
+        return { synced: false };
+    }
+}
+
+/** 'YYYY-MM-DDTHH:mm' in New York time → the UTC instant, or null if malformed. */
+function parseNyLocal(value: string): Date | null {
+    const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(value ?? '');
+    if (!m) return null;
+    const hour = Number(m[2]), minute = Number(m[3]);
+    if (hour > 23 || minute > 59) return null;
+    return nyWallToUtc(m[1], hour, minute);
+}
+
+/**
  * Salón row editor. Writes to the database only — nothing is sent to Clover.
  * Fields absent from `data` are left untouched (the `!== undefined` guards),
  * so a partial payload never blanks a stored value.
+ *
+ * Sending qtyFront or qtyBodega records a new count: it stores the counted
+ * numbers with the count time (`countedAt`, New York 'YYYY-MM-DDTHH:mm',
+ * default now) and what Toast had already sold that business day before it,
+ * so live stock subtracts only the sales after the count. If Toast cannot be
+ * read for that, nothing is saved.
  */
 export async function updateSalonStock(
     ingredientId: string,
@@ -96,8 +163,9 @@ export async function updateSalonStock(
         salePrice?: number;
         salonGroup?: string;
         autoManage?: boolean;
+        countedAt?: string;
     }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; code?: 'COUNT_TIME' | 'COUNT_TOAST' }> {
     const negatives: [string, number | undefined][] = [
         ['Front', data.qtyFront],
         ['Bodega', data.qtyBodega],
@@ -106,6 +174,22 @@ export async function updateSalonStock(
     for (const [label, value] of negatives) {
         if (value !== undefined && value < 0) {
             return { success: false, error: `El valor de ${label} no puede ser negativo.` };
+        }
+    }
+
+    // A new count: when it was taken, and what Toast had sold that day before it.
+    let count: { countedAt: Date; countBaseQty: number } | null = null;
+    if (data.qtyFront !== undefined || data.qtyBodega !== undefined) {
+        const countedAt = data.countedAt ? parseNyLocal(data.countedAt) : new Date();
+        if (!countedAt || countedAt.getTime() > Date.now() + 60_000) {
+            return { success: false, code: 'COUNT_TIME', error: 'La hora del conteo no es válida o está en el futuro.' };
+        }
+        try {
+            const existing = await prisma.salonStock.findUnique({ where: { ingredientId }, select: { cloverItemId: true } });
+            count = { countedAt, countBaseQty: await countBaseQtyFor(ingredientId, existing?.cloverItemId ?? null, countedAt) };
+        } catch (e) {
+            console.error('Salón count base failed:', e instanceof Error ? e.message : e);
+            return { success: false, code: 'COUNT_TOAST', error: 'No se pudo leer Toast para el día del conteo. No se guardó nada.' };
         }
     }
 
@@ -138,7 +222,8 @@ export async function updateSalonStock(
                     parFront: data.parFront ?? 0,
                     salePrice: data.salePrice ?? 0,
                     ...(data.salonGroup !== undefined ? { salonGroup: data.salonGroup } : {}),
-                    ...(data.autoManage !== undefined ? { autoManage: data.autoManage } : {})
+                    ...(data.autoManage !== undefined ? { autoManage: data.autoManage } : {}),
+                    ...(count ?? {})
                 },
                 update: {
                     qtyFront: data.qtyFront !== undefined ? data.qtyFront : undefined,
@@ -146,7 +231,8 @@ export async function updateSalonStock(
                     parFront: data.parFront !== undefined ? data.parFront : undefined,
                     salePrice: data.salePrice !== undefined ? data.salePrice : undefined,
                     salonGroup: data.salonGroup !== undefined ? data.salonGroup : undefined,
-                    autoManage: data.autoManage !== undefined ? data.autoManage : undefined
+                    autoManage: data.autoManage !== undefined ? data.autoManage : undefined,
+                    ...(count ?? {})
                 }
             });
         }

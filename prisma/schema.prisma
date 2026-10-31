@@ -134,6 +134,11 @@ model SalonStock {
   autoManage       Boolean    @default(true)   // Clover auto-decrements stock on sale
   cloverItemId     String?
   lastCloverSyncAt DateTime?
+  // Live stock = count − Toast sales since the count. countedAt is when Bodega/Front
+  // were physically counted; countBaseQty is the Toast quantity (paid + open) of the
+  // count's business day that was sold before countedAt, so it is not subtracted twice.
+  countedAt        DateTime?
+  countBaseQty     Int        @default(0)
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
 }
