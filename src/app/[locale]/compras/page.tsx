@@ -57,7 +57,7 @@ export default function ComprasPage() {
     const [sharing, setSharing] = useState(false);
     // Quantity boxes while being typed, keyed "order:<id>" / "bought:<id>"; saved on blur.
     const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
-    // "Traje de casa" panel on Lista Enviada: which item is open and the qty being moved.
+    // "Traje del almacén" panel on Lista Enviada: which item is open and the qty being moved.
     const [homeMove, setHomeMove] = useState<{ id: string; qty: string } | null>(null);
     const [homeBusy, setHomeBusy] = useState(false);
 
@@ -176,7 +176,7 @@ export default function ComprasPage() {
         }
     };
 
-    // Almacén de casa. Admins see how much is at home; everyone else just "En casa".
+    // Almacén (Storage), home location. Admins see how much is there; everyone else just "En almacén".
     const homeRow = (ing: any) => (Array.isArray(ing.homeStock) && ing.homeStock.length > 0 ? ing.homeStock[0] : null);
     const homeText = (ing: any) => {
         const rows: any[] = Array.isArray(ing.homeStock) ? ing.homeStock : [];
@@ -688,7 +688,7 @@ export default function ComprasPage() {
                                         return renderGroups(filteredIngredients, 'all', false);
                                     }
 
-                                    // Items already in the home almacén get their own section: bring, don't buy.
+                                    // Items already in the almacén (home) get their own section: bring, don't buy.
                                     const toBuy = filteredIngredients.filter(ing => ing.purchaseStatus !== 'COMPRADO' && !ing.atHome);
                                     const fromHome = filteredIngredients.filter(ing => ing.purchaseStatus !== 'COMPRADO' && ing.atHome);
                                     const bought = filteredIngredients.filter(ing => ing.purchaseStatus === 'COMPRADO');

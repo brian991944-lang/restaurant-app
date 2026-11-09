@@ -1782,13 +1782,13 @@
     "qty_bought": "Bought",
     "qty_suggested_hint": "Suggested: {qty}",
     "err_save_qty": "Could not save the quantity.",
-    "at_home": "At home: {qty}",
-    "at_home_plain": "At home",
-    "bring_from_home": "Brought from home",
+    "at_home": "Storage: {qty}",
+    "at_home_plain": "In storage",
+    "bring_from_home": "From storage",
     "bring_qty": "Brought",
     "bring_confirm": "Confirm",
-    "bring_hint": "Leaves the home storage, goes into kitchen stock and off the list.",
-    "section_from_home": "Bring from home ({count})"
+    "bring_hint": "Leaves storage, goes into kitchen stock and off the list.",
+    "section_from_home": "Bring from storage ({count})"
   },
   "Integrations": {
     "title": "Data Integrations",

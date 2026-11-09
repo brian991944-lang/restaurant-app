@@ -187,7 +187,7 @@ export async function completeShoppingList(providerNames: string[]) {
 }
 
 /**
- * "Traje de casa": move qty from the home almacén to the kitchen (same path as
+ * "Traje del almacén": move qty from the home almacén to the kitchen (same path as
  * Almacén → Llevar → Cocina, so stock is credited once) and take the item off
  * the shopping list with the same clean reset a received item gets.
  */
