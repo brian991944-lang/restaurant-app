@@ -2,6 +2,8 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { isAdminSession } from '@/lib/adminGuard';
+import { moveStorage } from '@/app/actions/storage';
 
 export async function getComprasIngredients(providerNames: string[]) {
     try {
@@ -26,13 +28,28 @@ export async function getComprasIngredients(providerNames: string[]) {
                 prepItems: {
                     where: { type: 'PROCESSED', isActive: true },
                     include: { inventory: true }
+                },
+                // Almacén de casa: what is already at Brian's house, so the list
+                // can say "llevar de casa" instead of "comprar".
+                storageStocks: {
+                    where: { location: 'HOME', qty: { gt: 0 } },
+                    select: { qty: true, unit: true, totalWeightLb: true },
+                    orderBy: { qty: 'desc' }
                 }
             },
             orderBy: {
                 name: 'asc'
             }
         });
-        return { success: true, data: ingredients };
+        // Storage quantities are admin-only (see actions/storage.ts); everyone
+        // else only learns that the item is at home.
+        const admin = await isAdminSession();
+        const data = ingredients.map(({ storageStocks, ...ing }) => ({
+            ...ing,
+            atHome: storageStocks.length > 0,
+            homeStock: admin ? storageStocks : [],
+        }));
+        return { success: true, data };
     } catch (e: any) {
         console.error('Error fetching compras ingredients:', e);
         return { success: false, error: e.message };
@@ -166,5 +183,27 @@ export async function completeShoppingList(providerNames: string[]) {
     } catch (e: any) {
         console.error('Error completing shopping list:', e);
         return { success: false, error: e.message };
+    }
+}
+
+/**
+ * "Traje de casa": move qty from the home almacén to the kitchen (same path as
+ * Almacén → Llevar → Cocina, so stock is credited once) and take the item off
+ * the shopping list with the same clean reset a received item gets.
+ */
+export async function bringFromHome(input: { ingredientId: string; qty: number; unit: string }) {
+    if (!(await isAdminSession())) return { success: false as const, error: 'Solo administración.' };
+    const moved = await moveStorage({ ingredientId: input.ingredientId, from: 'HOME', to: 'KITCHEN', qty: input.qty, unit: input.unit });
+    if (!moved.success) return moved;
+    try {
+        await prisma.ingredient.update({
+            where: { id: input.ingredientId },
+            data: { purchaseStatus: 'PENDIENTE', needsOrdering: false, isSubmittedForOrdering: false, carriedOver: false, orderQty: null, boughtQty: null }
+        });
+        revalidatePath('/[locale]/compras', 'page');
+        return { success: true as const, credited: moved.credited };
+    } catch (e: any) {
+        console.error('Moved from home but could not clear the list item:', e);
+        return { success: false as const, error: e.message };
     }
 }

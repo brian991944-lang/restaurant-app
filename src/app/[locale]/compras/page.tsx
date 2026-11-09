@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch, Share2 } from 'lucide-react';
-import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus, setOrderQty, setBoughtQty } from '@/app/actions/compras';
+import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus, setOrderQty, setBoughtQty, bringFromHome } from '@/app/actions/compras';
 import { unitLabel } from '@/lib/purchaseUnits';
 import { addIngredient } from '@/app/actions/inventory';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
@@ -57,6 +57,9 @@ export default function ComprasPage() {
     const [sharing, setSharing] = useState(false);
     // Quantity boxes while being typed, keyed "order:<id>" / "bought:<id>"; saved on blur.
     const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
+    // "Traje de casa" panel on Lista Enviada: which item is open and the qty being moved.
+    const [homeMove, setHomeMove] = useState<{ id: string; qty: string } | null>(null);
+    const [homeBusy, setHomeBusy] = useState(false);
 
 
     const tabs = [
@@ -171,6 +174,25 @@ export default function ComprasPage() {
             setIngredients(ingredients);
             alert(t('err_update_status'));
         }
+    };
+
+    // Almacén de casa. Admins see how much is at home; everyone else just "En casa".
+    const homeRow = (ing: any) => (Array.isArray(ing.homeStock) && ing.homeStock.length > 0 ? ing.homeStock[0] : null);
+    const homeText = (ing: any) => {
+        const rows: any[] = Array.isArray(ing.homeStock) ? ing.homeStock : [];
+        if (rows.length === 0) return t('at_home_plain');
+        return t('at_home', { qty: rows.map(r => `${fmtQty(r.qty)} ${unitLabel(r.unit, locale as 'es' | 'en')}`).join(' + ') });
+    };
+    const confirmBringFromHome = async (ing: any) => {
+        const row = homeRow(ing);
+        const qty = homeMove ? parseQty(homeMove.qty) : undefined;
+        if (!row || homeBusy || qty == null || !(qty > 0)) return;
+        setHomeBusy(true);
+        const res = await bringFromHome({ ingredientId: ing.id, qty, unit: row.unit });
+        setHomeBusy(false);
+        if (!res.success) { alert(res.error || t('err_update_status')); return; }
+        setHomeMove(null);
+        loadData();
     };
 
     const displayName = (ing: any) => (locale === 'es' && ing.nameEs ? ing.nameEs : ing.name);
@@ -491,6 +513,20 @@ export default function ComprasPage() {
                                                                             >
                                                                                 {t('status_no_disp_short')}
                                                                             </button>
+                                                                            {ing.atHome && ing.purchaseStatus !== 'COMPRADO' && homeRow(ing) && (
+                                                                                <button
+                                                                                    data-no-capture="true"
+                                                                                    onClick={() => setHomeMove(homeMove?.id === ing.id ? null : { id: ing.id, qty: fmtQty(homeRow(ing).qty) })}
+                                                                                    style={{
+                                                                                        border: '1px solid #a78bfa', background: homeMove?.id === ing.id ? '#8b5cf6' : 'transparent',
+                                                                                        color: homeMove?.id === ing.id ? '#fff' : '#a78bfa',
+                                                                                        cursor: 'pointer', padding: '0.6rem 0.8rem', borderRadius: '8px',
+                                                                                        minHeight: '48px', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap'
+                                                                                    }}
+                                                                                >
+                                                                                    {t('bring_from_home')}
+                                                                                </button>
+                                                                            )}
                                                                         </div>
                                                                     ) : (
                                                                         <button
@@ -512,6 +548,11 @@ export default function ComprasPage() {
                                                                         <span style={dimmed ? { textDecoration: 'line-through' } : undefined}>
                                                                             {locale === 'es' && ing.nameEs ? ing.nameEs : ing.name}
                                                                         </span>
+                                                                        {ing.atHome && ing.purchaseStatus !== 'COMPRADO' && (
+                                                                            <span style={{ fontSize: '0.75rem', background: 'rgba(139, 92, 246, 0.12)', color: '#a78bfa', padding: '0.2rem 0.4rem', borderRadius: '4px', fontWeight: 700 }}>
+                                                                                {homeText(ing)}
+                                                                            </span>
+                                                                        )}
                                                                         {activeTab === 'SUBMITTED_LIST' ? (
                                                                             <>
                                                                                 {ing.purchaseStatus === 'COMPRADO' && (
@@ -571,6 +612,33 @@ export default function ComprasPage() {
                                                                             )}
                                                                         </div>
                                                                     )}
+                                                                    {activeTab === 'SUBMITTED_LIST' && homeMove?.id === ing.id && homeRow(ing) && (
+                                                                        <div data-no-capture="true" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                                                            <label htmlFor={`home-${ing.id}`}>{t('bring_qty')}</label>
+                                                                            <input
+                                                                                id={`home-${ing.id}`}
+                                                                                type="text"
+                                                                                inputMode="decimal"
+                                                                                value={homeMove?.qty ?? ''}
+                                                                                onChange={e => setHomeMove({ id: ing.id, qty: e.target.value })}
+                                                                                onKeyDown={e => { if (e.key === 'Enter') confirmBringFromHome(ing); }}
+                                                                                style={{
+                                                                                    width: '80px', minHeight: '40px', padding: '0.3rem 0.5rem', borderRadius: '8px',
+                                                                                    border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                                                                                    fontSize: '1.05rem', fontWeight: 600, textAlign: 'center', fontFamily: 'inherit'
+                                                                                }}
+                                                                            />
+                                                                            <span>{unitLabel(homeRow(ing).unit, locale as 'es' | 'en')}</span>
+                                                                            <button
+                                                                                onClick={() => confirmBringFromHome(ing)}
+                                                                                disabled={homeBusy}
+                                                                                style={{ minHeight: '40px', padding: '0 0.9rem', borderRadius: '8px', border: 'none', background: '#8b5cf6', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                                                                            >
+                                                                                {t('bring_confirm')}
+                                                                            </button>
+                                                                            <span style={{ fontSize: '0.75rem' }}>{t('bring_hint')}</span>
+                                                                        </div>
+                                                                    )}
                                                                     {Array.isArray(ing.prepItems) && ing.prepItems.length > 0 && (
                                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                                                             {ing.prepItems.map((proc: any) => {
@@ -620,11 +688,32 @@ export default function ComprasPage() {
                                         return renderGroups(filteredIngredients, 'all', false);
                                     }
 
-                                    const toBuy = filteredIngredients.filter(ing => ing.purchaseStatus !== 'COMPRADO');
+                                    // Items already in the home almacén get their own section: bring, don't buy.
+                                    const toBuy = filteredIngredients.filter(ing => ing.purchaseStatus !== 'COMPRADO' && !ing.atHome);
+                                    const fromHome = filteredIngredients.filter(ing => ing.purchaseStatus !== 'COMPRADO' && ing.atHome);
                                     const bought = filteredIngredients.filter(ing => ing.purchaseStatus === 'COMPRADO');
                                     return (
                                         <>
                                             {renderGroups(toBuy, 'toBuy', false)}
+                                            {fromHome.length > 0 && (
+                                                <tr key="home-divider">
+                                                    <td
+                                                        colSpan={isAdmin ? 5 : 3}
+                                                        style={{
+                                                            padding: '0.75rem 1rem',
+                                                            background: 'var(--bg-secondary)',
+                                                            borderTop: '2px solid var(--border)',
+                                                            borderBottom: '1px solid var(--border)',
+                                                            color: '#a78bfa',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.95rem'
+                                                        }}
+                                                    >
+                                                        {t('section_from_home', { count: fromHome.length })}
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {renderGroups(fromHome, 'fromHome', false)}
                                             {bought.length > 0 && (
                                                 <tr key="bought-divider">
                                                     <td
