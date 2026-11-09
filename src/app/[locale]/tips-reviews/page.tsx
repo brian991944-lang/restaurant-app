@@ -6,6 +6,10 @@ import { formatBusinessDateEs, getBusinessDate, businessDateToUtcDate } from '@/
 import { toCents, formatMoney } from '@/lib/money';
 import TipDayEditor from './TipDayEditor';
 import DateNavigator from './DateNavigator';
+import ReviewsPanel from './ReviewsPanel';
+import ReviewsManagerPanel from './ReviewsManagerPanel';
+import { getReviewDay, getLeaderboard, getPendingClaims, getOpenFollowUpRows } from '@/app/actions/reviewClaims';
+import { isAdminSession } from '@/lib/adminGuard';
 
 const isBusinessDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 
@@ -65,6 +69,16 @@ export default async function TipsReviewsPage({
     // different Clover role is added here by the includeInTips flag.
     const { staff, error: staffError } = await getTipEligibleStaff();
     const headerDate = formatBusinessDateEs(dateValue);
+
+    // Reviews for the same business day, plus this month's standings. The
+    // manager block (pending claims, low reviews) only renders for admin.
+    const isAdmin = await isAdminSession();
+    const [reviewDay, leaderboard, pendingClaims, followUps] = await Promise.all([
+        getReviewDay(viewDate),
+        getLeaderboard(),
+        isAdmin ? getPendingClaims() : Promise.resolve([]),
+        isAdmin ? getOpenFollowUpRows() : Promise.resolve([]),
+    ]);
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', maxWidth: '1100px', margin: '0 auto', padding: '1.5rem' }}>
@@ -148,6 +162,12 @@ export default async function TipsReviewsPage({
                     <TipDayEditor day={day} staff={staff} isHistorical={isHistorical} />
                 </>
             )}
+
+            {reviewDay.error && (
+                <p style={{ margin: 0, color: 'var(--danger)', fontSize: '1.05rem' }}>{reviewDay.error}</p>
+            )}
+            <ReviewsPanel reviews={reviewDay.reviews} leaderboard={leaderboard} staff={staff} businessDate={viewDate} />
+            {isAdmin && <ReviewsManagerPanel claims={pendingClaims} followUps={followUps} />}
         </div>
     );
 }

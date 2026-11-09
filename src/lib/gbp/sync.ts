@@ -11,6 +11,7 @@
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { iterateReviews, fetchDailyMetrics, STAR_TO_INT, type GbpReviewRaw, type DailyMetric } from "./client";
+import { LOW_REVIEW_MAX_STARS } from "./reviewRules";
 
 // Functions run in iad1 and the database is in us-west-2, so every statement
 // is a cross-country round trip (~100 ms). Per-row upserts made a 50-review
@@ -29,6 +30,7 @@ export type MetricsSyncResult = { days: number; rows: number };
 export type SyncResult = {
   reviews: ReviewsSyncResult;
   metrics: MetricsSyncResult | null;
+  lowFlagged: number;
   startedAt: string;
   finishedAt: string;
 };
@@ -176,7 +178,19 @@ export async function runFullSync(opts: { fullReviews?: boolean; maxPages?: numb
   const reviews = await syncReviews({ full: opts.fullReviews, maxPages: opts.maxPages });
   // During a multi-slice backfill, only pull metrics on the final slice.
   const metrics = opts.skipMetrics || (opts.fullReviews && !reviews.done) ? null : await syncMetrics({ days: opts.metricDays });
-  return { reviews, metrics, startedAt, finishedAt: new Date().toISOString() };
+  const lowFlagged = await flagLowReviews();
+  return { reviews, metrics, lowFlagged, startedAt, finishedAt: new Date().toISOString() };
+}
+
+/** Queue low reviews from the last 7 days for management. Idempotent. */
+async function flagLowReviews(): Promise<number> {
+  return prisma.$executeRaw`
+    INSERT INTO "ReviewFollowUp" ("id", "gbpReviewId", "starRating")
+    SELECT 'fu_' || r."id", r."id", r."starRating"
+    FROM "GbpReview" r
+    WHERE r."starRating" <= ${LOW_REVIEW_MAX_STARS}
+      AND r."createTime" >= now() - interval '7 days'
+    ON CONFLICT DO NOTHING`;
 }
 
 function utcDateOnly(d: Date): Date {

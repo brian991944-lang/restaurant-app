@@ -1694,6 +1694,9 @@ model GbpReview {
   raw           Json
   syncedAt      DateTime  @default(now())
 
+  claim         ReviewClaim?
+  followUp      ReviewFollowUp?
+
   @@index([createTime])
   @@index([starRating])
 }
@@ -1731,4 +1734,92 @@ model AdminPasskey {
   deviceName   String?
   createdAt    DateTime @default(now())
   lastUsedAt   DateTime?
+}
+
+// ── Review claims, points and management follow-up ─────────────────────────
+
+enum ReviewSource {
+  GOOGLE
+  YELP
+  RESY
+  OPENTABLE
+}
+
+enum ReviewClaimStatus {
+  PENDING   // waiting for a manager
+  APPROVED  // counts on the leaderboard
+  REJECTED
+}
+
+enum FollowUpStatus {
+  OPEN
+  RESOLVED
+}
+
+/// Points per review source. Editable from Management; the value is copied
+/// onto each claim when it is approved, so changing it mid-month never
+/// rewrites points already earned.
+model ReviewPointsRule {
+  source    ReviewSource @id
+  points    Int
+  updatedAt DateTime     @updatedAt
+}
+
+/// Google reviews come from GbpReview (synced daily). Yelp, Resy and OpenTable
+/// have no feed the app can use, so those are entered by hand: the server
+/// pastes the review link and a manager checks it before approving.
+model ExternalReview {
+  id           String       @id @default(cuid())
+  source       ReviewSource // never GOOGLE
+  url          String       @unique // link to the review on the platform
+  reviewerName String?
+  starRating   Int?         // typed by the manager when verifying
+  reviewDate   DateTime     @db.Date
+  enteredBy    String       // cloverEmployeeId of whoever entered it
+  createdAt    DateTime     @default(now())
+
+  claim    ReviewClaim?
+  followUp ReviewFollowUp?
+}
+
+/// One claim per review. First claim wins; a manager can reassign.
+model ReviewClaim {
+  id               String            @id @default(cuid())
+  source           ReviewSource
+  gbpReviewId      String?           @unique
+  gbpReview        GbpReview?        @relation(fields: [gbpReviewId], references: [id])
+  externalReviewId String?           @unique
+  externalReview   ExternalReview?   @relation(fields: [externalReviewId], references: [id])
+
+  cloverEmployeeId String            // same staff key the tip sheet uses
+  employeeName     String
+  suggestedStaffId String?           // what the name matcher suggested, kept for audit
+  status           ReviewClaimStatus @default(PENDING)
+  autoApproved     Boolean           @default(false)
+  pointsAwarded    Int?              // set on approval from ReviewPointsRule
+  claimedAt        DateTime          @default(now())
+  decidedAt        DateTime?
+  decidedBy        String?
+  rejectReason     String?
+  businessMonth    String            // "2026-11", from the review's business date
+
+  @@index([businessMonth, status])
+  @@index([cloverEmployeeId])
+}
+
+/// Low reviews (3 stars or fewer, any source) land here for management.
+model ReviewFollowUp {
+  id               String          @id @default(cuid())
+  gbpReviewId      String?         @unique
+  gbpReview        GbpReview?      @relation(fields: [gbpReviewId], references: [id])
+  externalReviewId String?         @unique
+  externalReview   ExternalReview? @relation(fields: [externalReviewId], references: [id])
+  starRating       Int
+  status           FollowUpStatus  @default(OPEN)
+  note             String?
+  resolvedBy       String?
+  resolvedAt       DateTime?
+  createdAt        DateTime        @default(now())
+
+  @@index([status])
 }
