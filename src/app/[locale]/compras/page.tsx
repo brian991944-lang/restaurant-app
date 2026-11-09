@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { ShoppingCart, CheckSquare, Square, PackageSearch, Share2 } from 'lucide-react';
-import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus } from '@/app/actions/compras';
+import { getComprasIngredients, toggleNeedsOrdering, setPurchaseStatus, setOrderQty, setBoughtQty } from '@/app/actions/compras';
+import { unitLabel } from '@/lib/purchaseUnits';
 import { addIngredient } from '@/app/actions/inventory';
 import AddIngredientModal from '@/components/modals/AddIngredientModal';
 import { countUnreceivedComprado } from '@/app/actions/purchases';
@@ -16,7 +17,7 @@ import RecibirTab from './RecibirTab';
 interface SentListSnapshot {
     providerLabel: string;
     sentAt: Date;
-    groups: [string, { id: string; name: string }[]][];
+    groups: [string, { id: string; name: string; qty?: string }[]][];
 }
 
 // The message body sent to WhatsApp. *asterisks* are WhatsApp's own bold markup,
@@ -33,7 +34,7 @@ function buildListaTexto(sentList: SentListSnapshot): string {
     lines.push('');
     for (const [category, items] of sentList.groups) {
         lines.push(`*${category}*`);
-        for (const item of items) lines.push(`• ${item.name}`);
+        for (const item of items) lines.push(item.qty ? `• ${item.name} — ${item.qty}` : `• ${item.name}`);
         lines.push('');
     }
     return lines.join('\n').trim();
@@ -54,6 +55,8 @@ export default function ComprasPage() {
     const [sentList, setSentList] = useState<SentListSnapshot | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [sharing, setSharing] = useState(false);
+    // Quantity boxes while being typed, keyed "order:<id>" / "bought:<id>"; saved on blur.
+    const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({});
 
 
     const tabs = [
@@ -110,7 +113,7 @@ export default function ComprasPage() {
     const handleToggle = async (id: string, currentVal: boolean) => {
         // Optimistic UI update
         const updated = ingredients.map(ing =>
-            ing.id === id ? { ...ing, needsOrdering: !currentVal } : ing
+            ing.id === id ? { ...ing, needsOrdering: !currentVal, ...(currentVal ? { orderQty: null } : {}) } : ing
         );
         setIngredients(updated);
 
@@ -122,14 +125,47 @@ export default function ComprasPage() {
         }
     };
 
+    // Unit the quantity boxes are in: packs for packed items (same as Recibir), else the metric.
+    const qtyUnit = (ing: any) => (ing.isPacked ? tRecibir('packUnit') : unitLabel(ing.metric, locale as 'es' | 'en'));
+    const fmtQty = (n: number | null | undefined) => (n === null || n === undefined ? '' : String(Number(n.toFixed(2))));
+    // Lista Enviada box: what was bought if typed, else the suggestion.
+    const boughtBoxValue = (ing: any) => qtyDrafts[`bought:${ing.id}`] ?? fmtQty(ing.boughtQty ?? ing.orderQty);
+    const parseQty = (raw: string): number | null | undefined => {
+        const v = raw.trim().replace(',', '.');
+        if (v === '') return null;
+        const n = parseFloat(v);
+        return Number.isFinite(n) && n >= 0 ? n : undefined;
+    };
+
+    const handleQtyBlur = async (ing: any, field: 'order' | 'bought') => {
+        const key = `${field}:${ing.id}`;
+        const raw = qtyDrafts[key];
+        if (raw === undefined) return;
+        const clearDraft = () => setQtyDrafts(prev => { const next = { ...prev }; delete next[key]; return next; });
+        const qty = parseQty(raw);
+        const prop = field === 'order' ? 'orderQty' : 'boughtQty';
+        if (qty === undefined || qty === (ing[prop] ?? null)) { clearDraft(); return; }
+        setIngredients(prev => prev.map(i => (i.id === ing.id ? { ...i, [prop]: qty } : i)));
+        clearDraft();
+        const res = field === 'order' ? await setOrderQty(ing.id, qty) : await setBoughtQty(ing.id, qty);
+        if (!res.success) {
+            setIngredients(prev => prev.map(i => (i.id === ing.id ? { ...i, [prop]: ing[prop] ?? null } : i)));
+            alert(t('err_save_qty'));
+        }
+    };
+
     const handleSetPurchaseStatus = async (id: string, newStatus: string) => {
+        // Comprado saves the box as it reads now, so an untouched suggestion counts as bought.
+        const ing = ingredients.find(i => i.id === id);
+        const bought = newStatus === 'COMPRADO' && ing ? parseQty(boughtBoxValue(ing)) : undefined;
         // Optimistic UI update
-        const updated = ingredients.map(ing =>
-            ing.id === id ? { ...ing, purchaseStatus: newStatus } : ing
+        const updated = ingredients.map(i =>
+            i.id === id ? { ...i, purchaseStatus: newStatus, ...(bought !== undefined ? { boughtQty: bought } : {}) } : i
         );
         setIngredients(updated);
+        if (bought !== undefined) setQtyDrafts(prev => { const next = { ...prev }; delete next[`bought:${id}`]; return next; });
 
-        const res = await setPurchaseStatus(id, newStatus);
+        const res = await setPurchaseStatus(id, newStatus, bought);
         if (!res.success) {
             // Revert on failure
             setIngredients(ingredients);
@@ -148,13 +184,14 @@ export default function ComprasPage() {
         // Snapshot first, send second. Anything read after the await is post-mutation
         // and post-refetch, which is not what the user pressed the button on.
         const flagged = ingredients.filter(ing => ing.needsOrdering);
-        const groups = Array.from<[string, { id: string; name: string }[]]>(
+        const groups = Array.from<[string, { id: string; name: string; qty?: string }[]]>(
             flagged.reduce((acc, ing) => {
                 const cat = displayCategory(ing);
                 if (!acc.has(cat)) acc.set(cat, []);
-                acc.get(cat).push({ id: ing.id, name: displayName(ing) });
+                const qty = ing.orderQty != null ? `${fmtQty(ing.orderQty)} ${ing.isPacked ? 'paq.' : unitLabel(ing.metric, 'es')}` : undefined;
+                acc.get(cat).push({ id: ing.id, name: displayName(ing), qty });
                 return acc;
-            }, new Map<string, { id: string; name: string }[]>())
+            }, new Map<string, { id: string; name: string; qty?: string }[]>())
         ).sort((a, b) => a[0].localeCompare(b[0], locale));
         groups.forEach(([, items]) => items.sort((a, b) => a.name.localeCompare(b.name, locale)));
 
@@ -501,6 +538,39 @@ export default function ComprasPage() {
                                                                             )
                                                                         )}
                                                                     </div>
+                                                                    {(activeTab === 'SUBMITTED_LIST' || ing.needsOrdering) && (
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
+                                                                            <label htmlFor={`qty-${sectionKey}-${ing.id}`}>
+                                                                                {activeTab === 'SUBMITTED_LIST' ? t('qty_bought') : t('qty_suggested')}
+                                                                            </label>
+                                                                            <input
+                                                                                id={`qty-${sectionKey}-${ing.id}`}
+                                                                                type="text"
+                                                                                inputMode="decimal"
+                                                                                placeholder="—"
+                                                                                value={activeTab === 'SUBMITTED_LIST'
+                                                                                    ? boughtBoxValue(ing)
+                                                                                    : (qtyDrafts[`order:${ing.id}`] ?? fmtQty(ing.orderQty))}
+                                                                                onChange={e => {
+                                                                                    const key = `${activeTab === 'SUBMITTED_LIST' ? 'bought' : 'order'}:${ing.id}`;
+                                                                                    setQtyDrafts(prev => ({ ...prev, [key]: e.target.value }));
+                                                                                }}
+                                                                                onBlur={() => handleQtyBlur(ing, activeTab === 'SUBMITTED_LIST' ? 'bought' : 'order')}
+                                                                                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                                                                style={{
+                                                                                    width: '80px', minHeight: '40px', padding: '0.3rem 0.5rem', borderRadius: '8px',
+                                                                                    border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                                                                                    fontSize: '1.05rem', fontWeight: 600, textAlign: 'center', fontFamily: 'inherit'
+                                                                                }}
+                                                                            />
+                                                                            <span>{qtyUnit(ing)}</span>
+                                                                            {activeTab === 'SUBMITTED_LIST' && ing.orderQty != null && (
+                                                                                <span style={{ fontSize: '0.75rem' }}>
+                                                                                    {t('qty_suggested_hint', { qty: fmtQty(ing.orderQty) })}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                     {Array.isArray(ing.prepItems) && ing.prepItems.length > 0 && (
                                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                                                             {ing.prepItems.map((proc: any) => {

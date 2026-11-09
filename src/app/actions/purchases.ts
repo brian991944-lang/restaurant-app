@@ -348,7 +348,7 @@ export async function getRecibirData() {
                 where: { type: 'RAW', isActive: true },
                 select: {
                     id: true, name: true, metric: true, isPacked: true, unitsPerPack: true, packUnit: true,
-                    purchaseStatus: true, providerId: true, cleaningMode: true,
+                    purchaseStatus: true, boughtQty: true, providerId: true, cleaningMode: true,
                     provider: { select: { name: true } },
                     inventory: { select: { frozenQty: true, thawingQty: true } },
                 },
@@ -371,7 +371,7 @@ export async function markReceived(ingredientIds: string[]) {
     try {
         await prisma.ingredient.updateMany({
             where: { id: { in: ingredientIds }, purchaseStatus: 'COMPRADO' },
-            data: { purchaseStatus: 'PENDIENTE', needsOrdering: false, isSubmittedForOrdering: false, carriedOver: false },
+            data: { purchaseStatus: 'PENDIENTE', needsOrdering: false, isSubmittedForOrdering: false, carriedOver: false, orderQty: null, boughtQty: null },
         });
         revalidatePath('/[locale]/compras', 'page');
         return { success: true };

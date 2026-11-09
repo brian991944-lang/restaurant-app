@@ -7,8 +7,8 @@ import { getRecibirData, markReceived, registerPurchase, type CreditedLine, type
 import { isWeightMetric, packSize, unitLabel } from '@/lib/purchaseUnits';
 
 // Admin "Recibir" tab: posts what was actually bought to raw stock.
-// Prefills one row per active RAW marked COMPRADO; anything else is added with
-// the picker. Packed items: qty is always packs. "Recibido en" decides where it
+// Prefills one row per active RAW marked COMPRADO, with the quantity typed on
+// Lista Enviada when there is one; anything else is added with the picker. Packed items: qty is always packs. "Recibido en" decides where it
 // lands: Restaurante credits kitchen stock, Casa de Brian goes to Almacén.
 // No backdrop-filter / transform / filter on anything here (iPad Safari rendering).
 
@@ -20,6 +20,7 @@ interface RecibirIngredient {
     unitsPerPack: number;
     packUnit: string;
     purchaseStatus: string;
+    boughtQty?: number | null; // typed on Lista Enviada; prefills Cantidad
     cleaningMode?: boolean;
     providerId: string | null;
     provider: { name: string } | null;
@@ -83,7 +84,7 @@ export default function RecibirTab({ locale }: { locale: 'es' | 'en' }) {
     const byId = useMemo(() => new Map(ingredients.map(i => [i.id, i])), [ingredients]);
 
     const defaultUnit = (ing: RecibirIngredient) => (ing.isPacked ? t('packUnit') : unitLabel(ing.metric, locale));
-    const newRow = (ing: RecibirIngredient): Row => ({ ingredientId: ing.id, qty: '', unit: defaultUnit(ing), weight: '', price: '', pieces: '' });
+    const newRow = (ing: RecibirIngredient): Row => ({ ingredientId: ing.id, qty: ing.boughtQty != null ? String(ing.boughtQty) : '', unit: defaultUnit(ing), weight: '', price: '', pieces: '' });
 
     const load = async () => {
         setIsLoading(true);

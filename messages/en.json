@@ -1777,7 +1777,11 @@
     "status_no_disponible": "Unavailable",
     "status_no_disp_short": "Unavail.",
     "carried_over": "Carried over",
-    "unknown_provider": "Unknown"
+    "unknown_provider": "Unknown",
+    "qty_suggested": "Suggested qty",
+    "qty_bought": "Bought",
+    "qty_suggested_hint": "Suggested: {qty}",
+    "err_save_qty": "Could not save the quantity."
   },
   "Integrations": {
     "title": "Data Integrations",

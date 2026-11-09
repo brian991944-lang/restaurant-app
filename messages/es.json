@@ -1777,7 +1777,11 @@
     "status_no_disponible": "No disponible",
     "status_no_disp_short": "No disp.",
     "carried_over": "Pendiente de antes",
-    "unknown_provider": "Desconocido"
+    "unknown_provider": "Desconocido",
+    "qty_suggested": "Cant. sugerida",
+    "qty_bought": "Comprado",
+    "qty_suggested_hint": "Sugerido: {qty}",
+    "err_save_qty": "No se pudo guardar la cantidad."
   },
   "Integrations": {
     "title": "Integraciones de Datos",

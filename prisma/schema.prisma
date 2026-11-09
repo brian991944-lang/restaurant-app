@@ -75,6 +75,8 @@ model Ingredient {
   needsOrdering  Boolean @default(false)
   isSubmittedForOrdering Boolean @default(false)
   purchaseStatus String  @default("PENDIENTE")   // PENDIENTE | COMPRADO | NO_DISPONIBLE
+  orderQty       Float?                           // shopping list: suggested qty, typed when the item is flagged (packs if isPacked, else metric)
+  boughtQty      Float?                           // shopping list: what was actually bought, same unit; prefills Recibir
   carriedOver    Boolean @default(false)
   isActive       Boolean @default(true)           // soft-disable: false = hidden from cook-facing lists
   isSalonItem    Boolean @default(false)
