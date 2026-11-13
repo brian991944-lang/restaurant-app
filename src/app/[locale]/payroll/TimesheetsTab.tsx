@@ -30,6 +30,17 @@ const cell: React.CSSProperties = { padding: '0.5rem 0.9rem', fontSize: '1.02rem
 const head: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '0.92rem', fontWeight: 500, whiteSpace: 'nowrap', textAlign: 'left' };
 const numCell: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 const numHead: React.CSSProperties = { ...head, textAlign: 'right' };
+/**
+ * The column titles stay put while the list scrolls — the same scroll box as
+ * the Finanzas table, because a sticky header holds to the nearest scroll
+ * container and the wrapper already is one for the horizontal direction.
+ * Opaque background so rows do not show through; the rule is drawn as a shadow
+ * because a collapsed border does not travel with a sticky header.
+ */
+const stickyHead: React.CSSProperties = {
+    position: 'sticky', top: 0, zIndex: 2,
+    background: 'var(--bg-secondary)', boxShadow: 'inset 0 -1px 0 var(--border)',
+};
 
 /** Cents as money, or a dash for a figure nobody has typed yet. */
 const moneyText = (cents: number | null) => (cents === null ? '—' : formatMoney(cents));
@@ -233,10 +244,10 @@ export default function TimesheetsTab({
                         <Pill label={t('ts_pill_cards')} value={String(cardCount)} />
                     </div>
 
-                    <div style={{ overflowX: 'auto' }}>
+                    <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '960px' }}>
-                            <thead>
-                                <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>
+                            <thead style={stickyHead}>
+                                <tr style={{ color: 'var(--text-secondary)' }}>
                                     <th style={head}>{t('ts_date')}</th>
                                     <th style={head}>{t('ts_role')}</th>
                                     <th style={head}>{t('ts_time_card')}</th>
