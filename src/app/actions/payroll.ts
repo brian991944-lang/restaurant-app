@@ -2544,11 +2544,30 @@ export type WeekPunch = {
     flagCodes: string[];
 };
 
+/**
+ * One business day's tip figures for one person, every shift of that day
+ * summed. Integer cents, so the client only ever adds and formats.
+ */
+export type WeekTipDay = {
+    /** 'YYYY-MM-DD'. */
+    businessDate: string;
+    cardCents: number;
+    serviceChargeCents: number;
+    /** Null when no entry that day has a cash figure typed yet. */
+    cashCents: number | null;
+};
+
 export type WeekPunchEmployee = {
     key: string;
     employeeName: string;
     department: Department | null;
     punches: WeekPunch[];
+    /**
+     * The person's tip-sheet figures for the week, one row per business day,
+     * ascending. Empty for anyone the tip sheet never recorded — kitchen, or a
+     * punch with no Clover id to match on.
+     */
+    tipDays: WeekTipDay[];
 };
 
 export type WeekPunchesView = {
@@ -2561,7 +2580,12 @@ export type WeekPunchesView = {
 };
 
 /**
- * Every punch in one Monday–Sunday week, grouped by person. Read-only.
+ * Every punch in one Monday–Sunday week, grouped by person, with each person's
+ * tip-sheet figures for the same days alongside. Read-only.
+ *
+ * Only people WITH a punch are listed — this is the time-card view, so someone
+ * on the tip sheet who never clocked in belongs to the Reports tab's
+ * PROPINAS_SIN_HORAS flag, not here.
  *
  * Admin-gated here, not just by the page: a server action is a public endpoint
  * and can be invoked without ever rendering the tab.
@@ -2578,10 +2602,46 @@ export async function getWeekPunches(weekEnding?: string): Promise<WeekPunchesVi
 
     if (!(await isAdminSession())) return { ...empty, forbidden: true };
 
-    const punches = await prisma.payrollPunch.findMany({
-        where: { businessDate: { gte: businessDateToUtcDate(startStr), lte: businessDateToUtcDate(endStr) } },
-        orderBy: { clockIn: 'asc' },
-    });
+    const start = businessDateToUtcDate(startStr);
+    const end = businessDateToUtcDate(endStr);
+
+    const [punches, tipEntries] = await Promise.all([
+        prisma.payrollPunch.findMany({
+            where: { businessDate: { gte: start, lte: end } },
+            orderBy: { clockIn: 'asc' },
+        }),
+        // Same path as getPayrollWeek: the business date lives on TipDay, two
+        // relations up, so each entry is attributed to the day it was earned.
+        prisma.tipShiftEntry.findMany({
+            where: { tipShift: { tipDay: { businessDate: { gte: start, lte: end } } } },
+            select: {
+                cloverEmployeeId: true,
+                creditTips: true, serviceCharge: true, cashTips: true,
+                tipShift: { select: { tipDay: { select: { businessDate: true } } } },
+            },
+        }),
+    ]);
+
+    // Clover id -> business date -> that day's figures, every shift summed.
+    // Cash stays null until some entry that day has a figure typed, so "not
+    // entered yet" and "entered as zero" render differently.
+    const tipsById = new Map<string, Map<string, WeekTipDay>>();
+    for (const e of tipEntries) {
+        const businessDate = e.tipShift.tipDay.businessDate.toISOString().slice(0, 10);
+        let days = tipsById.get(e.cloverEmployeeId);
+        if (!days) {
+            days = new Map();
+            tipsById.set(e.cloverEmployeeId, days);
+        }
+        let day = days.get(businessDate);
+        if (!day) {
+            day = { businessDate, cardCents: 0, serviceChargeCents: 0, cashCents: null };
+            days.set(businessDate, day);
+        }
+        day.cardCents += toCents(dec(e.creditTips));
+        day.serviceChargeCents += toCents(dec(e.serviceCharge));
+        if (e.cashTips !== null) day.cashCents = (day.cashCents ?? 0) + toCents(dec(e.cashTips));
+    }
 
     const ids = [...new Set(punches.map(p => p.cloverEmployeeId).filter((id): id is string => !!id))];
     const rates = ids.length
@@ -2597,11 +2657,16 @@ export async function getWeekPunches(weekEnding?: string): Promise<WeekPunchesVi
         const key = p.cloverEmployeeId ?? `name:${p.employeeName}`;
         let emp = byKey.get(key);
         if (!emp) {
+            const tipDays = p.cloverEmployeeId ? tipsById.get(p.cloverEmployeeId) : undefined;
             emp = {
                 key,
                 employeeName: p.employeeName,
-                department: resolveDepartment(p.cloverEmployeeId ? rateById.get(p.cloverEmployeeId) : null, false),
+                // A tip entry this week is proof of salón, as in getPayrollWeek.
+                department: resolveDepartment(p.cloverEmployeeId ? rateById.get(p.cloverEmployeeId) : null, !!tipDays),
                 punches: [],
+                tipDays: tipDays
+                    ? [...tipDays.values()].sort((a, b) => a.businessDate.localeCompare(b.businessDate))
+                    : [],
             };
             byKey.set(key, emp);
         }

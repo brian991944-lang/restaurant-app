@@ -3,10 +3,10 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import type { WeekPunchesView, WeekPunch, WeekPunchEmployee, WeekPunchSource } from '@/app/actions/payroll';
+import type { WeekPunchesView, WeekPunch, WeekPunchEmployee, WeekPunchSource, WeekTipDay } from '@/app/actions/payroll';
 import { DatePicker } from '@/components/ui/DatePicker';
 import { addDays, sundayOf } from '@/lib/payrollWeek';
-import { toCents, sumCents } from '@/lib/money';
+import { toCents, sumCents, formatMoney } from '@/lib/money';
 
 /** Wall-clock time is always the restaurant's, whatever the viewer's device says. */
 const NY = 'America/New_York';
@@ -29,6 +29,26 @@ const initials = (name: string) =>
 const cell: React.CSSProperties = { padding: '0.5rem 0.9rem', fontSize: '1.02rem', verticalAlign: 'middle', height: '52px' };
 const head: React.CSSProperties = { padding: '0.8rem 0.9rem', fontSize: '0.92rem', fontWeight: 500, whiteSpace: 'nowrap', textAlign: 'left' };
 const numCell: React.CSSProperties = { ...cell, textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
+const numHead: React.CSSProperties = { ...head, textAlign: 'right' };
+
+/** Cents as money, or a dash for a figure nobody has typed yet. */
+const moneyText = (cents: number | null) => (cents === null ? '—' : formatMoney(cents));
+
+/**
+ * The tip-sheet figures for one person's week, in cents. Cash stays null until
+ * at least one day has a figure typed, so an untouched week reads "—" rather
+ * than a $0.00 that looks confirmed.
+ */
+const tipTotals = (days: WeekTipDay[]) => ({
+    cardC: sumCents(days.map(d => d.cardCents)),
+    serviceChargeC: sumCents(days.map(d => d.serviceChargeCents)),
+    cashC: days.some(d => d.cashCents !== null) ? sumCents(days.map(d => d.cashCents ?? 0)) : null,
+});
+
+/** One line of a person's listing: a time card, or a day the tip sheet has that the time cards do not. */
+type Line =
+    | { kind: 'punch'; p: WeekPunch; tips: WeekTipDay | null }
+    | { kind: 'tipsOnly'; tips: WeekTipDay };
 
 const navBtn: React.CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '52px', padding: '0 1rem',
@@ -85,11 +105,62 @@ export default function TimesheetsTab({
     // Hours come from the stored column; only the SUMS are done here, in cents.
     const groups = view.employees.map(emp => {
         const punches = [...emp.punches].sort((a, b) => a.clockIn.localeCompare(b.clockIn));
-        return { emp, punches, cents: sumCents(punches.map(p => toCents(p.hours))) };
+
+        // Tips are a per-DAY figure and time cards are not: a split shift is two
+        // cards on one day. The day's tips go on its first card only, so a
+        // column never shows the same money twice; a day the tip sheet has but
+        // the time cards do not gets a line of its own, so the column still
+        // adds up to the header figure.
+        const tipsByDate = new Map(emp.tipDays.map(d => [d.businessDate, d]));
+        const seen = new Set<string>();
+        const lines: Line[] = punches.map(p => {
+            const tips = tipsByDate.get(p.businessDate) ?? null;
+            const first = !seen.has(p.businessDate);
+            seen.add(p.businessDate);
+            return { kind: 'punch', p, tips: first ? tips : null };
+        });
+        for (const d of emp.department === 'SALON' ? emp.tipDays : []) {
+            if (seen.has(d.businessDate)) continue;
+            const at = lines.findIndex(l => (l.kind === 'punch' ? l.p.businessDate : l.tips.businessDate) > d.businessDate);
+            lines.splice(at === -1 ? lines.length : at, 0, { kind: 'tipsOnly', tips: d });
+        }
+
+        return {
+            emp, punches, lines,
+            isSalon: emp.department === 'SALON',
+            cents: sumCents(punches.map(p => toCents(p.hours))),
+            ...tipTotals(emp.tipDays),
+        };
     });
     const totalC = sumCents(groups.map(g => g.cents));
     const deptC = (d: 'COCINA' | 'SALON') => sumCents(groups.filter(g => g.emp.department === d).map(g => g.cents));
     const cardCount = sumCents(groups.map(g => g.punches.length));
+
+    // The tip columns are for salón only. Whatever the tip sheet may hold for
+    // anyone else stays off this screen, so these totals are over the same rows
+    // that show figures.
+    const salon = groups.filter(g => g.emp.department === 'SALON');
+    const totalCardC = sumCents(salon.map(g => g.cardC));
+    const totalServiceChargeC = sumCents(salon.map(g => g.serviceChargeC));
+    const totalCashC = salon.some(g => g.cashC !== null) ? sumCents(salon.map(g => g.cashC ?? 0)) : null;
+
+    /** The three tip cells, or three empty ones off the salón. */
+    const tipCells = (show: boolean, t3: { cardC: number; serviceChargeC: number; cashC: number | null } | null, style: React.CSSProperties) =>
+        show && t3 ? (
+            <>
+                <td style={style}>{moneyText(t3.cardC)}</td>
+                <td style={style}>{moneyText(t3.serviceChargeC)}</td>
+                <td style={style}>{moneyText(t3.cashC)}</td>
+            </>
+        ) : (
+            <>
+                <td style={style} />
+                <td style={style} />
+                <td style={style} />
+            </>
+        );
+    const dayCells = (d: WeekTipDay | null) =>
+        d ? { cardC: d.cardCents, serviceChargeC: d.serviceChargeCents, cashC: d.cashCents } : null;
 
     const timeCard = (p: WeekPunch) => {
         if (!p.clockOut) {
@@ -163,16 +234,19 @@ export default function TimesheetsTab({
                     </div>
 
                     <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '960px' }}>
                             <thead>
                                 <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>
                                     <th style={head}>{t('ts_date')}</th>
                                     <th style={head}>{t('ts_role')}</th>
                                     <th style={head}>{t('ts_time_card')}</th>
-                                    <th style={{ ...head, textAlign: 'right' }}>{t('ts_actual_hours')}</th>
+                                    <th style={numHead}>{t('ts_actual_hours')}</th>
+                                    <th style={numHead}>{t('ts_card_tips')}</th>
+                                    <th style={numHead}>{t('ts_service_charge')}</th>
+                                    <th style={numHead}>{t('ts_cash_tips')}</th>
                                 </tr>
                             </thead>
-                            {groups.map(({ emp, punches, cents }) => (
+                            {groups.map(({ emp, punches, lines, isSalon, cents, cardC, serviceChargeC, cashC }) => (
                                 <tbody key={emp.key}>
                                     <tr style={{ background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)' }}>
                                         <td style={cell} colSpan={2}>
@@ -195,8 +269,24 @@ export default function TimesheetsTab({
                                             {t('ts_cards_count', { count: punches.length })}
                                         </td>
                                         <td style={{ ...numCell, fontWeight: 700 }}>{hoursText(cents)}</td>
+                                        {tipCells(isSalon, { cardC, serviceChargeC, cashC }, { ...numCell, fontWeight: 700 })}
                                     </tr>
-                                    {punches.map(p => {
+                                    {lines.map(line => {
+                                        if (line.kind === 'tipsOnly') {
+                                            return (
+                                                <tr
+                                                    key={`tips:${line.tips.businessDate}`}
+                                                    style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                                                >
+                                                    <td style={cell}>{dateLabel(line.tips.businessDate)}</td>
+                                                    <td style={cell}>{deptLabel(emp.department)}</td>
+                                                    <td style={{ ...cell, fontStyle: 'italic' }}>{t('ts_tips_no_card')}</td>
+                                                    <td style={numCell} />
+                                                    {tipCells(isSalon, dayCells(line.tips), numCell)}
+                                                </tr>
+                                            );
+                                        }
+                                        const { p, tips } = line;
                                         const labels = p.flagCodes.filter(c => !(c === 'SIN_SALIDA' && !p.clockOut));
                                         return (
                                             <tr
@@ -222,6 +312,7 @@ export default function TimesheetsTab({
                                                     ))}
                                                 </td>
                                                 <td style={numCell}>{hoursText(toCents(p.hours))}</td>
+                                                {tipCells(isSalon, dayCells(tips), numCell)}
                                             </tr>
                                         );
                                     })}
@@ -232,6 +323,7 @@ export default function TimesheetsTab({
                                     <td style={cell} colSpan={2}>{t('totals')}</td>
                                     <td style={cell}>{t('ts_cards_count', { count: cardCount })}</td>
                                     <td style={numCell}>{hoursText(totalC)}</td>
+                                    {tipCells(true, { cardC: totalCardC, serviceChargeC: totalServiceChargeC, cashC: totalCashC }, numCell)}
                                 </tr>
                             </tfoot>
                         </table>
