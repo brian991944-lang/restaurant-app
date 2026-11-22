@@ -25,7 +25,6 @@ interface Draft {
     salonGroup: string;
     qtyBodega: string;
     qtyFront: string;
-    parFront: string;
     priceDollars: string;
     autoManage: boolean;
     /** When the count was taken (New York, datetime-local format). */
@@ -142,9 +141,9 @@ function CountLine({ countedAt }: { countedAt: string | null }) {
     );
 }
 
-/** A stock figure: red when negative or below par. */
-const stockColor = (value: number, par?: number) =>
-    value < 0 || (par !== undefined && value < par) ? 'var(--danger)' : undefined;
+/** A stock figure: red when negative. */
+const stockColor = (value: number) =>
+    value < 0 ? 'var(--danger)' : undefined;
 
 // Tap-target sized for tablet use.
 const inputStyle: React.CSSProperties = {
@@ -470,7 +469,6 @@ function AdminSalonView() {
             salonGroup: stock?.salonGroup ?? '',
             qtyBodega: String(baseBodega),
             qtyFront: String(baseFront),
-            parFront: String(stock?.parFront ?? 0),
             priceDollars: ((stock?.salePrice ?? 0) / 100).toFixed(2),
             autoManage: stock?.autoManage ?? true,
             countedAt: nyNowLocal(),
@@ -496,8 +494,7 @@ function AdminSalonView() {
 
         const counts: [string, string][] = [
             ['Bodega', draft.qtyBodega],
-            ['Front', draft.qtyFront],
-            ['Par', draft.parFront]
+            ['Front', draft.qtyFront]
         ];
         const parsed: Record<string, number> = {};
         for (const [label, raw] of counts) {
@@ -529,7 +526,6 @@ function AdminSalonView() {
             const result = await updateSalonStock(editingId, {
                 name,
                 ...(isCount ? { qtyBodega: parsed['Bodega'], qtyFront: parsed['Front'], countedAt: draft.countedAt } : {}),
-                parFront: parsed['Par'],
                 salePrice: Math.round(dollars * 100),
                 autoManage: draft.autoManage,
                 // Omitted when blank so the column default stands rather than
@@ -600,7 +596,7 @@ function AdminSalonView() {
         else grouped.set(key, [row]);
     }
     const groupNames = [...grouped.keys()].sort((a, b) => a.localeCompare(b, 'es'));
-    const columnCount = isAdmin ? 9 : 8;
+    const columnCount = isAdmin ? 8 : 7;
 
     const cellStyle = { padding: '1rem 1.25rem', fontSize: '1.05rem' };
     const headStyle = { padding: '1rem 1.25rem', fontWeight: 500, fontSize: '0.95rem' };
@@ -837,7 +833,6 @@ function AdminSalonView() {
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Front</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Total</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>{t('colSold')}</th>
-                                    <th style={{ ...headStyle, textAlign: 'center' }}>Par</th>
                                     <th style={{ ...headStyle, textAlign: 'right' }}>Precio</th>
                                     <th style={{ ...headStyle, textAlign: 'center' }}>Stock</th>
                                     {isAdmin && <th style={{ ...headStyle, textAlign: 'right' }}>Acciones</th>}
@@ -918,15 +913,6 @@ function AdminSalonView() {
                                                                                 value={draft.countedAt}
                                                                                 max={nyNowLocal()}
                                                                                 onChange={e => setDraft({ ...draft, countedAt: e.target.value })}
-                                                                                style={inputStyle}
-                                                                            />
-                                                                        </Field>
-                                                                        <Field label="Par">
-                                                                            <input
-                                                                                type="number"
-                                                                                min={0}
-                                                                                value={draft.parFront}
-                                                                                onChange={e => setDraft({ ...draft, parFront: e.target.value })}
                                                                                 style={inputStyle}
                                                                             />
                                                                         </Field>
@@ -1013,10 +999,9 @@ function AdminSalonView() {
                                                             {shown && <CountLine countedAt={shown.countedAt} />}
                                                         </td>
                                                         <td style={{ ...cellStyle, textAlign: 'center', color: shown ? stockColor(shown.bodega) : undefined }}>{num(shown?.bodega)}</td>
-                                                        <td style={{ ...cellStyle, textAlign: 'center', fontWeight: shown && stockColor(shown.front, stock?.parFront) ? 700 : undefined, color: shown ? stockColor(shown.front, stock?.parFront) : undefined }}>{num(shown?.front)}</td>
+                                                        <td style={{ ...cellStyle, textAlign: 'center', color: shown ? stockColor(shown.front) : undefined }}>{num(shown?.front)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'center', fontWeight: 700, color: shown ? stockColor(shown.total) : undefined }}>{num(shown?.total)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'center', color: 'var(--text-secondary)' }}>{shown?.tracked ? shown.sold : '—'}</td>
-                                                        <td style={{ ...cellStyle, textAlign: 'center' }}>{num(stock?.parFront)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'right' }}>{money(stock?.salePrice)}</td>
                                                         <td style={{ ...cellStyle, textAlign: 'center' }}>
                                                             {!stock
@@ -1127,7 +1112,7 @@ function AdminSalonView() {
                                 No se modificarán:
                             </span>
                             <span style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                                Bodega, Par, Unidades por paquete y Grupo
+                                Bodega, Unidades por paquete y Grupo
                             </span>
                         </div>
 
@@ -1173,7 +1158,7 @@ function AdminSalonView() {
 
 /**
  * Read-only salón stock for non-admins: what is on hand, nothing more. No
- * prices, par levels, stock-control state, or any action.
+ * prices, stock-control state, or any action.
  */
 function WorkerSalonTable() {
     const { rows, salesUpdatedAt, isLoading, error } = useSalonLive();
@@ -1236,9 +1221,8 @@ function WorkerSalonTable() {
                                 return (
                                     <Fragment key={groupName}>
                                         {groupRows.map((row, index) => {
-                                            const stock = row.salonStock;
                                             const shown = shownStock(row);
-                                            const frontColor = shown ? stockColor(shown.front, stock?.parFront) : undefined;
+                                            const frontColor = shown ? stockColor(shown.front) : undefined;
                                             return (
                                                 <tr key={row.id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     {index === 0 && <td rowSpan={groupRows.length} style={groupCellStyle}>{groupName}</td>}

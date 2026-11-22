@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Package, Pencil, Trash2, ArrowUp, ArrowDown, Users } from 'lucide-react';
+import { Pencil, Trash2, ArrowUp, ArrowDown, Users } from 'lucide-react';
 import { useLocale } from 'next-intl';
 import { useAdmin } from '@/components/AdminContext';
 import { getWaitStaff, getWaitStaffForAdmin } from '@/app/actions/clover';
-import { getSalonStock, restockSalonItem, setStaffVisibility } from '@/app/actions/inventory';
+import { setStaffVisibility } from '@/app/actions/inventory';
 import {
     getShiftList, toggleShiftTask, setShiftRunStaff, completeShiftRun, marcarShiftCompartido,
     getAllShiftSections, createShiftTask, updateShiftTask, deleteShiftTask,
@@ -16,281 +16,7 @@ import SenderPicker, { senderDisplayNames } from '@/components/ui/SenderPicker';
 import ShiftShareModal, { buildListaTexto, type ShiftShareSnapshot } from './ShiftShareModal';
 import LimpiezaView from './LimpiezaView';
 
-type SalonRow = Awaited<ReturnType<typeof getSalonStock>>[number];
 type StaffMember = Awaited<ReturnType<typeof getWaitStaff>>['staff'][number];
-
-const NO_GROUP = 'Sin grupo';
-
-/**
- * Front-of-house restock view. Deliberately minimal: no prices, no bodega or
- * par numbers, no editing — just what to carry out and how many.
- */
-function RestockView({ employeeId, employeeName }: {
-    employeeId: string | null;
-    employeeName: string | null;
-}) {
-    const [rows, setRows] = useState<SalonRow[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [loadError, setLoadError] = useState<string | null>(null);
-
-    const [busyId, setBusyId] = useState<string | null>(null);
-    const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
-    const [customOpen, setCustomOpen] = useState<Record<string, boolean>>({});
-    const [customQty, setCustomQty] = useState<Record<string, string>>({});
-    const [done, setDone] = useState<{ id: string; name: string; qty: number }[]>([]);
-
-    // `quiet` skips the loading state so a post-restock refresh does not blank
-    // the list out from under the worker.
-    const loadRows = useCallback(async ({ quiet = false }: { quiet?: boolean } = {}) => {
-        if (!quiet) setIsLoading(true);
-        try {
-            setRows(await getSalonStock());
-            setLoadError(null);
-        } catch (e) {
-            // On a quiet refresh the restock itself already succeeded, so the
-            // optimistically-updated list is kept rather than replaced by an
-            // error that would misrepresent what happened.
-            if (!quiet) setLoadError(e instanceof Error ? e.message : String(e));
-        } finally {
-            if (!quiet) setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => { loadRows(); }, [loadRows]);
-
-    // Who is doing the work comes from the section's staff pills now, not from
-    // a selector of its own.
-    const hasStaff = employeeId !== null;
-
-    // Only items that are short on the floor AND have stock in the bodega to
-    // cover it — anything else is not actionable by a worker.
-    const pending = rows
-        .filter(r => {
-            const s = r.salonStock;
-            if (!s) return false;
-            return s.parFront - s.qtyFront > 0 && s.qtyBodega > 0;
-        })
-        .sort((a, b) => {
-            const ga = a.salonStock?.salonGroup || NO_GROUP;
-            const gb = b.salonStock?.salonGroup || NO_GROUP;
-            const byGroup = ga.localeCompare(gb, 'es');
-            return byGroup !== 0 ? byGroup : a.name.localeCompare(b.name, 'es');
-        });
-
-    const grouped = new Map<string, SalonRow[]>();
-    for (const row of pending) {
-        const key = row.salonStock?.salonGroup || NO_GROUP;
-        const bucket = grouped.get(key);
-        if (bucket) bucket.push(row);
-        else grouped.set(key, [row]);
-    }
-
-    const suggestedFor = (row: SalonRow) => {
-        const s = row.salonStock!;
-        return Math.min(s.parFront - s.qtyFront, s.qtyBodega);
-    };
-
-    const handleRestock = async (row: SalonRow, qty: number) => {
-        if (!hasStaff) return;
-        if (!Number.isInteger(qty) || qty <= 0) {
-            setRowErrors(prev => ({ ...prev, [row.id]: 'La cantidad debe ser un número entero positivo.' }));
-            return;
-        }
-
-        setBusyId(row.id);
-        setRowErrors(prev => {
-            const next = { ...prev };
-            delete next[row.id];
-            return next;
-        });
-
-        try {
-            const result = await restockSalonItem(row.id, qty, employeeId, employeeName);
-            if (!result.success) {
-                setRowErrors(prev => ({ ...prev, [row.id]: result.error ?? 'No se pudo reponer.' }));
-                return;
-            }
-
-            // Drop the row immediately for instant feedback, then refetch so the
-            // list reflects the real state — including a partial restock, where
-            // the item should reappear with a smaller Sacar rather than vanish.
-            setRows(prev => prev.filter(r => r.id !== row.id));
-            setDone(prev => [...prev, { id: row.id, name: row.name, qty }]);
-            setTimeout(() => setDone(prev => prev.filter(d => d.id !== row.id)), 5000);
-            await loadRows({ quiet: true });
-        } catch (e) {
-            setRowErrors(prev => ({ ...prev, [row.id]: e instanceof Error ? e.message : String(e) }));
-        } finally {
-            setBusyId(null);
-        }
-    };
-
-    return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
-            {!hasStaff && (
-                <p style={{ margin: 0, fontSize: '1.15rem', color: 'var(--text-secondary)' }}>
-                    Selecciona quién hizo esta sección para poder reponer.
-                </p>
-            )}
-
-            {done.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {done.map(d => (
-                        <div
-                            key={d.id}
-                            style={{
-                                padding: '1rem 1.25rem', borderRadius: '12px', fontSize: '1.15rem', fontWeight: 600,
-                                color: 'var(--success)',
-                                background: 'color-mix(in srgb, var(--success) 12%, transparent)',
-                                border: '1px solid color-mix(in srgb, var(--success) 35%, transparent)'
-                            }}
-                        >
-                            ✓ {d.name} — {d.qty} repuesto{d.qty === 1 ? '' : 's'}
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {loadError ? (
-                <p style={{ color: 'var(--danger)', fontSize: '1.15rem' }}>Error al cargar: {loadError}</p>
-            ) : isLoading ? (
-                <p style={{ color: 'var(--text-secondary)', fontSize: '1.15rem' }}>Cargando...</p>
-            ) : pending.length === 0 ? (
-                <div className="glass-panel" style={{ padding: '3rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ background: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: '50%', display: 'flex' }}>
-                        <Package size={48} color="var(--success)" />
-                    </div>
-                    <p style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-secondary)' }}>
-                        Todo está completo. No hay nada que reponer.
-                    </p>
-                </div>
-            ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {[...grouped.entries()].map(([groupName, groupRows]) => (
-                        <div key={groupName} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                {groupName}
-                            </h2>
-
-                            {groupRows.map(row => {
-                                const suggested = suggestedFor(row);
-                                const isBusy = busyId === row.id;
-                                const isBlocked = isBusy || !hasStaff;
-                                const err = rowErrors[row.id];
-                                const isCustomOpen = customOpen[row.id] === true;
-
-                                return (
-                                    <div
-                                        key={row.id}
-                                        className="glass-panel"
-                                        style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
-                                    >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                            <div style={{ flex: 1, minWidth: '200px' }}>
-                                                <div style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                                    {row.name}
-                                                </div>
-                                                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent-primary)', marginTop: '0.3rem' }}>
-                                                    Sacar: {suggested}
-                                                </div>
-                                            </div>
-
-                                            <button
-                                                onClick={() => handleRestock(row, suggested)}
-                                                disabled={isBlocked}
-                                                className="btn-primary"
-                                                style={{
-                                                    borderRadius: '10px', padding: '1rem 2rem', minHeight: '72px',
-                                                    fontSize: '1.25rem', fontWeight: 700,
-                                                    opacity: isBlocked ? 0.5 : 1,
-                                                    cursor: isBlocked ? 'not-allowed' : 'pointer'
-                                                }}
-                                            >
-                                                {isBusy ? 'Enviando...' : 'Repuesto'}
-                                            </button>
-                                        </div>
-
-                                        {!isCustomOpen && (
-                                            <button
-                                                onClick={() => {
-                                                    setCustomOpen(prev => ({ ...prev, [row.id]: true }));
-                                                    setCustomQty(prev => ({ ...prev, [row.id]: String(suggested) }));
-                                                }}
-                                                style={{
-                                                    alignSelf: 'flex-start', padding: '0.5rem 0',
-                                                    fontSize: '1.05rem', color: 'var(--accent-primary)',
-                                                    textDecoration: 'underline', cursor: 'pointer',
-                                                    background: 'none', border: 'none'
-                                                }}
-                                            >
-                                                Otra cantidad
-                                            </button>
-                                        )}
-
-                                        {isCustomOpen && (
-                                            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                                <input
-                                                    type="number"
-                                                    min={1}
-                                                    inputMode="numeric"
-                                                    value={customQty[row.id] ?? ''}
-                                                    onChange={e => setCustomQty(prev => ({ ...prev, [row.id]: e.target.value }))}
-                                                    style={{
-                                                        padding: '0.8rem 1rem', minHeight: '64px', fontSize: '1.25rem',
-                                                        width: '130px', borderRadius: '8px',
-                                                        color: 'var(--text-primary)', background: 'var(--bg-primary)',
-                                                        border: '1px solid var(--border)'
-                                                    }}
-                                                />
-                                                <button
-                                                    onClick={() => handleRestock(row, Number(customQty[row.id]))}
-                                                    disabled={isBlocked}
-                                                    className="btn-primary"
-                                                    style={{
-                                                        borderRadius: '10px', padding: '0.9rem 1.6rem', minHeight: '64px',
-                                                        fontSize: '1.15rem', fontWeight: 700,
-                                                        opacity: isBlocked ? 0.5 : 1,
-                                                        cursor: isBlocked ? 'not-allowed' : 'pointer'
-                                                    }}
-                                                >
-                                                    {isBusy ? 'Enviando...' : 'Confirmar'}
-                                                </button>
-                                                <button
-                                                    onClick={() => setCustomOpen(prev => ({ ...prev, [row.id]: false }))}
-                                                    disabled={isBusy}
-                                                    style={{
-                                                        padding: '0.9rem 1.4rem', minHeight: '64px', fontSize: '1.15rem',
-                                                        borderRadius: '10px', color: 'var(--text-secondary)',
-                                                        background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)',
-                                                        cursor: isBusy ? 'not-allowed' : 'pointer'
-                                                    }}
-                                                >
-                                                    Cancelar
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {err && (
-                                            <div style={{
-                                                padding: '1rem', borderRadius: '8px', fontSize: '1.1rem',
-                                                color: 'var(--danger)',
-                                                background: 'color-mix(in srgb, var(--danger) 10%, transparent)',
-                                                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)'
-                                            }}>
-                                                {err}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
 
 type ShiftList = Awaited<ReturnType<typeof getShiftList>>;
 
@@ -1247,15 +973,9 @@ export default function ClosingListsPage() {
     const locale = useLocale();
     const [activeTab, setActiveTab] = useState<'APERTURA' | 'CIERRE' | 'LIMPIEZA'>('CIERRE');
 
-    // Fetched once here and shared by both checklists. RestockView keeps its
-    // own copy so it stays self-contained.
+    // Fetched once here and shared by both checklists.
     const [staff, setStaff] = useState<StaffMember[]>([]);
     const [staffError, setStaffError] = useState<string | null>(null);
-
-    // Whoever the Cierre checklist reports as first-selected; the restock is
-    // attributed to them. setState is a stable identity, so passing it straight
-    // in as the callback is safe.
-    const [restockStaff, setRestockStaff] = useState<{ id: string; name: string } | null>(null);
 
     const [isEditorOpen, setIsEditorOpen] = useState(false);
     const [isStaffOpen, setIsStaffOpen] = useState(false);
@@ -1363,18 +1083,6 @@ export default function ClosingListsPage() {
                     listType="CIERRE"
                     staff={staff}
                     staffError={staffError}
-                    onSelectedStaffChange={setRestockStaff}
-                    footer={
-                        <>
-                            <h2 style={{ margin: '1rem 0 0 0', fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                Sacar bebidas
-                            </h2>
-                            <RestockView
-                                employeeId={restockStaff?.id ?? null}
-                                employeeName={restockStaff?.name ?? null}
-                            />
-                        </>
-                    }
                 />
             )}
 
