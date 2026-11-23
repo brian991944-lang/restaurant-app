@@ -31,6 +31,11 @@ export type MenuItemData = {
     whyEs: string | null;
     componentsEn: string[];
     componentsEs: string[];
+    // Size/price rows under the name (parallel arrays). Optional so a snapshot
+    // cached on an iPad before this field existed still renders.
+    sizeLabelsEn?: string[];
+    sizeLabelsEs?: string[];
+    sizePrices?: number[];
     salePrice: number;
     // Web copies (1200 px). The full-res twins live in the *Full fields and are
     // resolved through ./media — never read one of these four directly.

@@ -805,6 +805,16 @@
   color: var(--m-ink);
 }
 
+/* Size rows ("8 oz portion" 9) sit under the name in the name's own type, a
+   little tighter than the gap that opens the name row. */
+.mp-size-row {
+  margin-top: 4px;
+}
+
+.mp-lbx-sizerow {
+  margin-top: 6px;
+}
+
 /* No currency mark — the column is money by context. */
 .mp-price {
   font-family: var(--m-display);

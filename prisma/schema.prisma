@@ -290,6 +290,13 @@ model MenuItem {
   // What arrives at the table, one entry per component, shown as a list.
   componentsEn    String[] @default([])
   componentsEs    String[] @default([])
+  // Optional size/price rows printed under the dish name on the public menu
+  // ("8 oz portion" 9 / "12 oz portion" 11). Three parallel arrays in the same
+  // order. Empty = the dish shows its single salePrice next to the name, as
+  // before. App-owned: the Clover sync never touches these.
+  sizeLabelsEn    String[] @default([])
+  sizeLabelsEs    String[] @default([])
+  sizePrices      Float[]  @default([])
   // Clover-owned: mirrors Clover's `available` flag on every sync.
   isAvailable     Boolean @default(true)
   // App-owned, NEVER written by the sync. The admin's own "hide this dish"

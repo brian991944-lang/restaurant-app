@@ -54,6 +54,9 @@ export type SnapshotItem = {
     whyEs: string | null;
     componentsEn: string[];
     componentsEs: string[];
+    sizeLabelsEn: string[];
+    sizeLabelsEs: string[];
+    sizePrices: number[];
     salePrice: number;
     photoUrl: string | null;
     photoUrls: string[];
@@ -119,6 +122,9 @@ export async function loadMenuSnapshot(now: Date = new Date()): Promise<MenuSnap
                 whyEs: true,
                 componentsEn: true,
                 componentsEs: true,
+                sizeLabelsEn: true,
+                sizeLabelsEs: true,
+                sizePrices: true,
                 salePrice: true,
                 photoUrl: true,
                 photoUrls: true,
@@ -165,6 +171,9 @@ export async function loadMenuSnapshot(now: Date = new Date()): Promise<MenuSnap
             whyEs: i.whyEs,
             componentsEn: [...i.componentsEn],
             componentsEs: [...i.componentsEs],
+            sizeLabelsEn: [...i.sizeLabelsEn],
+            sizeLabelsEs: [...i.sizeLabelsEs],
+            sizePrices: [...i.sizePrices],
             salePrice: i.salePrice,
             photoUrl: i.photoUrl,
             photoUrls: [...i.photoUrls],

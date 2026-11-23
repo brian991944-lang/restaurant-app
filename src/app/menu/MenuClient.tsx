@@ -351,6 +351,19 @@ export default function MenuClient({
         (lang === 'es' ? (i.nameEs || i.nameEn || i.name) : (i.nameEn || i.name));
     const itemDescription = (i: MenuItemData) =>
         lang === 'es' ? (i.descriptionEs || i.descriptionEn) : (i.descriptionEn || i.descriptionEs);
+    // Size/price rows ("8 oz portion" 9). When a dish has them they are printed
+    // under the name in the name's own type and replace the single price next
+    // to it. A row needs a price; its label falls back to the other language.
+    const sizeRowsOf = (i: MenuItemData): { label: string; price: number }[] => {
+        const en = i.sizeLabelsEn ?? [];
+        const es = i.sizeLabelsEs ?? [];
+        const rows: { label: string; price: number }[] = [];
+        (i.sizePrices ?? []).forEach((price, n) => {
+            const label = lang === 'es' ? (es[n] || en[n]) : (en[n] || es[n]);
+            if (label && Number.isFinite(price)) rows.push({ label, price });
+        });
+        return rows;
+    };
     // Tagline, why-order-it and components stay in the DB and the admin; the
     // lightbox shows none of them — the server explains those at the table.
 
@@ -504,6 +517,7 @@ export default function MenuClient({
         const soldOut = item.soldOut === true;
         const clickable = hasMedia(item);
         const descriptors = descriptorsOf(item);
+        const sizeRows = sizeRowsOf(item);
         return (
             <article key={item.id} className={`mp-dish${soldOut ? ' mp-dish-soldout' : ''}`}>
                 <div className={`mp-frame${clickable ? ' mp-media-tappable' : ''}`} {...tapProps(item)}>
@@ -512,10 +526,16 @@ export default function MenuClient({
                 <div className={`mp-dish-row${clickable ? ' mp-dish-row-tappable' : ''}`} onClick={clickable ? () => openLightbox(item) : undefined}>
                     <h3 className="mp-dish-name">{itemName(item)}</h3>
                     <span>
-                        <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
+                        {sizeRows.length === 0 && <span className="mp-price">{formatPriceBare(item.salePrice)}</span>}
                         {soldOut && <span className="mp-soldout">{t.soldOut}</span>}
                     </span>
                 </div>
+                {sizeRows.map(row => (
+                    <div key={row.label} className="mp-dish-row mp-size-row">
+                        <span className="mp-dish-name">{row.label}</span>
+                        <span className="mp-price">{formatPriceBare(row.price)}</span>
+                    </div>
+                ))}
                 {desc && <p className="mp-dish-desc">{desc}</p>}
                 {renderAllergens(item)}
                 {descriptors.length > 0 && (
@@ -534,6 +554,7 @@ export default function MenuClient({
         const desc = itemDescription(item);
         const soldOut = item.soldOut === true;
         const descriptors = descriptorsOf(item);
+        const sizeRows = sizeRowsOf(item);
         return (
             <article key={item.id} className={`mp-fav${soldOut ? ' mp-dish-soldout' : ''}`}>
                 <div className="mp-fav-frame mp-media-tappable" {...tapProps(item)}>
@@ -543,10 +564,16 @@ export default function MenuClient({
                 <div className="mp-dish-row mp-dish-row-tappable" onClick={() => openLightbox(item)}>
                     <h3 className="mp-fav-name">{itemName(item)}</h3>
                     <span>
-                        <span className="mp-price">{formatPriceBare(item.salePrice)}</span>
+                        {sizeRows.length === 0 && <span className="mp-price">{formatPriceBare(item.salePrice)}</span>}
                         {soldOut && <span className="mp-soldout">{t.soldOut}</span>}
                     </span>
                 </div>
+                {sizeRows.map(row => (
+                    <div key={row.label} className="mp-dish-row mp-size-row">
+                        <span className="mp-fav-name">{row.label}</span>
+                        <span className="mp-price">{formatPriceBare(row.price)}</span>
+                    </div>
+                ))}
                 {desc && <p className="mp-dish-desc">{desc}</p>}
                 {renderAllergens(item)}
                 {descriptors.length > 0 && (
@@ -740,10 +767,16 @@ export default function MenuClient({
                             <div className="mp-lbx-titlerow">
                                 <h2 className="mp-lbx-name">{itemName(item)}</h2>
                                 <span className="mp-lbx-price">
-                                    {formatPrice(item.salePrice)}
+                                    {sizeRowsOf(item).length === 0 && formatPrice(item.salePrice)}
                                     {item.soldOut === true && <span className="mp-soldout">{t.soldOut}</span>}
                                 </span>
                             </div>
+                            {sizeRowsOf(item).map(row => (
+                                <div key={row.label} className="mp-lbx-titlerow mp-lbx-sizerow">
+                                    <span className="mp-lbx-name">{row.label}</span>
+                                    <span className="mp-lbx-price">{formatPrice(row.price)}</span>
+                                </div>
+                            ))}
                             {desc && <p className="mp-lbx-desc">{desc}</p>}
                             {/* The guest who opened a dish to look closer is exactly
                                 the one who may be checking. Same row as on the page,
