@@ -36,6 +36,8 @@ const PRINT_CSS = `
   break-after: page; page-break-after: always;
 }
 .fz-label-name { font-size: 11pt; font-weight: 800; text-transform: uppercase; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.fz-label-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 2mm; }
+.fz-label-qty { flex: none; max-width: 24mm; border: 0.4mm solid #000; padding: 0.3mm 1.2mm; font-size: 8.5pt; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fz-label-sub { font-size: 6.5pt; font-weight: 600; margin-top: 0.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fz-label-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 7pt; gap: 2mm; }
 .fz-label-row b { font-size: 8pt; }
@@ -60,6 +62,7 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
     const [product, setProduct] = useState<LabelProduct | null>(null);
     const [storage, setStorage] = useState<LabelStorage | null>(null);
     const [copies, setCopies] = useState(1);
+    const [quantity, setQuantity] = useState(''); // optional, e.g. "15 croquetas"; blank prints nothing
     const [made] = useState(() => new Date());
     const [mounted, setMounted] = useState(false);
 
@@ -83,7 +86,10 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
     const label = (key: number) => (
         <div className="fz-label" key={key}>
             <div>
-                <div className="fz-label-name">{main}</div>
+                <div className="fz-label-head">
+                    <div className="fz-label-name">{main}</div>
+                    {quantity.trim() && <div className="fz-label-qty">{quantity.trim()}</div>}
+                </div>
                 {sub && <div className="fz-label-sub">{sub}</div>}
             </div>
             <div className="fz-label-row">
@@ -144,6 +150,18 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                         </div>
                     </div>
                 )}
+
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
+                    <span style={{ fontWeight: 600 }}>{t('quantity')} <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>{t('optional')}</span></span>
+                    <input
+                        type="text"
+                        value={quantity}
+                        maxLength={18}
+                        onChange={e => setQuantity(e.target.value)}
+                        placeholder={t('quantity_placeholder')}
+                        style={{ width: '170px', height: '44px', padding: '0 0.75rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: 'inherit', fontSize: '1rem' }}
+                    />
+                </label>
 
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                     <span style={{ fontWeight: 600 }}>{t('copies')}</span>
