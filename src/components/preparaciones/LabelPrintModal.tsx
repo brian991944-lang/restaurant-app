@@ -7,7 +7,7 @@ import { Refrigerator, Snowflake, Printer, Minus, Plus } from 'lucide-react';
 import { getLabelProduct, type LabelProduct } from '@/app/actions/labels';
 import { getPrepUsers } from '@/app/actions/users';
 import { expiryDate, formatLabelDate, formatLabelTime, shelfLifeDays, splitLabelName, type LabelStorage } from '@/lib/labels';
-import { buildLabelPdf, isAppleTouchDevice, isLabelFormat, LABEL_FORMATS, type LabelFormat } from '@/lib/labelPdf';
+import { buildLabelPdf, isAppleTouchDevice } from '@/lib/labelPdf';
 
 // Etiqueta para el envase: asks where the product is being stored (nevera or
 // congelador), works out the expiration date from the product's shelf life,
@@ -20,7 +20,6 @@ const LABEL_W_MM = 62;
 // 29 mm fits the side of the 1 1/4 in containers and is a standard Brother DK length (62 x 29).
 const LABEL_H_MM = 29;
 const MAX_COPIES = 20;
-const FORMAT_KEY = 'fusionista_label_format';
 
 const PRINT_CSS = `
 .label-print-root { display: none; }
@@ -86,25 +85,12 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
     const [made] = useState(() => new Date());
     const [mounted, setMounted] = useState(false);
     const [appleTouch, setAppleTouch] = useState(false);
-    // Which label is loaded in the printer. Remembered per tablet, so the cooks set it once.
-    const [format, setFormat] = useState<LabelFormat>('29x62');
-    const pickFormat = (f: LabelFormat) => {
-        setFormat(f);
-        try { localStorage.setItem(FORMAT_KEY, f); } catch { /* private mode: just not remembered */ }
-    };
     const [cooks, setCooks] = useState<{ id: string; name: string }[]>([]);
     const [pickedCooks, setPickedCooks] = useState<string[]>([]);
     const askCooks = cookNames === undefined;
     const cooksText = askCooks ? pickedCooks.join(', ') : cookNames;
 
-    useEffect(() => {
-        setMounted(true);
-        setAppleTouch(isAppleTouchDevice());
-        try {
-            const saved = localStorage.getItem(FORMAT_KEY);
-            if (isLabelFormat(saved)) setFormat(saved);
-        } catch { /* storage blocked: keep the default */ }
-    }, []);
+    useEffect(() => { setMounted(true); setAppleTouch(isAppleTouchDevice()); }, []);
 
     useEffect(() => {
         let alive = true;
@@ -144,7 +130,7 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                     expiresValue: formatLabelDate(expires, locale),
                     storage: storage === 'FREEZER' ? t('freezer') : t('fridge'),
                     cooks: cooksText || '',
-                }, copies, format);
+                }, copies, '29x90'); // the kitchen uses one label only: pre-cut 29 x 90 mm (DK-1201)
                 const file = new File([bytes as BlobPart], 'etiqueta.pdf', { type: 'application/pdf' });
                 if (!navigator.canShare || navigator.canShare({ files: [file] })) {
                     navigator.share({ files: [file] }).catch(err => {
@@ -267,23 +253,7 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                 </div>
 
                 {appleTouch && (
-                    <>
-                        <div style={{ marginBottom: '1rem' }}>
-                            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{t('roll')}</div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {LABEL_FORMATS.map(f => {
-                                    const on = format === f;
-                                    return (
-                                        <button key={f} type="button" onClick={() => pickFormat(f)}
-                                            style={{ minHeight: '44px', padding: '0.4rem 0.9rem', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.95rem', fontWeight: on ? 700 : 500, border: `2px solid ${on ? 'var(--accent-primary)' : 'var(--border)'}`, background: on ? 'rgba(59,130,246,0.12)' : 'transparent', color: 'var(--text-primary)' }}>
-                                            {t(`format_${f}`)}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('ipad_hint')}</p>
-                    </>
+                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('ipad_hint')}</p>
                 )}
 
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>

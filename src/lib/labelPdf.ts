@@ -195,7 +195,7 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 /** One page per copy, every page the same label. Synchronous on purpose: the iPad only allows sharing straight from a tap. */
-export function buildLabelPdf(data: LabelPdfData, copies: number, format: LabelFormat = '29x62'): Uint8Array {
+export function buildLabelPdf(data: LabelPdfData, copies: number, format: LabelFormat = '29x90'): Uint8Array {
     const { lengthMm, sideways } = FORMAT_SPEC[format];
     const canvas = drawLabel(data, lengthMm);
     const jpeg = dataUrlToBytes(canvas.toDataURL('image/jpeg', 1));
