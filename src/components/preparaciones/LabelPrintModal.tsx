@@ -21,11 +21,27 @@ const MAX_COPIES = 20;
 
 const PRINT_CSS = `
 .label-print-root { display: none; }
+@page { size: ${LABEL_W_MM}mm ${LABEL_H_MM}mm; margin: 0; }
 @media print {
-  @page { size: ${LABEL_W_MM}mm ${LABEL_H_MM}mm; margin: 0; }
-  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; width: auto !important; height: auto !important; min-height: 0 !important; }
   body > *:not(.label-print-root) { display: none !important; }
-  .label-print-root { display: block !important; }
+  /* iPad printing ignores @page and keeps its own margins, so the printed label
+     is sized in container units: it fills whatever width the page gives it and
+     everything scales with that width (a fixed 62 mm gets shrunk and clipped).
+     1cqw = 1% of the printable width; the numbers are the 62 mm design / 0.62. */
+  .label-print-root { display: block !important; container-type: inline-size; }
+  .label-print-root .fz-label { width: 100%; height: auto; padding: 0.8cqw 1.6cqw; gap: 1.5cqw; }
+  .label-print-root .fz-label:last-child { break-after: auto; page-break-after: auto; }
+  .label-print-root .fz-label-name { font-size: 6.26cqw; }
+  .label-print-root .fz-label-qty { font-size: 4.84cqw; max-width: 39cqw; border-width: 0.65cqw; padding: 0.5cqw 2cqw; }
+  .label-print-root .fz-label-head { gap: 3.2cqw; }
+  .label-print-root .fz-label-sub { font-size: 3.7cqw; margin-top: 0.3cqw; }
+  .label-print-root .fz-label-row { font-size: 3.98cqw; gap: 3.2cqw; }
+  .label-print-root .fz-label-row b { font-size: 4.55cqw; white-space: nowrap; }
+  .label-print-root .fz-label-exp { padding: 1cqw 3.2cqw; }
+  .label-print-root .fz-label-exp span { font-size: 3.98cqw; }
+  .label-print-root .fz-label-exp b { font-size: 6.26cqw; white-space: nowrap; }
+  .label-print-root .fz-label-foot { font-size: 3.7cqw; gap: 3.2cqw; }
 }
 .fz-label {
   width: ${LABEL_W_MM}mm; height: ${LABEL_H_MM}mm; box-sizing: border-box;
