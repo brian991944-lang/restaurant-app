@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
-import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard, Users, Star, Warehouse, Smartphone } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Tags, ChefHat, Calendar, TrendingUp, Moon, Sun, Globe, Network, Database, Menu, ChevronLeft, ChevronDown, ChevronRight, BookOpen, Coffee, Landmark, Briefcase, Clock, FileBarChart, Receipt, Files, Banknote, ChartNoAxesCombined, Gauge, CreditCard, Users, Star, Warehouse, Smartphone, Printer } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAdmin } from '@/components/AdminContext';
 import AdminUnlockModal from '@/components/AdminUnlockModal';
@@ -145,6 +145,7 @@ export default function Sidebar({ locale, isOpen, onClose }: { locale: string, i
         { key: 'purchases', name: t('purchases'), href: `/${locale}/compras`, icon: ShoppingCart, station: 'Cocina' },
         { key: 'recetario', name: t('recetario'), href: `/${locale}/recetario`, icon: BookOpen, station: 'Cocina' },
         { key: 'prep_schedule', name: t('prep_schedule'), href: `/${locale}/prep-schedule`, icon: Calendar, station: 'Cocina' },
+        { key: 'etiquetas', name: t('etiquetas'), href: `/${locale}/etiquetas`, icon: Printer, station: 'Cocina' },
 
         { key: 'inventory_salon', name: t('inventory_salon'), href: `/${locale}/inventory-salon`, icon: Package, station: 'Salon' },
         { key: 'tips_reviews', name: t('tips_reviews'), href: `/${locale}/tips-reviews`, icon: TrendingUp, station: 'Salon' },

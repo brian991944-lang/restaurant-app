@@ -5,6 +5,7 @@
     "login": "Login to your account"
   },
   "Nav": {
+    "etiquetas": "Labels",
     "inventory": "Inventory",
     "purchases": "Purchases",
     "categories": "Categories",
@@ -1937,5 +1938,32 @@
     "low_heading": "{count, plural, one {# star} other {# stars}} · {source} · {reviewer}",
     "resolution_placeholder": "What was done (reply, call, etc.)",
     "resolved": "Resolved"
+  },
+  "Labels": {
+    "title": "Print label",
+    "where": "Where is it being stored?",
+    "fridge": "Fridge",
+    "freezer": "Freezer",
+    "days": "{count, plural, one {# day} other {# days}}",
+    "made": "Made",
+    "expires": "Use by",
+    "copies": "Number of labels",
+    "fewer": "One fewer",
+    "more": "One more",
+    "print": "Print",
+    "close": "Close",
+    "page_title": "Labels",
+    "page_hint": "Tap a product to print the label for its container.",
+    "page_hint_admin": "Tap a product to print its label. The numbers are the days it lasts in the fridge and in the freezer; change them here.",
+    "search": "Search product...",
+    "loading": "Loading...",
+    "load_failed": "The products could not be loaded.",
+    "no_results": "No results",
+    "no_category": "No category",
+    "label_button": "Label",
+    "fridge_days_label": "Days in the fridge",
+    "freezer_days_label": "Days in the freezer",
+    "over_limit": "More than {max} days in the fridge is over the health-code limit for ready-to-eat food.",
+    "save_failed": "Could not save."
   }
 }

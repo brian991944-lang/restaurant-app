@@ -85,6 +85,8 @@ model Ingredient {
   trackMode      String  @default("COUNT")        // COUNT = stock number | SPARE = one in use + sealed spares in storage (cheap dry goods)
   spareOpenedAt  DateTime?                        // SPARE: when a cook last tapped "Abrí el repuesto"
   cleaningMode   Boolean @default(false)          // RAW: completing any child task opens the Hoja de limpieza (peso crudo → merma → porciones)
+  shelfLifeFridgeDays  Int?                       // etiquetas: days it lasts in the fridge, prep day = day 1 (null = default in @/lib/labels)
+  shelfLifeFreezerDays Int?                       // etiquetas: days it lasts in the freezer (null = default in @/lib/labels)
   updatedAt      DateTime  @default(now()) @updatedAt
 
   parentId  String?

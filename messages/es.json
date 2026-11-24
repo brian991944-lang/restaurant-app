@@ -5,6 +5,7 @@
     "login": "Inicia sesión en tu cuenta"
   },
   "Nav": {
+    "etiquetas": "Etiquetas",
     "inventory": "Inventario",
     "purchases": "Compras",
     "categories": "Categorías",
@@ -1937,5 +1938,32 @@
     "low_heading": "{count, plural, one {# estrella} other {# estrellas}} · {source} · {reviewer}",
     "resolution_placeholder": "Qué se hizo (respuesta, llamada, etc.)",
     "resolved": "Resuelto"
+  },
+  "Labels": {
+    "title": "Imprimir etiqueta",
+    "where": "¿Dónde se guarda?",
+    "fridge": "Nevera",
+    "freezer": "Congelador",
+    "days": "{count, plural, one {# día} other {# días}}",
+    "made": "Hecho",
+    "expires": "Vence",
+    "copies": "Cantidad de etiquetas",
+    "fewer": "Una menos",
+    "more": "Una más",
+    "print": "Imprimir",
+    "close": "Cerrar",
+    "page_title": "Etiquetas",
+    "page_hint": "Toca un producto para imprimir la etiqueta de su envase.",
+    "page_hint_admin": "Toca un producto para imprimir su etiqueta. Los números son los días que dura en nevera y en congelador; cámbialos aquí.",
+    "search": "Buscar producto...",
+    "loading": "Cargando...",
+    "load_failed": "No se pudieron cargar los productos.",
+    "no_results": "Sin resultados",
+    "no_category": "Sin categoría",
+    "label_button": "Etiqueta",
+    "fridge_days_label": "Días en nevera",
+    "freezer_days_label": "Días en congelador",
+    "over_limit": "Más de {max} días en nevera supera el límite sanitario para comida lista para servir.",
+    "save_failed": "No se pudo guardar."
   }
 }

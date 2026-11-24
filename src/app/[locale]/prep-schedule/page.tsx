@@ -4,6 +4,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { Calendar, User, ChefHat, Check, Clock, AlertCircle, Repeat, MoonStar, Layers, Users, Trash2, Pencil, Plus, Settings, Snowflake, BookOpen, Search, X, CalendarDays } from 'lucide-react';
 import WeeklyThawScheduleGrid from '@/components/preparaciones/WeeklyThawScheduleGrid';
 import CleaningSheet from '@/components/preparaciones/CleaningSheet';
+import LabelPrintModal from '@/components/preparaciones/LabelPrintModal';
 import { undoCleaningSession } from '@/app/actions/cleaning';
 import { useState, useEffect } from 'react';
 import { getDigitalRecipes } from '@/app/actions/recetario';
@@ -91,6 +92,7 @@ export default function PrepSchedulePage() {
     // Complete Modal State
     const [completeCandidate, setCompleteCandidate] = useState<PrepTask | null>(null);
     const [cleaningRawId, setCleaningRawId] = useState<string | null>(null); // Hoja de limpieza open for this raw
+    const [labelCandidate, setLabelCandidate] = useState<{ ingredientId: string; name: string; cookNames: string } | null>(null); // Etiqueta offered right after a task is completed
     const [completionCooks, setCompletionCooks] = useState<string[]>([]);
 
     const [viewingRecipeId, setViewingRecipeId] = useState<string | null>(null);
@@ -366,6 +368,7 @@ export default function PrepSchedulePage() {
                 ? { ...t, completed: true, actualAmount: actual, completedBy: cookNames } : t));
             setTomorrowTasks(prev => prev.map(t => t.ingredientId === task.ingredientId
                 ? { ...t, completed: true, actualAmount: actual, completedBy: cookNames } : t));
+            setLabelCandidate({ ingredientId: task.ingredientId, name: task.ingredientName, cookNames });
         } else {
             alert(t('PrepSchedule.err_update_task'));
         }
@@ -1834,6 +1837,16 @@ export default function PrepSchedulePage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {labelCandidate && (
+                <LabelPrintModal
+                    ingredientId={labelCandidate.ingredientId}
+                    fallbackName={labelCandidate.name}
+                    cookNames={labelCandidate.cookNames}
+                    locale={locale === 'es' ? 'es' : 'en'}
+                    onClose={() => setLabelCandidate(null)}
+                />
             )}
 
             {cleaningRawId && (
