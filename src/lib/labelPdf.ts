@@ -25,11 +25,23 @@ export interface LabelPdfData {
 
 export const LABEL_H_MM = 29;
 /**
- * Label lengths the app can print, matching the printer's own paper sizes:
- * 62 = "29 x 62 mm" (continuous roll, cut at 62) · 90 = "29 x 90 mm" (pre-cut address labels).
+ * Label formats the app can print.
+ * - 62x29: wide 62 mm roll, label upright across the roll and cut at 29 mm.
+ *   The iPad's own printing has no such size; this is for a print app that
+ *   cuts at the PDF's length.
+ * - 29x62 / 29x90: the printer's own AirPrint sizes, 29 mm across the roll and
+ *   the length along the feed (narrow roll, or pre-cut address labels).
  */
-export const LABEL_LENGTHS_MM = [62, 90] as const;
-export type LabelLengthMm = (typeof LABEL_LENGTHS_MM)[number];
+export const LABEL_FORMATS = ['62x29', '29x62', '29x90'] as const;
+export type LabelFormat = (typeof LABEL_FORMATS)[number];
+const FORMAT_SPEC: Record<LabelFormat, { lengthMm: number; sideways: boolean }> = {
+    '62x29': { lengthMm: 62, sideways: false },
+    '29x62': { lengthMm: 62, sideways: true },
+    '29x90': { lengthMm: 90, sideways: true },
+};
+export function isLabelFormat(v: unknown): v is LabelFormat {
+    return typeof v === 'string' && (LABEL_FORMATS as readonly string[]).includes(v);
+}
 
 const DPI = 600;
 const MM = DPI / 25.4;          // canvas px per mm
@@ -183,18 +195,21 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 /** One page per copy, every page the same label. Synchronous on purpose: the iPad only allows sharing straight from a tap. */
-export function buildLabelPdf(data: LabelPdfData, copies: number, lengthMm: LabelLengthMm = 62): Uint8Array {
+export function buildLabelPdf(data: LabelPdfData, copies: number, format: LabelFormat = '29x62'): Uint8Array {
+    const { lengthMm, sideways } = FORMAT_SPEC[format];
     const canvas = drawLabel(data, lengthMm);
     const jpeg = dataUrlToBytes(canvas.toDataURL('image/jpeg', 1));
     const n = Math.max(1, Math.floor(copies));
 
     const wPt = (lengthMm / 25.4) * 72;
     const hPt = (LABEL_H_MM / 25.4) * 72;
-    // The printer's AirPrint sizes for these labels are "29 x 62 mm" and
-    // "29 x 90 mm": 29 mm across the roll, the length along the feed. The page is laid out that way (label
-    // turned a quarter turn) so the iPad picks that size by itself; a 62 x 29
-    // page made it choose 58 x 58 and leave white bands.
-    const box = `[0 0 ${hPt.toFixed(2)} ${wPt.toFixed(2)}]`;
+    // Sideways formats match the printer's AirPrint sizes ("29 x 62 mm",
+    // "29 x 90 mm": 29 mm across the roll, the length along the feed), so the
+    // page is laid out that way with the label turned a quarter turn and the
+    // iPad picks that size by itself.
+    const box = sideways
+        ? `[0 0 ${hPt.toFixed(2)} ${wPt.toFixed(2)}]`
+        : `[0 0 ${wPt.toFixed(2)} ${hPt.toFixed(2)}]`;
 
     const enc = new TextEncoder();
     const chunks: Uint8Array[] = [];
@@ -210,7 +225,9 @@ export function buildLabelPdf(data: LabelPdfData, copies: number, lengthMm: Labe
     // 1 catalog · 2 pages · 3 image · 4 page content · 5.. one page object per copy
     const firstPage = 5;
     const kids = Array.from({ length: n }, (_, i) => `${firstPage + i} 0 R`).join(' ');
-    const content = `q 0 ${wPt.toFixed(2)} ${(-hPt).toFixed(2)} 0 ${hPt.toFixed(2)} 0 cm /Im0 Do Q`;
+    const content = sideways
+        ? `q 0 ${wPt.toFixed(2)} ${(-hPt).toFixed(2)} 0 ${hPt.toFixed(2)} 0 cm /Im0 Do Q`
+        : `q ${wPt.toFixed(2)} 0 0 ${hPt.toFixed(2)} 0 0 cm /Im0 Do Q`;
 
     push('%PDF-1.4\n%âãÏÓ\n');
     obj(1, '<< /Type /Catalog /Pages 2 0 R >>');

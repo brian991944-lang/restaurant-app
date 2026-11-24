@@ -7,7 +7,7 @@ import { Refrigerator, Snowflake, Printer, Minus, Plus } from 'lucide-react';
 import { getLabelProduct, type LabelProduct } from '@/app/actions/labels';
 import { getPrepUsers } from '@/app/actions/users';
 import { expiryDate, formatLabelDate, formatLabelTime, shelfLifeDays, splitLabelName, type LabelStorage } from '@/lib/labels';
-import { buildLabelPdf, isAppleTouchDevice, LABEL_LENGTHS_MM, type LabelLengthMm } from '@/lib/labelPdf';
+import { buildLabelPdf, isAppleTouchDevice, isLabelFormat, LABEL_FORMATS, type LabelFormat } from '@/lib/labelPdf';
 
 // Etiqueta para el envase: asks where the product is being stored (nevera or
 // congelador), works out the expiration date from the product's shelf life,
@@ -20,7 +20,7 @@ const LABEL_W_MM = 62;
 // 29 mm fits the side of the 1 1/4 in containers and is a standard Brother DK length (62 x 29).
 const LABEL_H_MM = 29;
 const MAX_COPIES = 20;
-const LENGTH_KEY = 'fusionista_label_length_mm';
+const FORMAT_KEY = 'fusionista_label_format';
 
 const PRINT_CSS = `
 .label-print-root { display: none; }
@@ -87,10 +87,10 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
     const [mounted, setMounted] = useState(false);
     const [appleTouch, setAppleTouch] = useState(false);
     // Which label is loaded in the printer. Remembered per tablet, so the cooks set it once.
-    const [lengthMm, setLengthMm] = useState<LabelLengthMm>(62);
-    const pickLength = (mm: LabelLengthMm) => {
-        setLengthMm(mm);
-        try { localStorage.setItem(LENGTH_KEY, String(mm)); } catch { /* private mode: just not remembered */ }
+    const [format, setFormat] = useState<LabelFormat>('29x62');
+    const pickFormat = (f: LabelFormat) => {
+        setFormat(f);
+        try { localStorage.setItem(FORMAT_KEY, f); } catch { /* private mode: just not remembered */ }
     };
     const [cooks, setCooks] = useState<{ id: string; name: string }[]>([]);
     const [pickedCooks, setPickedCooks] = useState<string[]>([]);
@@ -101,8 +101,8 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
         setMounted(true);
         setAppleTouch(isAppleTouchDevice());
         try {
-            const saved = Number(localStorage.getItem(LENGTH_KEY));
-            if (saved === 62 || saved === 90) setLengthMm(saved);
+            const saved = localStorage.getItem(FORMAT_KEY);
+            if (isLabelFormat(saved)) setFormat(saved);
         } catch { /* storage blocked: keep the default */ }
     }, []);
 
@@ -144,7 +144,7 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                     expiresValue: formatLabelDate(expires, locale),
                     storage: storage === 'FREEZER' ? t('freezer') : t('fridge'),
                     cooks: cooksText || '',
-                }, copies, lengthMm);
+                }, copies, format);
                 const file = new File([bytes as BlobPart], 'etiqueta.pdf', { type: 'application/pdf' });
                 if (!navigator.canShare || navigator.canShare({ files: [file] })) {
                     navigator.share({ files: [file] }).catch(err => {
@@ -268,15 +268,15 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
 
                 {appleTouch && (
                     <>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '1rem' }}>
-                            <span style={{ fontWeight: 600 }}>{t('roll')}</span>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                {LABEL_LENGTHS_MM.map(mm => {
-                                    const on = lengthMm === mm;
+                        <div style={{ marginBottom: '1rem' }}>
+                            <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{t('roll')}</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                {LABEL_FORMATS.map(f => {
+                                    const on = format === f;
                                     return (
-                                        <button key={mm} type="button" onClick={() => pickLength(mm)}
+                                        <button key={f} type="button" onClick={() => pickFormat(f)}
                                             style={{ minHeight: '44px', padding: '0.4rem 0.9rem', borderRadius: '10px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.95rem', fontWeight: on ? 700 : 500, border: `2px solid ${on ? 'var(--accent-primary)' : 'var(--border)'}`, background: on ? 'rgba(59,130,246,0.12)' : 'transparent', color: 'var(--text-primary)' }}>
-                                            29 x {mm} mm
+                                            {t(`format_${f}`)}
                                         </button>
                                     );
                                 })}
