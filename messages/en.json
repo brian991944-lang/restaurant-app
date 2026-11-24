@@ -1942,6 +1942,7 @@
   "Labels": {
     "title": "Print label",
     "where": "Where is it being stored?",
+    "who": "Who made it?",
     "fridge": "Fridge",
     "freezer": "Freezer",
     "days": "{count, plural, one {# day} other {# days}}",

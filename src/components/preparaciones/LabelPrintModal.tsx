@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { Refrigerator, Snowflake, Printer, Minus, Plus } from 'lucide-react';
 import { getLabelProduct, type LabelProduct } from '@/app/actions/labels';
+import { getPrepUsers } from '@/app/actions/users';
 import { expiryDate, formatLabelDate, formatLabelTime, shelfLifeDays, splitLabelName, type LabelStorage } from '@/lib/labels';
 import { buildLabelPdf, isAppleTouchDevice } from '@/lib/labelPdf';
 
@@ -69,6 +70,7 @@ interface Props {
     ingredientId: string;
     /** Shown while the product loads, and used if the lookup fails. */
     fallbackName: string;
+    /** Who made it, when the caller already knows (prep completion). Left out, the modal asks. */
     cookNames?: string;
     locale: 'es' | 'en';
     onClose: () => void;
@@ -83,6 +85,10 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
     const [made] = useState(() => new Date());
     const [mounted, setMounted] = useState(false);
     const [appleTouch, setAppleTouch] = useState(false);
+    const [cooks, setCooks] = useState<{ id: string; name: string }[]>([]);
+    const [pickedCooks, setPickedCooks] = useState<string[]>([]);
+    const askCooks = cookNames === undefined;
+    const cooksText = askCooks ? pickedCooks.join(', ') : cookNames;
 
     useEffect(() => { setMounted(true); setAppleTouch(isAppleTouchDevice()); }, []);
 
@@ -91,6 +97,13 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
         getLabelProduct(ingredientId).then(res => { if (alive && res.product) setProduct(res.product); });
         return () => { alive = false; };
     }, [ingredientId]);
+
+    useEffect(() => {
+        if (!askCooks) return;
+        let alive = true;
+        getPrepUsers().then(rows => { if (alive) setCooks(rows.flatMap(r => (r.name ? [{ id: r.id, name: r.name }] : []))); }).catch(() => { /* the label still prints without a name */ });
+        return () => { alive = false; };
+    }, [askCooks]);
 
     const fullName = product ? (locale === 'es' ? (product.nameEs || product.name) : product.name) : fallbackName;
     const { main, sub } = useMemo(() => splitLabelName(fullName), [fullName]);
@@ -116,7 +129,7 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                     expiresLabel: t('expires'),
                     expiresValue: formatLabelDate(expires, locale),
                     storage: storage === 'FREEZER' ? t('freezer') : t('fridge'),
-                    cooks: cookNames || '',
+                    cooks: cooksText || '',
                 }, copies);
                 const file = new File([bytes as BlobPart], 'etiqueta.pdf', { type: 'application/pdf' });
                 if (!navigator.canShare || navigator.canShare({ files: [file] })) {
@@ -151,7 +164,7 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
             </div>
             <div className="fz-label-foot">
                 <span>{storage === 'FREEZER' ? t('freezer') : t('fridge')}</span>
-                <span>{cookNames || ''}</span>
+                <span>{cooksText || ''}</span>
             </div>
         </div>
     );
@@ -191,6 +204,24 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                     {storageButton('FRIDGE', Refrigerator, t('fridge'), fridgeDays)}
                     {storageButton('FREEZER', Snowflake, t('freezer'), freezerDays)}
                 </div>
+
+                {askCooks && cooks.length > 0 && (
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <div style={{ fontWeight: 600, marginBottom: '0.6rem' }}>{t('who')} <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}>{t('optional')}</span></div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {cooks.map(u => {
+                                const on = pickedCooks.includes(u.name);
+                                return (
+                                    <button key={u.id} type="button"
+                                        onClick={() => setPickedCooks(prev => on ? prev.filter(n => n !== u.name) : [...prev, u.name])}
+                                        style={{ minHeight: '44px', padding: '0.5rem 0.9rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.95rem', fontWeight: on ? 700 : 500, border: `2px solid ${on ? 'var(--accent-primary)' : 'var(--border)'}`, background: on ? 'rgba(59,130,246,0.12)' : 'transparent', color: 'var(--text-primary)' }}>
+                                        {u.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
 
                 {storage && (
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>

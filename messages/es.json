@@ -1942,6 +1942,7 @@
   "Labels": {
     "title": "Imprimir etiqueta",
     "where": "¿Dónde se guarda?",
+    "who": "¿Quién lo hizo?",
     "fridge": "Nevera",
     "freezer": "Congelador",
     "days": "{count, plural, one {# día} other {# días}}",
