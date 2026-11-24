@@ -1,4 +1,4 @@
-// Etiquetas — builds the label as an exact-size PDF (62 x 29 mm per page).
+// Etiquetas — builds the label as an exact-size PDF (29 x 62 mm per page, label turned sideways).
 //
 // Why a PDF: printing a web page from an iPad ignores the page size the page
 // asks for, keeps wide margins, and stamps the URL, date and page number on
@@ -185,7 +185,11 @@ export function buildLabelPdf(data: LabelPdfData, copies: number): Uint8Array {
 
     const wPt = (LABEL_W_MM / 25.4) * 72;
     const hPt = (LABEL_H_MM / 25.4) * 72;
-    const box = `[0 0 ${wPt.toFixed(2)} ${hPt.toFixed(2)}]`;
+    // The printer's AirPrint size for this label is "29 x 62 mm": 29 mm across
+    // the roll, 62 mm along the feed. The page is laid out that way (label
+    // turned a quarter turn) so the iPad picks that size by itself; a 62 x 29
+    // page made it choose 58 x 58 and leave white bands.
+    const box = `[0 0 ${hPt.toFixed(2)} ${wPt.toFixed(2)}]`;
 
     const enc = new TextEncoder();
     const chunks: Uint8Array[] = [];
@@ -201,7 +205,7 @@ export function buildLabelPdf(data: LabelPdfData, copies: number): Uint8Array {
     // 1 catalog · 2 pages · 3 image · 4 page content · 5.. one page object per copy
     const firstPage = 5;
     const kids = Array.from({ length: n }, (_, i) => `${firstPage + i} 0 R`).join(' ');
-    const content = `q ${wPt.toFixed(2)} 0 0 ${hPt.toFixed(2)} 0 0 cm /Im0 Do Q`;
+    const content = `q 0 ${wPt.toFixed(2)} ${(-hPt).toFixed(2)} 0 ${hPt.toFixed(2)} 0 cm /Im0 Do Q`;
 
     push('%PDF-1.4\n%âãÏÓ\n');
     obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
