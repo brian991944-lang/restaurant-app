@@ -15,7 +15,8 @@ import { expiryDate, formatLabelDate, formatLabelTime, shelfLifeDays, splitLabel
 // in the way.
 
 const LABEL_W_MM = 62;
-const LABEL_H_MM = 40;
+// 29 mm fits the side of the 1 1/4 in containers and is a standard Brother DK length (62 x 29).
+const LABEL_H_MM = 29;
 const MAX_COPIES = 20;
 
 const PRINT_CSS = `
@@ -28,20 +29,20 @@ const PRINT_CSS = `
 }
 .fz-label {
   width: ${LABEL_W_MM}mm; height: ${LABEL_H_MM}mm; box-sizing: border-box;
-  padding: 2.5mm 3mm; overflow: hidden;
+  padding: 1.5mm 3mm; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between;
   background: #fff; color: #000;
   font-family: Arial, Helvetica, sans-serif; line-height: 1.12;
   break-after: page; page-break-after: always;
 }
-.fz-label-name { font-size: 13pt; font-weight: 800; text-transform: uppercase; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.fz-label-sub { font-size: 7.5pt; font-weight: 600; margin-top: 0.4mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fz-label-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 8pt; gap: 2mm; }
-.fz-label-row b { font-size: 9pt; }
-.fz-label-exp { background: #000; color: #fff; padding: 1mm 2mm; display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.fz-label-exp span { font-size: 8pt; }
-.fz-label-exp b { font-size: 12.5pt; text-transform: uppercase; }
-.fz-label-foot { display: flex; justify-content: space-between; font-size: 7.5pt; font-weight: 700; text-transform: uppercase; gap: 2mm; }
+.fz-label-name { font-size: 11pt; font-weight: 800; text-transform: uppercase; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.fz-label-sub { font-size: 6.5pt; font-weight: 600; margin-top: 0.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fz-label-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 7pt; gap: 2mm; }
+.fz-label-row b { font-size: 8pt; }
+.fz-label-exp { background: #000; color: #fff; padding: 0.6mm 2mm; display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.fz-label-exp span { font-size: 7pt; }
+.fz-label-exp b { font-size: 11pt; text-transform: uppercase; }
+.fz-label-foot { display: flex; justify-content: space-between; font-size: 6.5pt; font-weight: 700; text-transform: uppercase; gap: 2mm; }
 .fz-label-foot span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 `;
 
