@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Refrigerator, Snowflake, Printer, Minus, Plus } from 'lucide-react';
 import { getLabelProduct, type LabelProduct } from '@/app/actions/labels';
 import { expiryDate, formatLabelDate, formatLabelTime, shelfLifeDays, splitLabelName, type LabelStorage } from '@/lib/labels';
+import { buildLabelPdf, isAppleTouchDevice } from '@/lib/labelPdf';
 
 // Etiqueta para el envase: asks where the product is being stored (nevera or
 // congelador), works out the expiration date from the product's shelf life,
@@ -81,8 +82,9 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
     const [quantity, setQuantity] = useState(''); // optional, e.g. "15 croquetas"; blank prints nothing
     const [made] = useState(() => new Date());
     const [mounted, setMounted] = useState(false);
+    const [appleTouch, setAppleTouch] = useState(false);
 
-    useEffect(() => { setMounted(true); }, []);
+    useEffect(() => { setMounted(true); setAppleTouch(isAppleTouchDevice()); }, []);
 
     useEffect(() => {
         let alive = true;
@@ -98,6 +100,37 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
 
     const fridgeDays = shelfLifeDays('FRIDGE', product?.fridgeDays, product?.freezerDays);
     const freezerDays = shelfLifeDays('FREEZER', product?.fridgeDays, product?.freezerDays);
+
+    // iPad / iPhone: a web page printed from there ignores the label size, keeps
+    // wide margins and stamps the URL and date on the paper. So the label goes
+    // out as an exact-size PDF through the share sheet (Imprimir is in it).
+    // Everything up to navigator.share is synchronous: the tap must still count.
+    const handlePrint = () => {
+        if (!storage || !expires) return;
+        if (appleTouch && typeof navigator.share === 'function') {
+            try {
+                const bytes = buildLabelPdf({
+                    main, sub, quantity,
+                    madeLabel: t('made'),
+                    madeValue: `${formatLabelDate(made, locale)} · ${formatLabelTime(made, locale)}`,
+                    expiresLabel: t('expires'),
+                    expiresValue: formatLabelDate(expires, locale),
+                    storage: storage === 'FREEZER' ? t('freezer') : t('fridge'),
+                    cooks: cookNames || '',
+                }, copies);
+                const file = new File([bytes as BlobPart], 'etiqueta.pdf', { type: 'application/pdf' });
+                if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                    navigator.share({ files: [file] }).catch(err => {
+                        if ((err as Error)?.name !== 'AbortError') window.print();
+                    });
+                    return;
+                }
+            } catch (err) {
+                console.error('label pdf failed, falling back to page print', err);
+            }
+        }
+        window.print();
+    };
 
     const label = (key: number) => (
         <div className="fz-label" key={key}>
@@ -188,9 +221,13 @@ export default function LabelPrintModal({ ingredientId, fallbackName, cookNames,
                     </div>
                 </div>
 
+                {appleTouch && (
+                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('ipad_hint')}</p>
+                )}
+
                 <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
                     <button type="button" onClick={onClose} className="btn-secondary" style={{ minHeight: '44px', padding: '0.75rem 1.25rem' }}>{t('close')}</button>
-                    <button type="button" onClick={() => window.print()} className="btn-primary" disabled={!storage}
+                    <button type="button" onClick={handlePrint} className="btn-primary" disabled={!storage}
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: storage ? 1 : 0.5 }}>
                         <Printer size={18} /> {t('print')}
                     </button>
