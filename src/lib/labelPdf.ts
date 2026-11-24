@@ -23,8 +23,13 @@ export interface LabelPdfData {
     cooks: string;
 }
 
-export const LABEL_W_MM = 62;
 export const LABEL_H_MM = 29;
+/**
+ * Label lengths the app can print, matching the printer's own paper sizes:
+ * 62 = "29 x 62 mm" (continuous roll, cut at 62) · 90 = "29 x 90 mm" (pre-cut address labels).
+ */
+export const LABEL_LENGTHS_MM = [62, 90] as const;
+export type LabelLengthMm = (typeof LABEL_LENGTHS_MM)[number];
 
 const DPI = 600;
 const MM = DPI / 25.4;          // canvas px per mm
@@ -58,9 +63,9 @@ function wrapTwo(ctx: CanvasRenderingContext2D, text: string, maxWidth: number):
     return [fit(ctx, first, maxWidth), fit(ctx, words.slice(i).join(' '), maxWidth)];
 }
 
-function drawLabel(data: LabelPdfData): HTMLCanvasElement {
+function drawLabel(data: LabelPdfData, lengthMm: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
-    canvas.width = Math.round(LABEL_W_MM * MM);
+    canvas.width = Math.round(lengthMm * MM);
     canvas.height = Math.round(LABEL_H_MM * MM);
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('canvas 2d context unavailable');
@@ -178,15 +183,15 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 /** One page per copy, every page the same label. Synchronous on purpose: the iPad only allows sharing straight from a tap. */
-export function buildLabelPdf(data: LabelPdfData, copies: number): Uint8Array {
-    const canvas = drawLabel(data);
+export function buildLabelPdf(data: LabelPdfData, copies: number, lengthMm: LabelLengthMm = 62): Uint8Array {
+    const canvas = drawLabel(data, lengthMm);
     const jpeg = dataUrlToBytes(canvas.toDataURL('image/jpeg', 1));
     const n = Math.max(1, Math.floor(copies));
 
-    const wPt = (LABEL_W_MM / 25.4) * 72;
+    const wPt = (lengthMm / 25.4) * 72;
     const hPt = (LABEL_H_MM / 25.4) * 72;
-    // The printer's AirPrint size for this label is "29 x 62 mm": 29 mm across
-    // the roll, 62 mm along the feed. The page is laid out that way (label
+    // The printer's AirPrint sizes for these labels are "29 x 62 mm" and
+    // "29 x 90 mm": 29 mm across the roll, the length along the feed. The page is laid out that way (label
     // turned a quarter turn) so the iPad picks that size by itself; a 62 x 29
     // page made it choose 58 x 58 and leave white bands.
     const box = `[0 0 ${hPt.toFixed(2)} ${wPt.toFixed(2)}]`;
