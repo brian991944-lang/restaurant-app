@@ -1889,6 +1889,8 @@
     "design_anniversary": "Aniversario",
     "design_holiday": "Fiestas / Navidad",
     "d_design": "Diseño",
+    "preview": "Vista previa",
+    "preview_hint": "Así se verá el PDF que recibe el cliente. El código se genera al emitir.",
     "f_message": "Nota extra para el correo (opcional)",
     "f_message_ph": "El correo ya lleva todo el texto del certificado, firma y PDF. Lo que escribas aquí se agrega como \"Message:\".",
     "f_issued_by": "¿Quién la emite?",

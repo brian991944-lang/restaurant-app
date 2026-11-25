@@ -4,9 +4,9 @@ import { useState, useTransition, type CSSProperties, type FormEvent } from 'rea
 import { useTranslations, useLocale } from 'next-intl';
 import { Mail, RefreshCw, Download, Search, Ban, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
-import { formatMoney } from '@/lib/money';
+import { formatMoney, toCents } from '@/lib/money';
 import SenderPicker, { type SenderPickerPerson } from '@/components/ui/SenderPicker';
-import { GIFT_CARD_DESIGNS, DEFAULT_DESIGN, designThumbUrl, isGiftCardDesign, type GiftCardDesign } from '@/lib/giftCard/designs';
+import { GIFT_CARD_DESIGNS, DEFAULT_DESIGN, DESIGN_GEOMETRY, designImageUrl, designThumbUrl, isGiftCardDesign, type GiftCardDesign } from '@/lib/giftCard/designs';
 import {
     issueGiftCard, resendGiftCard, redeemGiftCard, voidGiftCard, listGiftCards, getGiftCardPdf,
     type GiftCardRow, type GiftCardErrorKey,
@@ -225,6 +225,8 @@ function IssueForm({ staff, onIssued, errText }: {
                 </div>
             </div>
 
+            <CardPreview design={design} to={toNames} amount={amount} from={fromNames} />
+
             <div style={field}>
                 <label style={label} htmlFor="gc-message">{t('f_message')}</label>
                 <textarea id="gc-message" className="input-field" rows={2} placeholder={t('f_message_ph')} value={message} onChange={e => setMessage(e.target.value)} maxLength={600} />
@@ -421,6 +423,77 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
                     {rowError && <div role="alert" style={{ color: 'var(--danger)', fontWeight: 600 }}>{rowError}</div>}
                 </div>
             )}
+        </div>
+    );
+}
+
+
+/** Two years from today, MM/DD/YYYY, for the preview only (the server computes the real one). */
+function previewExpiry(): string {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 2);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`;
+}
+
+/**
+ * Live preview of the card: the chosen design with the typed values laid on
+ * its lines, using the same geometry the PDF uses. Sizes follow the box
+ * width (container query units), so it is faithful at any width. The code
+ * is not known until the card is saved, so a placeholder is shown.
+ */
+function CardPreview({ design, to, amount, from }: { design: GiftCardDesign; to: string; amount: string; from: string }) {
+    const t = useTranslations('GiftCards');
+    const geo = DESIGN_GEOMETRY[design];
+    const cents = toCents(amount);
+    const values: Record<keyof typeof geo.rows, string> = {
+        to: to.trim(),
+        amount: cents > 0 ? formatMoney(cents) : '',
+        from: from.trim(),
+        expires: previewExpiry(),
+        code: 'FUS······',
+    };
+    const color = `rgb(${geo.color[0]}, ${geo.color[1]}, ${geo.color[2]})`;
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <span style={label}>{t('preview')}</span>
+            <style>{`@font-face { font-family: 'Belleza GC'; src: url('/gift-card/Belleza-Regular.ttf') format('truetype'); font-display: swap; }`}</style>
+            <div style={{ containerType: 'inline-size', width: '100%', maxWidth: '760px' }}>
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1536 / 1024', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', background: 'var(--bg-secondary)' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={designImageUrl(design)} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }} />
+                    {(Object.keys(geo.rows) as (keyof typeof geo.rows)[]).map(k => {
+                        const line = geo.rows[k];
+                        const v = values[k];
+                        if (!v) return null;
+                        return (
+                            <span
+                                key={k}
+                                style={{
+                                    position: 'absolute',
+                                    left: `${(line.x0 / 1536) * 100}%`,
+                                    width: `${((line.x1 - line.x0) / 1536) * 100}%`,
+                                    bottom: `${((1024 - line.y + 9) / 1024) * 100}%`,
+                                    fontFamily: "'Belleza GC', 'Belleza', sans-serif",
+                                    fontSize: `${(geo.fontSize / 1536) * 100}cqw`,
+                                    lineHeight: 1,
+                                    color,
+                                    textAlign: 'center',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    padding: '0 0.5%',
+                                    boxSizing: 'border-box',
+                                    opacity: k === 'code' ? 0.45 : 1,
+                                }}
+                            >
+                                {v}
+                            </span>
+                        );
+                    })}
+                </div>
+            </div>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{t('preview_hint')}</span>
         </div>
     );
 }

@@ -1889,6 +1889,8 @@
     "design_anniversary": "Anniversary",
     "design_holiday": "Holidays",
     "d_design": "Design",
+    "preview": "Preview",
+    "preview_hint": "This is how the PDF the guest receives will look. The code is generated on issue.",
     "f_message": "Extra note for the email (optional)",
     "f_message_ph": "The email already carries the full certificate text, signature and PDF. Anything here is added as \"Message:\".",
     "f_issued_by": "Who is issuing it?",
