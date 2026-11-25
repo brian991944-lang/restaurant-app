@@ -40,7 +40,7 @@ const CODE_LENGTH = 6;
 export type GiftCardErrorKey =
     | 'err_amount' | 'err_email' | 'err_purchaser_email' | 'err_not_found'
     | 'err_not_active' | 'err_redeem_amount' | 'err_redeem_over'
-    | 'err_admin_only' | 'err_reason' | 'save_failed';
+    | 'err_admin_only' | 'err_reason' | 'err_issuer' | 'err_signature' | 'err_toast_check' | 'save_failed';
 
 type Fail = { success: false; error: string; errorKey: GiftCardErrorKey };
 const fail = (errorKey: GiftCardErrorKey, error: string): Fail => ({ success: false, error, errorKey });
@@ -102,7 +102,11 @@ export interface IssueGiftCardInput {
     design?: string;
     message?: string;
     toastCheck?: string;
+    /** The server issuing the card (required) ... */
     issuedByName?: string;
+    /** ... and their drawn signature (required). SignaturePad's path + viewBox. */
+    firmaPath?: string;
+    firmaBox?: string;
 }
 
 export type IssueGiftCardResult =
@@ -130,6 +134,10 @@ export async function issueGiftCard(input: IssueGiftCardInput): Promise<IssueGif
     const message = clean(input.message, 600);
     const toastCheck = clean(input.toastCheck, 40);
     const issuedByName = clean(input.issuedByName, 80);
+    if (!issuedByName) return fail('err_issuer', 'Elige quién emite la tarjeta.');
+    const firmaPath = clean(input.firmaPath, 20_000);
+    const firmaBox = clean(input.firmaBox, 40);
+    if (!firmaPath || !firmaBox) return fail('err_signature', 'Falta la firma de quien emite la tarjeta.');
 
     let card: { id: string; code: string; issuedAt: Date; expiresAt: Date };
     try {
@@ -147,7 +155,12 @@ export async function issueGiftCard(input: IssueGiftCardInput): Promise<IssueGif
                 occasion: design,
                 message: message || null,
                 toastCheck: toastCheck || null,
-                issuedByName: issuedByName || null,
+                issuedByName,
+                firmaPath,
+                firmaBox,
+                // Signed and with the check # already: confirmed on the spot.
+                confirmedAt: toastCheck ? issuedAt : null,
+                confirmedByName: toastCheck ? issuedByName : null,
                 issuedAt,
                 expiresAt: addYearsNy(issuedAt, EXPIRY_YEARS),
             },
@@ -260,6 +273,42 @@ export async function redeemGiftCard(input: { id: string; amount: string | numbe
     }
 }
 
+export type ConfirmResult = { success: true; confirmedAt: string } | Fail;
+
+/**
+ * Confirm a card issued without its Toast check #: record the check # and,
+ * if the card was somehow saved without one, the server's signature. The
+ * card is confirmed the moment both are on the row.
+ */
+export async function confirmGiftCard(input: { id: string; toastCheck: string; byName?: string; firmaPath?: string; firmaBox?: string }): Promise<ConfirmResult> {
+    const toastCheck = clean(input.toastCheck, 40);
+    if (!toastCheck) return fail('err_toast_check', 'Indica el número de check de Toast.');
+    const c = await prisma.giftCard.findUnique({ where: { id: input.id }, select: { status: true, firmaPath: true, firmaBox: true, issuedByName: true } });
+    if (!c) return fail('err_not_found', 'Tarjeta no encontrada.');
+    if (c.status === 'ANULADA') return fail('err_not_active', 'La tarjeta está anulada.');
+    const firmaPath = c.firmaPath ?? clean(input.firmaPath, 20_000);
+    const firmaBox = c.firmaBox ?? clean(input.firmaBox, 40);
+    if (!firmaPath || !firmaBox) return fail('err_signature', 'Falta la firma de quien confirma la tarjeta.');
+    const confirmedAt = new Date();
+    try {
+        await prisma.giftCard.update({
+            where: { id: input.id },
+            data: {
+                toastCheck,
+                firmaPath,
+                firmaBox,
+                confirmedAt,
+                confirmedByName: clean(input.byName, 80) || c.issuedByName || null,
+            },
+        });
+    } catch (e) {
+        console.error('[giftCards] confirm failed', e);
+        return fail('save_failed', 'No se pudo confirmar la tarjeta.');
+    }
+    revalidatePath(ROUTE, 'page');
+    return { success: true, confirmedAt: confirmedAt.toISOString() };
+}
+
 /** Admin only: void a card. The row stays, with the reason, for the record. */
 export async function voidGiftCard(input: { id: string; reason: string }): Promise<{ success: true } | Fail> {
     if (!(await isAdminSession())) return fail('err_admin_only', 'Solo un administrador puede anular una tarjeta.');
@@ -294,6 +343,10 @@ export type GiftCardRow = {
     emailSentAt: string | null;
     emailError: string | null;
     anuladaMotivo: string | null;
+    firmaPath: string | null;
+    firmaBox: string | null;
+    confirmedAt: string | null;
+    confirmedByName: string | null;
     redemptions: { id: string; amountCents: number; toastCheck: string | null; note: string | null; byName: string | null; at: string }[];
 };
 
@@ -337,6 +390,10 @@ export async function listGiftCards(q = '', limit = 200): Promise<GiftCardRow[]>
         emailSentAt: r.emailSentAt?.toISOString() ?? null,
         emailError: r.emailError,
         anuladaMotivo: r.anuladaMotivo,
+        firmaPath: r.firmaPath,
+        firmaBox: r.firmaBox,
+        confirmedAt: r.confirmedAt?.toISOString() ?? null,
+        confirmedByName: r.confirmedByName,
         redemptions: r.redemptions.map(x => ({
             id: x.id, amountCents: x.amountCents, toastCheck: x.toastCheck, note: x.note, byName: x.byName, at: x.at.toISOString(),
         })),

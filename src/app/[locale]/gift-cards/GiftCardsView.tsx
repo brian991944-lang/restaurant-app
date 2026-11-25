@@ -2,13 +2,14 @@
 
 import { useState, useTransition, type CSSProperties, type FormEvent } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { Mail, RefreshCw, Download, Search, Ban, MinusCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mail, RefreshCw, Download, Search, Ban, MinusCircle, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 import { useAdmin } from '@/components/AdminContext';
 import { formatMoney, toCents } from '@/lib/money';
 import SenderPicker, { type SenderPickerPerson } from '@/components/ui/SenderPicker';
+import SignaturePad, { type SignatureValue } from '@/components/ui/SignaturePad';
 import { GIFT_CARD_DESIGNS, DEFAULT_DESIGN, DESIGN_GEOMETRY, designImageUrl, designThumbUrl, isGiftCardDesign, type GiftCardDesign } from '@/lib/giftCard/designs';
 import {
-    issueGiftCard, resendGiftCard, redeemGiftCard, voidGiftCard, listGiftCards, getGiftCardPdf,
+    issueGiftCard, resendGiftCard, redeemGiftCard, voidGiftCard, confirmGiftCard, listGiftCards, getGiftCardPdf,
     type GiftCardRow, type GiftCardErrorKey,
 } from '@/app/actions/giftCards';
 
@@ -36,6 +37,19 @@ function Chip({ tone, children }: { tone: keyof typeof TONES; children: React.Re
         <span style={{ display: 'inline-block', padding: '0.3rem 0.7rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', background: c.bg, color: c.fg }}>
             {children}
         </span>
+    );
+}
+
+function SignatureBox({ firmaBox, firmaPath, caption }: { firmaBox: string; firmaPath: string; caption: string }) {
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+            <div style={{ width: '160px', height: '54px', background: '#ffffff', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                <svg viewBox={`0 0 ${firmaBox}`} width="160" height="54" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }}>
+                    <path d={firmaPath} fill="none" stroke="#111827" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </div>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{caption}</span>
+        </div>
     );
 }
 
@@ -79,7 +93,11 @@ export default function GiftCardsView({ staff, initialCards }: { staff: Staff[];
 
             <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-primary)', flex: 1 }}>{t('issued_title')}</h2>
+                    <h2 style={{ margin: 0, fontSize: '1.4rem', color: 'var(--text-primary)' }}>{t('issued_title')}</h2>
+                    {cards.some(c => !c.confirmedAt && c.status !== 'ANULADA') && (
+                        <Chip tone="warn">{t('unconfirmed_count', { count: cards.filter(c => !c.confirmedAt && c.status !== 'ANULADA').length })}</Chip>
+                    )}
+                    <span style={{ flex: 1 }} />
                     <div style={{ position: 'relative', minWidth: '260px' }}>
                         <Search size={18} style={{ position: 'absolute', left: '0.8rem', top: '50%', marginTop: '-9px', color: 'var(--text-secondary)' }} />
                         <input
@@ -133,23 +151,26 @@ function IssueForm({ staff, onIssued, errText }: {
     const [message, setMessage] = useState('');
     const [toastCheck, setToastCheck] = useState('');
     const [issuedBy, setIssuedBy] = useState<SenderPickerPerson | null>(null);
+    const [signature, setSignature] = useState<SignatureValue | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const reset = () => {
         setAmount(''); setToNames(''); setFromNames(''); setRecipientEmail(''); setPurchaserEmail('');
-        setDesign(DEFAULT_DESIGN); setMessage(''); setToastCheck('');
+        setDesign(DEFAULT_DESIGN); setMessage(''); setToastCheck(''); setSignature(null); setIssuedBy(null);
     };
 
     const submit = async (e: FormEvent) => {
         e.preventDefault();
         if (busy) return;
         setError(null);
+        if (!issuedBy) { setError(t('err_issuer')); return; }
+        if (!signature) { setError(t('err_signature')); return; }
         setBusy(true);
         try {
             const r = await issueGiftCard({
                 amount, toNames, fromNames, recipientEmail, purchaserEmail, design, message, toastCheck,
-                issuedByName: issuedBy?.name ?? '',
+                issuedByName: issuedBy.name, firmaPath: signature.path, firmaBox: signature.box,
             });
             if (!r.success) { setError(errText(r.errorKey, r.error)); return; }
             if (r.emailStatus === 'ENVIADO') {
@@ -192,7 +213,7 @@ function IssueForm({ staff, onIssued, errText }: {
                 </div>
                 <div style={field}>
                     <label style={label} htmlFor="gc-check">{t('f_toast_check')}</label>
-                    <input id="gc-check" className="input-field" value={toastCheck} onChange={e => setToastCheck(e.target.value)} maxLength={40} />
+                    <input id="gc-check" className="input-field" placeholder={t('f_toast_check_ph')} value={toastCheck} onChange={e => setToastCheck(e.target.value)} maxLength={40} />
                 </div>
             </div>
 
@@ -232,7 +253,13 @@ function IssueForm({ staff, onIssued, errText }: {
                 <textarea id="gc-message" className="input-field" rows={2} placeholder={t('f_message_ph')} value={message} onChange={e => setMessage(e.target.value)} maxLength={600} />
             </div>
 
-            {staff.length > 0 && <SenderPicker staff={staff} value={issuedBy} onChange={setIssuedBy} label={t('f_issued_by')} />}
+            <SenderPicker staff={staff} value={issuedBy} onChange={v => { setIssuedBy(v); setSignature(null); }} label={`${t('f_issued_by')} *`} />
+            {issuedBy && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxWidth: '620px' }}>
+                    <span style={label}>{t('f_signature', { name: issuedBy.name })} *</span>
+                    <SignaturePad key={issuedBy.id} value={signature} onChange={setSignature} disabled={busy} labels={{ signHere: t('sign_here'), clear: t('clear') }} />
+                </div>
+            )}
 
             {error && <div role="alert" style={{ color: 'var(--danger)', fontWeight: 600 }}>{error}</div>}
 
@@ -257,7 +284,11 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
 }) {
     const t = useTranslations('GiftCards');
     const [open, setOpen] = useState(false);
-    const [busy, setBusy] = useState<null | 'resend' | 'pdf' | 'redeem' | 'void'>(null);
+    const [busy, setBusy] = useState<null | 'resend' | 'pdf' | 'redeem' | 'void' | 'confirm'>(null);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [confirmCheck, setConfirmCheck] = useState('');
+    const [confirmBy, setConfirmBy] = useState<SenderPickerPerson | null>(null);
+    const [confirmSig, setConfirmSig] = useState<SignatureValue | null>(null);
     const [redeemAmt, setRedeemAmt] = useState('');
     const [redeemCheck, setRedeemCheck] = useState('');
     const [redeemBy, setRedeemBy] = useState<SenderPickerPerson | null>(null);
@@ -271,6 +302,7 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
         : card.status === 'AGOTADA' ? <Chip tone="muted">{t('st_agotada')}</Chip>
         : expired ? <Chip tone="warn">{t('st_vencida')}</Chip>
         : <Chip tone="ok">{t('st_activa')}</Chip>;
+    const unconfirmed = !card.confirmedAt && card.status !== 'ANULADA';
     const emailChip = card.emailStatus === 'ENVIADO' ? <Chip tone="ok">{t('em_enviado')}</Chip>
         : card.emailStatus === 'ERROR' ? <Chip tone="bad">{t('em_error')}</Chip>
         : <Chip tone="warn">{t('em_pendiente')}</Chip>;
@@ -317,6 +349,20 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
         } finally { setBusy(null); }
     };
 
+    const confirm = async () => {
+        setBusy('confirm'); setRowError(null);
+        try {
+            const needsSig = !card.firmaPath;
+            if (needsSig && !confirmSig) { setRowError(t('err_signature')); return; }
+            const r = await confirmGiftCard({
+                id: card.id, toastCheck: confirmCheck, byName: confirmBy?.name ?? '',
+                firmaPath: confirmSig?.path, firmaBox: confirmSig?.box,
+            });
+            if (!r.success) setRowError(errText(r.errorKey, r.error));
+            else { onNotice(t('confirmed_ok', { code: card.code }), 'ok'); setShowConfirm(false); setConfirmCheck(''); onChanged(); }
+        } finally { setBusy(null); }
+    };
+
     const names = [card.toNames && `${t('to_short')} ${card.toNames}`, card.fromNames && `${t('from_short')} ${card.fromNames}`].filter(Boolean).join(' · ');
 
     return (
@@ -328,6 +374,7 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{t('of_amount', { amount: formatMoney(card.amountCents) })}</span>
                 )}
                 {statusChip}
+                {unconfirmed && <Chip tone="warn">{t('st_unconfirmed')}</Chip>}
                 {emailChip}
                 <span style={{ flex: 1 }} />
                 <button type="button" style={btnGhost} onClick={() => setOpen(o => !o)} aria-expanded={open}>
@@ -339,6 +386,14 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
                 {names && <span>{names}</span>}
                 <span>{t('issued_on', { date: fmtDate(card.issuedAt) })} · {t('expires_on', { date: fmtDate(card.expiresAt) })}</span>
             </div>
+            {unconfirmed && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap', color: '#b45309', fontSize: '0.92rem', fontWeight: 600 }}>
+                    <span>{card.toastCheck ? t('unconfirmed_sig') : t('unconfirmed_check')}</span>
+                    <button type="button" style={{ ...btnGhost, borderColor: '#b45309', color: '#b45309' }} onClick={() => { setShowConfirm(v => !v); setOpen(true); setShowRedeem(false); setShowVoid(false); }} disabled={busy !== null}>
+                        <CheckCircle2 size={16} /> {t('confirm')}
+                    </button>
+                </div>
+            )}
             {card.emailStatus === 'ERROR' && card.emailError && (
                 <div style={{ color: 'var(--danger)', fontSize: '0.9rem' }}>{t('email_error_detail', { error: card.emailError })}</div>
             )}
@@ -351,9 +406,38 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
                         {card.toastCheck && <span>{t('d_toast_check')}: {card.toastCheck}</span>}
                         {card.issuedByName && <span>{t('d_issued_by')}: {card.issuedByName}</span>}
                         {card.emailSentAt && <span>{t('d_sent_at')}: {fmtDate(card.emailSentAt)}</span>}
+                        {card.confirmedAt && <span>{t('d_confirmed', { date: fmtDate(card.confirmedAt), name: card.confirmedByName ?? '' })}</span>}
                         {card.anuladaMotivo && <span>{t('d_void_reason')}: {card.anuladaMotivo}</span>}
                         {card.message && <span style={{ gridColumn: '1 / -1' }}>{t('d_message')}: {card.message}</span>}
                     </div>
+
+                    {card.firmaPath && card.firmaBox && (
+                        <SignatureBox firmaPath={card.firmaPath} firmaBox={card.firmaBox} caption={t('d_signature', { name: card.issuedByName ?? '' })} />
+                    )}
+
+                    {showConfirm && unconfirmed && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem', padding: '0.9rem', borderRadius: '10px', background: 'var(--bg-secondary)' }}>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{t('confirm_title')}</div>
+                            <div style={field}>
+                                <label style={label}>{t('f_toast_check')} *</label>
+                                <input className="input-field" placeholder={t('f_toast_check_ph')} value={confirmCheck} onChange={e => setConfirmCheck(e.target.value)} maxLength={40} inputMode="numeric" />
+                            </div>
+                            {!card.firmaPath && (
+                                <>
+                                    <SenderPicker staff={staff} value={confirmBy} onChange={v => { setConfirmBy(v); setConfirmSig(null); }} label={t('c_by')} />
+                                    {confirmBy && (
+                                        <div style={{ maxWidth: '620px' }}>
+                                            <SignaturePad key={confirmBy.id} value={confirmSig} onChange={setConfirmSig} disabled={busy !== null} labels={{ signHere: t('sign_here'), clear: t('clear') }} />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                <button type="button" className="btn-primary" onClick={confirm} disabled={busy !== null}>{busy === 'confirm' ? t('saving') : t('confirm')}</button>
+                                <button type="button" style={btnGhost} onClick={() => setShowConfirm(false)}>{t('cancel')}</button>
+                            </div>
+                        </div>
+                    )}
 
                     {card.redemptions.length > 0 && (
                         <div style={{ fontSize: '0.92rem' }}>

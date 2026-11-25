@@ -1872,6 +1872,12 @@ model GiftCard {
   emailError     String?
   anuladaAt      DateTime?
   anuladaMotivo  String?
+  // Confirmation: the issuing server signs, and the sale's Toast check # is
+  // recorded. Until both are there the card is "sin confirmar".
+  firmaPath      String?                                // issuer's drawn signature (SVG path), see SignaturePad
+  firmaBox       String?
+  confirmedAt    DateTime?
+  confirmedByName String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
