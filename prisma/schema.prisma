@@ -1834,3 +1834,62 @@ model ReviewFollowUp {
 
   @@index([status])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Gift cards (Salón). Issued from the app and emailed from the
+// restaurant's own address; this replaces the Canva + Google Sheet flow.
+// Money is integer cents. Expiry is two years from issue (NJ minimum 24 mo).
+enum GiftCardStatus {
+  ACTIVA
+  AGOTADA
+  ANULADA
+}
+
+enum GiftCardEmailStatus {
+  PENDIENTE_ENVIO
+  ENVIADO
+  ERROR
+}
+
+model GiftCard {
+  id             String              @id @default(cuid())
+  code           String              @unique            // FUS + 6 chars, printed on the card
+  amountCents    Int
+  balanceCents   Int
+  toNames        String?                                // printed "To:"; empty = left blank
+  fromNames      String?                                // printed "From:"; empty = left blank
+  recipientEmail String
+  purchaserEmail String?                                // CC on the email
+  occasion       String?                                // panel text on the card, e.g. "Happy Birthday!"
+  message        String?                                // personal note added to the email
+  toastCheck     String?                                // optional Toast check # of the sale
+  issuedByName   String?
+  issuedAt       DateTime            @default(now())
+  expiresAt      DateTime
+  status         GiftCardStatus      @default(ACTIVA)
+  emailStatus    GiftCardEmailStatus @default(PENDIENTE_ENVIO)
+  emailSentAt    DateTime?
+  emailError     String?
+  anuladaAt      DateTime?
+  anuladaMotivo  String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  redemptions    GiftCardRedemption[]
+
+  @@index([status])
+  @@index([issuedAt])
+}
+
+model GiftCardRedemption {
+  id          String   @id @default(cuid())
+  giftCardId  String
+  giftCard    GiftCard @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  amountCents Int                     // always positive
+  toastCheck  String?
+  note        String?
+  byName      String?
+  at          DateTime @default(now())
+
+  @@index([giftCardId])
+}
