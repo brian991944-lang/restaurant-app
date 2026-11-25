@@ -18,7 +18,7 @@ const nextConfig = {
   // The gift-card PDF is drawn over artwork read from disk at request time;
   // make sure the files ship with the serverless function on Vercel.
   outputFileTracingIncludes: {
-    '/[locale]/gift-cards': ['./src/lib/giftCard/assets/**'],
+    '/[locale]/gift-cards': ['./src/lib/giftCard/assets/**', './public/gift-card/**'],
   },
 };
 

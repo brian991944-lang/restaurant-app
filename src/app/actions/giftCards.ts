@@ -5,7 +5,8 @@ import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { formatMoney, toCents } from '@/lib/money';
 import { isAdminSession } from '@/lib/adminGuard';
-import { renderGiftCardPdf, occasionLines } from '@/lib/giftCard/render';
+import { renderGiftCardPdf } from '@/lib/giftCard/render';
+import { DEFAULT_DESIGN, isGiftCardDesign, type GiftCardDesign } from '@/lib/giftCard/designs';
 import { sendGiftCardEmail } from '@/lib/giftCard/email';
 
 /**
@@ -88,13 +89,17 @@ async function uniqueCode(): Promise<string> {
 
 const clean = (v: unknown, max = 120) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/** The `occasion` column holds the design key; anything else (older rows) renders on the default design. */
+const designOf = (occasion: string | null): GiftCardDesign => (isGiftCardDesign(occasion) ? occasion : DEFAULT_DESIGN);
+
 export interface IssueGiftCardInput {
     amount: string | number;
     toNames?: string;
     fromNames?: string;
     recipientEmail: string;
     purchaserEmail?: string;
-    occasion?: string;
+    /** One of GIFT_CARD_DESIGNS; stored in the row's `occasion` column. */
+    design?: string;
     message?: string;
     toastCheck?: string;
     issuedByName?: string;
@@ -121,7 +126,7 @@ export async function issueGiftCard(input: IssueGiftCardInput): Promise<IssueGif
 
     const toNames = clean(input.toNames);
     const fromNames = clean(input.fromNames);
-    const occasion = clean(input.occasion, 60);
+    const design: GiftCardDesign = isGiftCardDesign(input.design) ? input.design : DEFAULT_DESIGN;
     const message = clean(input.message, 600);
     const toastCheck = clean(input.toastCheck, 40);
     const issuedByName = clean(input.issuedByName, 80);
@@ -139,7 +144,7 @@ export async function issueGiftCard(input: IssueGiftCardInput): Promise<IssueGif
                 fromNames: fromNames || null,
                 recipientEmail,
                 purchaserEmail: purchaserEmail || null,
-                occasion: occasion || null,
+                occasion: design,
                 message: message || null,
                 toastCheck: toastCheck || null,
                 issuedByName: issuedByName || null,
@@ -165,12 +170,12 @@ async function deliver(id: string): Promise<{ ok: true } | { ok: false; error: s
     try {
         const amount = formatMoney(c.amountCents);
         const pdf = await renderGiftCardPdf({
+            design: designOf(c.occasion),
             to: c.toNames ?? '',
             amount,
             from: c.fromNames ?? '',
             expires: cardDate(c.expiresAt),
             code: c.code,
-            occasion: c.occasion ? occasionLines(c.occasion) : '',
         });
         await sendGiftCardEmail({
             toNames: c.toNames ?? '',
@@ -211,12 +216,12 @@ export async function getGiftCardPdf(id: string): Promise<{ success: true; bytes
     const c = await prisma.giftCard.findUnique({ where: { id } });
     if (!c) return fail('err_not_found', 'Tarjeta no encontrada.');
     const pdf = await renderGiftCardPdf({
+        design: designOf(c.occasion),
         to: c.toNames ?? '',
         amount: formatMoney(c.amountCents),
         from: c.fromNames ?? '',
         expires: cardDate(c.expiresAt),
         code: c.code,
-        occasion: c.occasion ? occasionLines(c.occasion) : '',
     });
     return { success: true, bytes: Array.from(pdf), filename: `Fusionista_Gift_Certificate_${c.code}.pdf` };
 }

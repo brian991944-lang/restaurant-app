@@ -6,6 +6,7 @@ import { Mail, RefreshCw, Download, Search, Ban, MinusCircle, ChevronDown, Chevr
 import { useAdmin } from '@/components/AdminContext';
 import { formatMoney } from '@/lib/money';
 import SenderPicker, { type SenderPickerPerson } from '@/components/ui/SenderPicker';
+import { GIFT_CARD_DESIGNS, DEFAULT_DESIGN, designThumbUrl, isGiftCardDesign, type GiftCardDesign } from '@/lib/giftCard/designs';
 import {
     issueGiftCard, resendGiftCard, redeemGiftCard, voidGiftCard, listGiftCards, getGiftCardPdf,
     type GiftCardRow, type GiftCardErrorKey,
@@ -13,9 +14,6 @@ import {
 
 type Staff = { id: string; name: string };
 
-/** Preset occasions; the value is what gets printed on the card's panel. */
-const OCCASIONS = ['', 'Happy Birthday!', 'Happy Holidays!', 'Merry Christmas!', 'Happy Anniversary!', 'Congratulations!', 'Thank You!', 'Buen Provecho!'] as const;
-const CUSTOM = '__custom__';
 
 const label: CSSProperties = { fontSize: '0.95rem', color: 'var(--text-secondary)', fontWeight: 500, marginBottom: '0.3rem', display: 'block' };
 const field: CSSProperties = { display: 'flex', flexDirection: 'column' };
@@ -131,19 +129,16 @@ function IssueForm({ staff, onIssued, errText }: {
     const [fromNames, setFromNames] = useState('');
     const [recipientEmail, setRecipientEmail] = useState('');
     const [purchaserEmail, setPurchaserEmail] = useState('');
-    const [occasionPick, setOccasionPick] = useState<string>('');
-    const [occasionCustom, setOccasionCustom] = useState('');
+    const [design, setDesign] = useState<GiftCardDesign>(DEFAULT_DESIGN);
     const [message, setMessage] = useState('');
     const [toastCheck, setToastCheck] = useState('');
     const [issuedBy, setIssuedBy] = useState<SenderPickerPerson | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const occasion = occasionPick === CUSTOM ? occasionCustom : occasionPick;
-
     const reset = () => {
         setAmount(''); setToNames(''); setFromNames(''); setRecipientEmail(''); setPurchaserEmail('');
-        setOccasionPick(''); setOccasionCustom(''); setMessage(''); setToastCheck('');
+        setDesign(DEFAULT_DESIGN); setMessage(''); setToastCheck('');
     };
 
     const submit = async (e: FormEvent) => {
@@ -153,7 +148,7 @@ function IssueForm({ staff, onIssued, errText }: {
         setBusy(true);
         try {
             const r = await issueGiftCard({
-                amount, toNames, fromNames, recipientEmail, purchaserEmail, occasion, message, toastCheck,
+                amount, toNames, fromNames, recipientEmail, purchaserEmail, design, message, toastCheck,
                 issuedByName: issuedBy?.name ?? '',
             });
             if (!r.success) { setError(errText(r.errorKey, r.error)); return; }
@@ -196,18 +191,37 @@ function IssueForm({ staff, onIssued, errText }: {
                     <input id="gc-pemail" className="input-field" type="email" inputMode="email" autoCapitalize="none" value={purchaserEmail} onChange={e => setPurchaserEmail(e.target.value)} />
                 </div>
                 <div style={field}>
-                    <label style={label} htmlFor="gc-occasion">{t('f_occasion')}</label>
-                    <select id="gc-occasion" className="input-field" value={occasionPick} onChange={e => setOccasionPick(e.target.value)}>
-                        {OCCASIONS.map(o => <option key={o || 'none'} value={o}>{o || t('occasion_none')}</option>)}
-                        <option value={CUSTOM}>{t('occasion_custom')}</option>
-                    </select>
-                    {occasionPick === CUSTOM && (
-                        <input className="input-field" style={{ marginTop: '0.5rem' }} placeholder={t('occasion_custom_ph')} value={occasionCustom} onChange={e => setOccasionCustom(e.target.value)} maxLength={40} />
-                    )}
-                </div>
-                <div style={field}>
                     <label style={label} htmlFor="gc-check">{t('f_toast_check')}</label>
                     <input id="gc-check" className="input-field" value={toastCheck} onChange={e => setToastCheck(e.target.value)} maxLength={40} />
+                </div>
+            </div>
+
+            <div style={field}>
+                <span style={label}>{t('f_design')}</span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.7rem' }}>
+                    {GIFT_CARD_DESIGNS.map(d => {
+                        const on = d === design;
+                        return (
+                            <button
+                                key={d}
+                                type="button"
+                                onClick={() => setDesign(d)}
+                                aria-pressed={on}
+                                style={{
+                                    padding: 0, borderRadius: '10px', overflow: 'hidden', textAlign: 'left', cursor: 'pointer',
+                                    border: on ? '3px solid var(--accent-primary)' : '3px solid transparent',
+                                    boxShadow: on ? '0 0 0 2px rgba(59,130,246,0.25)' : '0 1px 4px rgba(0,0,0,0.15)',
+                                    background: 'var(--bg-secondary)',
+                                }}
+                            >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={designThumbUrl(d)} alt="" width={384} height={256} style={{ display: 'block', width: '100%', height: 'auto' }} />
+                                <div style={{ padding: '0.4rem 0.6rem', fontSize: '0.9rem', fontWeight: on ? 700 : 500, color: 'var(--text-primary)' }}>
+                                    {t(`design_${d}`)}
+                                </div>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -331,7 +345,7 @@ function CardRow({ card, isAdmin, staff, fmtDate, errText, onChanged, onNotice }
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', paddingTop: '0.4rem', borderTop: '1px solid var(--border)' }}>
                     <div style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.3rem 1rem' }}>
                         {card.purchaserEmail && <span>{t('d_purchaser')}: {card.purchaserEmail}</span>}
-                        {card.occasion && <span>{t('d_occasion')}: {card.occasion}</span>}
+                        {card.occasion && <span>{t('d_design')}: {isGiftCardDesign(card.occasion) ? t(`design_${card.occasion}`) : card.occasion}</span>}
                         {card.toastCheck && <span>{t('d_toast_check')}: {card.toastCheck}</span>}
                         {card.issuedByName && <span>{t('d_issued_by')}: {card.issuedByName}</span>}
                         {card.emailSentAt && <span>{t('d_sent_at')}: {fmtDate(card.emailSentAt)}</span>}

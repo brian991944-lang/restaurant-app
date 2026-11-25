@@ -1860,7 +1860,7 @@ model GiftCard {
   fromNames      String?                                // printed "From:"; empty = left blank
   recipientEmail String
   purchaserEmail String?                                // CC on the email
-  occasion       String?                                // panel text on the card, e.g. "Happy Birthday!"
+  occasion       String?                                // design key (src/lib/giftCard/designs.ts), e.g. "birthday-f"
   message        String?                                // personal note added to the email
   toastCheck     String?                                // optional Toast check # of the sale
   issuedByName   String?

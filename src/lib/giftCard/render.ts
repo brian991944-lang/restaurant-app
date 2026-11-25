@@ -1,91 +1,74 @@
-// Gift card PDF — draws the per-card values over the restaurant's card
-// artwork. The artwork (assets/base.jpg) is the Canva design with every
-// fixed element baked in: banner, logo, llama panel, row labels and rules.
-// Only the five values and the occasion line are drawn here, in the same
-// font (Belleza) and at the same positions as the Canva template, so a card
-// made by the app is indistinguishable from one made by hand.
+// Gift card PDF — the chosen design (public/gift-card/<design>.jpg, a
+// 1536 x 1024 image with the labels and blank lines already drawn) with the
+// five values written on their lines in Belleza, in the design's ink colour.
+// One landscape page, the size of the artwork.
 //
-// Server only (reads the assets from disk). Geometry is in Canva page pixels
-// (1110 x 1600, origin top-left); pdf-lib's origin is bottom-left, converted
-// in `drawCentered`.
+// Server only (reads the assets from disk). Geometry lives in designs.ts, in
+// artwork pixels with the origin top-left; pdf-lib's origin is bottom-left,
+// converted in `write`.
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { PDFDocument, rgb, type PDFFont } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
+import { DESIGN_GEOMETRY, type GiftCardDesign, type LineSpec } from './designs';
 
 export interface GiftCardArt {
-    /** Printed after "To:"; empty prints nothing. */
+    design: GiftCardDesign;
+    /** Written after "To:"; empty writes nothing. */
     to: string;
-    /** Printed after "A gift of:", already formatted ("$150.00"). */
+    /** Written after "A gift of:", already formatted ("$150.00"). */
     amount: string;
-    /** Printed after "From:"; empty prints nothing. */
+    /** Written after "From:"; empty writes nothing. */
     from: string;
-    /** Printed after "Expires:", MM/DD/YYYY. */
+    /** Written after "Expires:", MM/DD/YYYY. */
     expires: string;
     code: string;
-    /** Panel text, e.g. "Happy Birthday!"; wraps on "\n". Empty prints nothing. */
-    occasion: string;
 }
 
-const W = 1110;
-const H = 1600;
+const W = 1536;
+const H = 1024;
 
-/** Center x of the value column. */
-const VALUE_CX = 449;
-/** Widest a value may be before its size shrinks. */
-const VALUE_MAX_W = 460;
-const VALUE_SIZE = 44;
-/** Top of each value's text box, from the Canva template. */
-const ROW_TOP = { to: 1102, amount: 1189, from: 1286, expires: 1391, code: 1485 } as const;
+/** Gap between the text and the ends of its line. */
+const LINE_PAD = 14;
+/** The baseline sits this far above the line. */
+const LINE_RISE = 9;
+const MIN_SIZE = 16;
 
-const OCCASION_CX = 912;
-const OCCASION_TOP = 1332;
-const OCCASION_SIZE = 68;
-const OCCASION_MAX_W = 330;
-const OCCASION_LINE_H = 1.4;
-const OCCASION_COLOR = rgb(0xe8 / 255, 0xd4 / 255, 0xc0 / 255);
-
-const ASSETS = path.join(process.cwd(), 'src', 'lib', 'giftCard', 'assets');
+const FONT_PATH = path.join(process.cwd(), 'src', 'lib', 'giftCard', 'assets', 'Belleza-Regular.ttf');
+const artPath = (design: GiftCardDesign) => path.join(process.cwd(), 'public', 'gift-card', `${design}.jpg`);
 
 export async function renderGiftCardPdf(data: GiftCardArt): Promise<Uint8Array> {
-    const [fontBytes, baseBytes] = await Promise.all([
-        readFile(path.join(ASSETS, 'Belleza-Regular.ttf')),
-        readFile(path.join(ASSETS, 'base.jpg')),
-    ]);
+    const geo = DESIGN_GEOMETRY[data.design];
+    const [fontBytes, artBytes] = await Promise.all([readFile(FONT_PATH), readFile(artPath(data.design))]);
 
     const pdf = await PDFDocument.create();
     pdf.registerFontkit(fontkit);
     const font = await pdf.embedFont(fontBytes, { subset: true });
-    const base = await pdf.embedJpg(baseBytes);
+    const art = await pdf.embedJpg(artBytes);
     const page = pdf.addPage([W, H]);
-    page.drawImage(base, { x: 0, y: 0, width: W, height: H });
+    page.drawImage(art, { x: 0, y: 0, width: W, height: H });
 
-    const black = rgb(0, 0, 0);
-    const drawCentered = (text: string, cx: number, top: number, size: number, color: ReturnType<typeof rgb>, maxW: number) => {
+    const color = rgb(geo.color[0] / 255, geo.color[1] / 255, geo.color[2] / 255);
+    const write = (text: string, line: LineSpec) => {
         const clean = text.trim();
         if (!clean) return;
-        let s = size;
-        let w = widthOf(font, clean, s);
-        while (w > maxW && s > 18) {
-            s -= 1;
-            w = widthOf(font, clean, s);
+        const maxW = line.x1 - line.x0 - 2 * LINE_PAD;
+        let size = geo.fontSize;
+        let w = widthOf(font, clean, size);
+        while (w > maxW && size > MIN_SIZE) {
+            size -= 1;
+            w = widthOf(font, clean, size);
         }
-        // Belleza's cap height sits about 0.95 em below the top of its box.
-        const baseline = H - (top + s * 0.95);
-        page.drawText(clean, { x: cx - w / 2, y: baseline, size: s, font, color });
+        const cx = (line.x0 + line.x1) / 2;
+        page.drawText(clean, { x: cx - w / 2, y: H - (line.y - LINE_RISE), size, font, color });
     };
 
-    drawCentered(data.to, VALUE_CX, ROW_TOP.to, VALUE_SIZE, black, VALUE_MAX_W);
-    drawCentered(data.amount, VALUE_CX, ROW_TOP.amount, VALUE_SIZE, black, VALUE_MAX_W);
-    drawCentered(data.from, VALUE_CX, ROW_TOP.from, VALUE_SIZE, black, VALUE_MAX_W);
-    drawCentered(data.expires, VALUE_CX, ROW_TOP.expires, VALUE_SIZE, black, VALUE_MAX_W);
-    drawCentered(data.code, VALUE_CX, ROW_TOP.code, VALUE_SIZE, black, VALUE_MAX_W);
-
-    const lines = data.occasion.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3);
-    lines.forEach((line, i) => {
-        drawCentered(line, OCCASION_CX, OCCASION_TOP + i * OCCASION_SIZE * OCCASION_LINE_H, OCCASION_SIZE, OCCASION_COLOR, OCCASION_MAX_W);
-    });
+    write(data.to, geo.rows.to);
+    write(data.amount, geo.rows.amount);
+    write(data.from, geo.rows.from);
+    write(data.expires, geo.rows.expires);
+    write(data.code, geo.rows.code);
 
     pdf.setTitle('Fusionista Gift Certificate');
     pdf.setAuthor('Fusionista, Modern Peruvian Cuisine');
@@ -99,16 +82,4 @@ function widthOf(font: PDFFont, text: string, size: number): number {
     } catch {
         return font.widthOfTextAtSize(text.replace(/[^\x20-\x7E¡-ÿ]/g, ' '), size);
     }
-}
-
-/**
- * The occasion line as printed on the card: two words become two lines so
- * "Happy Birthday!" stacks the way the Canva card does. Longer texts wrap by
- * width in the renderer.
- */
-export function occasionLines(text: string): string {
-    const words = text.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 2) return `${words[0]}\n${words[1]}`;
-    if (words.length === 3) return `${words[0]} ${words[1]}\n${words[2]}`;
-    return words.join(' ');
 }
