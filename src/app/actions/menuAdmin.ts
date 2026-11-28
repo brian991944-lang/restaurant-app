@@ -187,7 +187,7 @@ function isUniqueNameError(e: any) {
 export async function createMenuItem(data: MenuItemInput) {
     try {
         if (!data.name?.trim()) {
-            return { success: false, error: 'El nombre (EN) es obligatorio.' };
+            return { success: false, error: 'El nombre es obligatorio.' };
         }
         const tagErr = taglineError(data);
         if (tagErr) return { success: false, error: tagErr };
@@ -247,7 +247,7 @@ export async function createMenuItem(data: MenuItemInput) {
 export async function updateMenuItem(id: string, data: MenuItemInput) {
     try {
         if (data.name !== undefined && !data.name?.trim()) {
-            return { success: false, error: 'El nombre (EN) es obligatorio.' };
+            return { success: false, error: 'El nombre es obligatorio.' };
         }
         const tagErr = taglineError(data);
         if (tagErr) return { success: false, error: tagErr };

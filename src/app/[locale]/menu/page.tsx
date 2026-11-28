@@ -465,8 +465,7 @@ export default function MenuAdminPage() {
 
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {item.name}
-                                        {item.nameEs && <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> · {item.nameEs}</span>}
+                                        {item.nameEn || item.name}
                                     </div>
                                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                         {item.menuCategory ? `${item.menuCategory.nameEs}` : 'Sin categoría'}

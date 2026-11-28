@@ -71,7 +71,8 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
             setFeaturedError(null);
             if (initialData) {
                 setName(initialData.name || '');
-                setNameEn(initialData.nameEn || '');
+                // One name in the form: the menu name, falling back to the internal one.
+                setNameEn(initialData.nameEn || initialData.name || '');
                 setNameEs(initialData.nameEs || '');
                 setDescriptionEn(initialData.descriptionEn || '');
                 setDescriptionEs(initialData.descriptionEs || '');
@@ -106,6 +107,7 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 setFeaturedRankState(initialData.featuredRank ?? null);
             } else {
                 setName('');
+                setNameEn('');
                 setNameEs('');
                 setDescriptionEn('');
                 setDescriptionEs('');
@@ -275,9 +277,11 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
         setError(null);
         setIsSaving(true);
         const payload = {
-            name,
+            // Single name field. Clover owns `name` on a linked dish, so it is
+            // left as loaded there; everywhere else all three stay in step.
+            name: isCloverLinked ? name : nameEn,
             nameEn,
-            nameEs,
+            nameEs: nameEn,
             descriptionEn,
             descriptionEs,
             taglineEn,
@@ -367,29 +371,19 @@ export default function ItemEditorModal({ isOpen, onClose, onSaved, categories, 
                 )}
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                        <div style={fieldStyle}>
-                            <label style={labelStyle}>Nombre (EN) *</label>
-                            <input
-                                value={name}
-                                onChange={e => setName(e.target.value)}
-                                type="text"
-                                className="input-field"
-                                placeholder="p.ej. Lomo Saltado"
-                                required
-                                readOnly={isCloverLinked}
-                                style={isCloverLinked ? lockedStyle : undefined}
-                            />
-                            {isCloverLinked && <span style={lockedNoteStyle}>Se edita en Clover</span>}
-                        </div>
-                        <div style={fieldStyle}>
-                            <label style={labelStyle}>Nombre para el menú (EN)</label>
-                            <input value={nameEn} onChange={e => setNameEn(e.target.value)} type="text" className="input-field" placeholder={name || 'p.ej. Lomo Saltado'} />
-                        </div>
-                        <div style={fieldStyle}>
-                            <label style={labelStyle}>Nombre (ES)</label>
-                            <input value={nameEs} onChange={e => setNameEs(e.target.value)} type="text" className="input-field" placeholder="p.ej. Lomo Saltado" />
-                        </div>
+                    <div style={fieldStyle}>
+                        <label style={labelStyle}>Nombre *</label>
+                        <input
+                            value={nameEn}
+                            onChange={e => setNameEn(e.target.value)}
+                            type="text"
+                            className="input-field"
+                            placeholder="p.ej. Lomo Saltado"
+                            required
+                        />
+                        {isCloverLinked && name && name !== nameEn && (
+                            <span style={lockedNoteStyle}>En Clover: {name}</span>
+                        )}
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
